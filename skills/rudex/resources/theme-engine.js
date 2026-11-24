@@ -9,7 +9,7 @@ const THEME_PRESETS = [
     descEn: "Original palette without overrides",
     mode: "native",
     vars: {
-      accentColor: "#2563eb",
+      accentColor: "#3b82f6",
       canvasBg: "#0c0c0e",
       cardBg: "#131316",
       sidebarBg: "#0f0f12",
@@ -236,9 +236,13 @@ function teHexToRgba(hex, alphaPct) {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-function teIsLightColor(hex) {
+function teGetYiq(hex) {
   const { r, g, b } = teHexToRgb(hex);
-  return (r * 299 + g * 587 + b * 114) / 1000 > 145;
+  return (r * 299 + g * 587 + b * 114) / 1000;
+}
+
+function teIsLightColor(hex) {
+  return teGetYiq(hex) > 145;
 }
 
 function teMixHex(hexA, hexB, ratio) {
@@ -256,17 +260,178 @@ function teValidMediaUrl(raw) {
   if (typeof raw !== "string") return "";
   const s = raw.trim();
   if (!s) return "";
-  if (s.startsWith("agy-media://local/")) return s.slice(0, 240);
+  if (s.startsWith("rudex-media://local/") || s.startsWith("agy-media://local/")) {
+    return s.slice(0, 240);
+  }
   if (s.startsWith("blob:") && s.length <= 240 && !/[\s"'<>]/.test(s)) return s;
   return "";
 }
 
-function teEscapeAttr(str) {
-  return String(str || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function teParseCssAlpha(rawAlpha) {
+  const s = String(rawAlpha || "").trim();
+  if (!s) return 1;
+  const n = parseFloat(s);
+  if (!Number.isFinite(n)) return 1;
+  return s.endsWith("%") ? n / 100 : n;
+}
+
+function teParseColorIsLight(rawColor) {
+  const s = String(rawColor || "").trim().toLowerCase();
+  if (!s || s === "transparent" || s === "none" || s === "initial" || s === "inherit") {
+    return null;
+  }
+
+  const hexM = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(s);
+  if (hexM) {
+    const h = hexM[1];
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let a = 1;
+    if (h.length === 3 || h.length === 4) {
+      r = parseInt(h[0] + h[0], 16);
+      g = parseInt(h[1] + h[1], 16);
+      b = parseInt(h[2] + h[2], 16);
+      if (h.length === 4) a = parseInt(h[3] + h[3], 16) / 255;
+    } else {
+      r = parseInt(h.slice(0, 2), 16);
+      g = parseInt(h.slice(2, 4), 16);
+      b = parseInt(h.slice(4, 6), 16);
+      if (h.length === 8) a = parseInt(h.slice(6, 8), 16) / 255;
+    }
+    if (a <= 0.05) return null;
+    return (r * 299 + g * 587 + b * 114) / 1000 > 145;
+  }
+
+  const rgbM = /^rgba?\(\s*([^)]+)\s*\)$/i.exec(s);
+  if (rgbM) {
+    const slashParts = rgbM[1].split("/");
+    if (slashParts.length > 1 && teParseCssAlpha(slashParts[1]) <= 0.05) {
+      return null;
+    }
+    const comps = slashParts[0].trim().split(/[\s,]+/);
+    if (comps.length < 3) return null;
+    if (slashParts.length === 1 && comps.length >= 4 && teParseCssAlpha(comps[3]) <= 0.05) {
+      return null;
+    }
+    const parseChannel = (tok) => {
+      const n = parseFloat(tok);
+      if (!Number.isFinite(n)) return NaN;
+      return tok.endsWith("%") ? n * 2.55 : n;
+    };
+    const r = parseChannel(comps[0]);
+    const g = parseChannel(comps[1]);
+    const b = parseChannel(comps[2]);
+    if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) return null;
+    return (r * 299 + g * 587 + b * 114) / 1000 > 145;
+  }
+
+  const okM = /^okl(?:ch|ab)\(\s*([^)]+)\s*\)$/i.exec(s);
+  if (okM) {
+    const slashParts = okM[1].split("/");
+    if (slashParts.length > 1 && teParseCssAlpha(slashParts[1]) <= 0.05) {
+      return null;
+    }
+    const comps = slashParts[0].trim().split(/[\s,]+/);
+    if (!comps[0]) return null;
+    const rawL = parseFloat(comps[0]);
+    if (!Number.isFinite(rawL)) return null;
+    const L = comps[0].endsWith("%") ? rawL / 100 : rawL;
+    return L > 0.65;
+  }
+
+  const hslM = /^hsla?\(\s*([^)]+)\s*\)$/i.exec(s);
+  if (hslM) {
+    const slashParts = hslM[1].split("/");
+    if (slashParts.length > 1 && teParseCssAlpha(slashParts[1]) <= 0.05) {
+      return null;
+    }
+    const comps = slashParts[0].trim().split(/[\s,]+/);
+    if (comps.length < 3) return null;
+    if (slashParts.length === 1 && comps.length >= 4 && teParseCssAlpha(comps[3]) <= 0.05) {
+      return null;
+    }
+    const l = parseFloat(comps[2]);
+    if (!Number.isFinite(l)) return null;
+    return l > 55;
+  }
+
+  return null;
+}
+
+function teHasClass(el, cls) {
+  if (!el) return false;
+  if (el.classList && typeof el.classList.contains === "function") {
+    return el.classList.contains(cls);
+  }
+  if (typeof el.getAttribute === "function") {
+    const raw = el.getAttribute("class");
+    return typeof raw === "string" && raw.split(/\s+/).includes(cls);
+  }
+  return false;
+}
+
+function teGetAttr(el, name) {
+  if (!el || typeof el.getAttribute !== "function") return "";
+  const val = el.getAttribute(name);
+  return typeof val === "string" ? val : "";
+}
+
+function detectHostIsLight(doc, win) {
+  try {
+    const htmlEl = doc && doc.documentElement ? doc.documentElement : null;
+    const bodyEl = doc && doc.body ? doc.body : null;
+
+    if (htmlEl) {
+      const htmlTheme = teGetAttr(htmlEl, "data-theme").trim().toLowerCase();
+      if (htmlTheme === "light" || teHasClass(htmlEl, "light")) return true;
+      if (htmlTheme === "dark" || teHasClass(htmlEl, "dark")) return false;
+    }
+
+    if (bodyEl) {
+      const bodyTheme = teGetAttr(bodyEl, "data-theme").trim().toLowerCase();
+      if (
+        bodyTheme === "light" ||
+        teHasClass(bodyEl, "light") ||
+        teHasClass(bodyEl, "vscode-light")
+      ) {
+        return true;
+      }
+      if (
+        bodyTheme === "dark" ||
+        teHasClass(bodyEl, "dark") ||
+        teHasClass(bodyEl, "vscode-dark")
+      ) {
+        return false;
+      }
+    }
+
+    const targets = [htmlEl, bodyEl];
+    for (let i = 0; i < targets.length; i += 1) {
+      const el = targets[i];
+      if (!el) continue;
+      if (win && typeof win.getComputedStyle === "function") {
+        const cs = win.getComputedStyle(el);
+        if (cs) {
+          if (typeof cs.getPropertyValue === "function") {
+            const bgVar = teParseColorIsLight(cs.getPropertyValue("--background"));
+            if (bgVar !== null) return bgVar;
+          }
+          const bgCol = teParseColorIsLight(cs.backgroundColor);
+          if (bgCol !== null) return bgCol;
+        }
+      } else if (el.style && el.style.backgroundColor) {
+        const inlineCol = teParseColorIsLight(el.style.backgroundColor);
+        if (inlineCol !== null) return inlineCol;
+      }
+    }
+
+    if (win && typeof win.matchMedia === "function") {
+      const mq = win.matchMedia("(prefers-color-scheme: light)");
+      if (mq && mq.matches) return true;
+    }
+  } catch (_e) {}
+  return false;
 }
 
 function normalizeAppearance(raw) {
@@ -344,17 +509,30 @@ function normalizeAppearance(raw) {
   };
 }
 
+function teHasCustomTypography(cfg) {
+  const ty = cfg.typography;
+  return (
+    ty.uiFont !== "system" ||
+    ty.monoFont !== "system" ||
+    ty.fontSize !== 14 ||
+    ty.lineHeight !== 1.55 ||
+    ty.chatMaxWidth !== 0 ||
+    ty.density !== "comfortable"
+  );
+}
+
+function teHasActiveWallpaper(cfg) {
+  const wp = cfg.wallpaper;
+  return wp.type !== "none" && (wp.type === "gradient" || Boolean(wp.mediaUrl));
+}
+
 function isAppearanceNativeDefault(raw) {
   const cfg = normalizeAppearance(raw);
   return (
     cfg.presetId === "native" &&
+    cfg.uiPolish === true &&
     cfg.wallpaper.type === "none" &&
-    cfg.typography.uiFont === "system" &&
-    cfg.typography.monoFont === "system" &&
-    cfg.typography.fontSize === 14 &&
-    cfg.typography.lineHeight === 1.55 &&
-    cfg.typography.chatMaxWidth === 0 &&
-    cfg.typography.density === "comfortable"
+    !teHasCustomTypography(cfg)
   );
 }
 
@@ -384,28 +562,30 @@ function teResolveThemeVars(cfg) {
   });
 }
 
-function buildThemeCss(rawAppearance) {
+function teBuildGradientCss(wp) {
+  const c1 = teValidHex(wp.gradColors && wp.gradColors[0], "#0f172a");
+  const c2 = teValidHex(wp.gradColors && wp.gradColors[1], "#1e1b4b");
+  const c3 = teValidHex(wp.gradColors && wp.gradColors[2], "#09090b");
+  return `linear-gradient(${Math.round(teClamp(wp.gradAngle, 0, 360, 135))}deg, ${c1} 0%, ${c2} 50%, ${c3} 100%)`;
+}
+
+function buildThemeCss(rawAppearance, options) {
   const cfg = normalizeAppearance(rawAppearance);
-  if (isAppearanceNativeDefault(cfg)) {
+  const opts = options && typeof options === "object" ? options : {};
+  const hasThemeOverride = cfg.presetId !== "native";
+  const hasWallpaper = teHasActiveWallpaper(cfg);
+  const hasCustomTypo = teHasCustomTypography(cfg);
+
+  if (!hasThemeOverride && !hasWallpaper && !hasCustomTypo && !cfg.uiPolish) {
     return "";
   }
 
   const vars = teResolveThemeVars(cfg);
-  const hasThemeOverride = cfg.presetId !== "native";
-  const hasWallpaper = cfg.wallpaper.type !== "none" && (cfg.wallpaper.type === "gradient" || Boolean(cfg.wallpaper.mediaUrl));
   const ty = cfg.typography;
   const uiFontObj = teFindFont("ui", ty.uiFont);
   const monoFontObj = teFindFont("mono", ty.monoFont);
-  const isLight = hasThemeOverride ? vars.mode === "light" : false;
+  const isLight = hasThemeOverride ? vars.mode === "light" : Boolean(opts.hostIsLight);
   const chunks = [];
-
-  chunks.push(`
-@keyframes agy-ru-grad-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-`);
 
   if (hasThemeOverride) {
     const cardAlpha = hasWallpaper ? Math.min(vars.glassOpacity, 88) : Math.max(vars.glassOpacity, 90);
@@ -413,13 +593,14 @@ function buildThemeCss(rawAppearance) {
     const secondaryHex = teMixHex(vars.cardBg, isLight ? "#000000" : "#ffffff", 0.06);
     const cardRgba = teHexToRgba(vars.cardBg, cardAlpha);
     const sidebarRgba = teHexToRgba(vars.sidebarBg, sidebarAlpha);
+    const primaryFg = teGetYiq(vars.accentColor) > 155 ? "#111216" : "#ffffff";
 
     chunks.push(`
 :root, html, body {
   --background: ${vars.canvasBg};
   --foreground: ${vars.fgColor};
   --primary: ${vars.accentColor};
-  --primary-foreground: #ffffff;
+  --primary-foreground: ${primaryFg};
   --link: ${vars.accentColor};
   --secondary: ${secondaryHex};
   --secondary-foreground: ${vars.fgColor};
@@ -442,39 +623,45 @@ html, body {
     }
   }
 
+  let msgAlpha = 0;
   if (hasWallpaper) {
     const surfaceBg = hasThemeOverride
       ? teHexToRgba(vars.cardBg, vars.glassOpacity)
-      : `rgba(19, 19, 22, ${Math.round(cfg.glassOpacity) / 100})`;
+      : teHexToRgba(isLight ? "#ffffff" : "#131316", cfg.glassOpacity);
     const sidebarGlassBg = hasThemeOverride
       ? teHexToRgba(vars.sidebarBg, Math.min(100, vars.glassOpacity + 8))
-      : `rgba(14, 14, 18, ${Math.min(100, cfg.glassOpacity + 8) / 100})`;
+      : teHexToRgba(isLight ? "#f4f5f8" : "#0e0e12", Math.min(100, cfg.glassOpacity + 8));
     const headerGlassBg = hasThemeOverride
       ? teHexToRgba(vars.sidebarBg, Math.min(100, vars.glassOpacity + 4))
-      : `rgba(14, 14, 18, ${Math.min(100, cfg.glassOpacity + 4) / 100})`;
+      : teHexToRgba(isLight ? "#f4f5f8" : "#0e0e12", Math.min(100, cfg.glassOpacity + 4));
     const popoverBg = hasThemeOverride
       ? teHexToRgba(vars.cardBg, Math.min(98, Math.max(92, vars.glassOpacity + 14)))
-      : "rgba(22, 22, 28, 0.96)";
+      : (isLight ? "rgba(255, 255, 255, 0.96)" : "rgba(22, 22, 28, 0.96)");
     const blurPx = cfg.glassBlur;
-    const msgAlpha = Math.round(teClamp(cfg.messageCardOpacity, 0, 96, 74));
+    const glassBlurCss = blurPx > 0
+      ? `backdrop-filter: blur(${blurPx}px); -webkit-backdrop-filter: blur(${blurPx}px);`
+      : "";
+    msgAlpha = Math.round(teClamp(cfg.messageCardOpacity, 0, 96, 74));
     const agentSurfaceBg = msgAlpha <= 0
       ? "transparent"
       : (hasThemeOverride
           ? (isLight
               ? teHexToRgba("#ffffff", Math.min(96, msgAlpha + 8))
               : teHexToRgba(vars.cardBg, msgAlpha))
-          : `rgba(12, 13, 18, ${msgAlpha / 100})`);
+          : (isLight
+              ? teHexToRgba("#ffffff", Math.min(96, msgAlpha + 8))
+              : teHexToRgba("#0c0d12", msgAlpha)));
     const userSurfaceBg = msgAlpha <= 0
       ? surfaceBg
       : (hasThemeOverride
           ? (isLight
               ? teHexToRgba("#ffffff", Math.min(96, msgAlpha + 12))
               : teHexToRgba(vars.cardBg, Math.min(96, msgAlpha + 6)))
-          : `rgba(18, 20, 28, ${Math.min(96, msgAlpha + 6) / 100})`);
+          : (isLight
+              ? teHexToRgba("#ffffff", Math.min(96, msgAlpha + 12))
+              : teHexToRgba("#12141c", Math.min(96, msgAlpha + 6))));
     const msgBorderCol = isLight ? "rgba(15, 23, 42, 0.12)" : "rgba(255, 255, 255, 0.10)";
-    const msgBlurCss = msgAlpha > 0 && blurPx > 0
-      ? `backdrop-filter: blur(${blurPx}px); -webkit-backdrop-filter: blur(${blurPx}px);`
-      : "";
+    const msgBlurCss = msgAlpha > 0 && blurPx > 0 ? glassBlurCss : "";
     const msgShadowCss = msgAlpha > 0
       ? (isLight ? "box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);" : "box-shadow: 0 4px 24px rgba(0, 0, 0, 0.32);")
       : "";
@@ -492,12 +679,14 @@ html, body {
 [data-testid="agent-response"] code:not(pre code), [data-markdown-root] code:not(pre code) {
   background-color: rgba(15, 23, 42, 0.09) !important;
   border: 1px solid rgba(15, 23, 42, 0.14);
+  color: #111216 !important;
   padding: 1px 5px;
   border-radius: 5px;
 }
-[data-testid="agent-response"] pre, [data-markdown-root] pre {
-  background-color: rgba(244, 245, 248, 0.92) !important;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+:where([data-testid="agent-response"], [data-markdown-root]) pre {
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  border-radius: ${Math.max(6, vars.radius - 2)}px;
 }`
           : `
 [data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root] {
@@ -515,12 +704,31 @@ html, body {
   padding: 1px 5px;
   border-radius: 5px;
 }
-[data-testid="agent-response"] pre, [data-markdown-root] pre {
-  background-color: rgba(10, 11, 16, 0.88) !important;
-  border: 1px solid rgba(255, 255, 255, 0.10);
+:where([data-testid="agent-response"], [data-markdown-root]) pre {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-radius: ${Math.max(6, vars.radius - 2)}px;
 }`)
       : "";
-    const fallbackBg = hasThemeOverride ? vars.canvasBg : "#09090b";
+    const fallbackBg = hasThemeOverride ? vars.canvasBg : (isLight ? "#f6f7fa" : "#09090b");
+
+    if (cfg.wallpaper.type === "gradient") {
+      chunks.push(`
+@keyframes rudex-grad-flow {
+  0% { transform: translate3d(-16%, -14%, 0); }
+  50% { transform: translate3d(16%, 14%, 0); }
+  100% { transform: translate3d(-16%, -14%, 0); }
+}
+#rudex-bg[data-hidden="1"] [data-role="bg-gradient-flow"] {
+  animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  #rudex-bg [data-role="bg-gradient-flow"] {
+    animation-play-state: paused !important;
+  }
+}
+`);
+    }
 
     chunks.push(`
 :root, html, body {
@@ -534,39 +742,49 @@ html, body {
 html {
   background-color: ${fallbackBg} !important;
 }
-body, #root, #app {
+body {
   background-color: transparent !important;
   background-image: none !important;
+  isolation: isolate;
 }
 #root, #app {
-  position: relative;
-  z-index: 1;
-}
-[data-agy-ru-bg-shell="1"] {
   background-color: transparent !important;
   background-image: none !important;
 }
-[data-agy-ru-bg-sidebar="1"],
-aside,
-nav[aria-label],
-[data-testid="sidebar"] {
-  background-color: ${sidebarGlassBg} !important;
+#rudex-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
 }
-[data-agy-ru-bg-header="1"] {
-  background-color: ${headerGlassBg} !important;
+[data-rudex-bg-shell="1"] {
+  background-color: transparent !important;
+  background-image: none !important;
 }
 main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
 [data-testid="chat-container"]:not([role="dialog"]),
 [data-testid="conversation-view"]:not([role="dialog"]),
-[class*="bg-background"]:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
-.bg-black:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]) {
+:where(div, section)[class*="bg-background"]:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [role="button"], [role="tab"], [role="switch"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-slot="badge"], [data-slot="button"], [data-rudex-ignore="1"])),
+:where(div, section).bg-black:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [role="button"], [role="tab"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-rudex-ignore="1"])) {
   background-color: transparent !important;
+}
+[data-rudex-bg-sidebar="1"],
+aside,
+nav[aria-label],
+[data-testid="sidebar"] {
+  background-color: ${sidebarGlassBg} !important;
+  ${glassBlurCss}
+}
+[data-rudex-bg-header="1"] {
+  background-color: ${headerGlassBg} !important;
+  ${glassBlurCss}
 }
 [data-testid="agent-response"] {
   background-color: ${agentSurfaceBg} !important;
   border: ${msgAlpha > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
   border-radius: ${vars.radius}px !important;
-  ${msgAlpha > 0 ? "padding: 14px 18px !important;" : ""}
+  ${msgAlpha > 0 ? "padding-inline: 18px !important;" : ""}
   ${msgShadowCss}
   ${msgBlurCss}
   ${msgAlpha <= 0 && cfg.highContrastText !== false ? `text-shadow: ${isLight ? "0 1px 2px rgba(255,255,255,0.85)" : "0 1px 3px rgba(0,0,0,0.85)"};` : ""}
@@ -576,13 +794,13 @@ main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="to
   border: 1px solid ${msgBorderCol} !important;
   border-radius: ${vars.radius}px !important;
   ${msgShadowCss}
-  backdrop-filter: blur(${blurPx}px);
-  -webkit-backdrop-filter: blur(${blurPx}px);
+  ${glassBlurCss}
 }
 ${msgContrastCss}
-form:has(textarea), [data-testid="composer"], .composer-container {
+form:has(textarea[placeholder]), [data-testid="composer"], .composer-container {
   background-color: ${userSurfaceBg} !important;
   border-radius: ${vars.radius}px;
+  ${glassBlurCss}
 }
 [role="dialog"],
 [role="alertdialog"],
@@ -623,7 +841,8 @@ code, pre, kbd, samp {
   if (ty.chatMaxWidth >= 680) {
     chunks.push(`
 [data-testid="agent-response"], [data-testid="user-message-content"] {
-  max-width: min(100%, ${ty.chatMaxWidth}px);
+  max-width: min(100%, ${ty.chatMaxWidth}px) !important;
+  margin-inline: auto !important;
 }
 `);
   }
@@ -639,11 +858,32 @@ code, pre, kbd, samp {
   } else if (ty.density === "spacious") {
     chunks.push(`
 [data-testid="agent-response"], [data-testid="user-message-content"] {
-  padding-top: 12px !important;
-  padding-bottom: 12px !important;
-  margin-bottom: 12px !important;
+  padding-top: 18px !important;
+  padding-bottom: 18px !important;
+  margin-bottom: 14px !important;
 }
 `);
+  } else if (hasWallpaper) {
+    if (msgAlpha > 0) {
+      chunks.push(`
+[data-testid="agent-response"], [data-testid="user-message-content"] {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  margin-bottom: 8px !important;
+}
+`);
+    } else {
+      chunks.push(`
+[data-testid="user-message-content"] {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  margin-bottom: 8px !important;
+}
+[data-testid="agent-response"] {
+  margin-bottom: 8px !important;
+}
+`);
+    }
   }
 
   if (cfg.uiPolish) {
@@ -656,13 +896,13 @@ code, pre, kbd, samp {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: ${hasThemeOverride && isLight ? "rgba(20, 20, 24, 0.22)" : "rgba(255, 255, 255, 0.16)"};
+  background: ${isLight ? "rgba(20, 20, 24, 0.22)" : "rgba(255, 255, 255, 0.16)"};
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: ${hasThemeOverride && isLight ? "rgba(20, 20, 24, 0.36)" : "rgba(255, 255, 255, 0.28)"};
+  background: ${isLight ? "rgba(20, 20, 24, 0.36)" : "rgba(255, 255, 255, 0.28)"};
 }
-textarea:focus, form:has(textarea:focus-within) {
+textarea:focus, form:has(textarea[placeholder]:focus-within), [data-testid="composer"]:focus-within, .composer-container:focus-within {
   border-color: ${vars.accentColor} !important;
 }
 `);
@@ -671,39 +911,45 @@ textarea:focus, form:has(textarea:focus-within) {
   return chunks.join("\n").trim();
 }
 
-function teBuildGradientCss(wp) {
-  const c1 = teValidHex(wp.gradColors && wp.gradColors[0], "#0f172a");
-  const c2 = teValidHex(wp.gradColors && wp.gradColors[1], "#1e1b4b");
-  const c3 = teValidHex(wp.gradColors && wp.gradColors[2], "#09090b");
-  return `linear-gradient(${Math.round(teClamp(wp.gradAngle, 0, 360, 135))}deg, ${c1} 0%, ${c2} 50%, ${c3} 100%)`;
-}
-
 function createThemeEngine(options = {}) {
   const doc = options.document || (typeof document !== "undefined" ? document : null);
   const win = options.window || (typeof window !== "undefined" ? window : null);
   const resolveMediaUrl = typeof options.resolveMediaUrl === "function" ? options.resolveMediaUrl : null;
 
+  const STYLE_ID = "rudex-studio-theme";
+  const BG_ID = "rudex-bg";
+  const HOST_ID = "rudex-studio-host";
+  const IGNORE_ATTR = "data-rudex-ignore";
+  const SHELL_ATTRS = ["data-rudex-bg-shell", "data-rudex-bg-sidebar", "data-rudex-bg-header"];
+  const SHELL_SCAN_THROTTLE_MS = 900;
+  const SHELL_SKIP_TAGS = new Set(["PRE", "CODE", "BUTTON", "INPUT", "TEXTAREA", "FORM", "SVG", "IMG", "VIDEO", "CANVAS", "SCRIPT", "STYLE"]);
+  const SHELL_SKIP_ROLES = new Set(["dialog", "alertdialog", "menu", "listbox", "tooltip"]);
+  const SHELL_SKIP_TESTIDS = new Set(["user-message-content", "agent-response"]);
+  const MUTATION_IGNORE_SELECTOR = '[data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"], #rudex-studio-host, #rudex-bg';
+
   let currentConfig = normalizeAppearance(DEFAULT_APPEARANCE);
   let styleNode = null;
   let bgLayer = null;
   let mediaChild = null;
+  let gradFlowChild = null;
   let scrimChild = null;
   let activeVideoUrl = "";
-  let visHandler = null;
-  let blurHandler = null;
-  let focusHandler = null;
+  let videoVisEl = null;
+  let videoVisHandler = null;
+  let videoPauseWhenHidden = true;
+  let gradVisHandler = null;
+  let domReadyHandler = null;
   let shellScanTimer = null;
+  let lastShellScanAt = 0;
   let shellObserver = null;
+  let shellObservedTarget = null;
+  let shellWatchersAttached = false;
   let shellResizeHandler = null;
   let wallpaperActive = false;
   let lastCssText = "";
+  let lastHadThemeOverride = false;
   let pendingFastConfig = null;
   let fastRafId = 0;
-
-  const SHELL_ATTRS = ["data-agy-ru-bg-shell", "data-agy-ru-bg-sidebar", "data-agy-ru-bg-header"];
-  const SHELL_SKIP_TAGS = new Set(["PRE", "CODE", "BUTTON", "INPUT", "TEXTAREA", "FORM", "SVG", "IMG", "VIDEO", "CANVAS", "SCRIPT", "STYLE"]);
-  const SHELL_SKIP_ROLES = new Set(["dialog", "alertdialog", "menu", "listbox", "tooltip"]);
-  const SHELL_SKIP_TESTIDS = new Set(["user-message-content", "agent-response"]);
 
   function teParseBgAlpha(bgStr) {
     const s = String(bgStr || "").trim().toLowerCase();
@@ -756,6 +1002,9 @@ function createThemeEngine(options = {}) {
       win.clearTimeout(shellScanTimer);
       shellScanTimer = null;
     }
+    lastShellScanAt = 0;
+    shellWatchersAttached = false;
+    shellObservedTarget = null;
     if (shellObserver && typeof shellObserver.disconnect === "function") {
       shellObserver.disconnect();
       shellObserver = null;
@@ -766,7 +1015,7 @@ function createThemeEngine(options = {}) {
     }
     if (!doc || typeof doc.querySelectorAll !== "function") return;
     try {
-      const marked = doc.querySelectorAll("[data-agy-ru-bg-shell], [data-agy-ru-bg-sidebar], [data-agy-ru-bg-header]");
+      const marked = doc.querySelectorAll("[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header]");
       for (let i = 0; marked && i < marked.length; i += 1) {
         clearShellAttrsOnElement(marked[i]);
       }
@@ -776,16 +1025,48 @@ function createThemeEngine(options = {}) {
   function isSkippedShellNode(el) {
     if (!el || el.nodeType !== 1) return true;
     const id = el.id || "";
-    if (id === "agy-ru-studio-host" || id === "agy-ru-studio-bg" || id === "agy-ru-studio-theme") return true;
+    if (id === HOST_ID || id === BG_ID || id === STYLE_ID) return true;
     const tag = String(el.tagName || "").toUpperCase();
     if (SHELL_SKIP_TAGS.has(tag)) return true;
     if (typeof el.getAttribute === "function") {
+      if (el.getAttribute(IGNORE_ATTR) === "1") return true;
       const role = el.getAttribute("role");
       if (role && SHELL_SKIP_ROLES.has(role)) return true;
       const tid = el.getAttribute("data-testid");
       if (tid && SHELL_SKIP_TESTIDS.has(tid)) return true;
-      if (el.hasAttribute("data-markdown-root")) return true;
-      if (el.hasAttribute("data-radix-popper-content-wrapper")) return true;
+      if (typeof el.hasAttribute === "function") {
+        if (el.hasAttribute("data-markdown-root")) return true;
+        if (el.hasAttribute("data-radix-popper-content-wrapper")) return true;
+      } else {
+        if (el.getAttribute("data-markdown-root") !== null) return true;
+        if (el.getAttribute("data-radix-popper-content-wrapper") !== null) return true;
+      }
+    }
+    return false;
+  }
+
+  function isIgnoredMutationTarget(node) {
+    if (!node) return false;
+    let cur = node.nodeType === 1 ? node : (node.parentElement || node.parentNode);
+    if (!cur || cur.nodeType !== 1) return false;
+    if (typeof cur.closest === "function") {
+      try {
+        if (cur.closest(MUTATION_IGNORE_SELECTOR)) return true;
+      } catch (_e) {}
+    }
+    while (cur && cur.nodeType === 1) {
+      const id = cur.id || "";
+      if (id === HOST_ID || id === BG_ID) return true;
+      if (typeof cur.getAttribute === "function") {
+        const tid = cur.getAttribute("data-testid");
+        if (tid === "agent-response" || tid === "user-message-content") return true;
+        if (typeof cur.hasAttribute === "function") {
+          if (cur.hasAttribute("data-markdown-root")) return true;
+        } else if (cur.getAttribute("data-markdown-root") !== null) {
+          return true;
+        }
+      }
+      cur = cur.parentElement || cur.parentNode;
     }
     return false;
   }
@@ -798,13 +1079,18 @@ function createThemeEngine(options = {}) {
     const vh = Number(win.innerHeight) || 0;
     if (vw < 100 || vh < 100) return;
 
-    const queue = [{ el: rootTarget, depth: 0 }];
-    let visited = 0;
-    const maxNodes = 160;
-    const maxDepth = 7;
+    lastShellScanAt = Date.now();
 
-    while (queue.length > 0 && visited < maxNodes) {
-      const item = queue.shift();
+    // Phase 1 (Read-only BFS): collect layout metrics and computed bg alpha
+    const queue = [{ el: rootTarget, depth: 0 }];
+    let head = 0;
+    let visited = 0;
+    const maxNodes = 140;
+    const maxDepth = 6;
+    const plans = [];
+
+    while (head < queue.length && visited < maxNodes) {
+      const item = queue[head++];
       const el = item.el;
       if (isSkippedShellNode(el)) continue;
       visited += 1;
@@ -813,20 +1099,19 @@ function createThemeEngine(options = {}) {
         const rect = el.getBoundingClientRect();
         if (rect && rect.width > 0 && rect.height > 0) {
           let attr = "";
-          if (rect.width >= vw * 0.5 && rect.height >= vh * 0.5) {
-            attr = "data-agy-ru-bg-shell";
-          } else if (rect.left <= 16 && rect.width >= 150 && rect.width <= 420 && rect.height >= vh * 0.65) {
-            attr = "data-agy-ru-bg-sidebar";
+          if (rect.left <= 16 && rect.width >= 150 && rect.width <= 380 && rect.height >= vh * 0.65) {
+            attr = "data-rudex-bg-sidebar";
+          } else if (rect.width >= vw * 0.5 && rect.height >= vh * 0.5) {
+            attr = "data-rudex-bg-shell";
           } else if (rect.top <= 16 && rect.height >= 26 && rect.height <= 68 && rect.width >= vw * 0.5) {
-            attr = "data-agy-ru-bg-header";
+            attr = "data-rudex-bg-header";
           }
           if (attr) {
-            const bgAlpha = teParseBgAlpha(win.getComputedStyle(el).backgroundColor);
-            if (bgAlpha >= 0.85 || (typeof el.hasAttribute === "function" && el.hasAttribute(attr))) {
-              setExclusiveShellAttr(el, attr);
-            }
+            const cs = win.getComputedStyle(el);
+            const bgAlpha = teParseBgAlpha(cs ? cs.backgroundColor : "");
+            plans.push({ el, attr, bgAlpha });
           } else {
-            clearShellAttrsOnElement(el);
+            plans.push({ el, attr: "", bgAlpha: 0 });
           }
         }
       }
@@ -835,6 +1120,16 @@ function createThemeEngine(options = {}) {
         for (let i = 0; i < el.children.length; i += 1) {
           queue.push({ el: el.children[i], depth: item.depth + 1 });
         }
+      }
+    }
+
+    // Phase 2 (Write-only): batch attribute updates after all reads finish
+    for (let i = 0; i < plans.length; i += 1) {
+      const p = plans[i];
+      if (p.attr && (p.bgAlpha >= 0.85 || (typeof p.el.hasAttribute === "function" && p.el.hasAttribute(p.attr)))) {
+        setExclusiveShellAttr(p.el, p.attr);
+      } else {
+        clearShellAttrsOnElement(p.el);
       }
     }
   }
@@ -846,54 +1141,149 @@ function createThemeEngine(options = {}) {
       return;
     }
     if (shellScanTimer) return;
+    const elapsed = Date.now() - lastShellScanAt;
+    const delay = elapsed >= SHELL_SCAN_THROTTLE_MS ? SHELL_SCAN_THROTTLE_MS : Math.max(180, SHELL_SCAN_THROTTLE_MS - elapsed);
     shellScanTimer = win.setTimeout(() => {
       shellScanTimer = null;
-      scanWallpaperShells();
-    }, 180);
+      if (!wallpaperActive) return;
+      const didScan = ensureShellWatchers();
+      if (!didScan) scanWallpaperShells();
+    }, delay);
   }
 
   function ensureShellWatchers() {
-    if (!wallpaperActive || !doc || !win) return;
-    scanWallpaperShells();
-    if (!shellObserver && typeof win.MutationObserver === "function") {
-      const watchTarget = (typeof doc.querySelector === "function" && doc.querySelector("#root, #app")) || doc.body;
-      if (watchTarget) {
+    if (!wallpaperActive || !doc || !win) return false;
+    const preferredRoot = typeof doc.querySelector === "function" ? doc.querySelector("#root, #app") : null;
+    const watchTarget = preferredRoot || doc.body;
+    if (!watchTarget) {
+      shellWatchersAttached = false;
+      return false;
+    }
+
+    let didScan = false;
+    if (!shellWatchersAttached || (preferredRoot && shellObservedTarget !== preferredRoot)) {
+      scanWallpaperShells();
+      didScan = true;
+    }
+
+    const hasMo = typeof win.MutationObserver === "function";
+    if (hasMo) {
+      if (!shellObserver || (preferredRoot && shellObservedTarget !== preferredRoot)) {
+        if (shellObserver && typeof shellObserver.disconnect === "function") {
+          shellObserver.disconnect();
+        }
         try {
           shellObserver = new win.MutationObserver((muts) => {
             if (!wallpaperActive) return;
             for (let i = 0; i < muts.length; i += 1) {
               const m = muts[i];
               if (m.type === "attributes" && SHELL_ATTRS.indexOf(m.attributeName) >= 0) continue;
+              if (isIgnoredMutationTarget(m.target)) continue;
               scheduleShellScan();
               break;
             }
           });
           shellObserver.observe(watchTarget, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style"] });
-        } catch (_e) {}
+          shellObservedTarget = watchTarget;
+        } catch (_e) {
+          shellObserver = null;
+          shellObservedTarget = null;
+        }
       }
     }
+
     if (!shellResizeHandler && typeof win.addEventListener === "function") {
       shellResizeHandler = () => scheduleShellScan();
       win.addEventListener("resize", shellResizeHandler);
     }
+
+    shellWatchersAttached = !hasMo || Boolean(shellObserver);
+    return didScan;
+  }
+
+  function safePlayVideo(videoEl) {
+    if (!videoEl || typeof videoEl.play !== "function") return;
+    try {
+      const res = videoEl.play();
+      if (res && typeof res.catch === "function") res.catch(() => {});
+    } catch (_e) {}
+  }
+
+  function safePauseVideo(videoEl) {
+    if (!videoEl || typeof videoEl.pause !== "function") return;
+    try {
+      videoEl.pause();
+    } catch (_e) {}
   }
 
   function removeVideoListeners() {
-    if (doc && visHandler && typeof doc.removeEventListener === "function") {
-      doc.removeEventListener("visibilitychange", visHandler);
+    if (doc && videoVisHandler && typeof doc.removeEventListener === "function") {
+      doc.removeEventListener("visibilitychange", videoVisHandler);
     }
-    if (win && typeof win.removeEventListener === "function") {
-      if (blurHandler) win.removeEventListener("blur", blurHandler);
-      if (focusHandler) win.removeEventListener("focus", focusHandler);
+    videoVisHandler = null;
+    videoVisEl = null;
+  }
+
+  function attachVideoVisibilityOnce(videoEl) {
+    if (!videoEl || videoVisEl === videoEl) return;
+    removeVideoListeners();
+    videoVisEl = videoEl;
+    if (doc && typeof doc.addEventListener === "function") {
+      videoVisHandler = () => {
+        if (videoVisEl !== videoEl) return;
+        if (videoPauseWhenHidden && doc.hidden) {
+          safePauseVideo(videoEl);
+        } else {
+          safePlayVideo(videoEl);
+        }
+      };
+      doc.addEventListener("visibilitychange", videoVisHandler);
     }
-    visHandler = null;
-    blurHandler = null;
-    focusHandler = null;
+  }
+
+  function syncGradVisibilityState() {
+    const hidden = Boolean(doc && doc.hidden);
+    if (bgLayer && typeof bgLayer.setAttribute === "function") {
+      bgLayer.setAttribute("data-hidden", hidden ? "1" : "0");
+    }
+    if (gradFlowChild && gradFlowChild.style) {
+      gradFlowChild.style.animationPlayState = hidden ? "paused" : "";
+    }
+  }
+
+  function removeGradListeners() {
+    if (doc && gradVisHandler && typeof doc.removeEventListener === "function") {
+      doc.removeEventListener("visibilitychange", gradVisHandler);
+    }
+    gradVisHandler = null;
+  }
+
+  function attachGradVisibility() {
+    syncGradVisibilityState();
+    if (gradVisHandler || !doc || typeof doc.addEventListener !== "function") return;
+    gradVisHandler = () => syncGradVisibilityState();
+    doc.addEventListener("visibilitychange", gradVisHandler);
+  }
+
+  function removeDomReadyListener() {
+    if (doc && domReadyHandler && typeof doc.removeEventListener === "function") {
+      doc.removeEventListener("DOMContentLoaded", domReadyHandler);
+    }
+    domReadyHandler = null;
+  }
+
+  function scheduleDomReadyRetry() {
+    if (domReadyHandler || !doc || typeof doc.addEventListener !== "function") return;
+    domReadyHandler = () => {
+      removeDomReadyListener();
+      applySync(currentConfig);
+    };
+    doc.addEventListener("DOMContentLoaded", domReadyHandler, { once: true });
   }
 
   function removeStyleNode() {
     if (!doc) return;
-    const found = typeof doc.getElementById === "function" ? doc.getElementById("agy-ru-studio-theme") : styleNode;
+    const found = typeof doc.getElementById === "function" ? doc.getElementById(STYLE_ID) : styleNode;
     if (found && found.parentNode) {
       found.parentNode.removeChild(found);
     }
@@ -902,13 +1292,21 @@ function createThemeEngine(options = {}) {
 
   function removeBgLayer() {
     removeVideoListeners();
+    removeGradListeners();
+    if (mediaChild && mediaChild.tagName === "VIDEO") {
+      safePauseVideo(mediaChild);
+      if (typeof mediaChild.removeAttribute === "function") {
+        mediaChild.removeAttribute("src");
+      }
+    }
     if (!doc) return;
-    const found = typeof doc.getElementById === "function" ? doc.getElementById("agy-ru-studio-bg") : bgLayer;
+    const found = typeof doc.getElementById === "function" ? doc.getElementById(BG_ID) : bgLayer;
     if (found && found.parentNode) {
       found.parentNode.removeChild(found);
     }
     bgLayer = null;
     mediaChild = null;
+    gradFlowChild = null;
     scrimChild = null;
     activeVideoUrl = "";
   }
@@ -919,11 +1317,11 @@ function createThemeEngine(options = {}) {
       removeStyleNode();
       return;
     }
-    let node = typeof doc.getElementById === "function" ? doc.getElementById("agy-ru-studio-theme") : styleNode;
+    let node = typeof doc.getElementById === "function" ? doc.getElementById(STYLE_ID) : styleNode;
     if (!node) {
       node = doc.createElement("style");
-      node.id = "agy-ru-studio-theme";
-      node.setAttribute("data-agy-ru-ignore", "1");
+      node.id = STYLE_ID;
+      node.setAttribute(IGNORE_ATTR, "1");
       const target = doc.head || doc.documentElement || doc.body;
       if (!target) return;
       target.appendChild(node);
@@ -936,17 +1334,21 @@ function createThemeEngine(options = {}) {
 
   function ensureBgLayer() {
     if (!doc || typeof doc.createElement !== "function") return null;
-    let layer = typeof doc.getElementById === "function" ? doc.getElementById("agy-ru-studio-bg") : bgLayer;
+    let layer = typeof doc.getElementById === "function" ? doc.getElementById(BG_ID) : bgLayer;
     if (!layer) {
+      if (!doc.body && doc.readyState === "loading") {
+        scheduleDomReadyRetry();
+        return null;
+      }
       const mountTarget = doc.body || doc.documentElement;
       if (!mountTarget) return null;
       layer = doc.createElement("div");
-      layer.id = "agy-ru-studio-bg";
-      layer.setAttribute("data-agy-ru-ignore", "1");
+      layer.id = BG_ID;
+      layer.setAttribute(IGNORE_ATTR, "1");
       layer.setAttribute("aria-hidden", "true");
       layer.style.position = "fixed";
       layer.style.inset = "0";
-      layer.style.zIndex = "0";
+      layer.style.zIndex = mountTarget === doc.body ? "-1" : "0";
       layer.style.pointerEvents = "none";
       layer.style.overflow = "hidden";
       if (mountTarget.firstChild && typeof mountTarget.insertBefore === "function") {
@@ -959,7 +1361,7 @@ function createThemeEngine(options = {}) {
     return layer;
   }
 
-  function ensureScrim(layer, dimPct) {
+  function ensureScrim(layer, dimPct, isLight) {
     if (!doc || !layer) return;
     if (!scrimChild || scrimChild.parentNode !== layer) {
       scrimChild = doc.createElement("div");
@@ -970,39 +1372,12 @@ function createThemeEngine(options = {}) {
       layer.appendChild(scrimChild);
     }
     const dimAlpha = Math.round(teClamp(dimPct, 0, 85, 45)) / 100;
-    scrimChild.style.backgroundColor = `rgba(6, 7, 10, ${dimAlpha})`;
+    scrimChild.style.backgroundColor = isLight
+      ? `rgba(246, 247, 250, ${dimAlpha})`
+      : `rgba(6, 7, 10, ${dimAlpha})`;
   }
 
-  function attachVideoPauseLifecycle(videoEl, pauseWhenHidden) {
-    removeVideoListeners();
-    if (!pauseWhenHidden || !videoEl) return;
-    const syncPlayback = () => {
-      try {
-        if (doc && doc.hidden) {
-          if (typeof videoEl.pause === "function") videoEl.pause();
-        } else if (typeof videoEl.play === "function") {
-          const res = videoEl.play();
-          if (res && typeof res.catch === "function") res.catch(() => {});
-        }
-      } catch (_e) {}
-    };
-    visHandler = () => syncPlayback();
-    blurHandler = () => {
-      try {
-        if (typeof videoEl.pause === "function") videoEl.pause();
-      } catch (_e) {}
-    };
-    focusHandler = () => syncPlayback();
-    if (doc && typeof doc.addEventListener === "function") {
-      doc.addEventListener("visibilitychange", visHandler);
-    }
-    if (win && typeof win.addEventListener === "function") {
-      win.addEventListener("blur", blurHandler);
-      win.addEventListener("focus", focusHandler);
-    }
-  }
-
-  function applyWallpaper(cfg) {
+  function applyWallpaper(cfg, isLight) {
     const wp = cfg.wallpaper;
     if (wp.type === "none") {
       if (wallpaperActive) {
@@ -1025,24 +1400,27 @@ function createThemeEngine(options = {}) {
       return;
     }
 
-    const wasActive = wallpaperActive;
-    wallpaperActive = true;
-    if (!wasActive) {
-      ensureShellWatchers();
-    }
-
     const layer = ensureBgLayer();
     if (!layer) return;
 
+    wallpaperActive = true;
+    ensureShellWatchers();
+
     const filterCss = wp.blur > 0 ? `blur(${wp.blur}px)` : "none";
     const opacityVal = String(Math.round(teClamp(wp.opacity, 15, 100, 85)) / 100);
-    const scaleVal = wp.scale > 100 ? `scale(${(wp.scale / 100).toFixed(2)})` : (wp.blur > 0 ? "scale(1.06)" : "none");
+    const effScale = Math.max(wp.scale / 100, wp.blur > 0 ? 1.06 : 1);
+    const scaleVal = effScale > 1 ? `scale(${effScale.toFixed(2)})` : "none";
 
     if (wp.type === "video") {
+      removeGradListeners();
+      gradFlowChild = null;
+      const prevPauseWhenHidden = videoPauseWhenHidden;
+      videoPauseWhenHidden = Boolean(wp.pauseWhenHidden);
       const needNewVideo = !mediaChild || mediaChild.tagName !== "VIDEO" || activeVideoUrl !== resolvedSrc;
       if (needNewVideo) {
         removeVideoListeners();
         if (mediaChild && mediaChild.parentNode) {
+          if (mediaChild.tagName === "VIDEO") safePauseVideo(mediaChild);
           mediaChild.parentNode.removeChild(mediaChild);
         }
         const vid = doc.createElement("video");
@@ -1070,18 +1448,17 @@ function createThemeEngine(options = {}) {
         }
         mediaChild = vid;
         activeVideoUrl = resolvedSrc;
-        try {
-          if (typeof vid.play === "function") {
-            const p = vid.play();
-            if (p && typeof p.catch === "function") p.catch(() => {});
-          }
-        } catch (_e) {}
+        if (!(videoPauseWhenHidden && doc && doc.hidden)) {
+          safePlayVideo(vid);
+        }
+      } else if (prevPauseWhenHidden && !videoPauseWhenHidden) {
+        safePlayVideo(mediaChild);
       }
       mediaChild.style.filter = filterCss;
       mediaChild.style.opacity = opacityVal;
       mediaChild.style.transform = scaleVal;
-      attachVideoPauseLifecycle(mediaChild, wp.pauseWhenHidden);
-      ensureScrim(layer, wp.dim);
+      attachVideoVisibilityOnce(mediaChild);
+      ensureScrim(layer, wp.dim, isLight);
       return;
     }
 
@@ -1089,8 +1466,11 @@ function createThemeEngine(options = {}) {
     activeVideoUrl = "";
 
     if (wp.type === "image") {
+      removeGradListeners();
+      gradFlowChild = null;
       if (!mediaChild || mediaChild.tagName !== "IMG") {
         if (mediaChild && mediaChild.parentNode) {
+          if (mediaChild.tagName === "VIDEO") safePauseVideo(mediaChild);
           mediaChild.parentNode.removeChild(mediaChild);
         }
         const img = doc.createElement("img");
@@ -1115,54 +1495,119 @@ function createThemeEngine(options = {}) {
       mediaChild.style.filter = filterCss;
       mediaChild.style.opacity = opacityVal;
       mediaChild.style.transform = scaleVal;
-      ensureScrim(layer, wp.dim);
+      ensureScrim(layer, wp.dim, isLight);
       return;
     }
 
     if (!mediaChild || mediaChild.getAttribute("data-role") !== "bg-gradient") {
       if (mediaChild && mediaChild.parentNode) {
+        if (mediaChild.tagName === "VIDEO") safePauseVideo(mediaChild);
         mediaChild.parentNode.removeChild(mediaChild);
       }
-      const gradDiv = doc.createElement("div");
-      gradDiv.setAttribute("data-role", "bg-gradient");
-      gradDiv.style.position = "absolute";
-      gradDiv.style.inset = "0";
-      gradDiv.style.pointerEvents = "none";
+      const gradWrap = doc.createElement("div");
+      gradWrap.setAttribute("data-role", "bg-gradient");
+      gradWrap.style.position = "absolute";
+      gradWrap.style.inset = "0";
+      gradWrap.style.overflow = "hidden";
+      gradWrap.style.pointerEvents = "none";
+
+      const flowEl = doc.createElement("div");
+      flowEl.setAttribute("data-role", "bg-gradient-flow");
+      flowEl.style.position = "absolute";
+      flowEl.style.pointerEvents = "none";
+      gradWrap.appendChild(flowEl);
+
       if (scrimChild && scrimChild.parentNode === layer && typeof layer.insertBefore === "function") {
-        layer.insertBefore(gradDiv, scrimChild);
+        layer.insertBefore(gradWrap, scrimChild);
       } else {
-        layer.appendChild(gradDiv);
+        layer.appendChild(gradWrap);
       }
-      mediaChild = gradDiv;
+      mediaChild = gradWrap;
+      gradFlowChild = flowEl;
+    } else if (!gradFlowChild || gradFlowChild.parentNode !== mediaChild) {
+      const flowEl = doc.createElement("div");
+      flowEl.setAttribute("data-role", "bg-gradient-flow");
+      flowEl.style.position = "absolute";
+      flowEl.style.pointerEvents = "none";
+      mediaChild.appendChild(flowEl);
+      gradFlowChild = flowEl;
     }
-    mediaChild.style.backgroundImage = teBuildGradientCss(wp);
-    mediaChild.style.backgroundSize = wp.gradAnimated ? "220% 220%" : "100% 100%";
-    mediaChild.style.animation = wp.gradAnimated
-      ? `agy-ru-grad-shift ${wp.gradSpeed}s ease infinite`
-      : "none";
+
     mediaChild.style.filter = filterCss;
     mediaChild.style.opacity = opacityVal;
-    ensureScrim(layer, Math.round(wp.dim * 0.55));
+    mediaChild.style.transform = scaleVal;
+
+    gradFlowChild.style.backgroundImage = teBuildGradientCss(wp);
+    if (wp.gradAnimated) {
+      gradFlowChild.style.inset = "-50%";
+      gradFlowChild.style.width = "200%";
+      gradFlowChild.style.height = "200%";
+      gradFlowChild.style.willChange = "transform";
+      gradFlowChild.style.animation = `rudex-grad-flow ${wp.gradSpeed}s ease-in-out infinite`;
+      attachGradVisibility();
+    } else {
+      removeGradListeners();
+      gradFlowChild.style.inset = "0";
+      gradFlowChild.style.width = "100%";
+      gradFlowChild.style.height = "100%";
+      gradFlowChild.style.willChange = "auto";
+      gradFlowChild.style.animation = "none";
+      gradFlowChild.style.animationPlayState = "";
+      gradFlowChild.style.transform = "none";
+    }
+
+    ensureScrim(layer, Math.round(wp.dim * 0.55), isLight);
+  }
+
+  function resolveEffectiveHostIsLight(cfg) {
+    if (cfg.presetId !== "native") return false;
+    const existing = doc && typeof doc.getElementById === "function" ? doc.getElementById(STYLE_ID) : styleNode;
+    if (existing && lastHadThemeOverride && typeof existing.disabled === "boolean") {
+      existing.disabled = true;
+      const detected = detectHostIsLight(doc, win);
+      existing.disabled = false;
+      return detected;
+    }
+    return detectHostIsLight(doc, win);
   }
 
   function applySync(rawAppearance) {
     currentConfig = normalizeAppearance(rawAppearance);
-    if (isAppearanceNativeDefault(currentConfig)) {
+    const hasThemeOverride = currentConfig.presetId !== "native";
+    const hasWallpaper = teHasActiveWallpaper(currentConfig);
+    const hasCustomTypo = teHasCustomTypography(currentConfig);
+    const hostIsLight = resolveEffectiveHostIsLight(currentConfig);
+    const isLight = hasThemeOverride
+      ? teResolveThemeVars(currentConfig).mode === "light"
+      : hostIsLight;
+
+    if (!hasThemeOverride && !hasWallpaper && !hasCustomTypo && !currentConfig.uiPolish) {
       if (wallpaperActive) {
         wallpaperActive = false;
         clearWallpaperShells();
       }
       lastCssText = "";
+      lastHadThemeOverride = false;
       removeStyleNode();
       removeBgLayer();
       return currentConfig;
     }
-    const cssText = buildThemeCss(currentConfig);
-    if (cssText !== lastCssText) {
+
+    const cssText = buildThemeCss(currentConfig, { hostIsLight });
+    const existingStyle = doc && typeof doc.getElementById === "function"
+      ? doc.getElementById(STYLE_ID)
+      : styleNode;
+
+    if (!cssText) {
+      lastCssText = "";
+      removeStyleNode();
+    } else if (cssText !== lastCssText || !existingStyle) {
       lastCssText = cssText;
       ensureStyleNode(cssText);
     }
-    applyWallpaper(currentConfig);
+
+    lastHadThemeOverride = hasThemeOverride;
+    applyWallpaper(currentConfig, isLight);
     return currentConfig;
   }
 
@@ -1194,71 +1639,9 @@ function createThemeEngine(options = {}) {
     return currentConfig;
   }
 
-  function buildPreviewMarkup(rawAppearance, locale, resolvedMediaOverride) {
-    const cfg = normalizeAppearance(rawAppearance);
-    const vars = teResolveThemeVars(cfg);
-    const wp = cfg.wallpaper;
-    const ty = cfg.typography;
-    const isRu = locale !== "en";
-    const uiFontObj = teFindFont("ui", ty.uiFont);
-    const uiFontCss = uiFontObj.stack || '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    const isLight = cfg.presetId === "light-paper" || (cfg.presetId === "custom" && vars.mode === "light");
-    const userLabel = isRu ? "Привет! Покажи стиль." : "Hi! Preview this look.";
-    const agentLabel = isRu ? "Готово! Обновлены цвета, обои и шрифт." : "Done! Theme, wallpaper and font applied.";
-    const inputLabel = isRu ? "Написать сообщение..." : "Ask anything...";
-
-    const mediaSrc = teValidMediaUrl(resolvedMediaOverride) || (resolveMediaUrl && wp.mediaFile ? resolveMediaUrl(wp.mediaFile, wp.mediaUrl) : "") || wp.mediaUrl;
-    let bgHtml = "";
-    if (wp.type === "gradient") {
-      const gradBg = teBuildGradientCss(wp);
-      const animStyle = wp.gradAnimated ? `background-size:220% 220%;animation:agy-ru-grad-shift ${wp.gradSpeed}s ease infinite;` : "";
-      bgHtml = `<div style="position:absolute;inset:0;background-image:${teEscapeAttr(gradBg)};${animStyle}opacity:${(wp.opacity / 100).toFixed(2)};filter:blur(${Math.round(wp.blur * 0.45)}px)"></div>`;
-    } else if (wp.type === "image" && mediaSrc) {
-      bgHtml = `<img src="${teEscapeAttr(mediaSrc)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:${(wp.opacity / 100).toFixed(2)};filter:blur(${Math.round(wp.blur * 0.45)}px);transform:scale(${(wp.scale / 100).toFixed(2)})"/>`;
-    } else if (wp.type === "video" && mediaSrc) {
-      bgHtml = `<video src="${teEscapeAttr(mediaSrc)}" autoplay muted loop playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:${(wp.opacity / 100).toFixed(2)};filter:blur(${Math.round(wp.blur * 0.45)}px)"></video>`;
-    }
-
-    const dimOpacity = wp.type === "none" ? 0 : (wp.type === "gradient" ? (wp.dim * 0.55) / 100 : wp.dim / 100);
-    const cardAlpha = wp.type === "none" ? 1 : Math.max(0.42, cfg.glassOpacity / 100);
-    const bubbleBg = wp.type === "none" ? vars.cardBg : teHexToRgba(vars.cardBg, Math.round(cardAlpha * 100));
-    const sideBg = wp.type === "none" ? vars.sidebarBg : teHexToRgba(vars.sidebarBg, Math.min(95, Math.round(cardAlpha * 100) + 8));
-    const previewFontSize = Math.max(10, Math.min(13, Math.round(ty.fontSize * 0.82)));
-    const padY = ty.density === "compact" ? 5 : ty.density === "spacious" ? 10 : 7;
-
-    return `
-      <div class="vp-stage" style="position:relative;overflow:hidden;border-radius:10px;border:1px solid ${teEscapeAttr(vars.borderColor)};background:${teEscapeAttr(vars.canvasBg)};font-family:${teEscapeAttr(uiFontCss)};color:${teEscapeAttr(vars.fgColor)};height:132px;display:flex">
-        ${bgHtml}
-        ${wp.type !== "none" ? `<div style="position:absolute;inset:0;background:rgba(6,7,10,${dimOpacity.toFixed(2)})"></div>` : ""}
-        <div style="position:relative;z-index:1;width:78px;border-right:1px solid ${teEscapeAttr(vars.borderColor)};background:${teEscapeAttr(sideBg)};padding:10px 8px;display:flex;flex-direction:column;gap:6px;backdrop-filter:blur(${Math.min(10, cfg.glassBlur)}px)">
-          <div style="height:8px;width:44px;border-radius:4px;background:${teEscapeAttr(vars.accentColor)};opacity:0.9"></div>
-          <div style="height:6px;width:54px;border-radius:3px;background:${teEscapeAttr(vars.mutedColor)};opacity:0.45"></div>
-          <div style="height:6px;width:48px;border-radius:3px;background:${teEscapeAttr(vars.mutedColor)};opacity:0.3"></div>
-          <div style="height:6px;width:52px;border-radius:3px;background:${teEscapeAttr(vars.mutedColor)};opacity:0.3"></div>
-        </div>
-        <div style="position:relative;z-index:1;flex:1;padding:10px 12px;display:flex;flex-direction:column;justify-content:space-between;gap:6px">
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <div style="align-self:flex-end;background:${teEscapeAttr(bubbleBg)};border:1px solid ${teEscapeAttr(vars.borderColor)};border-radius:${Math.min(12, vars.radius)}px;padding:${padY - 2}px 9px;font-size:${previewFontSize}px;line-height:${ty.lineHeight};backdrop-filter:blur(${Math.min(10, cfg.glassBlur)}px)">
-              ${teEscapeAttr(userLabel)}
-            </div>
-            <div style="align-self:flex-start;max-width:86%;background:${isLight ? "rgba(255,255,255,0.68)" : "rgba(18,18,22,0.52)"};border:1px solid ${teEscapeAttr(vars.borderColor)};border-radius:${Math.min(12, vars.radius)}px;padding:${padY}px 10px;font-size:${previewFontSize}px;line-height:${ty.lineHeight};backdrop-filter:blur(${Math.min(10, cfg.glassBlur)}px)">
-              <span style="display:inline-block;width:6px;height:6px;border-radius:99px;background:${teEscapeAttr(vars.accentColor)};margin-right:5px;vertical-align:middle"></span>
-              ${teEscapeAttr(agentLabel)}
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid ${teEscapeAttr(vars.borderColor)};background:${teEscapeAttr(bubbleBg)};border-radius:${Math.min(10, vars.radius)}px;padding:4px 8px;font-size:10.5px;color:${teEscapeAttr(vars.mutedColor)};backdrop-filter:blur(${Math.min(10, cfg.glassBlur)}px)">
-            <span>${teEscapeAttr(inputLabel)}</span>
-            <span style="width:16px;height:16px;border-radius:5px;background:${teEscapeAttr(vars.accentColor)};display:inline-block"></span>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
   return {
     apply,
     applyFast,
-    buildPreviewMarkup,
     scanWallpaperShells,
     clearWallpaperShells,
     getCurrent: () => normalizeAppearance(currentConfig),
@@ -1268,8 +1651,10 @@ function createThemeEngine(options = {}) {
         try { win.cancelAnimationFrame(fastRafId); } catch (_e) {}
         fastRafId = 0;
       }
+      removeDomReadyListener();
       wallpaperActive = false;
       lastCssText = "";
+      lastHadThemeOverride = false;
       clearWallpaperShells();
       removeStyleNode();
       removeBgLayer();
@@ -1285,6 +1670,7 @@ if (typeof module !== "undefined" && module.exports) {
     DEFAULT_APPEARANCE,
     normalizeAppearance,
     isAppearanceNativeDefault,
+    detectHostIsLight,
     buildThemeCss,
     createThemeEngine,
   };

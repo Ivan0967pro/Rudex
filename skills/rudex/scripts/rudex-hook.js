@@ -5,6 +5,9 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
+const MAX_ITEM_AGE_MS = 10 * 60 * 1000;
+const FALLBACK_MAX_AGE_MS = 90 * 1000;
+
 function getUserDataDir() {
   if (process.env.AGY_STUDIO_USER_DATA && process.env.AGY_STUDIO_USER_DATA.trim()) {
     return path.resolve(process.env.AGY_STUDIO_USER_DATA.trim());
@@ -31,7 +34,7 @@ function readJsonSafe(filePath) {
 function safeWriteJsonAtomic(filePath, obj) {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
-  const tmpPath = filePath + ".tmp-" + process.pid + "-" + Math.random().toString(36).slice(2, 6);
+  const tmpPath = `${filePath}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 7)}`;
   const data = JSON.stringify(obj, null, 2) + "\n";
   fs.writeFileSync(tmpPath, data, "utf8");
   try {
@@ -69,7 +72,7 @@ function pruneAnchors(anchorsObj) {
 
 function buildFullPersonaProtocol(text, strict) {
   const lines = [
-    "[Antigravity Studio · Active Per-Chat Persona Protocol]",
+    "[Rudex Studio · Active Per-Chat Persona Protocol]",
     "You MUST follow every stylistic, tonal, roleplay, formatting, and language directive inside <user_persona> for THIS conversation across 100% of every user-facing response:",
     "",
     "<user_persona>",
@@ -98,6 +101,16 @@ function buildRecencyAnchor(text) {
   ].join("\n");
 }
 
+function loadChatsStore(userDataDir) {
+  const chatsPath = path.join(userDataDir, "agy_studio_chats.json");
+  const storeRaw = readJsonSafe(chatsPath);
+  const store = storeRaw && typeof storeRaw === "object"
+    ? Object.assign({ version: 1, chats: {}, pendingNewChatPersona: null, activeAgentsMdChatKey: "" }, storeRaw)
+    : { version: 1, chats: {}, pendingNewChatPersona: null, activeAgentsMdChatKey: "" };
+  if (!store.chats || typeof store.chats !== "object") store.chats = {};
+  return { chatsPath, store };
+}
+
 function runPersonaEngine(userDataDir, payload, injectSteps) {
   const eventName = String(payload.hookEventName || "");
   if (eventName !== "SessionStart" && eventName !== "PreInvocation") {
@@ -109,13 +122,8 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
     return;
   }
 
-  const chatsPath = path.join(userDataDir, "agy_studio_chats.json");
+  const { chatsPath, store } = loadChatsStore(userDataDir);
   const anchorsPath = path.join(userDataDir, "studio_persona_anchors.json");
-  const storeRaw = readJsonSafe(chatsPath);
-  const store = storeRaw && typeof storeRaw === "object"
-    ? Object.assign({ version: 1, chats: {}, pendingNewChatPersona: null, activeAgentsMdChatKey: "" }, storeRaw)
-    : { version: 1, chats: {}, pendingNewChatPersona: null, activeAgentsMdChatKey: "" };
-  if (!store.chats || typeof store.chats !== "object") store.chats = {};
 
   const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
   const now = Date.now();
@@ -132,7 +140,7 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
     pending.enabled === true &&
     typeof pending.text === "string" &&
     pending.text.trim() &&
-    now - (Number(pending.updatedAt) || 0) < 600000 &&
+    now - (Number(pending.updatedAt) || 0) < MAX_ITEM_AGE_MS &&
     (!pending.claimedBy || String(pending.claimedBy).trim().toLowerCase() === convId)
   ) {
     rec = {
@@ -238,14 +246,11 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
   }
 }
 
-function formatEditInstruction(matched, inboxPath) {
+function formatSupplementInstruction(matched) {
   const blocks = [];
-  let hasPivot = false;
   for (let i = 0; i < matched.length; i += 1) {
     const it = matched[i];
-    if (it.mode === "pivot") hasPivot = true;
-    const modeTag = it.mode === "pivot" ? "PIVOT / МГНОВЕННАЯ ПЕРЕСТРОЙКА" : "LIVE EDIT / БЕЗ ОТМЕНЫ ЗАДАЧИ";
-    const parts = [`[Живая правка #${i + 1} · id=${it.id} · ${modeTag}]`];
+    const parts = [`[Дополнение #${i + 1} · id=${it.id}]`];
     if (it.text && String(it.text).trim()) {
       parts.push(String(it.text).trim());
     }
@@ -260,29 +265,15 @@ function formatEditInstruction(matched, inboxPath) {
     blocks.push(parts.join("\n"));
   }
 
-  if (hasPivot) {
-    return [
-      "Пользователь ОСТАНОВИЛ предыдущий поток и прислал ПРАВКУ для немедленной перестройки ответа:",
-      "",
-      blocks.join("\n\n"),
-      "",
-      "Правила обработки правки:",
-      "1. Немедленно примени указанную правку и изучи все прикреплённые фото через read_file.",
-      "2. НЕ повторяй длинное вступление или устаревшую часть прерванного ответа — сразу продолжай/перестрой ответ с учётом правки.",
-      `3. (Опционально) Краткий статус можно записать в ${inboxPath} (status: "applied", agentReply).`,
-    ].join("\n");
-  }
-
   return [
-    "Пользователь прислал ЖИВУЮ ПРАВКУ во время выполнения текущей задачи:",
+    "Пользователь прислал ДОПОЛНЕНИЕ к текущей задаче во время выполнения:",
     "",
     blocks.join("\n\n"),
     "",
-    "Правила обработки живой правки:",
+    "Правила обработки дополнения:",
     "1. НЕ прерывай, НЕ отменяй и НЕ забрасывай основную выполняемую задачу.",
-    "2. Коротко подтверди получение правки (1-2 предложения), изучи все прикреплённые фото через read_file и сразу учти правку в текущей работе.",
-    "3. Если правка независима от текущего шага — можешь запустить для неё отдельного субагента (invoke_subagent) параллельно, продолжая основную задачу без остановки.",
-    `4. (Опционально) Статус/краткий ответ можно записать в ${inboxPath} (status: "applied", agentReply).`,
+    "2. Коротко подтверди получение дополнения (1–2 предложения), изучи все прикреплённые фото через read_file и сразу учти указания в текущей работе.",
+    "3. Если дополнение независимо от текущего шага — можешь делегировать его субагенту (invoke_subagent) параллельно, продолжая основную задачу без остановки.",
   ].join("\n");
 }
 
@@ -294,18 +285,46 @@ function buildUserMarkdownSummary(matched) {
     const photoPart = imgCount > 0 ? (textPart ? ` (+${imgCount} фото)` : `${imgCount} фото`) : "";
     return textPart + photoPart;
   }).filter(Boolean);
-  return `**Живая правка принята:** ${parts.join(" | ") || "новое указание"}`;
+  return `⚡ **Дополнение передано агенту:** ${parts.join(" | ") || "новое указание"}`;
+}
+
+function moveQueueFileTo(srcPath, destDir, fileName, mutatorFn) {
+  const claimPath = `${srcPath}.claim-${process.pid}-${Math.random().toString(36).slice(2, 6)}`;
+  try {
+    fs.renameSync(srcPath, claimPath);
+  } catch {
+    return null;
+  }
+  let parsed = null;
+  try {
+    const raw = fs.readFileSync(claimPath, "utf8");
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch {
+    parsed = null;
+  }
+  const nextObj = typeof mutatorFn === "function" && parsed ? mutatorFn(parsed) : parsed;
+  if (destDir && nextObj) {
+    try {
+      fs.mkdirSync(destDir, { recursive: true });
+      safeWriteJsonAtomic(path.join(destDir, fileName), nextObj);
+    } catch {}
+  }
+  try { fs.unlinkSync(claimPath); } catch {}
+  return nextObj;
 }
 
 function runLiveEditsEngine(userDataDir, payload, injectSteps) {
   const eventName = String(payload.hookEventName || "");
-  if (eventName !== "PreInvocation" && eventName !== "PostInvocation" && eventName !== "Stop") {
+  if (eventName !== "PreInvocation" && eventName !== "Stop") {
     return null;
   }
 
   const leDir = path.join(userDataDir, "studio_live_edits");
   const flagPath = path.join(leDir, "pending.flag");
-  const inboxPath = path.join(leDir, "inbox.json");
+  const queueDir = path.join(leDir, "queue");
+  const deliveredDir = path.join(leDir, "delivered");
+  const expiredDir = path.join(leDir, "expired");
+
   if (!fs.existsSync(flagPath)) return null;
 
   if (eventName === "Stop") {
@@ -315,57 +334,102 @@ function runLiveEditsEngine(userDataDir, payload, injectSteps) {
     }
   }
 
-  const inboxRaw = readJsonSafe(inboxPath);
-  const inbox = inboxRaw && Array.isArray(inboxRaw.items) ? inboxRaw : { version: 1, items: [] };
-  const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
-  const now = Date.now();
-  const matched = [];
-  let remainingPending = 0;
-
-  for (let i = 0; i < inbox.items.length; i += 1) {
-    const it = inbox.items[i];
-    if (!it || typeof it !== "object" || it.status !== "pending") continue;
-    const itemChat = typeof it.chatKey === "string" ? it.chatKey.trim().toLowerCase() : "";
-    const exactMatch = Boolean(convId && itemChat && itemChat === convId);
-    const fallbackMatch = Boolean(
-      (it.fallbackAny === true || !itemChat || itemChat === "__new__" || itemChat.startsWith("chat-")) &&
-      now - (Number(it.createdAt) || 0) < 180000
-    );
-    if (exactMatch || fallbackMatch) {
-      matched.push(it);
-    } else {
-      remainingPending += 1;
-    }
-  }
-
-  if (matched.length === 0) {
-    if (remainingPending === 0) {
-      try { if (fs.existsSync(flagPath)) fs.unlinkSync(flagPath); } catch {}
-    }
+  if (!fs.existsSync(queueDir)) {
+    try { if (fs.existsSync(flagPath)) fs.unlinkSync(flagPath); } catch {}
     return null;
   }
 
-  for (let i = 0; i < matched.length; i += 1) {
-    matched[i].status = "delivered";
-    matched[i].deliveredAt = now;
-    if (convId) matched[i].deliveredConversationId = convId;
+  let files = [];
+  try {
+    files = fs.readdirSync(queueDir)
+      .filter((name) => name.endsWith(".json") && !name.includes(".tmp-"))
+      .sort();
+  } catch {
+    files = [];
   }
 
-  safeWriteJsonAtomic(inboxPath, inbox);
-  if (remainingPending === 0) {
+  if (files.length === 0) {
+    try { if (fs.existsSync(flagPath)) fs.unlinkSync(flagPath); } catch {}
+    return null;
+  }
+
+  const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
+  const isSubagent = Boolean(payload.isSubagent || payload.parentConversationId);
+  const stepNum = Number(payload.initialNumSteps) || 0;
+  const now = Date.now();
+  let chatsMap = null;
+  const getChatsMap = () => {
+    if (chatsMap !== null) return chatsMap;
+    chatsMap = loadChatsStore(userDataDir).store.chats || {};
+    return chatsMap;
+  };
+
+  const matched = [];
+
+  for (let i = 0; i < files.length; i += 1) {
+    const fileName = files[i];
+    const fullPath = path.join(queueDir, fileName);
+    const it = readJsonSafe(fullPath);
+    if (!it || typeof it !== "object") {
+      moveQueueFileTo(fullPath, expiredDir, fileName, () => ({ id: fileName, status: "expired", expiredAt: now }));
+      continue;
+    }
+
+    const createdAt = Number(it.createdAt) || 0;
+    const age = createdAt > 0 ? Math.max(0, now - createdAt) : 0;
+    if (it.status && it.status !== "pending") {
+      const targetDir = it.status === "expired" ? expiredDir : deliveredDir;
+      moveQueueFileTo(fullPath, targetDir, fileName);
+      continue;
+    }
+
+    const itemChat = typeof it.chatKey === "string" ? it.chatKey.trim().toLowerCase() : "";
+    const exactMatch = Boolean(convId && itemChat && itemChat === convId);
+    const isUnpromotedKey = !itemChat || itemChat === "__new__" || itemChat.startsWith("chat-");
+
+    if (age > MAX_ITEM_AGE_MS || (!exactMatch && it.fallbackAny === true && isUnpromotedKey && age > FALLBACK_MAX_AGE_MS)) {
+      moveQueueFileTo(fullPath, expiredDir, fileName, (obj) => Object.assign({}, obj, {
+        status: "expired",
+        expiredAt: now,
+      }));
+      continue;
+    }
+
+    let fallbackMatch = false;
+    if (!exactMatch && it.fallbackAny === true && age <= FALLBACK_MAX_AGE_MS && !isSubagent && stepNum <= 6) {
+      const map = getChatsMap();
+      const isExistingOtherChat = Boolean(convId && map[convId] && itemChat && itemChat !== convId);
+      if (!isExistingOtherChat) {
+        fallbackMatch = true;
+      }
+    }
+
+    if (exactMatch || fallbackMatch) {
+      const claimed = moveQueueFileTo(fullPath, deliveredDir, fileName, (obj) => Object.assign({}, obj, {
+        status: "delivered",
+        deliveredAt: now,
+        deliveredConversationId: convId || itemChat,
+        deliveredVia: eventName,
+      }));
+      if (claimed) {
+        matched.push(claimed);
+      }
+    }
+  }
+
+  let remainingCount = 0;
+  try {
+    remainingCount = fs.readdirSync(queueDir).filter((n) => n.endsWith(".json") && !n.includes(".tmp-")).length;
+  } catch {}
+  if (remainingCount === 0) {
     try { if (fs.existsSync(flagPath)) fs.unlinkSync(flagPath); } catch {}
   }
 
-  const instruction = formatEditInstruction(matched, inboxPath);
-  const stepObj = {
-    systemMessage: {
-      systemMessage: instruction,
-      metadata: {
-        user_markdown: buildUserMarkdownSummary(matched),
-      },
-    },
-  };
+  if (matched.length === 0) {
+    return null;
+  }
 
+  const instruction = formatSupplementInstruction(matched);
   if (eventName === "Stop") {
     return {
       decision: "continue",
@@ -373,14 +437,14 @@ function runLiveEditsEngine(userDataDir, payload, injectSteps) {
     };
   }
 
-  if (eventName === "PostInvocation") {
-    return {
-      injectSteps: [stepObj],
-      terminationBehavior: "force_continue",
-    };
-  }
-
-  injectSteps.push(stepObj);
+  injectSteps.push({
+    systemMessage: {
+      systemMessage: instruction,
+      metadata: {
+        user_markdown: buildUserMarkdownSummary(matched),
+      },
+    },
+  });
   return { injectedPre: true };
 }
 
@@ -396,25 +460,21 @@ function main() {
   const payload = readStdinSyncSafe();
   const eventName = String(payload.hookEventName || "");
 
-  if (eventName === "PostInvocation" || eventName === "Stop") {
+  if (eventName === "Stop") {
     if (!fs.existsSync(leFlagPath)) {
       outAndExit({});
     }
-    if (eventName === "Stop") {
-      const term = String(payload.terminationReason || "");
-      if (term && term !== "NO_TOOL_CALL") {
-        outAndExit({});
-      }
+    const term = String(payload.terminationReason || "");
+    if (term && term !== "NO_TOOL_CALL") {
+      outAndExit({});
     }
+    const stopRes = runLiveEditsEngine(userDataDir, payload, []);
+    outAndExit(stopRes || {});
   }
 
   const injectSteps = [];
   runPersonaEngine(userDataDir, payload, injectSteps);
-  const leRes = runLiveEditsEngine(userDataDir, payload, injectSteps);
-
-  if (eventName === "PostInvocation" || eventName === "Stop") {
-    outAndExit(leRes || {});
-  }
+  runLiveEditsEngine(userDataDir, payload, injectSteps);
 
   if (injectSteps.length > 0) {
     outAndExit({

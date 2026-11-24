@@ -1,16 +1,40 @@
 "use strict";
 
 /**
- * Antigravity Russian DOM Localization Engine (React-safe, browser-only).
+ * Rudex DOM Localization & Custom Greeting Engine (React-safe, browser-only).
  * Zero Node.js imports so it can run directly inside Electron's sandboxed preload.js
  * as well as under simulated DOM unit tests in Node.
  */
+const DEFAULT_GREETING_CONFIG = {
+  enabled: false,
+  mode: "time-of-day", // "time-of-day" | "custom" | "minimal"
+  title: "",
+  subtitle: "",
+  displayName: "",
+  placeholder: "",
+};
+
+function normalizeGreetingConfig(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const mode = src.mode === "custom" || src.mode === "minimal" ? src.mode : "time-of-day";
+  return {
+    enabled: Boolean(src.enabled),
+    mode,
+    title: typeof src.title === "string" ? src.title.slice(0, 160) : "",
+    subtitle: typeof src.subtitle === "string" ? src.subtitle.slice(0, 180) : "",
+    displayName: typeof src.displayName === "string" ? src.displayName.slice(0, 60) : "",
+    placeholder: typeof src.placeholder === "string" ? src.placeholder.slice(0, 140) : "",
+  };
+}
+
 function createDomTranslator(options) {
   const doc = options.document;
   const win = options.window || (doc && doc.defaultView) || {};
   const rawDict = options.dictionary || {};
   const applyDynamic = options.applyDynamicRules || (() => null);
   let currentLocale = options.initialLocale === "en" ? "en" : "ru";
+  let greetingConfig = normalizeGreetingConfig(options.initialGreeting);
+  let capturedUserName = "";
 
   function normalizePunct(str) {
     return String(str)
@@ -101,10 +125,23 @@ function createDomTranslator(options) {
   ]);
 
   const TRANSLATABLE_ATTRS = ["placeholder", "data-placeholder", "title", "aria-label", "alt"];
+  const COMPOSER_PLACEHOLDER_RE = /^Ask anything(?:,\s*@ to mention(?:,\s*\/ for (?:actions|workflows))?)?$/i;
 
   function getAttrSafe(el, name) {
     if (!el || typeof el.getAttribute !== "function") return null;
     return el.getAttribute(name);
+  }
+
+  function setAttrSafe(el, name, val) {
+    if (!el || typeof el.setAttribute !== "function") return;
+    if (getAttrSafe(el, name) !== val) el.setAttribute(name, val);
+  }
+
+  function removeAttrSafe(el, name) {
+    if (!el || typeof el.removeAttribute !== "function") return;
+    if (typeof el.hasAttribute !== "function" || el.hasAttribute(name)) {
+      el.removeAttribute(name);
+    }
   }
 
   function hasClassSafe(el, cls) {
@@ -118,7 +155,12 @@ function createDomTranslator(options) {
 
   function isHardExcludedElement(el, skipInputTextareaTagCheck) {
     if (!el || el.nodeType !== 1) return false;
-    if (el.id === "agy-ru-studio-host" || getAttrSafe(el, "data-agy-ru-ignore") === "1") {
+    if (
+      el.id === "rudex-studio-host" ||
+      el.id === "agy-ru-studio-host" ||
+      getAttrSafe(el, "data-rudex-ignore") === "1" ||
+      getAttrSafe(el, "data-agy-ru-ignore") === "1"
+    ) {
       return true;
     }
     const tag = el.tagName ? el.tagName.toUpperCase() : "";
@@ -129,7 +171,7 @@ function createDomTranslator(options) {
       return true;
     }
     const ce = getAttrSafe(el, "contenteditable");
-    if (ce === "true" || ce === "") return true;
+    if (!skipInputTextareaTagCheck && (ce === "true" || ce === "")) return true;
     if (hasClassSafe(el, "xterm") || hasClassSafe(el, "monaco-editor") || hasClassSafe(el, "katex") || hasClassSafe(el, "mermaid")) {
       return true;
     }
@@ -179,8 +221,6 @@ function createDomTranslator(options) {
 
   function isExcludedForAttributes(el) {
     if (!el || el.nodeType !== 1) return true;
-    // Allow INPUT and TEXTAREA themselves to get placeholder/aria-label/title translated,
-    // unless nested inside code/editor/terminal/content container.
     let cur = el;
     let sawInteractiveChrome = false;
     let first = true;
@@ -200,6 +240,170 @@ function createDomTranslator(options) {
       cur = cur.parentElement || cur.parentNode;
     }
     return false;
+  }
+
+  function getTimeGreeting(locale, dateObj) {
+    const h = (dateObj || new Date()).getHours();
+    if (locale === "en") {
+      if (h >= 5 && h < 12) return "Good morning";
+      if (h >= 12 && h < 18) return "Good afternoon";
+      if (h >= 18 && h < 23) return "Good evening";
+      return "Good night";
+    }
+    if (h >= 5 && h < 12) return "Доброе утро";
+    if (h >= 12 && h < 18) return "Добрый день";
+    if (h >= 18 && h < 23) return "Добрый вечер";
+    return "Доброй ночи";
+  }
+
+  function resolveGreetingTemplate(template, nameVal, locale, nowDate) {
+    const d = nowDate || new Date();
+    const locTag = locale === "en" ? "en-US" : "ru-RU";
+    const timeStr = getTimeGreeting(locale, d);
+    let dateStr = "";
+    let weekdayStr = "";
+    try {
+      dateStr = d.toLocaleDateString(locTag, { day: "numeric", month: "long" });
+      weekdayStr = d.toLocaleDateString(locTag, { weekday: "long" });
+    } catch (_e) {
+      dateStr = d.toISOString().slice(0, 10);
+    }
+
+    let out = String(template || "");
+    const cleanName = String(nameVal || "").trim();
+    if (cleanName) {
+      out = out.replace(/\{name\}/gi, cleanName);
+    } else {
+      out = out
+        .replace(/,\s*\{name\}/gi, "")
+        .replace(/\s+\{name\}/gi, "")
+        .replace(/\{name\}\s*,\s*/gi, "")
+        .replace(/\{name\}/gi, "");
+    }
+    out = out
+      .replace(/\{time\}/gi, timeStr)
+      .replace(/\{date\}/gi, dateStr)
+      .replace(/\{weekday\}/gi, weekdayStr)
+      .replace(/\s{2,}/g, " ")
+      .replace(/\s+([,!?.])/g, "$1")
+      .trim();
+    return out;
+  }
+
+  function matchHeroGreeting(trimmed, parentEl) {
+    const norm = normalizePunct(trimmed);
+    let m;
+    if ((m = /^Hey ([^,\n]+?), what should we build today\?$/i.exec(norm))) {
+      const candidate = m[1].trim();
+      const name = /^there$/i.test(candidate) ? "" : candidate;
+      return { matched: true, name };
+    }
+    if (/^What should we build today\?$/i.test(norm)) {
+      return { matched: true, name: "" };
+    }
+    if ((m = /^Welcome back,\s*([^.\n]+?)\.\s*Where should we pick up\?$/i.exec(norm))) {
+      return { matched: true, name: m[1].trim() };
+    }
+    if (/^Welcome back\.\s*Where should we pick up\?$/i.test(norm)) {
+      return { matched: true, name: "" };
+    }
+    if ((m = /^Good to see you,\s*([^.\n]+?)\.\s*What's next\?$/i.exec(norm))) {
+      return { matched: true, name: m[1].trim() };
+    }
+    if (/^Good to see you\.\s*What's next\?$/i.test(norm)) {
+      return { matched: true, name: "" };
+    }
+    if (parentEl && parentEl.tagName && /^(H1|H2|H3)$/i.test(parentEl.tagName)) {
+      if ((m = /^(?:Hey|Hello),?\s+([^!?\n]{1,48})!$/i.exec(norm))) {
+        const candidate = m[1].trim();
+        if (!/^(?:there|world)$/i.test(candidate)) {
+          return { matched: true, name: candidate };
+        }
+      }
+    }
+    return { matched: false, name: "" };
+  }
+
+  function ensureGreetingStyleNode(active) {
+    if (!doc || typeof doc.getElementById !== "function") return;
+    const existing = doc.getElementById("rudex-greeting-style");
+    if (!active) {
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+      return;
+    }
+    if (existing) return;
+    if (typeof doc.createElement !== "function") return;
+    const style = doc.createElement("style");
+    style.id = "rudex-greeting-style";
+    style.setAttribute("data-rudex-ignore", "1");
+    style.textContent = [
+      '[data-rudex-greeting="1"][data-rudex-subtitle]::after {',
+      "  content: attr(data-rudex-subtitle);",
+      "  display: block;",
+      "  font-size: 0.44em;",
+      "  font-weight: 400;",
+      "  opacity: 0.64;",
+      "  margin-top: 6px;",
+      "  letter-spacing: 0;",
+      "  line-height: 1.4;",
+      "}",
+    ].join("\n");
+    const target = doc.head || doc.documentElement || doc.body;
+    if (target && typeof target.appendChild === "function") {
+      target.appendChild(style);
+    }
+  }
+
+  function clearAllGreetingAttrs() {
+    ensureGreetingStyleNode(false);
+    if (!doc || typeof doc.querySelectorAll !== "function") return;
+    try {
+      const list = doc.querySelectorAll('[data-rudex-greeting="1"]');
+      for (let i = 0; i < list.length; i += 1) {
+        removeAttrSafe(list[i], "data-rudex-greeting");
+        removeAttrSafe(list[i], "data-rudex-subtitle");
+      }
+    } catch (_e) {}
+  }
+
+  function resolveCustomGreetingForMatch(matchInfo) {
+    if (matchInfo.name) {
+      capturedUserName = matchInfo.name;
+    }
+    if (!greetingConfig.enabled) return null;
+    const nameVal = greetingConfig.displayName.trim() || matchInfo.name || capturedUserName;
+    const nowDate = new Date();
+    let rawTitle = greetingConfig.title.trim();
+    if (!rawTitle) {
+      if (greetingConfig.mode === "minimal") {
+        rawTitle = currentLocale === "en" ? "Ready." : "Готов к работе.";
+      } else {
+        rawTitle = nameVal ? "{time}, {name}" : "{time}";
+      }
+    }
+    const titleText = resolveGreetingTemplate(rawTitle, nameVal, currentLocale, nowDate);
+    const subRaw = greetingConfig.subtitle.trim();
+    const subtitleText = subRaw ? resolveGreetingTemplate(subRaw, nameVal, currentLocale, nowDate) : "";
+    return {
+      titleText: titleText || rawTitle,
+      subtitleText,
+    };
+  }
+
+  function applyGreetingAttrs(parentEl, greetingRes) {
+    if (!parentEl || parentEl.nodeType !== 1) return;
+    if (greetingRes && greetingConfig.enabled) {
+      setAttrSafe(parentEl, "data-rudex-greeting", "1");
+      if (greetingRes.subtitleText) {
+        ensureGreetingStyleNode(true);
+        setAttrSafe(parentEl, "data-rudex-subtitle", greetingRes.subtitleText);
+      } else {
+        removeAttrSafe(parentEl, "data-rudex-subtitle");
+      }
+    } else if (getAttrSafe(parentEl, "data-rudex-greeting") === "1") {
+      removeAttrSafe(parentEl, "data-rudex-greeting");
+      removeAttrSafe(parentEl, "data-rudex-subtitle");
+    }
   }
 
   function shouldSkipString(trimmed) {
@@ -246,6 +450,12 @@ function createDomTranslator(options) {
     return lead + translated + tail;
   }
 
+  function wrapWhitespace(raw, nextCore) {
+    const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(raw);
+    if (!m) return nextCore;
+    return m[1] + nextCore + m[3];
+  }
+
   function getOriginalText(node) {
     const val = node.nodeValue || "";
     const last = textLastWritten.get(node);
@@ -253,7 +463,6 @@ function createDomTranslator(options) {
       textOriginals.set(node, val);
       return val;
     }
-    // If React mutated the text node outside our translator, treat new value as fresh original
     if (last !== undefined && val !== last && val !== textOriginals.get(node)) {
       textOriginals.set(node, val);
       return val;
@@ -284,6 +493,20 @@ function createDomTranslator(options) {
 
     const originals = textNodes.map((n) => getOriginalText(n));
     const joined = originals.join("");
+    const core = joined.trim();
+    const gMatch = core ? matchHeroGreeting(core, el) : { matched: false, name: "" };
+
+    if (gMatch.matched) {
+      const customRes = resolveCustomGreetingForMatch(gMatch);
+      if (customRes && greetingConfig.enabled) {
+        applyGreetingAttrs(el, customRes);
+        applyTextNodeValue(textNodes[0], wrapWhitespace(joined, customRes.titleText));
+        for (let i = 1; i < textNodes.length; i++) applyTextNodeValue(textNodes[i], "");
+        return true;
+      }
+      applyGreetingAttrs(el, null);
+    }
+
     if (currentLocale === "en") {
       for (let i = 0; i < textNodes.length; i++) {
         applyTextNodeValue(textNodes[i], originals[i]);
@@ -293,11 +516,9 @@ function createDomTranslator(options) {
 
     const translatedJoined = translatePreservingWhitespace(joined);
     if (!translatedJoined) {
-      // Fall back to per-node translation
       return false;
     }
 
-    // Mutate only nodeValue on existing Text nodes; never add/remove nodes
     applyTextNodeValue(textNodes[0], translatedJoined);
     for (let i = 1; i < textNodes.length; i++) {
       applyTextNodeValue(textNodes[i], "");
@@ -317,6 +538,19 @@ function createDomTranslator(options) {
 
     if (isExcludedForText(node)) return;
     const orig = getOriginalText(node);
+    const core = orig.trim();
+    const gMatch = core ? matchHeroGreeting(core, parent) : { matched: false, name: "" };
+
+    if (gMatch.matched) {
+      const customRes = resolveCustomGreetingForMatch(gMatch);
+      if (customRes && greetingConfig.enabled) {
+        applyGreetingAttrs(parent, customRes);
+        applyTextNodeValue(node, wrapWhitespace(orig, customRes.titleText));
+        return;
+      }
+      applyGreetingAttrs(parent, null);
+    }
+
     if (currentLocale === "en") {
       applyTextNodeValue(node, orig);
       return;
@@ -353,6 +587,20 @@ function createDomTranslator(options) {
         origMap.set(attr, cur);
       }
       const orig = origMap.get(attr);
+
+      if (
+        (attr === "placeholder" || attr === "data-placeholder") &&
+        greetingConfig.enabled &&
+        greetingConfig.placeholder.trim() &&
+        COMPOSER_PLACEHOLDER_RE.test(orig.trim())
+      ) {
+        const nextPh = greetingConfig.placeholder.trim();
+        if (cur !== nextPh) {
+          lastMap.set(attr, nextPh);
+          el.setAttribute(attr, nextPh);
+        }
+        continue;
+      }
 
       if (currentLocale === "en") {
         if (cur !== orig) {
@@ -449,7 +697,7 @@ function createDomTranslator(options) {
   }
 
   function startObserver() {
-    if (observer || typeof win.MutationObserver !== "function" && typeof MutationObserver !== "function") {
+    if (observer || (typeof win.MutationObserver !== "function" && typeof MutationObserver !== "function")) {
       return;
     }
     const MO = win.MutationObserver || MutationObserver;
@@ -505,6 +753,9 @@ function createDomTranslator(options) {
 
   function translateDocument() {
     if (!doc) return;
+    if (!greetingConfig.enabled) {
+      clearAllGreetingAttrs();
+    }
     if (doc.documentElement && typeof doc.documentElement.setAttribute === "function") {
       doc.documentElement.setAttribute("lang", currentLocale);
     }
@@ -525,6 +776,22 @@ function createDomTranslator(options) {
     translateDocument();
   }
 
+  function setGreetingConfig(nextCfg) {
+    greetingConfig = normalizeGreetingConfig(nextCfg);
+    if (!greetingConfig.enabled || !greetingConfig.subtitle.trim()) {
+      clearAllGreetingAttrs();
+    }
+    translateDocument();
+  }
+
+  function getGreetingConfig() {
+    return Object.assign({}, greetingConfig);
+  }
+
+  function getCapturedUserName() {
+    return capturedUserName;
+  }
+
   function getLocale() {
     return currentLocale;
   }
@@ -535,6 +802,7 @@ function createDomTranslator(options) {
   }
 
   function destroy() {
+    clearAllGreetingAttrs();
     if (observer) {
       observer.disconnect();
       observer = null;
@@ -546,6 +814,11 @@ function createDomTranslator(options) {
     destroy,
     setLocale,
     getLocale,
+    setGreetingConfig,
+    getGreetingConfig,
+    getCapturedUserName,
+    resolveGreetingTemplate,
+    getTimeGreeting,
     translateDocument,
     translatePreservingWhitespace,
     walkSubtree,
@@ -557,5 +830,9 @@ function createDomTranslator(options) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { createDomTranslator };
+  module.exports = {
+    createDomTranslator,
+    DEFAULT_GREETING_CONFIG,
+    normalizeGreetingConfig,
+  };
 }

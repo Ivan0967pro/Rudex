@@ -1,30 +1,23 @@
 {
-  "antigravity-ru-studio": {
+  "rudex-studio": {
     "SessionStart": [
       {
         "type": "command",
-        "command": "node ./skills/antigravity-ru/scripts/studio-hook.js",
+        "command": "node ./skills/rudex/scripts/rudex-hook.js",
         "timeout": 5
       }
     ],
     "PreInvocation": [
       {
         "type": "command",
-        "command": "node ./skills/antigravity-ru/scripts/studio-hook.js",
-        "timeout": 5
-      }
-    ],
-    "PostInvocation": [
-      {
-        "type": "command",
-        "command": "node ./skills/antigravity-ru/scripts/studio-hook.js",
+        "command": "node ./skills/rudex/scripts/rudex-hook.js",
         "timeout": 5
       }
     ],
     "Stop": [
       {
         "type": "command",
-        "command": "node ./skills/antigravity-ru/scripts/studio-hook.js",
+        "command": "node ./skills/rudex/scripts/rudex-hook.js",
         "timeout": 5
       }
     ]

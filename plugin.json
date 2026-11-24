@@ -1,9 +1,9 @@
 {
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
-  "name": "antigravity-ru",
-  "displayName": "Antigravity RU",
-  "version": "3.2.1",
-  "description": "Полная русификация Antigravity 2.0 + Studio v3.0: точный TPS, темы, видео-обои, экспорт контекста чата в ZIP и учёт лимитов 5ч / неделя.",
+  "name": "rudex",
+  "displayName": "Rudex",
+  "version": "4.0.0",
+  "description": "Rudex — полная русификация Antigravity 2.0 и минималистичная студия: точный TPS, кастомное приветствие, чистые темы и обои, надёжные дополнения агенту, экспорт чатов в ZIP и учёт лимитов.",
   "logo": "assets/logo.svg",
   "author": {
     "name": "Ivan0967pro",
@@ -11,19 +11,9 @@
   },
   "homepage": "https://github.com/Ivan0967pro/antigravity-ru",
   "repository": "https://github.com/Ivan0967pro/antigravity-ru",
-  "license": "MIT",
-  "keywords": [
-    "russian",
-    "ru",
-    "localization",
-    "i18n",
-    "translation",
-    "antigravity",
-    "ui"
-  ],
   "suggestedPrompts": [
     "Переведи интерфейс Antigravity на русский язык",
-    "Проверь статус русификации Antigravity",
+    "Проверь статус русификации Rudex",
     "Удали русификацию и верни английский интерфейс Antigravity"
   ]
 }
