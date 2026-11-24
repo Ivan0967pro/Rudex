@@ -3,14 +3,14 @@
   "name": "rudex",
   "displayName": "Rudex",
   "version": "4.0.0",
-  "description": "Rudex — полная русификация Antigravity 2.0 и минималистичная студия: точный TPS, кастомное приветствие, чистые темы и обои, надёжные дополнения агенту, экспорт чатов в ZIP и учёт лимитов.",
+  "description": "Rudex — студия и полная русификация для Google Antigravity 2.0: темы и обои, кастомное приветствие, точный TPS, дополнения агенту, характер чата, учёт квот и экспорт в ZIP.",
   "logo": "assets/logo.svg",
   "author": {
     "name": "Ivan0967pro",
     "url": "https://github.com/Ivan0967pro"
   },
-  "homepage": "https://github.com/Ivan0967pro/antigravity-ru",
-  "repository": "https://github.com/Ivan0967pro/antigravity-ru",
+  "homepage": "https://github.com/Ivan0967pro/Rudex",
+  "repository": "https://github.com/Ivan0967pro/Rudex",
   "suggestedPrompts": [
     "Переведи интерфейс Antigravity на русский язык",
     "Проверь статус русификации Rudex",

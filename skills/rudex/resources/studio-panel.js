@@ -3502,7 +3502,7 @@ function createStudioPanel(options) {
           <div class="row-item"><span class="row-title">${escHtml(tr.pluginRules)}</span><span class="row-title num">${Number(dynCount).toLocaleString()}</span></div>
           <div class="row-item">
             <span class="row-title">${escHtml(tr.pluginRepo)}</span>
-            <a class="repo-link" href="https://github.com/Ivan0967pro/antigravity-ru" target="_blank" rel="noopener noreferrer">Rudex (GitHub) ${iconSvg("external", 12)}</a>
+            <a class="repo-link" href="https://github.com/Ivan0967pro/Rudex" target="_blank" rel="noopener noreferrer">Rudex (GitHub) ${iconSvg("external", 12)}</a>
           </div>
         </div>
       </div>
