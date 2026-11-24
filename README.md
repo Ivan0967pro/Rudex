@@ -41,6 +41,37 @@ irm https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.ps1 | iex
 
 ---
 
+## Скриншоты
+
+### Русский интерфейс, мысли агента и виджет скорости
+![Русский интерфейс Antigravity, мысли агента на русском и виджет Rudex](./docs/screenshots/overview-widget.png)
+
+### Окно Rudex Studio
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Монитор скорости (TPS) и контекста</strong><br /><br />
+      <img src="./docs/screenshots/studio-monitor.png" alt="Монитор скорости и контекста в Rudex Studio" />
+    </td>
+    <td width="50%" align="center">
+      <strong>Темы оформления, обои, углы и приветствие</strong><br /><br />
+      <img src="./docs/screenshots/studio-appearance.png" alt="Темы оформления и настройка внешнего вида" />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Характер чата и мысли агента на русском</strong><br /><br />
+      <img src="./docs/screenshots/studio-persona.png" alt="Настройка характера чата и мыслей агента на русском" />
+    </td>
+    <td width="50%" align="center">
+      <strong>Экспорт диалога в ZIP и лимиты моделей</strong><br /><br />
+      <img src="./docs/screenshots/studio-export-quotas.png" alt="Экспорт чата в ZIP и таблица лимитов" />
+    </td>
+  </tr>
+</table>
+
+---
+
 ## Горячие клавиши
 
 | Сочетание | Действие |
