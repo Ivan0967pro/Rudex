@@ -393,6 +393,17 @@ test("Manifest & hooks.json follow Rudex v4.0.0 architecture without PostInvocat
   assert.ok(Array.isArray(group.PreInvocation) && group.PreInvocation.length === 1);
   assert.ok(Array.isArray(group.Stop) && group.Stop.length === 1);
   assert.equal(group.PostInvocation, undefined, "PostInvocation must NOT exist (causes silent live-edit loss)");
+
+  const ps1Text = fs.readFileSync(path.join(REPO_ROOT, "install.ps1"), "utf8");
+  assert.ok(ps1Text.includes('$RepoName = "Rudex"'), "install.ps1 must target Ivan0967pro/Rudex");
+  assert.ok(ps1Text.includes("archive/refs/heads/"), "install.ps1 must support 1-line remote archive installation");
+  assert.ok(ps1Text.includes("LOCKED_NEEDS_ACTIVATOR"), "install.ps1 must support detached activator when app.asar is locked");
+
+  const readmeText = fs.readFileSync(path.join(REPO_ROOT, "README.md"), "utf8");
+  assert.ok(
+    readmeText.includes("irm https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.ps1 | iex"),
+    "README.md must feature the 1-line PowerShell skill installer command"
+  );
 });
 
 test("Installer semver comparison, EOF module stripping, and preload bundle syntax", () => {
@@ -814,10 +825,26 @@ test("Studio styles and panel UI render without layout/CSS regressions and sync 
   panel.applyRemoteState({
     locale: "ru",
     settings: {
+      thinkingInRussian: false,
       greeting: { enabled: true, mode: "custom", title: "Привет от панели!", subtitle: "" },
     },
   });
   assert.equal(translator.getGreetingConfig().title, "Привет от панели!");
+
+  // Verify System subtab renders Russian thinking toggle and reflects ON/OFF state
+  panel.setOpen(true, { tab: "settings", subTab: "system" });
+  const sysHtmlOff = modalMount ? modalMount.innerHTML : "";
+  assert.ok(sysHtmlOff.includes('data-action="toggle-thinking-ru"'), "Settings -> System must render thinkingInRussian toggle");
+  assert.ok(sysHtmlOff.includes("По умолчанию"), "Disabled thinkingInRussian must show default badge");
+
+  panel.applyRemoteState({
+    locale: "ru",
+    settings: { thinkingInRussian: true },
+  });
+  const sysHtmlOn = modalMount ? modalMount.innerHTML : "";
+  assert.ok(sysHtmlOn.includes('class="switch is-on" role="switch" aria-checked="true" data-action="toggle-thinking-ru"'));
+  assert.ok(sysHtmlOn.includes("Русский"), "Enabled thinkingInRussian must show Russian badge");
+
   panel.destroy();
   translator.destroy();
 });
@@ -965,6 +992,76 @@ test("rudex-hook.js injects concise persona style protocol cleanly and refreshes
   }
 });
 
+test("rudex-hook.js injects Russian thinking directive, refreshes after 6 steps, and cleanly reverts/unlinks flag when turned off", () => {
+  const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-thinking-hook-"));
+  const hookScript = path.join(SCRIPTS_DIR, "rudex-hook.js");
+  try {
+    const convId = "eeee5555-5555-4555-8555-555555555555";
+    const flagPath = path.join(tmpUserData, "agy_studio_thinking_ru.flag");
+    const settingsPath = path.join(tmpUserData, "agy_studio_settings.json");
+
+    fs.writeFileSync(flagPath, "1\n", "utf8");
+    fs.writeFileSync(settingsPath, JSON.stringify({ thinkingInRussian: true }), "utf8");
+
+    const runHook = (payload) => {
+      const r = spawnSync(process.execPath, [hookScript], {
+        input: JSON.stringify(payload),
+        env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpUserData }),
+        encoding: "utf8",
+      });
+      assert.equal(r.status, 0, r.stderr);
+      return JSON.parse((r.stdout || "{}").trim() || "{}");
+    };
+
+    const startOut = runHook({
+      hookEventName: "SessionStart",
+      conversationId: convId,
+      initialNumSteps: 0,
+    });
+    assert.ok(Array.isArray(startOut.injectSteps) && startOut.injectSteps.length === 1);
+    assert.ok(startOut.injectSteps[0].systemMessage.systemMessage.includes("[Rudex · Язык внутренних размышлений]"));
+
+    // No duplicate injection before +6 steps
+    const earlyOut = runHook({
+      hookEventName: "PreInvocation",
+      conversationId: convId,
+      initialNumSteps: 3,
+    });
+    assert.deepEqual(earlyOut, {});
+
+    // Step +6 triggers recency reminder
+    const refreshOut = runHook({
+      hookEventName: "PreInvocation",
+      conversationId: convId,
+      initialNumSteps: 6,
+    });
+    assert.ok(Array.isArray(refreshOut.injectSteps) && refreshOut.injectSteps.length === 1);
+    assert.ok(refreshOut.injectSteps[0].systemMessage.systemMessage.includes("[Rudex · Напоминание]"));
+
+    // Turn thinkingInRussian OFF mid-chat -> emits revert directive and unlinks flag when no active anchors remain
+    fs.writeFileSync(settingsPath, JSON.stringify({ thinkingInRussian: false }), "utf8");
+    fs.writeFileSync(flagPath, "0\n", "utf8");
+    const revertOut = runHook({
+      hookEventName: "PreInvocation",
+      conversationId: convId,
+      initialNumSteps: 7,
+    });
+    assert.ok(Array.isArray(revertOut.injectSteps) && revertOut.injectSteps.length === 1);
+    assert.ok(revertOut.injectSteps[0].systemMessage.systemMessage.includes("default internal reasoning language"));
+    assert.equal(fs.existsSync(flagPath), false, "Flag must self-clean once all anchors are disabled");
+
+    // Subsequent call fast-exits with {}
+    const postCleanOut = runHook({
+      hookEventName: "PreInvocation",
+      conversationId: convId,
+      initialNumSteps: 8,
+    });
+    assert.deepEqual(postCleanOut, {});
+  } finally {
+    fs.rmSync(tmpUserData, { recursive: true, force: true });
+  }
+});
+
 // =============================================================================
 // 6. Async Streaming ZIP Builder Tests
 // =============================================================================
@@ -1050,6 +1147,7 @@ test("patchMainJs startup guard auto-restores stock app.asar when Rudex plugin/s
       fs.writeFileSync(path.join(appRoot, "version"), "44.10.0\n", "utf8");
       fs.writeFileSync(path.join(appDir, "rudex-patch-meta.json"), JSON.stringify({ managedByPlugin: true }), "utf8");
       fs.writeFileSync(path.join(userDataDir, "agy_studio_persona_active.flag"), "1\n", "utf8");
+      fs.writeFileSync(path.join(userDataDir, "agy_studio_thinking_ru.flag"), "1\n", "utf8");
       fs.writeFileSync(path.join(userDataDir, "studio_live_edits", "pending.flag"), "1\n", "utf8");
 
       const legacyGlobalRule = path.join(homeDir, ".gemini", "config", "rules", "antigravity-ru-persona.md");
@@ -1106,6 +1204,7 @@ test("patchMainJs startup guard auto-restores stock app.asar when Rudex plugin/s
         asarContent: fs.existsSync(asarPath) ? fs.readFileSync(asarPath, "utf8") : "",
         remainingBackups: fs.readdirSync(resDir).filter((n) => n.startsWith("app.asar.orig-")),
         personaFlagExists: fs.existsSync(path.join(userDataDir, "agy_studio_persona_active.flag")),
+        thinkingFlagExists: fs.existsSync(path.join(userDataDir, "agy_studio_thinking_ru.flag")),
         liveEditFlagExists: fs.existsSync(path.join(userDataDir, "studio_live_edits", "pending.flag")),
         legacyRuleExists: fs.existsSync(legacyGlobalRule),
       };
@@ -1126,6 +1225,7 @@ test("patchMainJs startup guard auto-restores stock app.asar when Rudex plugin/s
   assert.equal(active.disabled, false);
   assert.equal(active.appDirExists, true);
   assert.equal(active.personaFlagExists, true);
+  assert.equal(active.thinkingFlagExists, true);
 
   // Case 2: User removed plugin/skill -> restores newest semver backup (44.10.0 > 44.9.1), cleans flags, relaunches
   const rolledBack = runGuardScenario({
@@ -1143,6 +1243,7 @@ test("patchMainJs startup guard auto-restores stock app.asar when Rudex plugin/s
   assert.equal(rolledBack.asarContent, "NEWEST_STOCK_44_10_0");
   assert.deepEqual(rolledBack.remainingBackups, []);
   assert.equal(rolledBack.personaFlagExists, false);
+  assert.equal(rolledBack.thinkingFlagExists, false);
   assert.equal(rolledBack.liveEditFlagExists, false);
   assert.equal(rolledBack.legacyRuleExists, false);
 
@@ -1157,4 +1258,5 @@ test("patchMainJs startup guard auto-restores stock app.asar when Rudex plugin/s
   assert.equal(dormant.appDirExists, true, "Must NEVER delete resources/app when no valid app.asar exists");
   assert.equal(dormant.disabled, true);
   assert.equal(dormant.personaFlagExists, false);
+  assert.equal(dormant.thinkingFlagExists, false);
 });

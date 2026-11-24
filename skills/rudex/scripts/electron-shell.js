@@ -78,6 +78,7 @@ function patchMainJs(src, stampVersion, warnings) {
                 const _userDataDir = (() => { try { return _app.getPath("userData"); } catch { return ""; } })();
                 const _staleFlags = [
                     _userDataDir ? _path.join(_userDataDir, "agy_studio_persona_active.flag") : "",
+                    _userDataDir ? _path.join(_userDataDir, "agy_studio_thinking_ru.flag") : "",
                     _userDataDir ? _path.join(_userDataDir, "studio_live_edits", "pending.flag") : "",
                     _path.join(_homeDir, ".gemini", "config", "rules", "antigravity-ru-persona.md"),
                 ];

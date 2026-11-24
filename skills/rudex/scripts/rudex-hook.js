@@ -245,6 +245,99 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
   }
 }
 
+function buildThinkingRuDirective() {
+  return [
+    "[Rudex · Язык внутренних размышлений]",
+    "Веди ВСЁ внутреннее рассуждение (thinking / chain-of-thought / этап размышления) целиком на русском языке.",
+    "Сохраняй пути к файлам, идентификаторы кода, символы и команды терминала в точном оригинальном виде.",
+  ].join("\n");
+}
+
+function buildThinkingRuRecency() {
+  return "[Rudex · Напоминание] Продолжай вести внутреннее рассуждение (thinking) целиком на русском языке, сохраняя имена файлов, код и команды точными.";
+}
+
+function runThinkingLanguageEngine(userDataDir, payload, injectSteps) {
+  const eventName = String(payload.hookEventName || "");
+  if (eventName !== "SessionStart" && eventName !== "PreInvocation") {
+    return;
+  }
+
+  const thinkingFlagPath = path.join(userDataDir, "agy_studio_thinking_ru.flag");
+  if (!fs.existsSync(thinkingFlagPath)) {
+    return;
+  }
+
+  const settings = readJsonSafe(path.join(userDataDir, "agy_studio_settings.json"));
+  const enabled = Boolean(settings && settings.thinkingInRussian === true);
+
+  const anchorsPath = path.join(userDataDir, "studio_thinking_anchors.json");
+  const anchorsRaw = readJsonSafe(anchorsPath);
+  const anchorsStore = anchorsRaw && typeof anchorsRaw === "object" && anchorsRaw.anchors && typeof anchorsRaw.anchors === "object"
+    ? anchorsRaw
+    : { version: 1, anchors: {} };
+  const anchors = anchorsStore.anchors;
+
+  const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
+  const prev = convId ? (anchors[convId] || null) : null;
+  const stepNum = Number(payload.initialNumSteps) || 0;
+  const now = Date.now();
+  let anchorsDirty = false;
+
+  if (enabled && (!prev || prev.enabled !== true)) {
+    injectSteps.push({
+      systemMessage: {
+        systemMessage: buildThinkingRuDirective(),
+        metadata: { user_markdown: "\u200B" },
+      },
+    });
+    if (convId) {
+      anchors[convId] = { enabled: true, stepCount: stepNum, updatedAt: now };
+      anchorsDirty = true;
+    }
+  } else if (
+    enabled &&
+    prev &&
+    prev.enabled === true &&
+    eventName === "PreInvocation" &&
+    (stepNum - (Number(prev.stepCount) || 0) >= 6)
+  ) {
+    injectSteps.push({
+      systemMessage: {
+        systemMessage: buildThinkingRuRecency(),
+        metadata: { user_markdown: "\u200B" },
+      },
+    });
+    if (convId) {
+      anchors[convId] = Object.assign({}, prev, { stepCount: stepNum, updatedAt: now });
+      anchorsDirty = true;
+    }
+  } else if (!enabled && prev && prev.enabled === true) {
+    injectSteps.push({
+      systemMessage: {
+        systemMessage: "The user reset the agent thinking language back to default. Return to your default internal reasoning language for upcoming turns.",
+        metadata: { user_markdown: "\u200B" },
+      },
+    });
+    if (convId) {
+      anchors[convId] = { enabled: false, stepCount: stepNum, updatedAt: now };
+      anchorsDirty = true;
+    }
+  }
+
+  if (anchorsDirty) {
+    anchorsStore.anchors = pruneAnchors(anchors);
+    try { safeWriteJsonAtomic(anchorsPath, anchorsStore); } catch {}
+  }
+
+  if (!enabled) {
+    const anyActive = Object.values(anchorsStore.anchors || {}).some((a) => a && a.enabled === true);
+    if (!anyActive) {
+      try { if (fs.existsSync(thinkingFlagPath)) fs.unlinkSync(thinkingFlagPath); } catch {}
+    }
+  }
+}
+
 function formatSupplementInstruction(matched) {
   const blocks = [];
   for (let i = 0; i < matched.length; i += 1) {
@@ -451,8 +544,9 @@ function main() {
   const userDataDir = getUserDataDir();
   const leFlagPath = path.join(userDataDir, "studio_live_edits", "pending.flag");
   const personaFlagPath = path.join(userDataDir, "agy_studio_persona_active.flag");
+  const thinkingFlagPath = path.join(userDataDir, "agy_studio_thinking_ru.flag");
 
-  if (!fs.existsSync(leFlagPath) && !fs.existsSync(personaFlagPath)) {
+  if (!fs.existsSync(leFlagPath) && !fs.existsSync(personaFlagPath) && !fs.existsSync(thinkingFlagPath)) {
     outAndExit({});
   }
 
@@ -473,6 +567,7 @@ function main() {
 
   const injectSteps = [];
   runPersonaEngine(userDataDir, payload, injectSteps);
+  runThinkingLanguageEngine(userDataDir, payload, injectSteps);
   runLiveEditsEngine(userDataDir, payload, injectSteps);
 
   if (injectSteps.length > 0) {

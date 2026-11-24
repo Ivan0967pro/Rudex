@@ -289,6 +289,10 @@ const TEXT = {
     langEnTitle: "English (EN)",
     langEnDesc: "Оригинальный английский интерфейс",
     langActiveBadge: "Активен",
+    thinkingRuTitle: "Мысли агента на русском",
+    thinkingRuDesc: "Переключает внутренние размышления (thinking) агента на русский язык. При отключении возвращается режим по умолчанию.",
+    thinkingRuOn: "Русский",
+    thinkingRuDefault: "По умолчанию",
     hotkeysTitle: "Горячие клавиши",
     hkToggleLang: "Переключить язык RU / EN",
     hkToggleModal: "Открыть / закрыть Rudex",
@@ -547,6 +551,10 @@ const TEXT = {
     langEnTitle: "English (EN)",
     langEnDesc: "Native English Antigravity UI",
     langActiveBadge: "Active",
+    thinkingRuTitle: "Agent thinking in Russian",
+    thinkingRuDesc: "Switches agent internal reasoning (thinking) to Russian. Turn off to restore default behavior.",
+    thinkingRuOn: "Russian",
+    thinkingRuDefault: "Default",
     hotkeysTitle: "Shortcuts",
     hkToggleLang: "Toggle RU / EN localization",
     hkToggleModal: "Toggle Rudex Studio",
@@ -1193,6 +1201,7 @@ function createStudioPanel(options) {
       miniFields: Object.assign({}, DEFAULT_MINI_FIELDS),
       trackHistory: true,
       personaStrictMode: true,
+      thinkingInRussian: false,
       customPresets: [],
       appearance: spCloneAppearance(spDefaultAppearance()),
       appearanceProfiles: [],
@@ -1464,6 +1473,7 @@ function createStudioPanel(options) {
       if (rawSettings.miniFields) state.settings.miniFields = normalizeMiniFields(rawSettings.miniFields);
       if (typeof rawSettings.trackHistory === "boolean") state.settings.trackHistory = rawSettings.trackHistory;
       if (typeof rawSettings.personaStrictMode === "boolean") state.settings.personaStrictMode = rawSettings.personaStrictMode;
+      if (typeof rawSettings.thinkingInRussian === "boolean") state.settings.thinkingInRussian = rawSettings.thinkingInRussian;
       if (Array.isArray(rawSettings.customPresets)) state.settings.customPresets = normalizeCustomPresets(rawSettings.customPresets);
       if (rawSettings.greeting && typeof rawSettings.greeting === "object") {
         state.settings.greeting = spCloneGreeting(rawSettings.greeting);
@@ -3464,6 +3474,7 @@ function createStudioPanel(options) {
 
   function renderSystemSub(tr) {
     const isRu = state.locale !== "en";
+    const thinkingRu = Boolean(state.settings.thinkingInRussian);
     const ver = pluginMeta.version || "4.0.0";
     const dictCount = pluginMeta.dictEntries || 4017;
     const dynCount = pluginMeta.dynamicRulesCount || 471;
@@ -3480,6 +3491,18 @@ function createStudioPanel(options) {
             <span class="choice-title"><span>${escHtml(tr.langEnTitle)}</span>${!isRu ? `<span class="badge-active">${escHtml(tr.langActiveBadge)}</span>` : ""}</span>
             <span class="choice-desc">${escHtml(tr.langEnDesc)}</span>
           </button>
+        </div>
+        <div class="card" style="margin-top:8px">
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${escHtml(tr.thinkingRuTitle)}</span>
+              <span class="row-desc">${escHtml(tr.thinkingRuDesc)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+              <span class="${thinkingRu ? "badge-active" : "nav-badge"}">${escHtml(thinkingRu ? tr.thinkingRuOn : tr.thinkingRuDefault)}</span>
+              <button type="button" class="switch${thinkingRu ? " is-on" : ""}" role="switch" aria-checked="${thinkingRu ? "true" : "false"}" data-action="toggle-thinking-ru" aria-label="${escAttr(tr.thinkingRuTitle)}"><span class="switch-thumb"></span></button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -3967,6 +3990,10 @@ function createStudioPanel(options) {
         setLocale(next);
         invokeIpc("agy-i18n:set-locale", next);
       }
+      return;
+    }
+    if (action === "toggle-thinking-ru") {
+      saveSettingsPatch({ thinkingInRussian: !state.settings.thinkingInRussian });
       return;
     }
     if (action === "toggle-mini-field") {
@@ -4886,8 +4913,12 @@ function createStudioPanel(options) {
     }
   }
 
-  function setOpen(nextOpen) {
+  function setOpen(nextOpen, opts) {
     const next = Boolean(nextOpen);
+    if (next && opts && typeof opts === "object") {
+      if (opts.tab) state.activeTab = String(opts.tab);
+      if (opts.subTab) state.settingsSubTab = String(opts.subTab);
+    }
     if (!next && (state.appearanceLivePreview || state.activeTab === "appearance")) {
       state.appearanceLivePreview = false;
       state.appearanceDraft = spCloneAppearance(state.settings.appearance);

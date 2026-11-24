@@ -3,13 +3,23 @@ param(
   [switch]$Status,
   [switch]$Uninstall,
   [switch]$RemovePlugin,
-  [switch]$RestartApp
+  [switch]$RestartApp,
+  [switch]$PluginOnly
 )
 
 $ErrorActionPreference = "Stop"
-$RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$InstallJs = Join-Path $RepoRoot "skills\rudex\scripts\install.js"
-$UninstallJs = Join-Path $RepoRoot "skills\rudex\scripts\uninstall.js"
+
+$ScriptPath = if ($PSCommandPath) { $PSCommandPath } else { $MyInvocation.MyCommand.Path }
+$LocalRepoRoot = if ($ScriptPath) { Split-Path -Parent $ScriptPath } else { $null }
+$IsLocalRepo = [bool](
+  $LocalRepoRoot -and
+  (Test-Path (Join-Path $LocalRepoRoot "plugin.json")) -and
+  (Test-Path (Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"))
+)
+
+$RepoOwner = "Ivan0967pro"
+$RepoName = "Rudex"
+$Branch = if ($env:RUDEX_BRANCH) { $env:RUDEX_BRANCH } else { "main" }
 
 function Find-AntigravityExe {
   $candidates = @(
@@ -25,72 +35,228 @@ function Find-AntigravityExe {
   return $null
 }
 
-function Invoke-RudexNode([string]$ScriptPath, [string[]]$ScriptArgs) {
+function Invoke-RudexNode([string]$TargetScript, [string[]]$ScriptArgs) {
   $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
   if ($nodeCmd) {
-    & $nodeCmd.Source $ScriptPath @ScriptArgs
-    if ($LASTEXITCODE -ne 0) { throw "Command failed with exit code $LASTEXITCODE" }
-    return
+    $captured = @(& $nodeCmd.Source $TargetScript @ScriptArgs)
+    $exitCode = $LASTEXITCODE
+    $outLines = @()
+    foreach ($line in $captured) {
+      $str = "$line"
+      $outLines += $str
+      Write-Host $str
+    }
+    if ($exitCode -ne 0) { throw "Rudex script failed with exit code $exitCode" }
+    return ,([string[]]$outLines)
   }
 
   $agyExe = Find-AntigravityExe
   if (-not $agyExe) {
-    throw "Neither Node.js nor Antigravity.exe was found."
+    throw "Neither Node.js nor Antigravity.exe was found. Install Antigravity first and retry."
   }
+
+  $logDir = Join-Path $env:TEMP ("rudex-log-" + [Guid]::NewGuid().ToString("N"))
+  New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+  $logOut = Join-Path $logDir "stdout.log"
+  $logErr = Join-Path $logDir "stderr.log"
+
   $prevElectronNode = $env:ELECTRON_RUN_AS_NODE
+  $hadElectronNode = Test-Path Env:ELECTRON_RUN_AS_NODE
   try {
     $env:ELECTRON_RUN_AS_NODE = "1"
-    & $agyExe $ScriptPath @ScriptArgs
-    if ($LASTEXITCODE -ne 0) { throw "Command failed with exit code $LASTEXITCODE" }
-  } finally {
-    if ($null -eq $prevElectronNode) {
-      Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
-    } else {
-      $env:ELECTRON_RUN_AS_NODE = $prevElectronNode
+    $argList = @("`"$TargetScript`"") + $ScriptArgs
+    $proc = Start-Process -FilePath $agyExe `
+      -ArgumentList $argList `
+      -Wait -NoNewWindow -PassThru `
+      -RedirectStandardOutput $logOut `
+      -RedirectStandardError $logErr
+
+    $outLines = @()
+    if (Test-Path $logOut) {
+      $rawOut = Get-Content -Path $logOut -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($rawOut) {
+        $outLines = @($rawOut | ForEach-Object { "$_" })
+        foreach ($line in $outLines) { Write-Host $line }
+      }
     }
+    if (Test-Path $logErr) {
+      $rawErr = Get-Content -Path $logErr -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($rawErr) {
+        foreach ($line in $rawErr) { Write-Host "$line" -ForegroundColor Yellow }
+      }
+    }
+    if ($proc.ExitCode -ne 0) {
+      throw "Rudex script failed with exit code $($proc.ExitCode)"
+    }
+    return ,([string[]]$outLines)
+  } finally {
+    if ($hadElectronNode) {
+      $env:ELECTRON_RUN_AS_NODE = $prevElectronNode
+    } else {
+      Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+    }
+    Remove-Item -Path $logDir -Recurse -Force -ErrorAction SilentlyContinue
   }
 }
 
-Write-Host "Rudex v4.0.0 -- PowerShell Installer" -ForegroundColor Cyan
-
-if ($Status) {
-  Invoke-RudexNode $InstallJs @("--status")
-  exit 0
+function Wait-AntigravityExit([int]$TimeoutMs = 8000) {
+  $deadline = (Get-Date).AddMilliseconds($TimeoutMs)
+  while ((Get-Date) -lt $deadline) {
+    $running = Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue
+    if (-not $running) { return $true }
+    Start-Sleep -Milliseconds 400
+  }
+  return -not [bool](Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue)
 }
 
-if ($DryRun) {
-  Invoke-RudexNode $InstallJs @("--dry-run")
-  exit 0
+function Restart-AntigravityDetached([string]$ExePath) {
+  if (-not $ExePath -or -not (Test-Path $ExePath)) { return }
+  $running = Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue
+  if ($running) {
+    Write-Host "[Rudex] Restarting Antigravity to load updated skill and UI..." -ForegroundColor Green
+    $cmd = "timeout /t 1 /nobreak >nul & taskkill /IM Antigravity.exe >nul 2>&1 & timeout /t 2 /nobreak >nul & taskkill /F /IM Antigravity.exe >nul 2>&1 & start `"`" `"$ExePath`""
+    Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $cmd)
+  } else {
+    Write-Host "[Rudex] Starting Antigravity..." -ForegroundColor Green
+    Start-Process -FilePath $ExePath
+  }
 }
 
-$wasRunning = [bool](Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue)
-$agyExe = Find-AntigravityExe
+Write-Host "Rudex v4.0.0 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
 
-if ($Uninstall) {
+if ($IsLocalRepo) {
+  $InstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"
+  $UninstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\uninstall.js"
+
+  if ($Status) {
+    $null = Invoke-RudexNode $InstallJs @("--status")
+    exit 0
+  }
+
+  if ($DryRun) {
+    $null = Invoke-RudexNode $InstallJs @("--dry-run")
+    exit 0
+  }
+
+  if ($PluginOnly) {
+    $null = Invoke-RudexNode $InstallJs @("--plugin-only")
+    Write-Host "[Rudex] Skill registered in Antigravity plugins." -ForegroundColor Green
+    exit 0
+  }
+
+  $wasRunning = [bool](Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue)
+  $agyExe = Find-AntigravityExe
+
+  if ($Uninstall) {
+    if ($wasRunning -and $RestartApp) {
+      Stop-Process -Name "Antigravity" -Force -ErrorAction SilentlyContinue
+      [void](Wait-AntigravityExit)
+    }
+    $uArgs = @()
+    if ($RemovePlugin) { $uArgs += "--remove-plugin" }
+    $null = Invoke-RudexNode $UninstallJs $uArgs
+    if ($wasRunning -and $RestartApp -and $agyExe) {
+      Start-Process -FilePath $agyExe
+    }
+    exit 0
+  }
+
   if ($wasRunning -and $RestartApp) {
+    Write-Host "[Rudex] Closing Antigravity briefly..." -ForegroundColor Yellow
     Stop-Process -Name "Antigravity" -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
+    [void](Wait-AntigravityExit)
   }
-  $uArgs = @()
-  if ($RemovePlugin) { $uArgs += "--remove-plugin" }
-  Invoke-RudexNode $UninstallJs $uArgs
-  if ($wasRunning -and $RestartApp -and $agyExe) {
-    Start-Process $agyExe
+
+  $outLines = Invoke-RudexNode $InstallJs @("--sync-plugin")
+  $status = $null
+  $activatorPath = $null
+  $agyExeOut = $null
+  foreach ($line in $outLines) {
+    if ($line -match '^STATUS=(.+)$') { $status = $Matches[1].Trim() }
+    elseif ($line -match '^ACTIVATOR_PATH=(.+)$') { $activatorPath = $Matches[1].Trim() }
+    elseif ($line -match '^AGY_EXE=(.+)$') { $agyExeOut = $Matches[1].Trim() }
+  }
+  $exeToUse = if ($agyExeOut) { $agyExeOut } else { $agyExe }
+
+  if ($status -eq "LOCKED_NEEDS_ACTIVATOR" -and $activatorPath -and (Test-Path $activatorPath)) {
+    if ($RestartApp) {
+      Write-Host "[Rudex] Activating Rudex UI and restarting Antigravity..." -ForegroundColor Green
+      Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "`"$activatorPath`"")
+    } else {
+      Write-Host "[Rudex] Skill synced and shell staged. Run `"$activatorPath`" (or restart Antigravity via Rudex) to unlock app.asar." -ForegroundColor Yellow
+    }
+    exit 0
+  }
+
+  if ($RestartApp -and $exeToUse) {
+    Restart-AntigravityDetached $exeToUse
+  } else {
+    Write-Host "[Rudex] Skill installed! Restart Antigravity once to apply all updates in the UI." -ForegroundColor Green
   }
   exit 0
 }
 
-if ($wasRunning -and $RestartApp) {
-  Write-Host "Stopping running Antigravity..." -ForegroundColor Yellow
-  Stop-Process -Name "Antigravity" -Force -ErrorAction SilentlyContinue
-  Start-Sleep -Seconds 2
-}
+# Remote 1-line PowerShell installer mode (irm ... | iex)
+$DoPluginOnly = $PluginOnly -or ($env:RUDEX_PLUGIN_ONLY -eq "1")
+$NoRestart = ($env:RUDEX_NO_RESTART -eq "1")
 
-Invoke-RudexNode $InstallJs @("--sync-plugin")
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-if ($RestartApp -and $agyExe) {
-  Write-Host "Starting Antigravity..." -ForegroundColor Green
-  Start-Process $agyExe
-} else {
-  Write-Host "Done! Restart Antigravity once to apply all Rudex updates in the UI." -ForegroundColor Green
+$tempRoot = Join-Path $env:TEMP ("rudex-install-" + [Guid]::NewGuid().ToString("N"))
+$zipPath = Join-Path $tempRoot "rudex.zip"
+$extractDir = Join-Path $tempRoot "extracted"
+$zipUrl = "https://github.com/$RepoOwner/$RepoName/archive/refs/heads/$Branch.zip"
+
+try {
+  New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+  Write-Host "[Rudex] Downloading Rudex skill from $RepoOwner/$RepoName ($Branch)..." -ForegroundColor Cyan
+  Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
+
+  Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+
+  $manifest = Get-ChildItem -Path $extractDir -Filter "plugin.json" -Recurse | Select-Object -First 1
+  if (-not $manifest) {
+    throw "Failed to locate plugin.json inside downloaded archive."
+  }
+  $sourceDir = $manifest.Directory.FullName
+  $sourceInstallJs = Join-Path $sourceDir "skills\rudex\scripts\install.js"
+  if (-not (Test-Path $sourceInstallJs)) {
+    throw "Installer script missing from archive: $sourceInstallJs"
+  }
+
+  if ($DoPluginOnly) {
+    $null = Invoke-RudexNode $sourceInstallJs @("--plugin-only")
+    Write-Host "[Rudex] Skill installed into Antigravity (%USERPROFILE%\.gemini\config\plugins\rudex)." -ForegroundColor Green
+    return
+  }
+
+  $outLines = Invoke-RudexNode $sourceInstallJs @("--sync-plugin")
+  $status = $null
+  $activatorPath = $null
+  $agyExeOut = $null
+  foreach ($line in $outLines) {
+    if ($line -match '^STATUS=(.+)$') { $status = $Matches[1].Trim() }
+    elseif ($line -match '^ACTIVATOR_PATH=(.+)$') { $activatorPath = $Matches[1].Trim() }
+    elseif ($line -match '^AGY_EXE=(.+)$') { $agyExeOut = $Matches[1].Trim() }
+  }
+
+  $exeToUse = if ($agyExeOut) { $agyExeOut } else { Find-AntigravityExe }
+
+  if ($status -eq "LOCKED_NEEDS_ACTIVATOR" -and $activatorPath -and (Test-Path $activatorPath)) {
+    if ($NoRestart) {
+      Write-Host "[Rudex] Skill files installed, but app.asar is locked by running Antigravity. Close Antigravity and run `"$activatorPath`" (or re-run this command)." -ForegroundColor Yellow
+      return
+    }
+    Write-Host "[Rudex] Activating Rudex UI and restarting Antigravity..." -ForegroundColor Green
+    Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "`"$activatorPath`"")
+  } elseif ((-not $NoRestart) -and $exeToUse -and (Test-Path $exeToUse)) {
+    Restart-AntigravityDetached $exeToUse
+  }
+
+  $pluginTarget = Join-Path $env:USERPROFILE ".gemini\config\plugins\rudex"
+  Write-Host "[Rudex] Done! Rudex skill is installed in: $pluginTarget" -ForegroundColor Green
+} finally {
+  if (Test-Path $tempRoot) {
+    Remove-Item -Path $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+  }
 }

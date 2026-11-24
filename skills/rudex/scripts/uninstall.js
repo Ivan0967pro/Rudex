@@ -55,6 +55,7 @@ function runUninstall(options = {}) {
   // Clean transient persona flags & pending live-edit flags
   const runtimeFlags = [
     path.join(userDataDir, "agy_studio_persona_active.flag"),
+    path.join(userDataDir, "agy_studio_thinking_ru.flag"),
     path.join(userDataDir, "studio_live_edits", "pending.flag"),
   ];
   for (const f of runtimeFlags) {

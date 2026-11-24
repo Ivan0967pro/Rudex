@@ -256,6 +256,21 @@ function getStudioMediaDir() {
   return path.join(app.getPath("userData"), "studio_media");
 }
 
+function getThinkingRuFlagPath() {
+  return path.join(app.getPath("userData"), "agy_studio_thinking_ru.flag");
+}
+
+function syncThinkingRuFlag(enabled, opts = {}) {
+  const flagPath = getThinkingRuFlagPath();
+  try {
+    if (enabled) {
+      writeFileAtomic(flagPath, "1\n");
+    } else if (opts.wasEnabled) {
+      writeFileAtomic(flagPath, "0\n");
+    }
+  } catch {}
+}
+
 function getPluginsBaseDir() {
   return path.join(os.homedir(), ".gemini", "config", "plugins");
 }
@@ -347,6 +362,7 @@ function sanitizeStudioSettings(raw) {
     personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
     personaText: typeof src.personaText === "string" ? src.personaText : "",
     personaStrictMode: src.personaStrictMode !== false,
+    thinkingInRussian: Boolean(src.thinkingInRussian),
     customPresets: presets,
     appearance: sanitizeAppearance(src.appearance),
     appearanceProfiles: sanitizeAppearanceProfiles(src.appearanceProfiles),
@@ -393,6 +409,10 @@ function saveStudioSettings(patch) {
   }
   if (pObj.appearance || pObj.appearanceProfiles) {
     schedulePruneOrphanedMedia(next);
+  }
+  if (Object.prototype.hasOwnProperty.call(pObj, "thinkingInRussian")) {
+    syncThinkingRuFlag(Boolean(next.thinkingInRussian), { wasEnabled: Boolean(current.thinkingInRussian) });
+    resyncActiveChatRuleFile();
   }
   return next;
 }
@@ -756,26 +776,41 @@ function saveStudioChats(chatsMap) {
   return saveStudioChatsStore(cur).chats;
 }
 
-function formatPersonaRuleContent(trimmed, usePlugin, strictMode) {
+function formatThinkingRuRuleBlock() {
+  return [
+    "# Язык внутренних размышлений агента (Rudex Studio)",
+    "",
+    "Веди ВСЁ внутреннее рассуждение (thinking / chain-of-thought / этап размышления) целиком на **русском языке**.",
+    "- Сохраняй пути к файлам, идентификаторы кода, символы и команды терминала в точном оригинальном виде.",
+  ].join("\n");
+}
+
+function formatPersonaRuleContent(trimmed, usePlugin, strictMode, thinkingInRussian) {
   const header = usePlugin ? "" : "---\ntrigger: always_on\n---\n\n";
-  const body = [
-    "# Стиль общения активного чата (Rudex Studio)",
-    "",
-    "Веди диалог в манере, заданной внутри <user_persona>, от первого слова до финальной строки:",
-    "",
-    "<user_persona>",
-    trimmed,
-    "</user_persona>",
-    "",
-    "1. Выдерживай запрошенные тон, подачу, лексику и формат естественно, без сухого шаблонного канцелярита.",
-    "2. Код, пути к файлам, команды и результаты инструментов оставляй на 100% точными и фактическими.",
-    "3. В допустимых рамках полностью раскрывай образ без лишних нотаций и отказов-отписок.",
-  ];
-  if (strictMode !== false) {
-    body.push("4. Сохраняй этот же голос при переходе между планированием, выполнением и ответами субагентов.");
+  const sections = [];
+  if (trimmed) {
+    const body = [
+      "# Стиль общения активного чата (Rudex Studio)",
+      "",
+      "Веди диалог в манере, заданной внутри <user_persona>, от первого слова до финальной строки:",
+      "",
+      "<user_persona>",
+      trimmed,
+      "</user_persona>",
+      "",
+      "1. Выдерживай запрошенные тон, подачу, лексику и формат естественно, без сухого шаблонного канцелярита.",
+      "2. Код, пути к файлам, команды и результаты инструментов оставляй на 100% точными и фактическими.",
+      "3. В допустимых рамках полностью раскрывай образ без лишних нотаций и отказов-отписок.",
+    ];
+    if (strictMode !== false) {
+      body.push("4. Сохраняй этот же голос при переходе между планированием, выполнением и ответами субагентов.");
+    }
+    sections.push(body.join("\n"));
   }
-  body.push("");
-  return header + body.join("\n");
+  if (thinkingInRussian) {
+    sections.push(formatThinkingRuRuleBlock());
+  }
+  return header + sections.join("\n\n") + "\n";
 }
 
 function syncPersonaRuleFile(enabled, text, strictMode) {
@@ -789,8 +824,9 @@ function syncPersonaRuleFile(enabled, text, strictMode) {
     } catch {}
   }
 
-  const trimmed = String(text || "").trim();
-  if (!enabled || !trimmed) {
+  const trimmed = enabled ? String(text || "").trim() : "";
+  const thinkingRu = Boolean(loadStudioSettings().thinkingInRussian);
+  if (!trimmed && !thinkingRu) {
     try {
       if (fs.existsSync(rulePath)) fs.unlinkSync(rulePath);
     } catch (err) {
@@ -799,10 +835,10 @@ function syncPersonaRuleFile(enabled, text, strictMode) {
     return { ok: !fs.existsSync(rulePath), exists: fs.existsSync(rulePath), byteLength: 0, rulePath };
   }
   const bodyBytes = Buffer.byteLength(trimmed, "utf8");
-  if (bodyBytes > MAX_PERSONA_BODY_BYTES) {
+  if (trimmed && bodyBytes > MAX_PERSONA_BODY_BYTES) {
     return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: "EXCEEDS_BYTE_LIMIT", rulePath };
   }
-  const content = formatPersonaRuleContent(trimmed, usePlugin, strictMode !== false);
+  const content = formatPersonaRuleContent(trimmed, usePlugin, strictMode !== false, thinkingRu);
   try {
     writeFileAtomic(rulePath, content);
     const verified = fs.existsSync(rulePath);
@@ -810,6 +846,23 @@ function syncPersonaRuleFile(enabled, text, strictMode) {
   } catch (err) {
     return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: err && err.message ? err.message : String(err), rulePath };
   }
+}
+
+function resyncActiveChatRuleFile() {
+  const store = loadStudioChatsStore();
+  if (lastActiveChatKey === "__new__") {
+    const pending = store.pendingNewChatPersona;
+    if (pending && pending.enabled && typeof pending.text === "string" && pending.text.trim()) {
+      return syncPersonaRuleFile(true, pending.text, pending.strict !== false);
+    }
+    return syncPersonaRuleFile(false, "", true);
+  }
+  const rec = store.chats && store.chats[lastActiveChatKey] ? sanitizeChatRecord(store.chats[lastActiveChatKey]) : null;
+  return syncPersonaRuleFile(
+    Boolean(rec && rec.personaEnabled),
+    (rec && rec.personaText) || "",
+    rec ? rec.personaStrict !== false : true
+  );
 }
 
 function getStudioQuotaPath() {
@@ -2102,6 +2155,11 @@ function registerI18nIpc() {
   }
   console.log("[Rudex] Active localization loaded (locale=" + getLocale() + ", store=" + getStorePath() + ")");
   syncPersonaActiveFlag(loadStudioChatsStore());
+  const bootThinkingRu = Boolean(loadStudioSettings().thinkingInRussian);
+  syncThinkingRuFlag(bootThinkingRu, { boot: true });
+  if (bootThinkingRu && !fs.existsSync(getPersonaRulePath())) {
+    resyncActiveChatRuleFile();
+  }
   const bootLe = loadAllLiveEdits();
   if (bootLe.hasPending) ensureLiveEditWatcher();
 

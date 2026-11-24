@@ -487,25 +487,40 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
   const pluginsBase = path.join(os.homedir(), ".gemini", "config", "plugins");
   const targetDir = path.join(pluginsBase, "rudex");
   const legacyDir = path.join(pluginsBase, "antigravity-ru");
+  const isSameDir = path.resolve(repoRoot).toLowerCase() === path.resolve(targetDir).toLowerCase();
 
-  const targetRulePath = path.join(targetDir, "rules", "AGENTS.md");
-  const legacyRulePath = path.join(legacyDir, "rules", "AGENTS.md");
-  let preservedRuleContent = null;
-  if (fs.existsSync(targetRulePath)) {
-    preservedRuleContent = fs.readFileSync(targetRulePath, "utf8");
-  } else if (fs.existsSync(legacyRulePath)) {
-    preservedRuleContent = fs.readFileSync(legacyRulePath, "utf8");
+  if (!isSameDir) {
+    const targetRulePath = path.join(targetDir, "rules", "AGENTS.md");
+    const legacyRulePath = path.join(legacyDir, "rules", "AGENTS.md");
+    let preservedRuleContent = null;
+    if (fs.existsSync(targetRulePath)) {
+      preservedRuleContent = fs.readFileSync(targetRulePath, "utf8");
+    } else if (fs.existsSync(legacyRulePath)) {
+      preservedRuleContent = fs.readFileSync(legacyRulePath, "utf8");
+    }
+
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    // Clean obsolete skill files inside target/skills while keeping rules/
+    const targetSkillsDir = path.join(targetDir, "skills");
+    if (fs.existsSync(targetSkillsDir)) {
+      fs.rmSync(targetSkillsDir, { recursive: true, force: true });
+    }
+
+    fs.copyFileSync(path.join(repoRoot, "plugin.json"), path.join(targetDir, "plugin.json"));
+
+    const assetsSrc = path.join(repoRoot, "assets");
+    if (fs.existsSync(assetsSrc)) {
+      copyDirRecursiveSync(assetsSrc, path.join(targetDir, "assets"));
+    }
+    const skillSrc = path.join(repoRoot, "skills", "rudex");
+    copyDirRecursiveSync(skillSrc, path.join(targetDir, "skills", "rudex"));
+
+    if (preservedRuleContent !== null) {
+      fs.mkdirSync(path.dirname(targetRulePath), { recursive: true });
+      fs.writeFileSync(targetRulePath, preservedRuleContent, "utf8");
+    }
   }
-
-  fs.mkdirSync(targetDir, { recursive: true });
-
-  // Clean obsolete skill files inside target/skills while keeping rules/
-  const targetSkillsDir = path.join(targetDir, "skills");
-  if (fs.existsSync(targetSkillsDir)) {
-    fs.rmSync(targetSkillsDir, { recursive: true, force: true });
-  }
-
-  fs.copyFileSync(path.join(repoRoot, "plugin.json"), path.join(targetDir, "plugin.json"));
 
   // Sync hooks.json (using hook-runner.cmd fallback on Windows if node isn't on global PATH)
   const hooksObj = JSON.parse(fs.readFileSync(path.join(repoRoot, "hooks.json"), "utf8"));
@@ -523,18 +538,6 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
     }
   }
   fs.writeFileSync(path.join(targetDir, "hooks.json"), JSON.stringify(hooksObj, null, 2) + "\n", "utf8");
-
-  const assetsSrc = path.join(repoRoot, "assets");
-  if (fs.existsSync(assetsSrc)) {
-    copyDirRecursiveSync(assetsSrc, path.join(targetDir, "assets"));
-  }
-  const skillSrc = path.join(repoRoot, "skills", "rudex");
-  copyDirRecursiveSync(skillSrc, path.join(targetDir, "skills", "rudex"));
-
-  if (preservedRuleContent !== null) {
-    fs.mkdirSync(path.dirname(targetRulePath), { recursive: true });
-    fs.writeFileSync(targetRulePath, preservedRuleContent, "utf8");
-  }
 
   // Migrate and remove legacy antigravity-ru plugin so hooks never double-fire
   if (fs.existsSync(legacyDir) && path.resolve(legacyDir) !== path.resolve(targetDir)) {
@@ -590,6 +593,7 @@ function deployStagedApp(stagingDir, appDir) {
 function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts = {}) {
   const dryRun = Boolean(opts && opts.dryRun);
   let cleanAsarPath = info.backups[0] ? info.backups[0].path : "";
+  let asarLocked = false;
 
   if (dryRun) {
     if (!cleanAsarPath && fs.existsSync(info.asarPath)) {
@@ -602,9 +606,11 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
         fs.renameSync(info.asarPath, newBackupPath);
       } catch (err) {
         if (err && (err.code === "EBUSY" || err.code === "EPERM")) {
-          throw new Error(`Cannot move app.asar to ${newBackupPath} while Antigravity is running. Please close Antigravity and retry.`);
+          fs.copyFileSync(info.asarPath, newBackupPath);
+          asarLocked = true;
+        } else {
+          throw err;
         }
-        throw err;
       }
       cleanAsarPath = newBackupPath;
     } else {
@@ -614,12 +620,19 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
         if (bakStat.size !== asarStat.size) {
           fs.copyFileSync(info.asarPath, newBackupPath);
         }
+      } catch (err) {
+        if (!err || (err.code !== "EBUSY" && err.code !== "EPERM")) {
+          throw err;
+        }
+      }
+      try {
         fs.unlinkSync(info.asarPath);
       } catch (err) {
         if (err && (err.code === "EBUSY" || err.code === "EPERM")) {
-          throw new Error("Cannot release app.asar while Antigravity is running. Please close Antigravity and retry.");
+          asarLocked = true;
+        } else {
+          throw err;
         }
-        throw err;
       }
       cleanAsarPath = newBackupPath;
     }
@@ -647,7 +660,7 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
     path.join(distDir, "i18nData", "zip-builder.js"),
   ]);
 
-  return { unpackedCount, patchResult, cleanAsarPath, stampVersion };
+  return { unpackedCount, patchResult, cleanAsarPath, stampVersion, asarLocked };
 }
 
 function runDryRun() {
@@ -677,20 +690,36 @@ function runDryRun() {
   }
 }
 
-function writeApplyRestartCmd(info) {
+function writeApplyRestartCmd(info, opts = {}) {
   if (process.platform !== "win32" || !info.exePath) return "";
-  const outPath = path.join(os.homedir(), "Desktop", "Rudex-Apply-Restart.cmd");
-  const script = [
+  const outPath = opts.outPath || path.join(os.homedir(), "Desktop", "Rudex-Apply-Restart.cmd");
+  const removeAsar = Boolean(opts.removeAsar);
+  const lines = [
     "@echo off",
     `set "AGY_EXE=${info.exePath}"`,
+    `set "RES_DIR=${info.resourcesDir}"`,
     "setlocal EnableDelayedExpansion",
     "echo Restarting Antigravity to apply Rudex...",
     "taskkill /F /IM Antigravity.exe >nul 2>&1",
     "timeout /t 2 /nobreak >nul",
+  ];
+  if (removeAsar && info.resourcesDir) {
+    lines.push(
+      'if exist "!RES_DIR!\\app.asar.orig-*" if exist "!RES_DIR!\\app" (',
+      '  del /F /Q "!RES_DIR!\\app.asar" >nul 2>&1',
+      '  if exist "!RES_DIR!\\app.asar" (',
+      "    timeout /t 1 /nobreak >nul",
+      '    del /F /Q "!RES_DIR!\\app.asar" >nul 2>&1',
+      "  )",
+      ")"
+    );
+  }
+  lines.push(
     'start "" "!AGY_EXE!"',
     'del "%~f0" >nul 2>&1',
-    "",
-  ].join("\r\n");
+    ""
+  );
+  const script = lines.join("\r\n");
   try {
     fs.writeFileSync(outPath, script, "utf8");
     return outPath;
@@ -714,7 +743,7 @@ function runInstall(options = {}) {
   const stagingDir = path.join(info.resourcesDir, `.rudex-staging-${process.pid}-${Date.now()}`);
 
   try {
-    const { unpackedCount, patchResult, stampVersion } = buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir);
+    const { unpackedCount, patchResult, stampVersion, asarLocked } = buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir);
     const metaPayload = {
       name: "rudex",
       displayName: pluginMeta.displayName,
@@ -753,11 +782,26 @@ function runInstall(options = {}) {
 
     console.log(`Syntax verification (vm.Script) PASSED.`);
     console.log(`Patched ${patchResult.patchedFiles.length} files (${info.appDir}) [warnings=${patchResult.warnings.length}]`);
-    if (options.writeRestartCmd) {
-      const cmdPath = writeApplyRestartCmd(info);
-      if (cmdPath) console.log(`RESTART_CMD=${cmdPath}`);
+    if (info.exePath) {
+      console.log(`AGY_EXE=${info.exePath}`);
     }
-    console.log("STATUS=ACTIVATED");
+    if (asarLocked) {
+      const activatorOutPath = options.writeRestartCmd
+        ? path.join(os.homedir(), "Desktop", "Rudex-Apply-Restart.cmd")
+        : path.join(os.tmpdir(), `rudex-activate-${Date.now()}.cmd`);
+      const cmdPath = writeApplyRestartCmd(info, { outPath: activatorOutPath, removeAsar: true });
+      if (cmdPath) {
+        console.log(`ACTIVATOR_PATH=${cmdPath}`);
+        if (options.writeRestartCmd) console.log(`RESTART_CMD=${cmdPath}`);
+      }
+      console.log("STATUS=LOCKED_NEEDS_ACTIVATOR");
+    } else {
+      if (options.writeRestartCmd) {
+        const cmdPath = writeApplyRestartCmd(info, { removeAsar: false });
+        if (cmdPath) console.log(`RESTART_CMD=${cmdPath}`);
+      }
+      console.log("STATUS=ACTIVATED");
+    }
   } finally {
     if (fs.existsSync(stagingDir)) {
       try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch (_e) {}
@@ -804,6 +848,9 @@ function main() {
     runDryRun();
   } else if (args.has("--status")) {
     runStatus();
+  } else if (args.has("--plugin-only")) {
+    syncPluginToGlobalConfig(PLUGIN_ROOT);
+    console.log("STATUS=PLUGIN_ONLY");
   } else if (args.has("--sync-plugin")) {
     runInstall({ syncPlugin: true, writeRestartCmd: args.has("--write-restart-cmd") });
   } else {
