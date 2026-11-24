@@ -142,6 +142,66 @@ const THEME_PRESETS = [
     },
   },
   {
+    id: "tokyo-night",
+    nameRu: "Токийская ночь",
+    nameEn: "Tokyo Night",
+    descRu: "Неоново-синий сумрак мегаполиса с мягким контрастом",
+    descEn: "Deep Tokyo twilight with luminous blue accent",
+    mode: "dark",
+    vars: {
+      accentColor: "#7aa2f7",
+      canvasBg: "#0b0e18",
+      cardBg: "#131829",
+      sidebarBg: "#0e1220",
+      fgColor: "#e2e8f0",
+      mutedColor: "#8896b3",
+      borderColor: "#242d4a",
+      glassOpacity: 76,
+      glassBlur: 14,
+      radius: 12,
+    },
+  },
+  {
+    id: "sakura-dusk",
+    nameRu: "Сумерки сакуры",
+    nameEn: "Sakura Dusk",
+    descRu: "Глубокий сливовый вечер и нежно-розовый акцент",
+    descEn: "Velvet plum dusk with soft sakura rose accent",
+    mode: "dark",
+    vars: {
+      accentColor: "#f472b6",
+      canvasBg: "#140b12",
+      cardBg: "#20121d",
+      sidebarBg: "#190e17",
+      fgColor: "#fdf2f8",
+      mutedColor: "#b896aa",
+      borderColor: "#3b2134",
+      glassOpacity: 76,
+      glassBlur: 15,
+      radius: 14,
+    },
+  },
+  {
+    id: "nordic-frost",
+    nameRu: "Скандинавский лёд",
+    nameEn: "Nordic Frost",
+    descRu: "Прохладные ледяные поверхности и небесно-синий акцент",
+    descEn: "Crisp arctic light surfaces with sky blue accent",
+    mode: "light",
+    vars: {
+      accentColor: "#0284c7",
+      canvasBg: "#f1f5f9",
+      cardBg: "#ffffff",
+      sidebarBg: "#e6edf5",
+      fgColor: "#0f172a",
+      mutedColor: "#475569",
+      borderColor: "#cbd5e1",
+      glassOpacity: 84,
+      glassBlur: 12,
+      radius: 12,
+    },
+  },
+  {
     id: "custom",
     nameRu: "Своя тема",
     nameEn: "Custom Theme",
@@ -170,6 +230,33 @@ const GRADIENT_PRESETS = [
   { id: "emerald", nameRu: "Изумруд", nameEn: "Emerald", colors: ["#071714", "#0d3b32", "#091015"], angle: 135 },
   { id: "cyber", nameRu: "Киберпанк", nameEn: "Cyber", colors: ["#090b1a", "#172554", "#3b0764"], angle: 120 },
   { id: "silk", nameRu: "Тёплый шёлк", nameEn: "Warm Silk", colors: ["#1a1715", "#2d241c", "#141210"], angle: 140 },
+  { id: "sakura", nameRu: "Сакура", nameEn: "Sakura", colors: ["#1f1024", "#4c1d4b", "#130d1d"], angle: 130 },
+  { id: "ocean", nameRu: "Глубокий океан", nameEn: "Deep Ocean", colors: ["#061320", "#0c3559", "#071824"], angle: 140 },
+  { id: "amber", nameRu: "Янтарный закат", nameEn: "Amber Glow", colors: ["#1c1108", "#4d280d", "#150e0a"], angle: 135 },
+  { id: "mist", nameRu: "Обсидиановый туман", nameEn: "Obsidian Mist", colors: ["#0d0f14", "#1f2433", "#0a0b0e"], angle: 150 },
+];
+
+const CORNER_PRESETS = [
+  { id: "sharp", nameRu: "Острые", nameEn: "Sharp", mode: "linked", all: 0 },
+  { id: "crisp", nameRu: "Чёткие", nameEn: "Crisp", mode: "linked", all: 6 },
+  { id: "balanced", nameRu: "Баланс", nameEn: "Balanced", mode: "linked", all: 12 },
+  { id: "soft", nameRu: "Мягкие", nameEn: "Soft", mode: "linked", all: 18 },
+  { id: "pill", nameRu: "Капсулы", nameEn: "Pill", mode: "linked", all: 24 },
+  {
+    id: "editorial",
+    nameRu: "Контраст",
+    nameEn: "Editorial",
+    mode: "custom",
+    all: 12,
+    messages: 18,
+    composer: 22,
+    buttons: 8,
+    cards: 14,
+    code: 6,
+    sidebar: 8,
+    overlays: 20,
+    inputs: 10,
+  },
 ];
 
 const FONT_PRESETS = {
@@ -205,9 +292,22 @@ const DEFAULT_APPEARANCE = {
   borderStrength: 50,
   highContrastText: true,
   radius: 12,
+  corners: {
+    mode: "linked",
+    all: 12,
+    messages: 12,
+    composer: 12,
+    buttons: 10,
+    cards: 12,
+    code: 10,
+    sidebar: 10,
+    overlays: 14,
+    inputs: 10,
+  },
   wallpaper: {
     type: "none",
     gradientPreset: "aurora",
+    gradStyle: "linear",
     gradColors: ["#0f172a", "#1e1b4b", "#09090b"],
     gradAngle: 135,
     gradAnimated: true,
@@ -215,13 +315,27 @@ const DEFAULT_APPEARANCE = {
     mediaFile: "",
     mediaUrl: "",
     mediaMime: "",
+    fit: "cover",
+    posX: 50,
+    posY: 50,
+    offsetX: 0,
+    offsetY: 0,
     dim: 45,
     blur: 0,
     opacity: 85,
+    brightness: 100,
+    contrast: 100,
     saturate: 100,
+    hue: 0,
     scale: 100,
+    rotate: 0,
+    flipX: false,
+    flipY: false,
+    vignette: 0,
     tintEnabled: false,
     tintOpacity: 35,
+    tintBlend: "normal",
+    playbackRate: 1,
     pauseWhenHidden: true,
   },
   typography: {
@@ -521,6 +635,45 @@ function normalizeAppearance(raw) {
   const messageStyle =
     src.messageStyle === "solid" || src.messageStyle === "minimal" ? src.messageStyle : "glass";
 
+  const rawRadius = Number.isFinite(Number(src.radius))
+    ? Math.round(teClamp(src.radius, 0, 28, DEFAULT_APPEARANCE.radius))
+    : DEFAULT_APPEARANCE.radius;
+  const cSrc = src.corners && typeof src.corners === "object" ? src.corners : {};
+  const cornerMode = cSrc.mode === "custom" ? "custom" : "linked";
+  const allRadius = Number.isFinite(Number(cSrc.all))
+    ? Math.round(teClamp(cSrc.all, 0, 28, rawRadius))
+    : rawRadius;
+  const effRadius = cornerMode === "linked" ? allRadius : rawRadius;
+
+  const corners = {
+    mode: cornerMode,
+    all: allRadius,
+    messages: Math.round(teClamp(cSrc.messages, 0, 28, allRadius)),
+    composer: Math.round(teClamp(cSrc.composer, 0, 28, allRadius)),
+    buttons: Math.round(teClamp(cSrc.buttons, 0, 28, cornerMode === "linked" ? allRadius : DEFAULT_APPEARANCE.corners.buttons)),
+    cards: Math.round(teClamp(cSrc.cards, 0, 28, allRadius)),
+    code: Math.round(teClamp(cSrc.code, 0, 24, cornerMode === "linked" ? Math.min(24, allRadius) : DEFAULT_APPEARANCE.corners.code)),
+    sidebar: Math.round(teClamp(cSrc.sidebar, 0, 24, cornerMode === "linked" ? Math.min(24, allRadius) : DEFAULT_APPEARANCE.corners.sidebar)),
+    overlays: Math.round(teClamp(cSrc.overlays, 0, 28, cornerMode === "linked" ? allRadius : DEFAULT_APPEARANCE.corners.overlays)),
+    inputs: Math.round(teClamp(cSrc.inputs, 0, 24, cornerMode === "linked" ? Math.min(24, allRadius) : DEFAULT_APPEARANCE.corners.inputs)),
+  };
+
+  const gradStyle =
+    wpSrc.gradStyle === "radial" || wpSrc.gradStyle === "mesh" ? wpSrc.gradStyle : "linear";
+  const wpFit =
+    wpSrc.fit === "contain" || wpSrc.fit === "fill" ? wpSrc.fit : "cover";
+  const tintBlend =
+    wpSrc.tintBlend === "multiply" ||
+    wpSrc.tintBlend === "screen" ||
+    wpSrc.tintBlend === "overlay" ||
+    wpSrc.tintBlend === "soft-light"
+      ? wpSrc.tintBlend
+      : "normal";
+  const rawRate = Number(wpSrc.playbackRate);
+  const playbackRate = Number.isFinite(rawRate)
+    ? Math.round(teClamp(rawRate, 0.25, 2.0, 1) * 100) / 100
+    : 1;
+
   return {
     presetId,
     uiPolish: src.uiPolish !== false,
@@ -535,10 +688,12 @@ function normalizeAppearance(raw) {
     messageStyle,
     borderStrength: Math.round(teClamp(src.borderStrength, 0, 100, DEFAULT_APPEARANCE.borderStrength)),
     highContrastText: src.highContrastText !== false,
-    radius: Math.round(teClamp(src.radius, 4, 20, DEFAULT_APPEARANCE.radius)),
+    radius: effRadius,
+    corners,
     wallpaper: {
       type: wpType,
       gradientPreset: gradPresetObj.id,
+      gradStyle,
       gradColors,
       gradAngle: Math.round(teClamp(wpSrc.gradAngle, 0, 360, gradPresetObj.angle)),
       gradAnimated: wpSrc.gradAnimated !== false,
@@ -546,13 +701,27 @@ function normalizeAppearance(raw) {
       mediaFile: mediaUrl ? mediaFile : "",
       mediaUrl,
       mediaMime: typeof wpSrc.mediaMime === "string" ? wpSrc.mediaMime.slice(0, 60) : "",
+      fit: wpFit,
+      posX: Math.round(teClamp(wpSrc.posX, 0, 100, 50)),
+      posY: Math.round(teClamp(wpSrc.posY, 0, 100, 50)),
+      offsetX: Math.round(teClamp(wpSrc.offsetX, -50, 50, 0)),
+      offsetY: Math.round(teClamp(wpSrc.offsetY, -50, 50, 0)),
       dim: Math.round(teClamp(wpSrc.dim, 0, 85, DEFAULT_APPEARANCE.wallpaper.dim)),
       blur: Math.round(teClamp(wpSrc.blur, 0, 24, DEFAULT_APPEARANCE.wallpaper.blur)),
       opacity: Math.round(teClamp(wpSrc.opacity, 15, 100, DEFAULT_APPEARANCE.wallpaper.opacity)),
-      saturate: Math.round(teClamp(wpSrc.saturate, 0, 180, DEFAULT_APPEARANCE.wallpaper.saturate)),
-      scale: Math.round(teClamp(wpSrc.scale, 100, 130, DEFAULT_APPEARANCE.wallpaper.scale)),
+      brightness: Math.round(teClamp(wpSrc.brightness, 40, 160, 100)),
+      contrast: Math.round(teClamp(wpSrc.contrast, 50, 160, 100)),
+      saturate: Math.round(teClamp(wpSrc.saturate, 0, 200, DEFAULT_APPEARANCE.wallpaper.saturate)),
+      hue: Math.round(teClamp(wpSrc.hue, -180, 180, 0)),
+      scale: Math.round(teClamp(wpSrc.scale, 50, 250, DEFAULT_APPEARANCE.wallpaper.scale)),
+      rotate: Math.round(teClamp(wpSrc.rotate, -180, 180, 0)),
+      flipX: Boolean(wpSrc.flipX),
+      flipY: Boolean(wpSrc.flipY),
+      vignette: Math.round(teClamp(wpSrc.vignette, 0, 90, 0)),
       tintEnabled: Boolean(wpSrc.tintEnabled),
       tintOpacity: Math.round(teClamp(wpSrc.tintOpacity, 0, 75, DEFAULT_APPEARANCE.wallpaper.tintOpacity)),
+      tintBlend,
+      playbackRate,
       pauseWhenHidden: wpSrc.pauseWhenHidden !== false,
     },
     typography: {
@@ -563,6 +732,50 @@ function normalizeAppearance(raw) {
       chatMaxWidth,
       density,
     },
+  };
+}
+
+function teHasCustomCorners(cfg) {
+  const c = cfg && cfg.corners ? cfg.corners : DEFAULT_APPEARANCE.corners;
+  if (c.mode === "custom") return true;
+  return c.all !== 12 || cfg.radius !== 12;
+}
+
+function teResolveCornerRadii(rawOrNormalized) {
+  const cfg = rawOrNormalized && rawOrNormalized.corners ? rawOrNormalized : normalizeAppearance(rawOrNormalized);
+  const c = cfg.corners || DEFAULT_APPEARANCE.corners;
+  if (c.mode === "custom") {
+    return {
+      mode: "custom",
+      base: c.all,
+      messages: c.messages,
+      composer: c.composer,
+      buttons: c.buttons,
+      cards: c.cards,
+      code: c.code,
+      inlineCode: Math.max(0, Math.min(c.code, Math.round(c.code * 0.5))),
+      sidebar: c.sidebar,
+      tabs: Math.max(0, c.sidebar - 2),
+      overlays: c.overlays,
+      menuItem: Math.max(0, Math.round(c.overlays * 0.65)),
+      inputs: c.inputs,
+    };
+  }
+  const r = c.all;
+  return {
+    mode: "linked",
+    base: r,
+    messages: r,
+    composer: r,
+    buttons: r,
+    cards: r,
+    code: r,
+    inlineCode: Math.max(0, Math.min(r, Math.round(r * 0.5))),
+    sidebar: r,
+    tabs: Math.max(0, r - 2),
+    overlays: r,
+    menuItem: Math.max(0, Math.round(r * 0.7)),
+    inputs: r,
   };
 }
 
@@ -591,6 +804,7 @@ function isAppearanceNativeDefault(raw) {
     cfg.uiPolish === true &&
     cfg.borderStrength === 50 &&
     cfg.radius === 12 &&
+    !teHasCustomCorners(cfg) &&
     cfg.messageStyle === "glass" &&
     cfg.wallpaper.type === "none" &&
     !teHasCustomTypography(cfg)
@@ -634,7 +848,124 @@ function teBuildGradientCss(wp) {
   const c1 = teValidHex(wp.gradColors && wp.gradColors[0], "#0f172a");
   const c2 = teValidHex(wp.gradColors && wp.gradColors[1], "#1e1b4b");
   const c3 = teValidHex(wp.gradColors && wp.gradColors[2], "#09090b");
+  const posX = Math.round(teClamp(wp.posX, 0, 100, 50));
+  const posY = Math.round(teClamp(wp.posY, 0, 100, 50));
+  if (wp.gradStyle === "radial") {
+    return `radial-gradient(circle at ${posX}% ${posY}%, ${c1} 0%, ${c2} 52%, ${c3} 100%)`;
+  }
+  if (wp.gradStyle === "mesh") {
+    return `radial-gradient(at ${Math.max(10, posX - 25)}% ${Math.max(10, posY - 25)}%, ${c1} 0px, transparent 58%), radial-gradient(at ${Math.min(90, posX + 25)}% ${Math.min(90, posY + 15)}%, ${c2} 0px, transparent 60%), radial-gradient(at 50% 90%, ${c1} 0px, ${c3} 72%)`;
+  }
   return `linear-gradient(${Math.round(teClamp(wp.gradAngle, 0, 360, 135))}deg, ${c1} 0%, ${c2} 50%, ${c3} 100%)`;
+}
+
+function teBuildCornerRadiusCss(cfg, c) {
+  const isCustom = c.mode === "custom";
+  const base = c.base;
+  const xs = base === 0 ? 0 : Math.max(2, Math.round(base * 0.35));
+  const sm = base === 0 ? 0 : Math.max(3, Math.round(base * 0.6));
+  const md = base === 0 ? 0 : Math.max(4, Math.round(base * 0.8));
+  const lg = base;
+  const xl = base === 0 ? 0 : Math.round(base * 1.25);
+  const xl2 = base === 0 ? 0 : Math.round(base * 1.6);
+  const xl3 = base === 0 ? 0 : Math.round(base * 2.0);
+  const xl4 = base === 0 ? 0 : Math.round(base * 2.4);
+
+  const btnPillRule = c.buttons <= 6 || isCustom
+    ? `
+body :where(button[class*="rounded-full"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([class*="size-4"]):not([class*="size-5"]):not([class*="size-6"]):not([class*="w-4"]):not([class*="w-5"]):not([class*="w-6"]):not([data-rudex-ignore="1"]) {
+  border-radius: ${c.buttons}px !important;
+}`
+    : "";
+
+  const linkedFallbackCss = !isCustom
+    ? `
+:where([class*="rounded-"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):not(#rudex-bg *):not([data-rudex-ignore="1"]):not(.rounded-none):not(.rounded-full):not([class*="rounded-full"]):not([role="switch"]):not([role="switch"] *):not([role="radio"]):not(input[type="radio"]):not(input[type="checkbox"]):not(svg):not(svg *):not(.katex):not(.mermaid) {
+  border-radius: ${base}px !important;
+}
+:where([class*="rounded-sm"], [class*="rounded-xs"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([data-rudex-ignore="1"]) {
+  border-radius: ${sm}px !important;
+}
+:where([class*="rounded-md"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([data-rudex-ignore="1"]) {
+  border-radius: ${md}px !important;
+}
+:where([class*="rounded-lg"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([data-rudex-ignore="1"]) {
+  border-radius: ${lg}px !important;
+}
+:where([class*="rounded-xl"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([data-rudex-ignore="1"]) {
+  border-radius: ${xl}px !important;
+}
+:where([class*="rounded-2xl"], [class*="rounded-3xl"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([data-rudex-ignore="1"]) {
+  border-radius: ${xl2}px !important;
+}`
+    : "";
+
+  return `
+:root, html, body {
+  --radius: ${base}px !important;
+  --radius-xs: ${xs}px !important;
+  --radius-sm: ${sm}px !important;
+  --radius-md: ${md}px !important;
+  --radius-lg: ${lg}px !important;
+  --radius-xl: ${xl}px !important;
+  --radius-2xl: ${xl2}px !important;
+  --radius-3xl: ${xl3}px !important;
+  --radius-4xl: ${xl4}px !important;
+  --rudex-r-messages: ${c.messages}px;
+  --rudex-r-composer: ${c.composer}px;
+  --rudex-r-buttons: ${c.buttons}px;
+  --rudex-r-cards: ${c.cards}px;
+  --rudex-r-code: ${c.code}px;
+  --rudex-r-sidebar: ${c.sidebar}px;
+  --rudex-r-overlays: ${c.overlays}px;
+  --rudex-r-inputs: ${c.inputs}px;
+}
+${linkedFallbackCss}
+[data-testid="agent-response"],
+[data-testid="user-message-bubble"],
+[data-testid="user-message-content"],
+[data-testid="user-message-bubble"] > div[class*="rounded"] {
+  border-radius: ${c.messages}px !important;
+}
+form:has(textarea),
+form:has([contenteditable="true"]),
+[data-testid="composer"],
+.composer-container,
+[data-testid="composer"] > div[class*="rounded"],
+div:has(> textarea[placeholder]):not(#rudex-studio-host *) {
+  border-radius: ${c.composer}px !important;
+}
+body :where(button, [role="button"], [data-slot="button"], [data-slot="toggle"], [data-testid="model-selector-trigger"], [data-testid="send-button-loading"], [data-testid="send-button-pending"], [data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([class*="rounded-full"]):not([data-rudex-ignore="1"]) {
+  border-radius: ${c.buttons}px !important;
+}${btnPillRule}
+body :where([data-slot="card"], [data-slot="collapsible"], [class*="bg-card"], details, [data-testid*="card"], [data-testid*="tool"], [data-testid*="artifact"], [data-testid="agent-response"] :where(div, section, article)[class*="border"][class*="rounded-"]):not(button):not(input):not(textarea):not(pre):not([role="dialog"]):not([role="alertdialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]):not([data-testid="agent-response"]):not([data-testid="user-message-content"]):not([data-testid="user-message-bubble"]):not([data-testid="composer"]):not(aside):not(nav):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  border-radius: ${c.cards}px !important;
+}
+:where([data-testid="agent-response"], [data-markdown-root], main) :where(pre, [class*="code-block"], [data-testid*="code-block"], div:has(> pre)) {
+  border-radius: ${c.code}px !important;
+}
+:where([data-testid="agent-response"], [data-markdown-root]) code:not(pre code) {
+  border-radius: ${c.inlineCode}px !important;
+}
+:where(aside, nav[aria-label], [data-testid="sidebar"], [data-rudex-bg-sidebar="1"]) :where(a, button, [role="listitem"], [role="treeitem"], [role="option"], [data-conversation-id], [data-cascade-id], [data-session-id], [data-chat-id], [class*="rounded-"]):not([role="switch"]):not([role="radio"]):not([class*="rounded-full"]):not(svg):not(img),
+[role="tablist"],
+[data-slot="tabs-list"] {
+  border-radius: ${c.sidebar}px !important;
+}
+[role="tab"],
+[data-slot="tabs-trigger"] {
+  border-radius: ${c.tabs}px !important;
+}
+:where([role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper] > *, [data-radix-menu-content], .agy-overlay, [data-slot="dialog-content"], [data-slot="popover-content"], [data-slot="dropdown-menu-content"], [data-slot="select-content"], [data-slot="tooltip-content"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  border-radius: ${c.overlays}px !important;
+}
+:where([role="menuitem"], [role="option"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  border-radius: ${c.menuItem}px !important;
+}
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, [role="combobox"], [role="textbox"], [data-slot="input"], [data-slot="badge"], [class*="badge"], [class*="chip"], [class*="pill"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]) {
+  border-radius: ${c.inputs}px !important;
+}
+`.trim();
 }
 
 function buildThemeCss(rawAppearance, options) {
@@ -644,13 +975,16 @@ function buildThemeCss(rawAppearance, options) {
   const hasAccentOverride = Boolean(cfg.customAccent);
   const hasWallpaper = teHasActiveWallpaper(cfg);
   const hasCustomTypo = teHasCustomTypography(cfg);
-  const hasSurfaceOverride = cfg.radius !== 12 || cfg.borderStrength !== 50 || cfg.messageStyle !== "glass";
+  const hasCornersOverride = teHasCustomCorners(cfg);
+  const hasSurfaceOverride =
+    hasCornersOverride || cfg.radius !== 12 || cfg.borderStrength !== 50 || cfg.messageStyle !== "glass";
 
   if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !cfg.uiPolish) {
     return "";
   }
 
   const vars = teResolveThemeVars(cfg);
+  const cRadii = teResolveCornerRadii(cfg);
   const ty = cfg.typography;
   const uiFontObj = teFindFont("ui", ty.uiFont);
   const monoFontObj = teFindFont("mono", ty.monoFont);
@@ -875,24 +1209,25 @@ nav[aria-label],
 [data-testid="agent-response"] {
   background-color: ${agentSurfaceBg} !important;
   border: ${hasCardBorder ? `1px solid ${msgBorderCol}` : "none"} !important;
-  border-radius: ${vars.radius}px !important;
+  border-radius: ${cRadii.messages}px !important;
   ${msgAlpha > 0 ? "padding-inline: 18px !important;" : ""}
   ${msgShadowCss}
   ${msgBlurCss}
   ${msgAlpha <= 0 && cfg.highContrastText !== false ? `text-shadow: ${isLight ? "0 1px 2px rgba(255,255,255,0.85)" : "0 1px 3px rgba(0,0,0,0.85)"};` : ""}
 }
-[data-testid="user-message-content"] {
+[data-testid="user-message-content"],
+[data-testid="user-message-bubble"] {
   background-color: ${userSurfaceBg} !important;
   border: ${cfg.borderStrength > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
-  border-radius: ${vars.radius}px !important;
+  border-radius: ${cRadii.messages}px !important;
   ${msgShadowCss}
   ${msgStyle !== "solid" ? glassBlurCss : ""}
 }
 ${msgContrastCss}
-form:has(textarea[placeholder]), [data-testid="composer"], .composer-container {
+form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testid="composer"], .composer-container {
   background-color: ${userSurfaceBg} !important;
   border: ${cfg.borderStrength > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
-  border-radius: ${vars.radius}px !important;
+  border-radius: ${cRadii.composer}px !important;
   ${msgStyle !== "solid" ? glassBlurCss : ""}
 }
 [role="dialog"],
@@ -917,19 +1252,25 @@ form:has(textarea[placeholder]), [data-testid="composer"], .composer-container {
       : `1px solid ${dynamicBorderCol}`;
     chunks.push(`
 [data-testid="agent-response"] {
-  border-radius: ${vars.radius}px !important;
+  border-radius: ${cRadii.messages}px !important;
   border: ${agentBorder} !important;
   ${agentBg ? `background-color: ${agentBg} !important;` : ""}
   ${cfg.messageStyle === "solid" ? "padding: 12px 18px !important;" : ""}
 }
 [data-testid="user-message-content"],
+[data-testid="user-message-bubble"],
 form:has(textarea[placeholder]),
+form:has([contenteditable="true"]),
 [data-testid="composer"],
 .composer-container {
-  border-radius: ${vars.radius}px !important;
+  border-radius: ${cRadii.composer}px !important;
   border: ${cfg.borderStrength > 0 ? `1px solid ${dynamicBorderCol}` : "none"} !important;
 }
 `);
+  }
+
+  if (hasCornersOverride) {
+    chunks.push(teBuildCornerRadiusCss(cfg, cRadii));
   }
 
   if (uiFontObj.stack) {
@@ -1006,6 +1347,7 @@ code, pre, kbd, samp {
   }
 
   if (cfg.uiPolish) {
+    const thumbRad = hasCornersOverride && cRadii.base === 0 ? "0px" : "999px";
     chunks.push(`
 ::-webkit-scrollbar {
   width: 7px;
@@ -1016,7 +1358,7 @@ code, pre, kbd, samp {
 }
 ::-webkit-scrollbar-thumb {
   background: ${isLight ? "rgba(20, 20, 24, 0.22)" : "rgba(255, 255, 255, 0.16)"};
-  border-radius: 999px;
+  border-radius: ${thumbRad};
 }
 ::-webkit-scrollbar-thumb:hover {
   background: ${isLight ? "rgba(20, 20, 24, 0.36)" : "rgba(255, 255, 255, 0.28)"};
@@ -1044,8 +1386,8 @@ function createThemeEngine(options = {}) {
   const SHELL_SKIP_TAGS = new Set(["PRE", "CODE", "BUTTON", "INPUT", "TEXTAREA", "FORM", "SVG", "IMG", "VIDEO", "CANVAS", "SCRIPT", "STYLE"]);
   const SHELL_SKIP_ROLES = new Set(["dialog", "alertdialog", "menu", "listbox", "tooltip"]);
   const SHELL_SKIP_TESTIDS = new Set(["user-message-content", "agent-response"]);
-  const MUTATION_IGNORE_SELECTOR = '[data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"], #rudex-studio-host, #rudex-bg';
-  const PROTECTED_OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper], .agy-overlay, [data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root], #rudex-studio-host, #rudex-bg';
+  const MUTATION_IGNORE_SELECTOR = '[data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"], [data-browser-hole], #rudex-studio-host, #rudex-bg';
+  const PROTECTED_OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper], .agy-overlay, [data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"], [data-markdown-root], [data-browser-hole], #rudex-studio-host, #rudex-bg';
 
   let currentConfig = normalizeAppearance(DEFAULT_APPEARANCE);
   let styleNode = null;
@@ -1053,6 +1395,7 @@ function createThemeEngine(options = {}) {
   let mediaChild = null;
   let gradFlowChild = null;
   let tintChild = null;
+  let vignetteChild = null;
   let scrimChild = null;
   let activeVideoUrl = "";
   let videoVisEl = null;
@@ -1170,9 +1513,11 @@ function createThemeEngine(options = {}) {
       if (typeof el.hasAttribute === "function") {
         if (el.hasAttribute("data-markdown-root")) return true;
         if (el.hasAttribute("data-radix-popper-content-wrapper")) return true;
+        if (el.hasAttribute("data-browser-hole")) return true;
       } else {
         if (el.getAttribute("data-markdown-root") !== null) return true;
         if (el.getAttribute("data-radix-popper-content-wrapper") !== null) return true;
+        if (el.getAttribute("data-browser-hole") !== null) return true;
       }
     }
     return false;
@@ -1297,6 +1642,8 @@ function createThemeEngine(options = {}) {
         [Math.round(vw * 0.55), Math.round(vh * 0.35)],
         [Math.round(vw * 0.62), Math.round(vh * 0.65)],
         [Math.round(vw * 0.80), Math.round(vh * 0.48)],
+        [Math.round(vw * 0.55), Math.round(vh * 0.86)],
+        [Math.round(vw * 0.88), Math.round(vh * 0.50)],
       ];
       for (let pi = 0; pi < probePoints.length; pi += 1) {
         let hits = null;
@@ -1523,6 +1870,7 @@ function createThemeEngine(options = {}) {
     mediaChild = null;
     gradFlowChild = null;
     tintChild = null;
+    vignetteChild = null;
     scrimChild = null;
     activeVideoUrl = "";
   }
@@ -1600,6 +1948,36 @@ function createThemeEngine(options = {}) {
     tintChild = null;
   }
 
+  function removeVignetteChild() {
+    if (vignetteChild && vignetteChild.parentNode) {
+      vignetteChild.parentNode.removeChild(vignetteChild);
+    }
+    vignetteChild = null;
+  }
+
+  function ensureVignetteLayer(layer, wp) {
+    const vig = Math.round(teClamp(wp.vignette, 0, 90, 0));
+    if (!doc || !layer || vig <= 0) {
+      removeVignetteChild();
+      return;
+    }
+    if (!vignetteChild || vignetteChild.parentNode !== layer) {
+      vignetteChild = doc.createElement("div");
+      vignetteChild.setAttribute("data-role", "bg-vignette");
+      vignetteChild.style.position = "absolute";
+      vignetteChild.style.inset = "0";
+      vignetteChild.style.pointerEvents = "none";
+      if (scrimChild && scrimChild.parentNode === layer && typeof layer.insertBefore === "function") {
+        layer.insertBefore(vignetteChild, scrimChild);
+      } else {
+        layer.appendChild(vignetteChild);
+      }
+    }
+    const innerStop = Math.max(15, 65 - Math.round(vig * 0.45));
+    const alpha = (vig / 100).toFixed(2);
+    vignetteChild.style.backgroundImage = `radial-gradient(ellipse at center, transparent ${innerStop}%, rgba(0, 0, 0, ${alpha}) 100%)`;
+  }
+
   function ensureTintLayer(layer, wp) {
     if (!doc || !layer || !wp.tintEnabled || wp.tintOpacity <= 0) {
       removeTintChild();
@@ -1611,7 +1989,9 @@ function createThemeEngine(options = {}) {
       tintChild.style.position = "absolute";
       tintChild.style.inset = "0";
       tintChild.style.pointerEvents = "none";
-      if (scrimChild && scrimChild.parentNode === layer && typeof layer.insertBefore === "function") {
+      if (vignetteChild && vignetteChild.parentNode === layer && typeof layer.insertBefore === "function") {
+        layer.insertBefore(tintChild, vignetteChild);
+      } else if (scrimChild && scrimChild.parentNode === layer && typeof layer.insertBefore === "function") {
         layer.insertBefore(tintChild, scrimChild);
       } else {
         layer.appendChild(tintChild);
@@ -1619,6 +1999,7 @@ function createThemeEngine(options = {}) {
     }
     tintChild.style.backgroundImage = teBuildGradientCss(wp);
     tintChild.style.opacity = String(Math.round(teClamp(wp.tintOpacity, 0, 75, 35)) / 100);
+    tintChild.style.mixBlendMode = wp.tintBlend || "normal";
   }
 
   function applyWallpaper(cfg, isLight) {
@@ -1652,11 +2033,29 @@ function createThemeEngine(options = {}) {
 
     const filterParts = [];
     if (wp.blur > 0) filterParts.push(`blur(${wp.blur}px)`);
+    if (wp.brightness !== 100) filterParts.push(`brightness(${wp.brightness}%)`);
+    if (wp.contrast !== 100) filterParts.push(`contrast(${wp.contrast}%)`);
     if (wp.saturate !== 100) filterParts.push(`saturate(${wp.saturate}%)`);
+    if (wp.hue !== 0) filterParts.push(`hue-rotate(${wp.hue}deg)`);
     const filterCss = filterParts.length > 0 ? filterParts.join(" ") : "none";
     const opacityVal = String(Math.round(teClamp(wp.opacity, 15, 100, 85)) / 100);
-    const effScale = Math.max(wp.scale / 100, wp.blur > 0 ? 1.06 : 1);
-    const scaleVal = effScale > 1 ? `scale(${effScale.toFixed(2)})` : "none";
+    const effScale = wp.blur > 0 ? Math.max(wp.scale / 100, 1.06) : (wp.scale / 100);
+    const posStr = `${Math.round(teClamp(wp.posX, 0, 100, 50))}% ${Math.round(teClamp(wp.posY, 0, 100, 50))}%`;
+    const transformParts = [];
+    if (wp.offsetX !== 0 || wp.offsetY !== 0) {
+      transformParts.push(`translate3d(${wp.offsetX}%, ${wp.offsetY}%, 0)`);
+    }
+    if (wp.rotate !== 0) {
+      transformParts.push(`rotate(${wp.rotate}deg)`);
+    }
+    if (wp.flipX || wp.flipY) {
+      const sx = wp.flipX ? -effScale : effScale;
+      const sy = wp.flipY ? -effScale : effScale;
+      transformParts.push(`scale(${sx.toFixed(2)}, ${sy.toFixed(2)})`);
+    } else if (Math.abs(effScale - 1) > 0.001) {
+      transformParts.push(`scale(${effScale.toFixed(2)})`);
+    }
+    const transformCss = transformParts.length > 0 ? transformParts.join(" ") : "none";
 
     if (wp.type === "video") {
       removeGradListeners();
@@ -1686,7 +2085,6 @@ function createThemeEngine(options = {}) {
         vid.style.inset = "0";
         vid.style.width = "100%";
         vid.style.height = "100%";
-        vid.style.objectFit = "cover";
         vid.style.pointerEvents = "none";
         if (scrimChild && scrimChild.parentNode === layer && typeof layer.insertBefore === "function") {
           layer.insertBefore(vid, scrimChild);
@@ -1701,10 +2099,19 @@ function createThemeEngine(options = {}) {
       } else if (prevPauseWhenHidden && !videoPauseWhenHidden) {
         safePlayVideo(mediaChild);
       }
+      mediaChild.style.objectFit = wp.fit || "cover";
+      mediaChild.style.objectPosition = posStr;
+      mediaChild.style.transformOrigin = posStr;
       mediaChild.style.filter = filterCss;
       mediaChild.style.opacity = opacityVal;
-      mediaChild.style.transform = scaleVal;
+      mediaChild.style.transform = transformCss;
+      try {
+        if (Number.isFinite(wp.playbackRate)) {
+          mediaChild.playbackRate = wp.playbackRate;
+        }
+      } catch (_e) {}
       ensureTintLayer(layer, wp);
+      ensureVignetteLayer(layer, wp);
       attachVideoVisibilityOnce(mediaChild);
       ensureScrim(layer, wp.dim, isLight);
       return;
@@ -1728,7 +2135,6 @@ function createThemeEngine(options = {}) {
         img.style.inset = "0";
         img.style.width = "100%";
         img.style.height = "100%";
-        img.style.objectFit = "cover";
         img.style.pointerEvents = "none";
         if (scrimChild && scrimChild.parentNode === layer && typeof layer.insertBefore === "function") {
           layer.insertBefore(img, scrimChild);
@@ -1740,10 +2146,14 @@ function createThemeEngine(options = {}) {
       if (mediaChild.getAttribute("src") !== resolvedSrc) {
         mediaChild.setAttribute("src", resolvedSrc);
       }
+      mediaChild.style.objectFit = wp.fit || "cover";
+      mediaChild.style.objectPosition = posStr;
+      mediaChild.style.transformOrigin = posStr;
       mediaChild.style.filter = filterCss;
       mediaChild.style.opacity = opacityVal;
-      mediaChild.style.transform = scaleVal;
+      mediaChild.style.transform = transformCss;
       ensureTintLayer(layer, wp);
+      ensureVignetteLayer(layer, wp);
       ensureScrim(layer, wp.dim, isLight);
       return;
     }
@@ -1785,7 +2195,7 @@ function createThemeEngine(options = {}) {
 
     mediaChild.style.filter = filterCss;
     mediaChild.style.opacity = opacityVal;
-    mediaChild.style.transform = scaleVal;
+    mediaChild.style.transform = transformCss;
 
     gradFlowChild.style.backgroundImage = teBuildGradientCss(wp);
     if (wp.gradAnimated) {
@@ -1806,6 +2216,7 @@ function createThemeEngine(options = {}) {
       gradFlowChild.style.transform = "none";
     }
 
+    ensureVignetteLayer(layer, wp);
     ensureScrim(layer, Math.round(wp.dim * 0.55), isLight);
   }
 
@@ -1827,7 +2238,9 @@ function createThemeEngine(options = {}) {
     const hasAccentOverride = Boolean(currentConfig.customAccent);
     const hasWallpaper = teHasActiveWallpaper(currentConfig);
     const hasCustomTypo = teHasCustomTypography(currentConfig);
-    const hasSurfaceOverride = currentConfig.radius !== 12 || currentConfig.borderStrength !== 50 || currentConfig.messageStyle !== "glass";
+    const hasCornersOverride = teHasCustomCorners(currentConfig);
+    const hasSurfaceOverride =
+      hasCornersOverride || currentConfig.radius !== 12 || currentConfig.borderStrength !== 50 || currentConfig.messageStyle !== "glass";
     const hostIsLight = resolveEffectiveHostIsLight(currentConfig);
     const isLight = hasThemeOverride
       ? teResolveThemeVars(currentConfig).mode === "light"
@@ -1918,10 +2331,12 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     THEME_PRESETS,
     GRADIENT_PRESETS,
+    CORNER_PRESETS,
     FONT_PRESETS,
     DEFAULT_APPEARANCE,
     normalizeAppearance,
     isAppearanceNativeDefault,
+    teResolveCornerRadii,
     detectHostIsLight,
     buildThemeCss,
     createThemeEngine,

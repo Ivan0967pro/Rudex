@@ -63,13 +63,30 @@ const DEFAULT_MINI_FIELDS = {
   model: false,
   quota: false,
 };
-const VALID_APPEARANCE_PRESETS = new Set(["native", "obsidian-glass", "midnight-neon", "warm-contrast", "light-paper", "emerald-void", "crimson-noir", "custom"]);
+const VALID_APPEARANCE_PRESETS = new Set(["native", "obsidian-glass", "midnight-neon", "warm-contrast", "light-paper", "emerald-void", "crimson-noir", "tokyo-night", "sakura-dusk", "nordic-frost", "custom"]);
 const VALID_WALLPAPER_TYPES = new Set(["none", "gradient", "image", "video"]);
-const VALID_GRADIENT_PRESETS = new Set(["aurora", "cosmic", "sunset", "emerald", "cyber", "silk"]);
+const VALID_GRADIENT_PRESETS = new Set(["aurora", "cosmic", "sunset", "emerald", "cyber", "silk", "sakura", "ocean", "amber", "mist"]);
+const VALID_GRADIENT_STYLES = new Set(["linear", "radial", "mesh"]);
+const VALID_WALLPAPER_FITS = new Set(["cover", "contain", "fill"]);
+const VALID_TINT_BLENDS = new Set(["normal", "multiply", "screen", "overlay", "soft-light"]);
 const VALID_MESSAGE_STYLES = new Set(["glass", "solid", "minimal"]);
 const VALID_UI_FONTS = new Set(["system", "segoe", "inter", "rubik", "ibm-plex", "georgia"]);
 const VALID_MONO_FONTS = new Set(["system", "cascadia", "jetbrains", "consolas", "fira"]);
 const VALID_DENSITIES = new Set(["compact", "comfortable", "spacious"]);
+const VALID_STUDIO_THEMES = new Set(["obsidian", "frosted", "neon-cyber", "minimal-mono", "aurora"]);
+const VALID_STUDIO_LAYOUTS = new Set(["sidebar", "rail", "topbar", "floating-glass"]);
+const VALID_WIDGET_THEMES = new Set(["glass", "island", "neon", "minimal", "solid"]);
+const VALID_WIDGET_SCALES = new Set(["sm", "md", "lg"]);
+const DEFAULT_STUDIO_UI = {
+  windowTheme: "obsidian",
+  windowLayout: "sidebar",
+  widgetTheme: "glass",
+  widgetScale: "md",
+  widgetRadius: 999,
+  widgetOpacity: 88,
+  studioRadius: 16,
+  studioBlur: 20,
+};
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const SAFE_MEDIA_FILE_RE = /^[a-zA-Z0-9._-]{1,120}$/;
 const STUDIO_MEDIA_MIMES = {
@@ -107,9 +124,22 @@ const DEFAULT_APPEARANCE = {
   borderStrength: 50,
   highContrastText: true,
   radius: 12,
+  corners: {
+    mode: "linked",
+    all: 12,
+    messages: 12,
+    composer: 12,
+    buttons: 10,
+    cards: 12,
+    code: 10,
+    sidebar: 10,
+    overlays: 14,
+    inputs: 10,
+  },
   wallpaper: {
     type: "none",
     gradientPreset: "aurora",
+    gradStyle: "linear",
     gradColors: ["#0f172a", "#1e1b4b", "#09090b"],
     gradAngle: 135,
     gradAnimated: true,
@@ -117,13 +147,27 @@ const DEFAULT_APPEARANCE = {
     mediaFile: "",
     mediaUrl: "",
     mediaMime: "",
+    fit: "cover",
+    posX: 50,
+    posY: 50,
+    offsetX: 0,
+    offsetY: 0,
     dim: 45,
     blur: 0,
     opacity: 85,
+    brightness: 100,
+    contrast: 100,
     saturate: 100,
+    hue: 0,
     scale: 100,
+    rotate: 0,
+    flipX: false,
+    flipY: false,
+    vignette: 0,
     tintEnabled: false,
     tintOpacity: 35,
+    tintBlend: "normal",
+    playbackRate: 1,
     pauseWhenHidden: true,
   },
   typography: {
@@ -202,6 +246,7 @@ function sanitizeAppearance(raw) {
   const wpSrc = src.wallpaper && typeof src.wallpaper === "object" ? src.wallpaper : {};
   const wpType = VALID_WALLPAPER_TYPES.has(wpSrc.type) ? wpSrc.type : "none";
   const gradientPreset = VALID_GRADIENT_PRESETS.has(wpSrc.gradientPreset) ? wpSrc.gradientPreset : "aurora";
+  const gradStyle = VALID_GRADIENT_STYLES.has(wpSrc.gradStyle) ? wpSrc.gradStyle : "linear";
   const rawGc = Array.isArray(wpSrc.gradColors) ? wpSrc.gradColors : DEFAULT_APPEARANCE.wallpaper.gradColors;
   const gradColors = [
     sanitizeHexColor(rawGc[0], "#0f172a"),
@@ -216,6 +261,34 @@ function sanitizeAppearance(raw) {
   const rawW = Math.round(clampNum(tySrc.chatMaxWidth, 0, 1200, 0));
   const chatMaxWidth = rawW > 0 && rawW < 680 ? 680 : rawW;
   const lineHeight = Math.round(clampNum(tySrc.lineHeight, 1.25, 1.9, 1.55) * 100) / 100;
+
+  const rawRadius = Number.isFinite(Number(src.radius))
+    ? Math.round(clampNum(src.radius, 0, 28, DEFAULT_APPEARANCE.radius))
+    : DEFAULT_APPEARANCE.radius;
+  const cSrc = src.corners && typeof src.corners === "object" ? src.corners : {};
+  const cornerMode = cSrc.mode === "custom" ? "custom" : "linked";
+  const allRadius = Number.isFinite(Number(cSrc.all))
+    ? Math.round(clampNum(cSrc.all, 0, 28, rawRadius))
+    : rawRadius;
+  const effRadius = cornerMode === "linked" ? allRadius : rawRadius;
+  const corners = {
+    mode: cornerMode,
+    all: allRadius,
+    messages: Math.round(clampNum(cSrc.messages, 0, 28, allRadius)),
+    composer: Math.round(clampNum(cSrc.composer, 0, 28, allRadius)),
+    buttons: Math.round(clampNum(cSrc.buttons, 0, 28, cornerMode === "linked" ? allRadius : DEFAULT_APPEARANCE.corners.buttons)),
+    cards: Math.round(clampNum(cSrc.cards, 0, 28, allRadius)),
+    code: Math.round(clampNum(cSrc.code, 0, 24, cornerMode === "linked" ? Math.min(24, allRadius) : DEFAULT_APPEARANCE.corners.code)),
+    sidebar: Math.round(clampNum(cSrc.sidebar, 0, 24, cornerMode === "linked" ? Math.min(24, allRadius) : DEFAULT_APPEARANCE.corners.sidebar)),
+    overlays: Math.round(clampNum(cSrc.overlays, 0, 28, cornerMode === "linked" ? allRadius : DEFAULT_APPEARANCE.corners.overlays)),
+    inputs: Math.round(clampNum(cSrc.inputs, 0, 24, cornerMode === "linked" ? Math.min(24, allRadius) : DEFAULT_APPEARANCE.corners.inputs)),
+  };
+
+  const wpFit = VALID_WALLPAPER_FITS.has(wpSrc.fit) ? wpSrc.fit : "cover";
+  const tintBlend = VALID_TINT_BLENDS.has(wpSrc.tintBlend) ? wpSrc.tintBlend : "normal";
+  const rawRate = Number(wpSrc.playbackRate);
+  const playbackRate = Number.isFinite(rawRate) ? Math.round(clampNum(rawRate, 0.25, 2.0, 1) * 100) / 100 : 1;
+
   return {
     presetId,
     uiPolish: src.uiPolish !== false,
@@ -230,10 +303,12 @@ function sanitizeAppearance(raw) {
     messageStyle: VALID_MESSAGE_STYLES.has(src.messageStyle) ? src.messageStyle : "glass",
     borderStrength: Math.round(clampNum(src.borderStrength, 0, 100, DEFAULT_APPEARANCE.borderStrength)),
     highContrastText: src.highContrastText !== false,
-    radius: Math.round(clampNum(src.radius, 4, 20, DEFAULT_APPEARANCE.radius)),
+    radius: effRadius,
+    corners,
     wallpaper: {
       type: wpType,
       gradientPreset,
+      gradStyle,
       gradColors,
       gradAngle: Math.round(clampNum(wpSrc.gradAngle, 0, 360, 135)),
       gradAnimated: wpSrc.gradAnimated !== false,
@@ -241,13 +316,27 @@ function sanitizeAppearance(raw) {
       mediaFile,
       mediaUrl,
       mediaMime: typeof wpSrc.mediaMime === "string" ? wpSrc.mediaMime.slice(0, 60) : "",
+      fit: wpFit,
+      posX: Math.round(clampNum(wpSrc.posX, 0, 100, 50)),
+      posY: Math.round(clampNum(wpSrc.posY, 0, 100, 50)),
+      offsetX: Math.round(clampNum(wpSrc.offsetX, -50, 50, 0)),
+      offsetY: Math.round(clampNum(wpSrc.offsetY, -50, 50, 0)),
       dim: Math.round(clampNum(wpSrc.dim, 0, 85, 45)),
       blur: Math.round(clampNum(wpSrc.blur, 0, 24, 0)),
       opacity: Math.round(clampNum(wpSrc.opacity, 15, 100, 85)),
-      saturate: Math.round(clampNum(wpSrc.saturate, 0, 180, 100)),
-      scale: Math.round(clampNum(wpSrc.scale, 100, 130, 100)),
+      brightness: Math.round(clampNum(wpSrc.brightness, 40, 160, 100)),
+      contrast: Math.round(clampNum(wpSrc.contrast, 50, 160, 100)),
+      saturate: Math.round(clampNum(wpSrc.saturate, 0, 200, 100)),
+      hue: Math.round(clampNum(wpSrc.hue, -180, 180, 0)),
+      scale: Math.round(clampNum(wpSrc.scale, 50, 250, 100)),
+      rotate: Math.round(clampNum(wpSrc.rotate, -180, 180, 0)),
+      flipX: Boolean(wpSrc.flipX),
+      flipY: Boolean(wpSrc.flipY),
+      vignette: Math.round(clampNum(wpSrc.vignette, 0, 90, 0)),
       tintEnabled: Boolean(wpSrc.tintEnabled),
       tintOpacity: Math.round(clampNum(wpSrc.tintOpacity, 0, 75, 35)),
+      tintBlend,
+      playbackRate,
       pauseWhenHidden: wpSrc.pauseWhenHidden !== false,
     },
     typography: {
@@ -258,6 +347,22 @@ function sanitizeAppearance(raw) {
       chatMaxWidth,
       density: VALID_DENSITIES.has(tySrc.density) ? tySrc.density : "comfortable",
     },
+  };
+}
+
+function sanitizeStudioUi(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const rawWrad = Number(src.widgetRadius);
+  const widgetRadius = Number.isFinite(rawWrad) && rawWrad < 50 ? Math.round(clampNum(rawWrad, 4, 24, 999)) : 999;
+  return {
+    windowTheme: VALID_STUDIO_THEMES.has(src.windowTheme) ? src.windowTheme : DEFAULT_STUDIO_UI.windowTheme,
+    windowLayout: VALID_STUDIO_LAYOUTS.has(src.windowLayout) ? src.windowLayout : DEFAULT_STUDIO_UI.windowLayout,
+    widgetTheme: VALID_WIDGET_THEMES.has(src.widgetTheme) ? src.widgetTheme : DEFAULT_STUDIO_UI.widgetTheme,
+    widgetScale: VALID_WIDGET_SCALES.has(src.widgetScale) ? src.widgetScale : DEFAULT_STUDIO_UI.widgetScale,
+    widgetRadius,
+    widgetOpacity: Math.round(clampNum(src.widgetOpacity, 45, 100, DEFAULT_STUDIO_UI.widgetOpacity)),
+    studioRadius: Math.round(clampNum(src.studioRadius, 8, 26, DEFAULT_STUDIO_UI.studioRadius)),
+    studioBlur: Math.round(clampNum(src.studioBlur, 0, 32, DEFAULT_STUDIO_UI.studioBlur)),
   };
 }
 
@@ -400,6 +505,7 @@ function sanitizeStudioSettings(raw) {
     appearance: sanitizeAppearance(src.appearance),
     appearanceProfiles: sanitizeAppearanceProfiles(src.appearanceProfiles),
     greeting: sanitizeGreeting(src.greeting),
+    studioUi: sanitizeStudioUi(src.studioUi),
   };
 }
 
@@ -426,9 +532,13 @@ function saveStudioSettings(patch) {
   if (pObj.greeting && typeof pObj.greeting === "object") {
     pObj.greeting = Object.assign({}, current.greeting || DEFAULT_GREETING, pObj.greeting);
   }
+  if (pObj.studioUi && typeof pObj.studioUi === "object") {
+    pObj.studioUi = Object.assign({}, current.studioUi || DEFAULT_STUDIO_UI, pObj.studioUi);
+  }
   if (pObj.appearance && typeof pObj.appearance === "object") {
     const curApp = current.appearance || DEFAULT_APPEARANCE;
     pObj.appearance = Object.assign({}, curApp, pObj.appearance, {
+      corners: Object.assign({}, curApp.corners || DEFAULT_APPEARANCE.corners, pObj.appearance.corners || {}),
       wallpaper: Object.assign({}, curApp.wallpaper, pObj.appearance.wallpaper || {}),
       typography: Object.assign({}, curApp.typography, pObj.appearance.typography || {}),
     });
@@ -1545,7 +1655,7 @@ function resolveSafeMediaFile(rawUrl) {
   } catch {
     return null;
   }
-  if (parsed.protocol !== "agy-media:" || parsed.hostname !== "local") return null;
+  if ((parsed.protocol !== "agy-media:" && parsed.protocol !== "rudex-media:") || parsed.hostname !== "local") return null;
   let decoded = "";
   try {
     decoded = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));

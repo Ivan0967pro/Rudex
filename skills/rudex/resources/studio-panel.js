@@ -15,6 +15,49 @@ const DEFAULT_MINI_FIELDS = {
 
 const CURATED_ACCENTS = ["#3b82f6", "#6366f1", "#8b5cf6", "#10b981", "#14b8a6", "#f59e0b", "#ec4899", "#ef4444"];
 
+const DEFAULT_STUDIO_UI = {
+  windowTheme: "obsidian",
+  windowLayout: "sidebar",
+  widgetTheme: "glass",
+  widgetScale: "md",
+  widgetRadius: 999,
+  widgetOpacity: 88,
+  studioRadius: 16,
+  studioBlur: 20,
+};
+
+const STUDIO_WINDOW_THEMES = [
+  { id: "obsidian", nameRu: "Обсидиан", nameEn: "Obsidian", descRu: "Глубокий графит и мягкое акцентное свечение", descEn: "Deep graphite with subtle accent glow", bg: "#0c0c0f", side: "#131318" },
+  { id: "frosted", nameRu: "Матовое стекло", nameEn: "Frosted Glass", descRu: "Полупрозрачный акрил поверх обоев", descEn: "Translucent acrylic glass over wallpaper", bg: "rgba(18,20,28,0.7)", side: "rgba(24,26,36,0.78)" },
+  { id: "neon-cyber", nameRu: "Кибер-неон", nameEn: "Cyber Neon", descRu: "Светящаяся рамка и контрастный HUD", descEn: "Luminous accent border and cyber HUD", bg: "#080912", side: "#0b0e1a" },
+  { id: "minimal-mono", nameRu: "Минимализм", nameEn: "Minimal Mono", descRu: "Чистые линии без теней и лишнего шума", descEn: "Crisp hairline borders without visual noise", bg: "#0c0c0f", side: "#0c0c0f" },
+  { id: "aurora", nameRu: "Аврора", nameEn: "Aurora", descRu: "Бархатный градиент и мягкая аура", descEn: "Velvet gradient backdrop with soft aura", bg: "#0a0c14", side: "#12162b" },
+];
+
+const STUDIO_WINDOW_LAYOUTS = [
+  { id: "sidebar", nameRu: "Классический сайдбар", nameEn: "Classic Sidebar", descRu: "Боковое меню с подписями и статусом", descEn: "Full left sidebar with labels & status" },
+  { id: "rail", nameRu: "Компактный рейл", nameEn: "Compact Rail", descRu: "Узкая полоса иконок — максимум пространства", descEn: "Slim icon rail for maximum workspace" },
+  { id: "topbar", nameRu: "Верхняя панель", nameEn: "Top Bar", descRu: "Горизонтальная навигация сверху окна", descEn: "Horizontal tab bar across the top" },
+  { id: "floating-glass", nameRu: "Парящие карточки", nameEn: "Floating Glass", descRu: "Две раздельные стеклянные панели", descEn: "Detached floating sidebar & content cards" },
+];
+
+const WIDGET_DESIGN_THEMES = [
+  { id: "glass", nameRu: "Жидкое стекло", nameEn: "Liquid Glass", descRu: "Мягкий блюр и верхний стеклянный блик", descEn: "Frosted blur with crisp top sheen" },
+  { id: "island", nameRu: "Dynamic Island", nameEn: "Dynamic Island", descRu: "Глубокий чёрный остров с яркой телеметрией", descEn: "Deep dark capsule with bold metrics" },
+  { id: "neon", nameRu: "Неоновый HUD", nameEn: "Neon HUD", descRu: "Акцентная подсветка рамки и цифр TPS", descEn: "Luminous accent ring and glowing TPS" },
+  { id: "minimal", nameRu: "Невесомый", nameEn: "Minimal", descRu: "Ультра-лёгкая прозрачная рамка", descEn: "Featherweight ultra-clean frame" },
+  { id: "solid", nameRu: "Контрастный монолит", nameEn: "Solid Contrast", descRu: "Плотный фон для ярких обоев", descEn: "Solid surface for bright wallpapers" },
+];
+
+const WALLPAPER_ATMOS_PRESETS = [
+  { id: "original", nameRu: "Оригинал", nameEn: "Original", dim: 35, blur: 0, brightness: 100, contrast: 100, saturate: 100, hue: 0, vignette: 0 },
+  { id: "cinema", nameRu: "Кино", nameEn: "Cinema", dim: 48, blur: 2, brightness: 92, contrast: 118, saturate: 110, hue: 0, vignette: 55 },
+  { id: "soft-blur", nameRu: "Нежный блюр", nameEn: "Soft Blur", dim: 42, blur: 10, brightness: 96, contrast: 96, saturate: 120, hue: 0, vignette: 20 },
+  { id: "noir", nameRu: "Нуар Ч/Б", nameEn: "Noir B&W", dim: 50, blur: 0, brightness: 94, contrast: 126, saturate: 0, hue: 0, vignette: 65 },
+  { id: "neon-pop", nameRu: "Неон поп", nameEn: "Neon Pop", dim: 40, blur: 0, brightness: 104, contrast: 116, saturate: 155, hue: 14, vignette: 35 },
+  { id: "airy", nameRu: "Лёгкая дымка", nameEn: "Airy Haze", dim: 58, blur: 6, brightness: 86, contrast: 90, saturate: 85, hue: 0, vignette: 15 },
+];
+
 const GREETING_QUICK_PRESETS = {
   ru: [
     { id: "time", label: "По времени", mode: "time-of-day", title: "{time}, {name}", subtitle: "" },
@@ -55,6 +98,14 @@ const ICON_PATHS = {
   image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
   panelRight: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/>',
   panelCenter: '<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/>',
+  corners: '<path d="M3 9V6a3 3 0 0 1 3-3h3"/><path d="M15 3h3a3 3 0 0 1 3 3v3"/><path d="M21 15v3a3 3 0 0 1-3 3h-3"/><path d="M9 21H6a3 3 0 0 1-3-3v-3"/>',
+  layout: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="9" y1="9" x2="21" y2="9"/>',
+  rotateLeft: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>',
+  rotateRight: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><polyline points="21 3 21 8 16 8"/>',
+  flipH: '<path d="M12 3v18"/><polyline points="8 7 3 12 8 17"/><polyline points="16 7 21 12 16 17"/>',
+  flipV: '<path d="M3 12h18"/><polyline points="7 8 12 3 17 8"/><polyline points="7 16 12 21 17 16"/>',
+  wand: '<path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="M17.8 11.8 19 13"/><path d="M15 9h0"/><path d="M17.8 6.2 19 5"/><path d="m3 21 9-9"/><path d="M12.2 6.2 11 5"/>',
+  move: '<polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>',
 };
 
 const TEXT = {
@@ -85,12 +136,87 @@ const TEXT = {
     backToSettings: "Назад",
     appSubTheme: "Тема",
     appSubWallpaper: "Обои",
+    appSubCorners: "Углы",
     appSubSurface: "Стекло",
     appSubGreeting: "Приветствие",
     appSubText: "Текст",
-    setSubWidget: "Виджет",
+    setSubWidget: "Мини-окно",
+    setSubStudio: "Дизайн окна",
     setSubExport: "Экспорт и лимиты",
     setSubSystem: "Язык и система",
+    appLayerCorners: "Углы",
+    appGradFineTitle: "Цвета и движение градиента",
+    appGradStyleLabel: "Тип градиента",
+    appGradLinear: "Линейный",
+    appGradRadial: "Радиальный",
+    appGradMesh: "Меш-аврора",
+    appWpStageTitle: "Кадр и позиция обоев",
+    appWpStageEmptyHint: "Выберите фото или видео, чтобы двигать и кадрировать обои мышкой",
+    appWpDragCrop: "Кадр",
+    appWpDragOffset: "Сдвиг",
+    appWpDragHint: "Тяни мышкой · Колёсико — зум",
+    appWpFitCover: "Заполнить",
+    appWpFitContain: "Вписать",
+    appWpFitFill: "Растянуть",
+    appWpAnchorTitle: "Якорь",
+    appWpResetFrame: "Сброс",
+    appWpGalleryTitle: "Недавние обои",
+    appWpAtmosTitle: "Атмосфера и пресеты",
+    appWpGeoTitle: "Геометрия и кадрирование",
+    appWpColorTitle: "Цветокоррекция",
+    appWpPosX: "Позиция X",
+    appWpPosY: "Позиция Y",
+    appWpOffsetX: "Сдвиг X",
+    appWpOffsetY: "Сдвиг Y",
+    appWpRotate: "Поворот",
+    appWpBrightness: "Яркость света",
+    appWpContrast: "Контраст",
+    appWpHue: "Оттенок",
+    appWpVignette: "Виньетка",
+    appWpPlaybackRate: "Скорость видео",
+    appWpTintBlend: "Наложение",
+    appWpBlendNormal: "Обычный",
+    appWpBlendMultiply: "Умножение",
+    appWpBlendScreen: "Экран",
+    appWpBlendOverlay: "Перекрытие",
+    appWpBlendSoftLight: "Мягкий свет",
+    cornersTitle: "Скругление углов Antigravity",
+    cornersModeLinked: "Все элементы вместе",
+    cornersModeCustom: "Отдельно по элементам",
+    cornersPresetsTitle: "Готовые формы углов",
+    cornersAllLabel: "Общий радиус всех элементов",
+    cornersSwitchCustomBtn: "Настроить элементы отдельно →",
+    cornersSyncAllBtn: "Выровнять все по общему",
+    cornersPreviewLabel: "Живой макет интерфейса",
+    cornersMsgLabel: "Сообщения чата",
+    cornersComposerLabel: "Поле ввода (Composer)",
+    cornersButtonsLabel: "Кнопки и триггеры",
+    cornersCardsLabel: "Карточки, мысли и инструменты",
+    cornersCodeLabel: "Блоки кода",
+    cornersSidebarLabel: "Сайдбар, чаты и вкладки",
+    cornersOverlaysLabel: "Меню, диалоги и поповеры",
+    cornersInputsLabel: "Поля ввода и бейджи",
+    cornersStudioQuickLabel: "Скругление окна Rudex Studio",
+    studioDesignTitle: "Стиль окна Rudex Studio",
+    studioLayoutTitle: "Навигация и макет окна",
+    studioWindowSliders: "Геометрия и стекло окна Studio",
+    studioRadiusLabel: "Скругление углов Studio",
+    studioBlurLabel: "Размытие стекла Studio",
+    studioResetBtn: "Сбросить дизайн окна",
+    studioThemeCycleTip: "Сменить стиль окна Rudex",
+    studioDesignQuickBtn: "Окно",
+    widgetThemeTitle: "Дизайн мини-окна",
+    widgetScaleTitle: "Масштаб виджета",
+    widgetScaleSm: "Компактный (S)",
+    widgetScaleMd: "Обычный (M)",
+    widgetScaleLg: "Крупный (L)",
+    widgetOpacityLabel: "Прозрачность мини-окна",
+    widgetRadiusLabel: "Скругление мини-окна",
+    widgetRadiusPill: "Капсула",
+    widgetPreviewMiniBtn: "Капсула (S)",
+    widgetPreviewMedBtn: "Карточка (M)",
+    appDirtyBadge: "Черновик",
+    thinkUnit: "мысль",
     appThemesTitle: "Палитра",
     appAccentQuick: "Независимый акцент",
     appAccentReset: "Как в теме",
@@ -389,12 +515,87 @@ const TEXT = {
     backToSettings: "Back",
     appSubTheme: "Theme",
     appSubWallpaper: "Wallpaper",
+    appSubCorners: "Corners",
     appSubSurface: "Glass",
     appSubGreeting: "Greeting",
     appSubText: "Text",
-    setSubWidget: "Widget",
+    setSubWidget: "Mini Window",
+    setSubStudio: "Window Design",
     setSubExport: "Export & Limits",
     setSubSystem: "Language & System",
+    appLayerCorners: "Corners",
+    appGradFineTitle: "Gradient colors & motion",
+    appGradStyleLabel: "Gradient style",
+    appGradLinear: "Linear",
+    appGradRadial: "Radial",
+    appGradMesh: "Mesh Aura",
+    appWpStageTitle: "Wallpaper frame & position",
+    appWpStageEmptyHint: "Choose an image or video to drag, pan, and zoom live",
+    appWpDragCrop: "Frame",
+    appWpDragOffset: "Offset",
+    appWpDragHint: "Drag to move · Scroll to zoom",
+    appWpFitCover: "Cover",
+    appWpFitContain: "Contain",
+    appWpFitFill: "Stretch",
+    appWpAnchorTitle: "Anchor",
+    appWpResetFrame: "Reset",
+    appWpGalleryTitle: "Recent wallpapers",
+    appWpAtmosTitle: "Atmosphere presets",
+    appWpGeoTitle: "Geometry & framing",
+    appWpColorTitle: "Color grading",
+    appWpPosX: "Position X",
+    appWpPosY: "Position Y",
+    appWpOffsetX: "Offset X",
+    appWpOffsetY: "Offset Y",
+    appWpRotate: "Rotate",
+    appWpBrightness: "Brightness",
+    appWpContrast: "Contrast",
+    appWpHue: "Hue shift",
+    appWpVignette: "Vignette",
+    appWpPlaybackRate: "Video speed",
+    appWpTintBlend: "Blend mode",
+    appWpBlendNormal: "Normal",
+    appWpBlendMultiply: "Multiply",
+    appWpBlendScreen: "Screen",
+    appWpBlendOverlay: "Overlay",
+    appWpBlendSoftLight: "Soft Light",
+    cornersTitle: "Antigravity Corner Radii",
+    cornersModeLinked: "All elements together",
+    cornersModeCustom: "Per-element control",
+    cornersPresetsTitle: "Corner shape presets",
+    cornersAllLabel: "Global radius for all elements",
+    cornersSwitchCustomBtn: "Customize elements individually →",
+    cornersSyncAllBtn: "Sync all to global",
+    cornersPreviewLabel: "Live UI wireframe",
+    cornersMsgLabel: "Chat messages",
+    cornersComposerLabel: "Input composer",
+    cornersButtonsLabel: "Buttons & triggers",
+    cornersCardsLabel: "Cards, thinking & tools",
+    cornersCodeLabel: "Code blocks",
+    cornersSidebarLabel: "Sidebar, chats & tabs",
+    cornersOverlaysLabel: "Menus, dialogs & popovers",
+    cornersInputsLabel: "Inputs & badges",
+    cornersStudioQuickLabel: "Rudex Studio window radius",
+    studioDesignTitle: "Rudex Studio Window Style",
+    studioLayoutTitle: "Navigation & Window Layout",
+    studioWindowSliders: "Studio Geometry & Glass",
+    studioRadiusLabel: "Studio corner radius",
+    studioBlurLabel: "Studio backdrop blur",
+    studioResetBtn: "Reset window design",
+    studioThemeCycleTip: "Cycle Rudex window theme",
+    studioDesignQuickBtn: "Window",
+    widgetThemeTitle: "Mini Window Design",
+    widgetScaleTitle: "Widget scale",
+    widgetScaleSm: "Compact (S)",
+    widgetScaleMd: "Regular (M)",
+    widgetScaleLg: "Large (L)",
+    widgetOpacityLabel: "Mini window opacity",
+    widgetRadiusLabel: "Mini window radius",
+    widgetRadiusPill: "Capsule",
+    widgetPreviewMiniBtn: "Capsule (S)",
+    widgetPreviewMedBtn: "Card (M)",
+    appDirtyBadge: "Draft",
+    thinkUnit: "think",
     appThemesTitle: "Palette",
     appAccentQuick: "Independent Accent",
     appAccentReset: "Use theme default",
@@ -802,9 +1003,22 @@ function spDefaultAppearance() {
     borderStrength: 50,
     highContrastText: true,
     radius: 12,
+    corners: {
+      mode: "linked",
+      all: 12,
+      messages: 12,
+      composer: 12,
+      buttons: 10,
+      cards: 12,
+      code: 10,
+      sidebar: 10,
+      overlays: 14,
+      inputs: 10,
+    },
     wallpaper: {
       type: "none",
       gradientPreset: "aurora",
+      gradStyle: "linear",
       gradColors: ["#0f172a", "#1e1b4b", "#09090b"],
       gradAngle: 135,
       gradAnimated: true,
@@ -812,13 +1026,27 @@ function spDefaultAppearance() {
       mediaFile: "",
       mediaUrl: "",
       mediaMime: "",
+      fit: "cover",
+      posX: 50,
+      posY: 50,
+      offsetX: 0,
+      offsetY: 0,
       dim: 45,
       blur: 0,
       opacity: 85,
+      brightness: 100,
+      contrast: 100,
       saturate: 100,
+      hue: 0,
       scale: 100,
+      rotate: 0,
+      flipX: false,
+      flipY: false,
+      vignette: 0,
       tintEnabled: false,
       tintOpacity: 35,
+      tintBlend: "normal",
+      playbackRate: 1,
       pauseWhenHidden: true,
     },
     typography: {
@@ -837,9 +1065,45 @@ function spNormalizeAppearance(raw) {
   const def = spDefaultAppearance();
   const src = raw && typeof raw === "object" ? raw : {};
   return Object.assign({}, def, src, {
+    corners: Object.assign({}, def.corners, src.corners || {}),
     wallpaper: Object.assign({}, def.wallpaper, src.wallpaper || {}),
     typography: Object.assign({}, def.typography, src.typography || {}),
   });
+}
+
+function spNormalizeStudioUi(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const clampInt = (v, min, max, fb) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fb;
+  };
+  const winThemes = STUDIO_WINDOW_THEMES.map((x) => x.id);
+  const winLayouts = STUDIO_WINDOW_LAYOUTS.map((x) => x.id);
+  const widThemes = WIDGET_DESIGN_THEMES.map((x) => x.id);
+  const rawWrad = Number(src.widgetRadius);
+  const widgetRadius = Number.isFinite(rawWrad) && rawWrad < 50 ? clampInt(rawWrad, 4, 24, 999) : 999;
+  return {
+    windowTheme: winThemes.indexOf(src.windowTheme) >= 0 ? src.windowTheme : DEFAULT_STUDIO_UI.windowTheme,
+    windowLayout: winLayouts.indexOf(src.windowLayout) >= 0 ? src.windowLayout : DEFAULT_STUDIO_UI.windowLayout,
+    widgetTheme: widThemes.indexOf(src.widgetTheme) >= 0 ? src.widgetTheme : DEFAULT_STUDIO_UI.widgetTheme,
+    widgetScale: src.widgetScale === "sm" || src.widgetScale === "lg" ? src.widgetScale : "md",
+    widgetRadius,
+    widgetOpacity: clampInt(src.widgetOpacity, 45, 100, DEFAULT_STUDIO_UI.widgetOpacity),
+    studioRadius: clampInt(src.studioRadius, 8, 26, DEFAULT_STUDIO_UI.studioRadius),
+    studioBlur: clampInt(src.studioBlur, 0, 32, DEFAULT_STUDIO_UI.studioBlur),
+  };
+}
+
+function spGetCornerPresets() {
+  if (typeof CORNER_PRESETS !== "undefined" && Array.isArray(CORNER_PRESETS)) return CORNER_PRESETS;
+  return [
+    { id: "sharp", nameRu: "Острые", nameEn: "Sharp", mode: "linked", all: 0 },
+    { id: "crisp", nameRu: "Чёткие", nameEn: "Crisp", mode: "linked", all: 6 },
+    { id: "balanced", nameRu: "Баланс", nameEn: "Balanced", mode: "linked", all: 12 },
+    { id: "soft", nameRu: "Мягкие", nameEn: "Soft", mode: "linked", all: 18 },
+    { id: "pill", nameRu: "Капсулы", nameEn: "Pill", mode: "linked", all: 24 },
+    { id: "editorial", nameRu: "Контраст", nameEn: "Editorial", mode: "custom", all: 12, messages: 18, composer: 22, buttons: 8, cards: 14, code: 6, sidebar: 8, overlays: 20, inputs: 10 },
+  ];
 }
 
 function spCloneAppearance(raw) {
@@ -1234,6 +1498,9 @@ function createStudioPanel(options) {
     if (s.startsWith("agy-media://local/")) {
       try { return decodeURIComponent(s.slice("agy-media://local/".length)); } catch (_e) {}
     }
+    if (s.startsWith("rudex-media://local/")) {
+      try { return decodeURIComponent(s.slice("rudex-media://local/".length)); } catch (_e) {}
+    }
     return "";
   }
 
@@ -1338,12 +1605,17 @@ function createStudioPanel(options) {
       appearance: spCloneAppearance(spDefaultAppearance()),
       appearanceProfiles: [],
       greeting: spCloneGreeting(null),
+      studioUi: Object.assign({}, DEFAULT_STUDIO_UI),
     },
     appearanceDraft: spCloneAppearance(spDefaultAppearance()),
     greetingDraft: spCloneGreeting(null),
     appearanceDirty: false,
     appearanceLivePreview: false,
     appearanceDockedRight: false,
+    mediaLibrary: [],
+    tempUploadedMediaFiles: [],
+    wpDragMode: "crop",
+    widgetPreviewMode: "mini",
     newProfileName: "",
     quotaSummary: null,
     lastQuotaScrapeAt: 0,
@@ -1418,6 +1690,7 @@ function createStudioPanel(options) {
   let pointerMoveHandler = null;
   let pointerUpHandler = null;
   let dragState = null;
+  let wpDragState = null;
   let lastBodyClickAt = 0;
   let lastDragEndedAt = 0;
 
@@ -1518,7 +1791,13 @@ function createStudioPanel(options) {
     const next = detectTheme();
     state.theme = next;
     if (rootEl) {
+      const sui = spNormalizeStudioUi(state.settings.studioUi);
       rootEl.setAttribute("data-theme", next);
+      rootEl.setAttribute("data-studio-theme", sui.windowTheme);
+      rootEl.style.setProperty("--rx-studio-radius", `${sui.studioRadius}px`);
+      rootEl.style.setProperty("--rx-studio-blur", `${sui.studioBlur}px`);
+      rootEl.style.setProperty("--rx-widget-opacity", (sui.widgetOpacity / 100).toFixed(2));
+      rootEl.style.setProperty("--rx-widget-radius", sui.widgetRadius >= 999 ? "999px" : `${sui.widgetRadius}px`);
       const activeApp = state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance;
       const preset = spFindThemePreset(activeApp && activeApp.presetId);
       const accent = (activeApp && (activeApp.customAccent || activeApp.presetId === "custom"))
@@ -1589,6 +1868,9 @@ function createStudioPanel(options) {
       state.appearanceDirty = false;
       applyThemeToHost(state.settings.appearance);
     }
+    if (patch.studioUi) {
+      state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, patch.studioUi));
+    }
     renderStructure();
     if (typeof patch.thinkingInRussian === "boolean" && patch.thinkingInRussian !== prevThinkRu) {
       if (state.settings.thinkingInRussian) scanThinkingBlocks(true);
@@ -1655,6 +1937,9 @@ function createStudioPanel(options) {
       }
       if (Array.isArray(rawSettings.appearanceProfiles)) {
         state.settings.appearanceProfiles = rawSettings.appearanceProfiles.slice(0, 12);
+      }
+      if (rawSettings.studioUi && typeof rawSettings.studioUi === "object") {
+        state.settings.studioUi = spNormalizeStudioUi(rawSettings.studioUi);
       }
     }
     if (remote.quotaSummary && typeof remote.quotaSummary === "object") {
@@ -3339,11 +3624,146 @@ function createStudioPanel(options) {
     `;
   }
 
+  function refreshMediaLibrary() {
+    return invokeIpc("agy-studio:list-media").then((res) => {
+      if (state.destroyed) return;
+      if (res && res.ok && Array.isArray(res.items)) {
+        state.mediaLibrary = res.items.slice(0, 20);
+        if (state.isOpen && state.activeTab === "appearance" && state.appearanceSubTab === "wallpaper") {
+          renderStructure();
+        }
+      }
+    });
+  }
+
+  function cleanupTempUploadedMedia() {
+    if (!Array.isArray(state.tempUploadedMediaFiles) || state.tempUploadedMediaFiles.length === 0) return;
+    const savedFile = state.settings.appearance && state.settings.appearance.wallpaper ? state.settings.appearance.wallpaper.mediaFile : "";
+    const list = state.tempUploadedMediaFiles.slice();
+    state.tempUploadedMediaFiles = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const f = list[i];
+      if (f && f !== savedFile) {
+        invokeIpc("agy-studio:delete-media", { fileName: f });
+      }
+    }
+  }
+
+  function spBuildWallpaperFilterCss(wp) {
+    const parts = [];
+    if (wp.blur > 0) parts.push(`blur(${wp.blur}px)`);
+    if (wp.brightness !== 100) parts.push(`brightness(${wp.brightness}%)`);
+    if (wp.contrast !== 100) parts.push(`contrast(${wp.contrast}%)`);
+    if (wp.saturate !== 100) parts.push(`saturate(${wp.saturate}%)`);
+    if (wp.hue !== 0) parts.push(`hue-rotate(${wp.hue}deg)`);
+    return parts.length > 0 ? parts.join(" ") : "none";
+  }
+
+  function spBuildWallpaperTransformCss(wp) {
+    const effScale = wp.blur > 0 ? Math.max(wp.scale / 100, 1.06) : (wp.scale / 100);
+    const parts = [];
+    if (wp.offsetX !== 0 || wp.offsetY !== 0) parts.push(`translate3d(${wp.offsetX}%, ${wp.offsetY}%, 0)`);
+    if (wp.rotate !== 0) parts.push(`rotate(${wp.rotate}deg)`);
+    if (wp.flipX || wp.flipY) {
+      const sx = wp.flipX ? -effScale : effScale;
+      const sy = wp.flipY ? -effScale : effScale;
+      parts.push(`scale(${sx.toFixed(2)}, ${sy.toFixed(2)})`);
+    } else if (Math.abs(effScale - 1) > 0.001) {
+      parts.push(`scale(${effScale.toFixed(2)})`);
+    }
+    return parts.length > 0 ? parts.join(" ") : "none";
+  }
+
+  function spBuildGradientPreviewCss(wp) {
+    const c1 = (wp.gradColors && wp.gradColors[0]) || "#0f172a";
+    const c2 = (wp.gradColors && wp.gradColors[1]) || "#1e1b4b";
+    const c3 = (wp.gradColors && wp.gradColors[2]) || "#09090b";
+    if (wp.gradStyle === "radial") return `radial-gradient(circle at ${wp.posX}% ${wp.posY}%, ${c1} 0%, ${c2} 52%, ${c3} 100%)`;
+    if (wp.gradStyle === "mesh") return `radial-gradient(at 25% 25%, ${c1} 0px, transparent 58%), radial-gradient(at 78% 72%, ${c2} 0px, transparent 60%), radial-gradient(at 50% 90%, ${c1} 0px, ${c3} 72%)`;
+    return `linear-gradient(${wp.gradAngle}deg, ${c1} 0%, ${c2} 50%, ${c3} 100%)`;
+  }
+
+  function updateLiveWallpaperPreviewDom() {
+    if (!modalMountEl) return;
+    const wp = spNormalizeAppearance(state.appearanceDraft).wallpaper;
+    const mediaEl = modalMountEl.querySelector('[data-wp-role="media"]');
+    if (mediaEl) {
+      const posStr = `${wp.posX}% ${wp.posY}%`;
+      mediaEl.style.objectFit = wp.fit || "cover";
+      mediaEl.style.objectPosition = posStr;
+      mediaEl.style.transformOrigin = posStr;
+      mediaEl.style.filter = spBuildWallpaperFilterCss(wp);
+      mediaEl.style.opacity = String(wp.opacity / 100);
+      mediaEl.style.transform = spBuildWallpaperTransformCss(wp);
+      if (mediaEl.tagName === "VIDEO") {
+        try { mediaEl.playbackRate = wp.playbackRate || 1; } catch (_e) {}
+      }
+    }
+    const dot = modalMountEl.querySelector('[data-wp-role="focusDot"]');
+    if (dot) {
+      dot.style.left = `${wp.posX}%`;
+      dot.style.top = `${wp.posY}%`;
+    }
+    const scrim = modalMountEl.querySelector('[data-wp-role="scrim"]');
+    if (scrim) {
+      scrim.style.backgroundColor = `rgba(6, 7, 10, ${wp.dim / 100})`;
+    }
+    const vig = modalMountEl.querySelector('[data-wp-role="vignette"]');
+    if (vig) {
+      const innerStop = Math.max(15, 65 - Math.round(wp.vignette * 0.45));
+      vig.style.backgroundImage = wp.vignette > 0
+        ? `radial-gradient(ellipse at center, transparent ${innerStop}%, rgba(0, 0, 0, ${(wp.vignette / 100).toFixed(2)}) 100%)`
+        : "none";
+    }
+    const tint = modalMountEl.querySelector('[data-wp-role="tint"]');
+    if (tint) {
+      tint.style.backgroundImage = wp.tintEnabled ? spBuildGradientPreviewCss(wp) : "none";
+      tint.style.opacity = wp.tintEnabled ? String(wp.tintOpacity / 100) : "0";
+      tint.style.mixBlendMode = wp.tintBlend || "normal";
+    }
+    const hud = modalMountEl.querySelector('[data-wp-role="hudCoords"]');
+    if (hud) {
+      hud.textContent = state.wpDragMode === "offset"
+        ? `dX:${wp.offsetX}% · dY:${wp.offsetY}% · ${wp.scale}%`
+        : `X:${wp.posX}% · Y:${wp.posY}% · ${wp.scale}%`;
+    }
+  }
+
+  function updateLiveCornersPreviewDom() {
+    if (!modalMountEl) return;
+    const draft = spNormalizeAppearance(state.appearanceDraft);
+    const c = typeof teResolveCornerRadii === "function"
+      ? teResolveCornerRadii(draft)
+      : {
+          messages: draft.corners.mode === "custom" ? draft.corners.messages : draft.corners.all,
+          composer: draft.corners.mode === "custom" ? draft.corners.composer : draft.corners.all,
+          buttons: draft.corners.mode === "custom" ? draft.corners.buttons : draft.corners.all,
+          cards: draft.corners.mode === "custom" ? draft.corners.cards : draft.corners.all,
+          code: draft.corners.mode === "custom" ? draft.corners.code : draft.corners.all,
+          sidebar: draft.corners.mode === "custom" ? draft.corners.sidebar : draft.corners.all,
+          overlays: draft.corners.mode === "custom" ? draft.corners.overlays : draft.corners.all,
+          inputs: draft.corners.mode === "custom" ? draft.corners.inputs : draft.corners.all,
+        };
+    const setRad = (sel, val) => {
+      const list = modalMountEl.querySelectorAll(sel);
+      for (let i = 0; i < list.length; i += 1) list[i].style.borderRadius = `${val}px`;
+    };
+    setRad('[data-cp-role="sidebar"]', Math.min(18, c.sidebar));
+    setRad('[data-cp-role="nav"]', Math.max(0, c.sidebar - 2));
+    setRad('[data-cp-role="bubble"]', c.messages);
+    setRad('[data-cp-role="card"]', c.cards);
+    setRad('[data-cp-role="code"]', c.code);
+    setRad('[data-cp-role="composer"]', c.composer);
+    setRad('[data-cp-role="btn"]', c.buttons);
+    setRad('[data-cp-role="popup"]', c.overlays);
+    setRad('[data-cp-role="input"]', c.inputs);
+  }
+
   function formatSparkFootMeta(tel, tr) {
     const parts = [];
     if (tel.exactCacheTokens > 0) parts.push(`${tr.cacheLabel}: ${formatCompact(tel.exactCacheTokens)}`);
     if (tel.lastDurSec > 0) parts.push(`${tel.lastDurSec}${tr.secUnit}`);
-    if (tel.lastThinkingSec > 0) parts.push(`${tel.lastThinkingSec}${tr.secUnit} think`);
+    if (tel.lastThinkingSec > 0) parts.push(`${tel.lastThinkingSec}${tr.secUnit} ${tr.thinkUnit}`);
     return parts.join(" · ");
   }
 
@@ -3417,10 +3837,12 @@ function createStudioPanel(options) {
     const presetObj = spFindThemePreset(draft.presetId);
     const wp = draft.wallpaper;
     const grads = spGetGradientPresets();
+    const cRadii = typeof teResolveCornerRadii === "function" ? teResolveCornerRadii(draft) : draft.corners;
 
     const subTabs = [
       { id: "theme", label: tr.appSubTheme },
       { id: "wallpaper", label: tr.appSubWallpaper },
+      { id: "corners", label: tr.appSubCorners },
       { id: "surface", label: tr.appSubSurface },
       { id: "greeting", label: tr.appSubGreeting },
       { id: "text", label: tr.appSubText },
@@ -3436,12 +3858,14 @@ function createStudioPanel(options) {
     } else if ((wp.type === "image" || wp.type === "video") && wp.tintEnabled) {
       wpLabel += ` + ${tr.appWpGradient}`;
     }
+    const cornersLabel = draft.corners.mode === "custom" ? tr.cornersModeCustom.split(" ")[0] : `${cRadii.base}px`;
     const styleLabelMap = { glass: tr.appMsgStyleGlass, solid: tr.appMsgStyleSolid, minimal: tr.appMsgStyleMinimal };
     const surfaceLabel = `${styleLabelMap[draft.messageStyle] || tr.appMsgStyleGlass} · ${draft.glassOpacity}%`;
 
     let inner = "";
     if (sub === "theme") inner = renderAppearanceThemeSub(tr, isRu);
     else if (sub === "wallpaper") inner = renderAppearanceWallpaperSub(tr, isRu);
+    else if (sub === "corners") inner = renderAppearanceCornersSub(tr, isRu);
     else if (sub === "surface") inner = renderAppearanceSurfaceSub(tr, isRu);
     else if (sub === "greeting") inner = renderAppearanceGreetingSub(tr, isRu);
     else inner = renderAppearanceTextSub(tr, isRu);
@@ -3452,13 +3876,16 @@ function createStudioPanel(options) {
           <span class="layer-dot" style="background:${escAttr(effAccent)}"></span>
           <span>${escHtml(tr.appLayerTheme)}: ${escHtml(themeLabel)}</span>
         </button>
-        <button type="button" class="layer-pill${sub === "wallpaper" && wp.type !== "none" ? " is-active" : ""}" data-action="set-app-subtab" data-val="wallpaper">
+        <button type="button" class="layer-pill${sub === "wallpaper" ? " is-active" : ""}" data-action="set-app-subtab" data-val="wallpaper">
           <span>${escHtml(tr.appLayerWallpaper)}: ${escHtml(wpLabel)}</span>
+        </button>
+        <button type="button" class="layer-pill${sub === "corners" ? " is-active" : ""}" data-action="set-app-subtab" data-val="corners">
+          <span>${escHtml(tr.appLayerCorners)}: ${escHtml(cornersLabel)}</span>
         </button>
         <button type="button" class="layer-pill${sub === "surface" ? " is-active" : ""}" data-action="set-app-subtab" data-val="surface">
           <span>${escHtml(tr.appLayerSurface)}: ${escHtml(surfaceLabel)}</span>
         </button>
-        <button type="button" class="layer-pill${sub === "greeting" || gd.enabled ? (sub === "greeting" ? " is-active" : "") : ""}" data-action="set-app-subtab" data-val="greeting">
+        <button type="button" class="layer-pill${sub === "greeting" ? " is-active" : ""}" data-action="set-app-subtab" data-val="greeting">
           <span>${escHtml(tr.appLayerGreeting)}: ${escHtml(gd.enabled ? tr.personaActiveTag : tr.personaOffTag)}</span>
         </button>
       </div>
@@ -3479,6 +3906,7 @@ function createStudioPanel(options) {
       ? draft.accentColor
       : ((curPreset && curPreset.vars && curPreset.vars.accentColor) || draft.accentColor);
     const fineOpen = Boolean(state.openDisclosures.themeFine);
+    const profiles = state.settings.appearanceProfiles || [];
 
     return `
       <div class="section-group">
@@ -3517,17 +3945,6 @@ function createStudioPanel(options) {
         </div>
       </div>
 
-      <div class="control-grid-2">
-        <div class="slider-box">
-          <div class="slider-head"><span>${escHtml(tr.appRadius)}</span><b class="num" data-live-app-val="radius">${draft.radius}px</b></div>
-          <input type="range" class="range-input" min="4" max="20" step="1" data-app-field="radius" value="${draft.radius}"/>
-        </div>
-        <div class="slider-box">
-          <div class="slider-head"><span>${escHtml(tr.appBorderStrength)}</span><b class="num" data-live-app-val="borderStrength">${draft.borderStrength}%</b></div>
-          <input type="range" class="range-input" min="0" max="100" step="5" data-app-field="borderStrength" value="${draft.borderStrength}"/>
-        </div>
-      </div>
-
       <details class="rx-details" data-disc="themeFine"${fineOpen ? " open" : ""}>
         <summary>${escHtml(tr.appFineTune)}</summary>
         <div class="rx-details-body">
@@ -3543,6 +3960,24 @@ function createStudioPanel(options) {
           </div>
         </div>
       </details>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.appProfilesTitle)}</span>
+        ${profiles.length > 0 ? `
+          <div class="profile-strip">
+            ${profiles.map((prof) => `
+              <div class="profile-chip" role="button" tabindex="0" data-action="apply-appearance-profile" data-id="${escAttr(prof.id)}">
+                <span>${escHtml(prof.name)}</span>
+                <button type="button" class="preset-del-btn" data-action="delete-appearance-profile" data-id="${escAttr(prof.id)}" title="${escAttr(tr.tooltipDelete)}">${iconSvg("trash", 11)}</button>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
+        <div class="preset-add-row">
+          <input type="text" class="text-input" data-role="newProfileInput" maxlength="44" value="${escAttr(state.newProfileName)}" placeholder="${escAttr(tr.appProfilePlaceholder)}"/>
+          <button type="button" class="btn btn-sm" data-action="save-appearance-profile">${iconSvg("plus", 12)}${escHtml(tr.appSaveProfile)}</button>
+        </div>
+      </div>
     `;
   }
 
@@ -3557,12 +3992,26 @@ function createStudioPanel(options) {
       { id: "video", label: tr.appWpVideo },
     ];
     const gradFineOpen = Boolean(state.openDisclosures.gradFine);
+    const colorOpen = state.openDisclosures.wpColor !== false;
 
     let modeBody = "";
     if (wp.type === "none") {
       modeBody = `<div class="empty-msg">${escHtml(tr.appWpNoneHint)}</div>`;
     } else if (wp.type === "gradient") {
+      const gradStyles = [
+        { id: "linear", label: tr.appGradLinear },
+        { id: "radial", label: tr.appGradRadial },
+        { id: "mesh", label: tr.appGradMesh },
+      ];
       modeBody = `
+        <div class="section-group">
+          <span class="section-label">${escHtml(tr.appGradStyleLabel)}</span>
+          <div class="subtab-bar">
+            ${gradStyles.map((gs) => `
+              <button type="button" class="subtab-btn${wp.gradStyle === gs.id ? " is-active" : ""}" data-action="set-wallpaper-grad-style" data-val="${gs.id}">${escHtml(gs.label)}</button>
+            `).join("")}
+          </div>
+        </div>
         <div class="grad-chips">
           ${grads.map((g) => `
             <button type="button" class="grad-chip${wp.gradientPreset === g.id ? " is-selected" : ""}" data-action="select-gradient-preset" data-id="${escAttr(g.id)}" style="background:linear-gradient(${g.angle}deg, ${escAttr(g.colors[0])}, ${escAttr(g.colors[1])}, ${escAttr(g.colors[2])})">${escHtml(isRu ? g.nameRu : g.nameEn)}</button>
@@ -3585,11 +4034,15 @@ function createStudioPanel(options) {
           </div>
           <div class="slider-box">
             <div class="slider-head"><span>${escHtml(tr.appWpSaturate)}</span><b class="num" data-live-app-val="wallpaper.saturate">${wp.saturate}%</b></div>
-            <input type="range" class="range-input" min="0" max="180" step="5" data-app-field="wallpaper.saturate" value="${wp.saturate}"/>
+            <input type="range" class="range-input" min="0" max="200" step="5" data-app-field="wallpaper.saturate" value="${wp.saturate}"/>
+          </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpVignette)}</span><b class="num" data-live-app-val="wallpaper.vignette">${wp.vignette}%</b></div>
+            <input type="range" class="range-input" min="0" max="90" step="5" data-app-field="wallpaper.vignette" value="${wp.vignette}"/>
           </div>
         </div>
         <details class="rx-details" data-disc="gradFine"${gradFineOpen ? " open" : ""}>
-          <summary>${escHtml(tr.appFineTune)}</summary>
+          <summary>${escHtml(tr.appGradFineTitle)}</summary>
           <div class="rx-details-body">
             <div class="control-grid-3">
               <div class="color-box"><span>${escHtml(tr.appColorLabels[0])}</span><input type="color" class="color-input" data-app-field="wallpaper.gradColor0" value="${escAttr(wp.gradColors[0])}"/></div>
@@ -3611,6 +4064,33 @@ function createStudioPanel(options) {
       `;
     } else {
       const isVid = wp.type === "video";
+      const resolvedUrl = wp.mediaUrl ? resolveStudioMediaUrl(wp.mediaFile, wp.mediaUrl) : "";
+      const filterCss = spBuildWallpaperFilterCss(wp);
+      const transformCss = spBuildWallpaperTransformCss(wp);
+      const posStr = `${wp.posX}% ${wp.posY}%`;
+      const anchors = [
+        [0, 0], [50, 0], [100, 0],
+        [0, 50], [50, 50], [100, 50],
+        [0, 100], [50, 100], [100, 100],
+      ];
+      const fits = [
+        { id: "cover", label: tr.appWpFitCover },
+        { id: "contain", label: tr.appWpFitContain },
+        { id: "fill", label: tr.appWpFitFill },
+      ];
+      const blends = [
+        { id: "normal", label: tr.appWpBlendNormal },
+        { id: "multiply", label: tr.appWpBlendMultiply },
+        { id: "screen", label: tr.appWpBlendScreen },
+        { id: "overlay", label: tr.appWpBlendOverlay },
+        { id: "soft-light", label: tr.appWpBlendSoftLight },
+      ];
+      const mediaItems = (state.mediaLibrary || []).filter((m) => (isVid ? m.kind === "video" : m.kind === "image"));
+      const vigInner = Math.max(15, 65 - Math.round(wp.vignette * 0.45));
+      const hudTxt = state.wpDragMode === "offset"
+        ? `dX:${wp.offsetX}% · dY:${wp.offsetY}% · ${wp.scale}%`
+        : `X:${wp.posX}% · Y:${wp.posY}% · ${wp.scale}%`;
+
       modeBody = `
         <div class="media-file-bar">
           <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
@@ -3619,36 +4099,164 @@ function createStudioPanel(options) {
           </div>
           ${wp.mediaUrl ? `<button type="button" class="btn btn-sm" data-action="clear-wallpaper-media">${escHtml(tr.appWpClearMedia)}</button>` : ""}
         </div>
-        <div class="control-grid-2">
-          <div class="slider-box">
-            <div class="slider-head"><span>${escHtml(tr.appWpDim)}</span><b class="num" data-live-app-val="wallpaper.dim">${wp.dim}%</b></div>
-            <input type="range" class="range-input" min="0" max="85" step="1" data-app-field="wallpaper.dim" value="${wp.dim}"/>
+
+        ${resolvedUrl ? `
+          <div class="wp-stage-wrap">
+            <div class="wp-stage-canvas" data-wp-stage="1" title="${escAttr(tr.appWpDragHint)}">
+              ${isVid
+                ? `<video class="wp-stage-media" data-wp-role="media" src="${escAttr(resolvedUrl)}" autoplay muted loop playsinline style="object-fit:${escAttr(wp.fit)};object-position:${posStr};transform-origin:${posStr};filter:${escAttr(filterCss)};opacity:${wp.opacity / 100};transform:${escAttr(transformCss)}"></video>`
+                : `<img class="wp-stage-media" data-wp-role="media" src="${escAttr(resolvedUrl)}" alt="" style="object-fit:${escAttr(wp.fit)};object-position:${posStr};transform-origin:${posStr};filter:${escAttr(filterCss)};opacity:${wp.opacity / 100};transform:${escAttr(transformCss)}"/>`}
+              <div class="wp-stage-tint" data-wp-role="tint" style="background-image:${wp.tintEnabled ? escAttr(spBuildGradientPreviewCss(wp)) : "none"};opacity:${wp.tintEnabled ? wp.tintOpacity / 100 : 0};mix-blend-mode:${escAttr(wp.tintBlend || "normal")}"></div>
+              <div class="wp-stage-vignette" data-wp-role="vignette" style="background-image:${wp.vignette > 0 ? `radial-gradient(ellipse at center, transparent ${vigInner}%, rgba(0, 0, 0, ${(wp.vignette / 100).toFixed(2)}) 100%)` : "none"}"></div>
+              <div class="wp-stage-scrim" data-wp-role="scrim" style="background-color:rgba(6, 7, 10, ${wp.dim / 100})"></div>
+              <div class="wp-stage-grid"></div>
+              <div class="wp-focus-dot" data-wp-role="focusDot" style="left:${wp.posX}%;top:${wp.posY}%"></div>
+              <div class="wp-stage-hud">
+                <span class="wp-hud-pill num" data-wp-role="hudCoords">${escHtml(hudTxt)}</span>
+                <div style="display:flex;gap:4px">
+                  <button type="button" class="wp-hud-btn${state.wpDragMode === "crop" ? " is-active" : ""}" data-action="set-wp-drag-mode" data-val="crop">${escHtml(tr.appWpDragCrop)}</button>
+                  <button type="button" class="wp-hud-btn${state.wpDragMode === "offset" ? " is-active" : ""}" data-action="set-wp-drag-mode" data-val="offset">${escHtml(tr.appWpDragOffset)}</button>
+                </div>
+              </div>
+            </div>
+            <div class="wp-side-controls">
+              <div>
+                <div class="section-label" style="margin-bottom:5px">${escHtml(tr.appWpAnchorTitle)}</div>
+                <div class="wp-anchor-grid">
+                  ${anchors.map(([ax, ay]) => `
+                    <button type="button" class="wp-anchor-dot${wp.posX === ax && wp.posY === ay ? " is-active" : ""}" data-action="set-wp-anchor" data-x="${ax}" data-y="${ay}" aria-label="${ax}% ${ay}%"></button>
+                  `).join("")}
+                </div>
+              </div>
+              <div class="wp-tool-row">
+                <button type="button" class="wp-tool-btn" data-action="wp-rotate-step" data-delta="-90" title="-90°">${iconSvg("rotateLeft", 12)}</button>
+                <button type="button" class="wp-tool-btn" data-action="wp-rotate-step" data-delta="90" title="+90°">${iconSvg("rotateRight", 12)}</button>
+                <button type="button" class="wp-tool-btn${wp.flipX ? " is-active" : ""}" data-action="wp-toggle-flip" data-axis="x" title="Flip X">${iconSvg("flipH", 12)}</button>
+                <button type="button" class="wp-tool-btn${wp.flipY ? " is-active" : ""}" data-action="wp-toggle-flip" data-axis="y" title="Flip Y">${iconSvg("flipV", 12)}</button>
+                <button type="button" class="wp-tool-btn" style="flex-basis:100%" data-action="wp-reset-transform">${escHtml(tr.appWpResetFrame)}</button>
+              </div>
+            </div>
           </div>
-          <div class="slider-box">
-            <div class="slider-head"><span>${escHtml(tr.appWpBlur)}</span><b class="num" data-live-app-val="wallpaper.blur">${wp.blur}px</b></div>
-            <input type="range" class="range-input" min="0" max="24" step="1" data-app-field="wallpaper.blur" value="${wp.blur}"/>
+        ` : `
+          <div class="wp-stage-canvas is-empty" data-action="pick-media" data-kind="${isVid ? "video" : "image"}">
+            ${iconSvg("image", 24)}
+            <span class="row-desc" style="text-align:center;max-width:260px">${escHtml(tr.appWpStageEmptyHint)}</span>
           </div>
-          <div class="slider-box">
-            <div class="slider-head"><span>${escHtml(tr.appWpOpacity)}</span><b class="num" data-live-app-val="wallpaper.opacity">${wp.opacity}%</b></div>
-            <input type="range" class="range-input" min="15" max="100" step="1" data-app-field="wallpaper.opacity" value="${wp.opacity}"/>
+        `}
+
+        ${mediaItems.length > 0 ? `
+          <div class="section-group">
+            <span class="section-label">${escHtml(tr.appWpGalleryTitle)}</span>
+            <div class="wp-gallery-strip">
+              ${mediaItems.map((it) => `
+                <button type="button" class="wp-gallery-thumb${wp.mediaFile === it.fileName ? " is-selected" : ""}" data-action="select-library-media" data-file="${escAttr(it.fileName)}" data-url="${escAttr(it.mediaUrl)}" data-mime="${escAttr(it.mime)}" data-kind="${escAttr(it.kind)}" title="${escAttr(it.fileName)}">
+                  ${it.kind === "video"
+                    ? iconSvg("upload", 14)
+                    : `<img src="${escAttr(resolveStudioMediaUrl(it.fileName, it.mediaUrl))}" alt=""/>`}
+                </button>
+              `).join("")}
+            </div>
           </div>
-          <div class="slider-box">
-            <div class="slider-head"><span>${escHtml(tr.appWpSaturate)}</span><b class="num" data-live-app-val="wallpaper.saturate">${wp.saturate}%</b></div>
-            <input type="range" class="range-input" min="0" max="180" step="5" data-app-field="wallpaper.saturate" value="${wp.saturate}"/>
-          </div>
-          <div class="slider-box">
-            <div class="slider-head"><span>${escHtml(tr.appWpScale)}</span><b class="num" data-live-app-val="wallpaper.scale">${wp.scale}%</b></div>
-            <input type="range" class="range-input" min="100" max="130" step="1" data-app-field="wallpaper.scale" value="${wp.scale}"/>
+        ` : ""}
+
+        <div class="subtab-bar">
+          ${fits.map((ft) => `
+            <button type="button" class="subtab-btn${wp.fit === ft.id ? " is-active" : ""}" data-action="set-wp-fit" data-val="${ft.id}">${escHtml(ft.label)}</button>
+          `).join("")}
+        </div>
+
+        <div class="section-group">
+          <span class="section-label">${escHtml(tr.appWpAtmosTitle)}</span>
+          <div class="wp-atmos-grid">
+            ${WALLPAPER_ATMOS_PRESETS.map((ap) => `
+              <button type="button" class="btn btn-sm" data-action="apply-wp-atmos" data-id="${escAttr(ap.id)}">${escHtml(isRu ? ap.nameRu : ap.nameEn)}</button>
+            `).join("")}
           </div>
         </div>
+
+        <div class="control-grid-2">
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpScale)}</span><b class="num" data-live-app-val="wallpaper.scale">${wp.scale}%</b></div>
+            <input type="range" class="range-input" min="50" max="250" step="1" data-app-field="wallpaper.scale" value="${wp.scale}"/>
+          </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpRotate)}</span><b class="num" data-live-app-val="wallpaper.rotate">${wp.rotate}°</b></div>
+            <input type="range" class="range-input" min="-180" max="180" step="1" data-app-field="wallpaper.rotate" value="${wp.rotate}"/>
+          </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpPosX)}</span><b class="num" data-live-app-val="wallpaper.posX">${wp.posX}%</b></div>
+            <input type="range" class="range-input" min="0" max="100" step="1" data-app-field="wallpaper.posX" value="${wp.posX}"/>
+          </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpPosY)}</span><b class="num" data-live-app-val="wallpaper.posY">${wp.posY}%</b></div>
+            <input type="range" class="range-input" min="0" max="100" step="1" data-app-field="wallpaper.posY" value="${wp.posY}"/>
+          </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpOffsetX)}</span><b class="num" data-live-app-val="wallpaper.offsetX">${wp.offsetX}%</b></div>
+            <input type="range" class="range-input" min="-50" max="50" step="1" data-app-field="wallpaper.offsetX" value="${wp.offsetX}"/>
+          </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpOffsetY)}</span><b class="num" data-live-app-val="wallpaper.offsetY">${wp.offsetY}%</b></div>
+            <input type="range" class="range-input" min="-50" max="50" step="1" data-app-field="wallpaper.offsetY" value="${wp.offsetY}"/>
+          </div>
+        </div>
+
+        <details class="rx-details" data-disc="wpColor"${colorOpen ? " open" : ""}>
+          <summary>${escHtml(tr.appWpColorTitle)}</summary>
+          <div class="rx-details-body">
+            <div class="control-grid-2">
+              <div class="slider-box">
+                <div class="slider-head"><span>${escHtml(tr.appWpDim)}</span><b class="num" data-live-app-val="wallpaper.dim">${wp.dim}%</b></div>
+                <input type="range" class="range-input" min="0" max="85" step="1" data-app-field="wallpaper.dim" value="${wp.dim}"/>
+              </div>
+              <div class="slider-box">
+                <div class="slider-head"><span>${escHtml(tr.appWpBlur)}</span><b class="num" data-live-app-val="wallpaper.blur">${wp.blur}px</b></div>
+                <input type="range" class="range-input" min="0" max="24" step="1" data-app-field="wallpaper.blur" value="${wp.blur}"/>
+              </div>
+              <div class="slider-box">
+                <div class="slider-head"><span>${escHtml(tr.appWpOpacity)}</span><b class="num" data-live-app-val="wallpaper.opacity">${wp.opacity}%</b></div>
+                <input type="range" class="range-input" min="15" max="100" step="1" data-app-field="wallpaper.opacity" value="${wp.opacity}"/>
+              </div>
+              <div class="slider-box">
+                <div class="slider-head"><span>${escHtml(tr.appWpVignette)}</span><b class="num" data-live-app-val="wallpaper.vignette">${wp.vignette}%</b></div>
+                <input type="range" class="range-input" min="0" max="90" step="2" data-app-field="wallpaper.vignette" value="${wp.vignette}"/>
+              </div>
+              <div class="slider-box">
+                <div class="slider-head"><span>${escHtml(tr.appWpBrightness)}</span><b class="num" data-live-app-val="wallpaper.brightness">${wp.brightness}%</b></div>
+                <input type="range" class="range-input" min="40" max="160" step="2" data-app-field="wallpaper.brightness" value="${wp.brightness}"/>
+              </div>
+              <div class="slider-box">
+                <div class="slider-head"><span>${escHtml(tr.appWpContrast)}</span><b class="num" data-live-app-val="wallpaper.contrast">${wp.contrast}%</b></div>
+                <input type="range" class="range-input" min="50" max="160" step="2" data-app-field="wallpaper.contrast" value="${wp.contrast}"/>
+              </div>
+              <div class="slider-box">
+                <div class="slider-head"><span>${escHtml(tr.appWpSaturate)}</span><b class="num" data-live-app-val="wallpaper.saturate">${wp.saturate}%</b></div>
+                <input type="range" class="range-input" min="0" max="200" step="5" data-app-field="wallpaper.saturate" value="${wp.saturate}"/>
+              </div>
+              <div class="slider-box">
+                <div class="slider-head"><span>${escHtml(tr.appWpHue)}</span><b class="num" data-live-app-val="wallpaper.hue">${wp.hue}°</b></div>
+                <input type="range" class="range-input" min="-180" max="180" step="5" data-app-field="wallpaper.hue" value="${wp.hue}"/>
+              </div>
+            </div>
+          </div>
+        </details>
+
         ${isVid ? `
           <div class="card">
+            <div class="row-item">
+              <span class="row-title">${escHtml(tr.appWpPlaybackRate)}</span>
+              <b class="num" data-live-app-val="wallpaper.playbackRate">${wp.playbackRate}x</b>
+            </div>
+            <div style="padding:0 13px 10px">
+              <input type="range" class="range-input" min="0.25" max="2" step="0.25" data-app-field="wallpaper.playbackRate" value="${wp.playbackRate}"/>
+            </div>
             <div class="row-item">
               <span class="row-title">${escHtml(tr.appWpAutoPause)}</span>
               <button type="button" class="switch${wp.pauseWhenHidden ? " is-on" : ""}" role="switch" aria-checked="${wp.pauseWhenHidden ? "true" : "false"}" data-action="toggle-wallpaper-autopause"><span class="switch-thumb"></span></button>
             </div>
           </div>
         ` : ""}
+
         <div class="card">
           <div class="row-item">
             <div class="row-info">
@@ -3659,9 +4267,22 @@ function createStudioPanel(options) {
           </div>
           ${wp.tintEnabled ? `
             <div style="padding:10px 13px;border-top:1px solid var(--rx-border);display:flex;flex-direction:column;gap:9px">
-              <div class="slider-box">
-                <div class="slider-head"><span>${escHtml(tr.appWpTintOpacity)}</span><b class="num" data-live-app-val="wallpaper.tintOpacity">${wp.tintOpacity}%</b></div>
-                <input type="range" class="range-input" min="5" max="75" step="1" data-app-field="wallpaper.tintOpacity" value="${wp.tintOpacity}"/>
+              <div class="control-grid-2">
+                <div class="slider-box">
+                  <div class="slider-head"><span>${escHtml(tr.appWpTintOpacity)}</span><b class="num" data-live-app-val="wallpaper.tintOpacity">${wp.tintOpacity}%</b></div>
+                  <input type="range" class="range-input" min="5" max="75" step="1" data-app-field="wallpaper.tintOpacity" value="${wp.tintOpacity}"/>
+                </div>
+                <div class="slider-box">
+                  <div class="slider-head"><span>${escHtml(tr.appWpTintBlend)}</span></div>
+                  <select class="select-input" style="padding:4px 8px;font-size:11px" data-app-field="wallpaper.tintBlend">
+                    ${blends.map((b) => `<option value="${b.id}"${wp.tintBlend === b.id ? " selected" : ""}>${escHtml(b.label)}</option>`).join("")}
+                  </select>
+                </div>
+              </div>
+              <div class="control-grid-3">
+                <div class="color-box"><span>${escHtml(tr.appColorLabels[0])}</span><input type="color" class="color-input" data-app-field="wallpaper.gradColor0" value="${escAttr(wp.gradColors[0])}"/></div>
+                <div class="color-box"><span>${escHtml(tr.appColorLabels[1])}</span><input type="color" class="color-input" data-app-field="wallpaper.gradColor1" value="${escAttr(wp.gradColors[1])}"/></div>
+                <div class="color-box"><span>${escHtml(tr.appColorLabels[2])}</span><input type="color" class="color-input" data-app-field="wallpaper.gradColor2" value="${escAttr(wp.gradColors[2])}"/></div>
               </div>
               <div class="grad-chips">
                 ${grads.map((g) => `
@@ -3681,6 +4302,104 @@ function createStudioPanel(options) {
         `).join("")}
       </div>
       ${modeBody}
+    `;
+  }
+
+  function renderAppearanceCornersSub(tr, isRu) {
+    const draft = spNormalizeAppearance(state.appearanceDraft);
+    const c = draft.corners;
+    const eff = typeof teResolveCornerRadii === "function"
+      ? teResolveCornerRadii(draft)
+      : { messages: c.all, composer: c.all, buttons: c.all, cards: c.all, code: c.all, sidebar: c.all, overlays: c.all, inputs: c.all };
+    const presets = spGetCornerPresets();
+    const sui = spNormalizeStudioUi(state.settings.studioUi);
+
+    const isPresetSelected = (pr) => {
+      if (pr.mode !== c.mode) return false;
+      if (pr.mode === "linked") return c.all === pr.all;
+      return c.messages === pr.messages && c.composer === pr.composer && c.buttons === pr.buttons && c.code === pr.code;
+    };
+
+    const categories = [
+      { key: "corners.messages", label: tr.cornersMsgLabel, val: c.messages, max: 28 },
+      { key: "corners.composer", label: tr.cornersComposerLabel, val: c.composer, max: 28 },
+      { key: "corners.buttons", label: tr.cornersButtonsLabel, val: c.buttons, max: 28 },
+      { key: "corners.cards", label: tr.cornersCardsLabel, val: c.cards, max: 28 },
+      { key: "corners.code", label: tr.cornersCodeLabel, val: c.code, max: 24 },
+      { key: "corners.sidebar", label: tr.cornersSidebarLabel, val: c.sidebar, max: 24 },
+      { key: "corners.overlays", label: tr.cornersOverlaysLabel, val: c.overlays, max: 28 },
+      { key: "corners.inputs", label: tr.cornersInputsLabel, val: c.inputs, max: 24 },
+    ];
+
+    return `
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.cornersPreviewLabel)}</span>
+        <div class="corners-preview-stage">
+          <div class="cp-sidebar" data-cp-role="sidebar" style="border-radius:${Math.min(18, eff.sidebar)}px">
+            <div class="cp-nav-item is-on" data-cp-role="nav" style="border-radius:${Math.max(0, eff.sidebar - 2)}px"></div>
+            <div class="cp-nav-item" data-cp-role="nav" style="border-radius:${Math.max(0, eff.sidebar - 2)}px"></div>
+            <div class="cp-nav-item" data-cp-role="nav" style="border-radius:${Math.max(0, eff.sidebar - 2)}px"></div>
+          </div>
+          <div class="cp-main">
+            <div class="cp-top-row">
+              <span class="cp-badge" data-cp-role="input" style="border-radius:${eff.inputs}px">Gemini</span>
+              <span class="cp-popup" data-cp-role="popup" style="border-radius:${eff.overlays}px">Menu / Dialog</span>
+            </div>
+            <div class="cp-bubble" data-cp-role="bubble" style="border-radius:${eff.messages}px">
+              <div class="cp-card" data-cp-role="card" style="border-radius:${eff.cards}px">Thinking · Tool call</div>
+              <div class="cp-code" data-cp-role="code" style="border-radius:${eff.code}px">const radius = "${eff.code}px";</div>
+            </div>
+            <div class="cp-composer" data-cp-role="composer" style="border-radius:${eff.composer}px">
+              <div class="cp-input" data-cp-role="input" style="border-radius:${eff.inputs}px">Ask anything…</div>
+              <button type="button" class="cp-btn" data-cp-role="btn" style="border-radius:${eff.buttons}px">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subtab-bar">
+        <button type="button" class="subtab-btn${c.mode === "linked" ? " is-active" : ""}" data-action="set-corners-mode" data-val="linked">${escHtml(tr.cornersModeLinked)}</button>
+        <button type="button" class="subtab-btn${c.mode === "custom" ? " is-active" : ""}" data-action="set-corners-mode" data-val="custom">${escHtml(tr.cornersModeCustom)}</button>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.cornersPresetsTitle)}</span>
+        <div class="corner-preset-grid">
+          ${presets.map((pr) => `
+            <button type="button" class="corner-preset-btn${isPresetSelected(pr) ? " is-selected" : ""}" data-action="apply-corner-preset" data-id="${escAttr(pr.id)}">
+              <span class="corner-swatch" style="border-radius:${pr.mode === "custom" ? "9px 3px 9px 3px" : Math.min(10, Math.round(pr.all * 0.45)) + "px"}"></span>
+              <span>${escHtml(isRu ? pr.nameRu : pr.nameEn)}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+
+      ${c.mode === "linked" ? `
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.cornersAllLabel)}</span><b class="num" data-live-app-val="corners.all">${c.all}px</b></div>
+          <input type="range" class="range-input" min="0" max="28" step="1" data-app-field="corners.all" value="${c.all}"/>
+        </div>
+        <div style="display:flex;justify-content:flex-end">
+          <button type="button" class="btn btn-sm" data-action="set-corners-mode" data-val="custom">${escHtml(tr.cornersSwitchCustomBtn)}</button>
+        </div>
+      ` : `
+        <div class="control-grid-2">
+          ${categories.map((cat) => `
+            <div class="slider-box">
+              <div class="slider-head"><span>${escHtml(cat.label)}</span><b class="num" data-live-app-val="${cat.key}">${cat.val}px</b></div>
+              <input type="range" class="range-input" min="0" max="${cat.max}" step="1" data-app-field="${cat.key}" value="${cat.val}"/>
+            </div>
+          `).join("")}
+        </div>
+        <div style="display:flex;justify-content:flex-end">
+          <button type="button" class="btn btn-sm" data-action="sync-all-corners">${escHtml(tr.cornersSyncAllBtn)}</button>
+        </div>
+      `}
+
+      <div class="slider-box">
+        <div class="slider-head"><span>${escHtml(tr.cornersStudioQuickLabel)}</span><b class="num" data-live-app-val="studioUi.studioRadius">${sui.studioRadius}px</b></div>
+        <input type="range" class="range-input" min="8" max="26" step="1" data-app-field="studioUi.studioRadius" value="${sui.studioRadius}"/>
+      </div>
     `;
   }
 
@@ -3721,15 +4440,9 @@ function createStudioPanel(options) {
         </div>
       </div>
 
-      <div class="control-grid-2">
-        <div class="slider-box">
-          <div class="slider-head"><span>${escHtml(tr.appBorderStrength)}</span><b class="num" data-live-app-val="borderStrength">${draft.borderStrength}%</b></div>
-          <input type="range" class="range-input" min="0" max="100" step="5" data-app-field="borderStrength" value="${draft.borderStrength}"/>
-        </div>
-        <div class="slider-box">
-          <div class="slider-head"><span>${escHtml(tr.appRadius)}</span><b class="num" data-live-app-val="radius">${draft.radius}px</b></div>
-          <input type="range" class="range-input" min="4" max="20" step="1" data-app-field="radius" value="${draft.radius}"/>
-        </div>
+      <div class="slider-box">
+        <div class="slider-head"><span>${escHtml(tr.appBorderStrength)}</span><b class="num" data-live-app-val="borderStrength">${draft.borderStrength}%</b></div>
+        <input type="range" class="range-input" min="0" max="100" step="5" data-app-field="borderStrength" value="${draft.borderStrength}"/>
       </div>
 
       <div class="card">
@@ -3882,24 +4595,6 @@ function createStudioPanel(options) {
           ${densities.map((d) => `
             <button type="button" class="subtab-btn${ty.density === d.id ? " is-active" : ""}" data-action="set-density" data-val="${d.id}">${escHtml(d.label)}</button>
           `).join("")}
-        </div>
-      </div>
-
-      <div class="section-group">
-        <span class="section-label">${escHtml(tr.appProfilesTitle)}</span>
-        ${profiles.length > 0 ? `
-          <div class="profile-strip">
-            ${profiles.map((prof) => `
-              <div class="profile-chip" role="button" tabindex="0" data-action="apply-appearance-profile" data-id="${escAttr(prof.id)}">
-                <span>${escHtml(prof.name)}</span>
-                <button type="button" class="preset-del-btn" data-action="delete-appearance-profile" data-id="${escAttr(prof.id)}" title="${escAttr(tr.tooltipDelete)}">${iconSvg("trash", 11)}</button>
-              </div>
-            `).join("")}
-          </div>
-        ` : ""}
-        <div class="preset-add-row">
-          <input type="text" class="text-input" data-role="newProfileInput" maxlength="44" value="${escAttr(state.newProfileName)}" placeholder="${escAttr(tr.appProfilePlaceholder)}"/>
-          <button type="button" class="btn btn-sm" data-action="save-appearance-profile">${iconSvg("plus", 12)}${escHtml(tr.appSaveProfile)}</button>
         </div>
       </div>
     `;
@@ -4069,14 +4764,17 @@ function createStudioPanel(options) {
 
   function renderSettingsTab() {
     const tr = t();
+    const isRu = state.locale !== "en";
     const sub = state.settingsSubTab || "system";
     const subTabs = [
       { id: "system", label: tr.setSubSystem },
+      { id: "studio", label: tr.setSubStudio },
       { id: "widget", label: tr.setSubWidget },
       { id: "export", label: tr.setSubExport },
     ];
     let body = "";
-    if (sub === "widget") body = renderWidgetSub(tr);
+    if (sub === "studio") body = renderStudioDesignSub(tr, isRu);
+    else if (sub === "widget") body = renderWidgetSub(tr, isRu);
     else if (sub === "export") body = renderExportSub(tr);
     else body = renderSystemSub(tr);
 
@@ -4090,8 +4788,75 @@ function createStudioPanel(options) {
     `;
   }
 
-  function renderWidgetSub(tr) {
+  function renderStudioDesignSub(tr, isRu) {
+    const sui = spNormalizeStudioUi(state.settings.studioUi);
+    return `
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.studioDesignTitle)}</span>
+        <div class="design-card-grid">
+          ${STUDIO_WINDOW_THEMES.map((wt) => {
+            const sel = sui.windowTheme === wt.id;
+            return `
+              <button type="button" class="design-card${sel ? " is-selected" : ""}" data-action="set-studio-theme" data-val="${wt.id}">
+                <span class="design-thumb" style="background:${escAttr(wt.bg)};${wt.id === "neon-cyber" ? "border-color:var(--rx-accent)" : ""}">
+                  <span style="width:12px;height:100%;border-radius:3px;background:${escAttr(wt.side)}"></span>
+                  <span style="flex:1;height:100%;border-radius:3px;background:rgba(255,255,255,0.06)"></span>
+                </span>
+                <span class="design-meta">
+                  <span class="design-title">${escHtml(isRu ? wt.nameRu : wt.nameEn)}</span>
+                  <span class="design-desc">${escHtml(isRu ? wt.descRu : wt.descEn)}</span>
+                </span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.studioLayoutTitle)}</span>
+        <div class="design-card-grid">
+          ${STUDIO_WINDOW_LAYOUTS.map((wl) => {
+            const sel = sui.windowLayout === wl.id;
+            let thumbInner = '<span style="width:12px;height:100%;border-radius:3px;background:var(--rx-accent-soft)"></span><span style="flex:1;height:100%;border-radius:3px;background:var(--rx-surface-2)"></span>';
+            if (wl.id === "rail") thumbInner = '<span style="width:6px;height:100%;border-radius:2px;background:var(--rx-accent-soft)"></span><span style="flex:1;height:100%;border-radius:3px;background:var(--rx-surface-2)"></span>';
+            else if (wl.id === "topbar") thumbInner = '<span style="width:100%;height:7px;border-radius:2px;background:var(--rx-accent-soft)"></span><span style="width:100%;flex:1;border-radius:3px;background:var(--rx-surface-2)"></span>';
+            else if (wl.id === "floating-glass") thumbInner = '<span style="width:11px;height:100%;border-radius:4px;border:1px solid var(--rx-accent-border);background:var(--rx-surface-2)"></span><span style="flex:1;height:100%;border-radius:4px;border:1px solid var(--rx-border-strong);background:var(--rx-surface-2)"></span>';
+            return `
+              <button type="button" class="design-card${sel ? " is-selected" : ""}" data-action="set-studio-layout" data-val="${wl.id}">
+                <span class="design-thumb" style="background:var(--rx-bg);${wl.id === "topbar" ? "flex-direction:column" : ""}">${thumbInner}</span>
+                <span class="design-meta">
+                  <span class="design-title">${escHtml(isRu ? wl.nameRu : wl.nameEn)}</span>
+                  <span class="design-desc">${escHtml(isRu ? wl.descRu : wl.descEn)}</span>
+                </span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.studioWindowSliders)}</span>
+        <div class="control-grid-2">
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.studioRadiusLabel)}</span><b class="num" data-live-app-val="studioUi.studioRadius">${sui.studioRadius}px</b></div>
+            <input type="range" class="range-input" min="8" max="26" step="1" data-app-field="studioUi.studioRadius" value="${sui.studioRadius}"/>
+          </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.studioBlurLabel)}</span><b class="num" data-live-app-val="studioUi.studioBlur">${sui.studioBlur}px</b></div>
+            <input type="range" class="range-input" min="0" max="32" step="1" data-app-field="studioUi.studioBlur" value="${sui.studioBlur}"/>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end">
+        <button type="button" class="btn btn-sm" data-action="reset-studio-ui">${iconSvg("reset", 12)}${escHtml(tr.studioResetBtn)}</button>
+      </div>
+    `;
+  }
+
+  function renderWidgetSub(tr, isRu) {
     const s = state.settings;
+    const sui = spNormalizeStudioUi(s.studioUi);
     const mf = s.miniFields;
     const fieldSpecs = [
       { key: "status", title: tr.fieldStatus },
@@ -4109,13 +4874,50 @@ function createStudioPanel(options) {
       { id: "bottom-left", label: tr.dockBottomLeft },
       { id: "hidden", label: tr.dockHidden },
     ];
-    const previewMarkup = renderMiniCapsuleMarkup(true);
+    const scales = [
+      { id: "sm", label: tr.widgetScaleSm },
+      { id: "md", label: tr.widgetScaleMd },
+      { id: "lg", label: tr.widgetScaleLg },
+    ];
+    const isMedPrev = state.widgetPreviewMode === "medium";
+    const previewMarkup = isMedPrev ? renderMediumCardMarkup() : renderMiniCapsuleMarkup(true);
     state.lastPreviewCapsuleHtml = previewMarkup;
 
     return `
       <div class="section-group">
-        <span class="section-label">${escHtml(tr.previewTitle)}</span>
-        <div class="preview-stage" data-live="previewCapsule">${previewMarkup}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span class="section-label">${escHtml(tr.previewTitle)}</span>
+          <div style="display:flex;gap:4px">
+            <button type="button" class="btn btn-sm${!isMedPrev ? " btn-primary" : ""}" data-action="set-widget-preview-mode" data-val="mini">${escHtml(tr.widgetPreviewMiniBtn)}</button>
+            <button type="button" class="btn btn-sm${isMedPrev ? " btn-primary" : ""}" data-action="set-widget-preview-mode" data-val="medium">${escHtml(tr.widgetPreviewMedBtn)}</button>
+          </div>
+        </div>
+        <div class="preview-stage" data-widget-theme="${escAttr(sui.widgetTheme)}" data-widget-scale="${escAttr(sui.widgetScale)}" data-live="previewCapsule">${previewMarkup}</div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.widgetThemeTitle)}</span>
+        <div class="design-card-grid">
+          ${WIDGET_DESIGN_THEMES.map((wt) => {
+            const sel = sui.widgetTheme === wt.id;
+            const thumbStyle = wt.id === "island"
+              ? "background:#08090d;border-color:rgba(255,255,255,0.22)"
+              : (wt.id === "neon"
+                  ? "background:#0a0c16;border-color:var(--rx-accent);box-shadow:0 0 8px var(--rx-accent-soft)"
+                  : (wt.id === "solid" ? "background:var(--rx-surface-2)" : "background:var(--rx-glass)"));
+            return `
+              <button type="button" class="design-card${sel ? " is-selected" : ""}" data-action="set-widget-theme" data-val="${wt.id}">
+                <span class="design-thumb" style="align-items:center;justify-content:center;${thumbStyle}">
+                  <span style="width:26px;height:10px;border-radius:999px;background:var(--rx-accent-soft);border:1px solid var(--rx-accent-border)"></span>
+                </span>
+                <span class="design-meta">
+                  <span class="design-title">${escHtml(isRu ? wt.nameRu : wt.nameEn)}</span>
+                  <span class="design-desc">${escHtml(isRu ? wt.descRu : wt.descEn)}</span>
+                </span>
+              </button>
+            `;
+          }).join("")}
+        </div>
       </div>
 
       <div class="section-group">
@@ -4129,6 +4931,26 @@ function createStudioPanel(options) {
             <span class="choice-title"><span>${escHtml(tr.modeMedTitle)}</span>${s.viewMode === "medium" ? iconSvg("check", 13) : ""}</span>
             <span class="choice-desc">${escHtml(tr.modeMedDesc)}</span>
           </button>
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.widgetScaleTitle)}</span>
+        <div class="subtab-bar">
+          ${scales.map((sc) => `
+            <button type="button" class="subtab-btn${sui.widgetScale === sc.id ? " is-active" : ""}" data-action="set-widget-scale" data-val="${sc.id}">${escHtml(sc.label)}</button>
+          `).join("")}
+        </div>
+      </div>
+
+      <div class="control-grid-2">
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.widgetOpacityLabel)}</span><b class="num" data-live-app-val="studioUi.widgetOpacity">${sui.widgetOpacity}%</b></div>
+          <input type="range" class="range-input" min="45" max="100" step="1" data-app-field="studioUi.widgetOpacity" value="${sui.widgetOpacity}"/>
+        </div>
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.widgetRadiusLabel)}</span><b class="num" data-live-app-val="studioUi.widgetRadius">${sui.widgetRadius >= 999 ? tr.widgetRadiusPill : sui.widgetRadius + "px"}</b></div>
+          <input type="range" class="range-input" min="4" max="25" step="1" data-app-field="studioUi.widgetRadius" value="${sui.widgetRadius >= 999 ? 25 : sui.widgetRadius}"/>
         </div>
       </div>
 
@@ -4376,6 +5198,7 @@ function createStudioPanel(options) {
   function renderModalShell() {
     if (!state.isOpen) return "";
     const tr = t();
+    const sui = spNormalizeStudioUi(state.settings.studioUi);
     const pendingLe = countPendingLiveEdits();
     const tabs = [
       { id: "monitor", label: tr.navMonitor, ic: "activity", title: tr.modalTitleMonitor, sub: tr.modalSubMonitor },
@@ -4396,17 +5219,20 @@ function createStudioPanel(options) {
 
     return `
       <div class="modal-backdrop${isAppearanceDrawer ? " is-appearance-live" : ""}" data-action="backdrop-close">
-        <div class="modal-shell${isAppearanceDrawer ? " is-appearance-live" : ""}" role="dialog" aria-modal="${isAppearanceDrawer ? "false" : "true"}" aria-label="${escAttr(tr.brandTitle)}">
+        <div class="modal-shell${isAppearanceDrawer ? " is-appearance-live" : ""}" data-studio-layout="${isAppearanceDrawer ? "drawer" : escAttr(sui.windowLayout)}" role="dialog" aria-modal="${isAppearanceDrawer ? "false" : "true"}" aria-label="${escAttr(tr.brandTitle)}">
           ${isAppearanceDrawer ? "" : `
             <aside class="modal-sidebar">
               <div class="sidebar-brand">
-                <span class="brand-title">${escHtml(tr.brandTitle)}</span>
+                <span class="brand-title-wrap">
+                  <span class="brand-logo-dot">${iconSvg("sparkles", 12)}</span>
+                  <span class="brand-title">${escHtml(tr.brandTitle)}</span>
+                </span>
                 <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.1.2")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
-                  <button type="button" class="nav-item${tb.id === current.id ? " is-active" : ""}" data-action="switch-tab" data-tab="${tb.id}">
-                    <span class="nav-ic">${iconSvg(tb.ic, 14)}</span>
+                  <button type="button" class="nav-item${tb.id === current.id ? " is-active" : ""}" data-action="switch-tab" data-tab="${tb.id}" title="${escAttr(tb.label)}">
+                    <span class="nav-ic">${iconSvg(tb.ic, 15)}</span>
                     <span class="nav-label">${escHtml(tb.label)}</span>
                     ${tb.dot ? '<span class="nav-dot"></span>' : ""}
                     ${tb.badge ? `<span class="nav-badge">${escHtml(tb.badge)}</span>` : ""}
@@ -4414,8 +5240,18 @@ function createStudioPanel(options) {
                 `).join("")}
               </nav>
               <div class="sidebar-foot">
-                <span>${escHtml(tr.sidebarFooterHint)}</span>
-                <span class="kbd">Ctrl+Alt+P</span>
+                <div class="sidebar-foot-row">
+                  <span class="sidebar-foot-hint">${escHtml(tr.sidebarFooterHint)}</span>
+                  <span class="kbd">Ctrl+Alt+P</span>
+                </div>
+                <div class="sidebar-foot-row">
+                  <div class="sidebar-quick-actions">
+                    <button type="button" class="lang-pill-btn" data-action="toggle-locale" title="${escAttr(tr.tooltipLang)}">${state.locale === "en" ? "EN" : "RU"}</button>
+                    <button type="button" class="icon-btn" data-action="cycle-studio-theme" title="${escAttr(tr.studioThemeCycleTip)}">${iconSvg("wand", 12)}</button>
+                    <button type="button" class="icon-btn" data-action="open-studio-design" title="${escAttr(tr.setSubStudio)}">${iconSvg("layout", 12)}</button>
+                  </div>
+                  <span class="nav-badge" style="font-size:9.5px">${escHtml(sui.windowTheme)}</span>
+                </div>
               </div>
             </aside>
           `}
@@ -4434,15 +5270,25 @@ function createStudioPanel(options) {
                     ${iconSvg(isAppearanceDrawer ? "panelCenter" : "panelRight", 13)}
                     <span>${escHtml(isAppearanceDrawer ? tr.appDockCenterBtn : tr.appDockRightBtn)}</span>
                   </button>
-                ` : ""}
+                ` : `
+                  <button type="button" class="btn btn-sm btn-ghost" data-action="open-studio-design" title="${escAttr(tr.setSubStudio)}">
+                    ${iconSvg("layout", 13)}
+                    <span>${escHtml(tr.studioDesignQuickBtn)}</span>
+                  </button>
+                `}
                 <button type="button" class="icon-btn" data-action="close-modal" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 15)}</button>
               </div>
             </header>
             <div class="modal-body">${bodyHtml}</div>
             ${isAppearanceTab ? `
               <footer class="drawer-sticky-footer">
-                <button type="button" class="btn btn-sm btn-ghost" data-action="reset-appearance">${escHtml(tr.appResetBtn)}</button>
-                <div style="display:flex;align-items:center;gap:6px">
+                <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+                  <button type="button" class="btn btn-sm btn-ghost" data-action="reset-appearance">${escHtml(tr.appResetBtn)}</button>
+                  ${state.toastMsg
+                    ? `<span class="studio-toast-pill${state.toastError ? " is-err" : ""}" data-role="toast">${escHtml(state.toastMsg)}</span>`
+                    : (state.appearanceDirty ? `<span class="studio-dirty-pill" data-role="toast">${escHtml(tr.appDirtyBadge)}</span>` : `<span class="studio-toast-pill" data-role="toast"></span>`)}
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
                   <button type="button" class="btn btn-sm" data-action="discard-appearance">${escHtml(tr.appCancelBtn)}</button>
                   <button type="button" class="btn btn-sm${state.appearanceDirty ? " btn-primary" : ""}" data-action="apply-appearance">${iconSvg("check", 12)}${escHtml(tr.appApplyBtn)}</button>
                 </div>
@@ -4457,9 +5303,12 @@ function createStudioPanel(options) {
   function applyWidgetPosition() {
     if (!widgetMountEl) return;
     const s = state.settings;
+    const sui = spNormalizeStudioUi(s.studioUi);
     const dock = normalizeDockPosition(s.dockPosition);
     const shouldHide = dock === "hidden";
     const lockedCls = s.pinned ? " is-locked" : "";
+    widgetMountEl.setAttribute("data-widget-theme", sui.widgetTheme);
+    widgetMountEl.setAttribute("data-widget-scale", sui.widgetScale);
     widgetMountEl.className = "widget-wrap" + lockedCls + (shouldHide ? " is-hidden" : "");
 
     if (shouldHide) {
@@ -4787,6 +5636,7 @@ function createStudioPanel(options) {
       const tab = actionEl.getAttribute("data-tab") || "monitor";
       state.activeTab = tab;
       if (prevTab === "appearance" && tab !== "appearance") {
+        cleanupTempUploadedMedia();
         state.appearanceLivePreview = false;
         state.appearanceDockedRight = false;
         state.appearanceDraft = spCloneAppearance(state.settings.appearance);
@@ -4802,9 +5652,57 @@ function createStudioPanel(options) {
           state.greetingDraft = spCloneGreeting(state.settings.greeting);
         }
         applyThemeFastToHost(state.appearanceDraft);
+        if (state.appearanceSubTab === "wallpaper") refreshMediaLibrary();
       }
       if (tab === "live-edits") refreshLiveEdits();
       renderStructure();
+      return;
+    }
+    if (action === "open-studio-design") {
+      if (state.activeTab === "appearance") {
+        cleanupTempUploadedMedia();
+        state.appearanceLivePreview = false;
+        state.appearanceDockedRight = false;
+        state.appearanceDraft = spCloneAppearance(state.settings.appearance);
+        state.greetingDraft = spCloneGreeting(state.settings.greeting);
+        state.appearanceDirty = false;
+        applyThemeToHost(state.settings.appearance);
+      }
+      state.activeTab = "settings";
+      state.settingsSubTab = "studio";
+      setOpen(true);
+      return;
+    }
+    if (action === "cycle-studio-theme") {
+      const cur = spNormalizeStudioUi(state.settings.studioUi).windowTheme;
+      const idx = STUDIO_WINDOW_THEMES.findIndex((x) => x.id === cur);
+      const nextTheme = STUDIO_WINDOW_THEMES[(idx + 1) % STUDIO_WINDOW_THEMES.length].id;
+      saveSettingsPatch({ studioUi: { windowTheme: nextTheme } });
+      return;
+    }
+    if (action === "set-studio-theme") {
+      saveSettingsPatch({ studioUi: { windowTheme: actionEl.getAttribute("data-val") || "obsidian" } });
+      return;
+    }
+    if (action === "set-studio-layout") {
+      saveSettingsPatch({ studioUi: { windowLayout: actionEl.getAttribute("data-val") || "sidebar" } });
+      return;
+    }
+    if (action === "set-widget-theme") {
+      saveSettingsPatch({ studioUi: { widgetTheme: actionEl.getAttribute("data-val") || "glass" } });
+      return;
+    }
+    if (action === "set-widget-scale") {
+      saveSettingsPatch({ studioUi: { widgetScale: actionEl.getAttribute("data-val") || "md" } });
+      return;
+    }
+    if (action === "set-widget-preview-mode") {
+      state.widgetPreviewMode = actionEl.getAttribute("data-val") === "medium" ? "medium" : "mini";
+      renderStructure();
+      return;
+    }
+    if (action === "reset-studio-ui") {
+      saveSettingsPatch({ studioUi: Object.assign({}, DEFAULT_STUDIO_UI) });
       return;
     }
     if (action === "toggle-appearance-dock") {
@@ -4815,7 +5713,9 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "set-app-subtab") {
-      state.appearanceSubTab = actionEl.getAttribute("data-val") || "theme";
+      const sub = actionEl.getAttribute("data-val") || "theme";
+      state.appearanceSubTab = sub;
+      if (sub === "wallpaper") refreshMediaLibrary();
       renderStructure();
       return;
     }
@@ -5129,6 +6029,167 @@ function createStudioPanel(options) {
     if (action === "set-wallpaper-type") {
       const val = actionEl.getAttribute("data-val");
       state.appearanceDraft.wallpaper.type = val === "gradient" || val === "image" || val === "video" ? val : "none";
+      if (val === "image" || val === "video") refreshMediaLibrary();
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "set-wallpaper-grad-style") {
+      const val = actionEl.getAttribute("data-val");
+      state.appearanceDraft.wallpaper.gradStyle = val === "radial" || val === "mesh" ? val : "linear";
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "set-wp-drag-mode") {
+      state.wpDragMode = actionEl.getAttribute("data-val") === "offset" ? "offset" : "crop";
+      renderStructure();
+      return;
+    }
+    if (action === "set-wp-fit") {
+      const val = actionEl.getAttribute("data-val");
+      state.appearanceDraft.wallpaper.fit = val === "contain" || val === "fill" ? val : "cover";
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "set-wp-anchor") {
+      const ax = Math.max(0, Math.min(100, Math.round(Number(actionEl.getAttribute("data-x")) || 50)));
+      const ay = Math.max(0, Math.min(100, Math.round(Number(actionEl.getAttribute("data-y")) || 50)));
+      state.appearanceDraft.wallpaper.posX = ax;
+      state.appearanceDraft.wallpaper.posY = ay;
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "wp-rotate-step") {
+      const delta = Number(actionEl.getAttribute("data-delta")) || 0;
+      let nextRot = (Number(state.appearanceDraft.wallpaper.rotate) || 0) + delta;
+      if (nextRot > 180) nextRot -= 360;
+      if (nextRot < -180) nextRot += 360;
+      state.appearanceDraft.wallpaper.rotate = nextRot;
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "wp-toggle-flip") {
+      const axis = actionEl.getAttribute("data-axis");
+      if (axis === "y") state.appearanceDraft.wallpaper.flipY = !state.appearanceDraft.wallpaper.flipY;
+      else state.appearanceDraft.wallpaper.flipX = !state.appearanceDraft.wallpaper.flipX;
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "wp-reset-transform") {
+      const wp = state.appearanceDraft.wallpaper;
+      wp.fit = "cover";
+      wp.posX = 50;
+      wp.posY = 50;
+      wp.offsetX = 0;
+      wp.offsetY = 0;
+      wp.scale = 100;
+      wp.rotate = 0;
+      wp.flipX = false;
+      wp.flipY = false;
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "apply-wp-atmos") {
+      const pid = actionEl.getAttribute("data-id");
+      const found = WALLPAPER_ATMOS_PRESETS.find((x) => x.id === pid);
+      if (found) {
+        const wp = state.appearanceDraft.wallpaper;
+        wp.dim = found.dim;
+        wp.blur = found.blur;
+        wp.brightness = found.brightness;
+        wp.contrast = found.contrast;
+        wp.saturate = found.saturate;
+        wp.hue = found.hue;
+        wp.vignette = found.vignette;
+        markAppearanceDirty();
+        renderStructure();
+      }
+      return;
+    }
+    if (action === "select-library-media") {
+      const fn = actionEl.getAttribute("data-file") || "";
+      const url = actionEl.getAttribute("data-url") || "";
+      const mime = actionEl.getAttribute("data-mime") || "";
+      const kind = actionEl.getAttribute("data-kind") === "video" ? "video" : "image";
+      if (url) {
+        state.appearanceDraft.wallpaper.type = kind;
+        state.appearanceDraft.wallpaper.mediaFile = fn;
+        state.appearanceDraft.wallpaper.mediaUrl = url;
+        state.appearanceDraft.wallpaper.mediaMime = mime;
+        markAppearanceDirty();
+        renderStructure();
+      }
+      return;
+    }
+    if (action === "set-corners-mode") {
+      const mode = actionEl.getAttribute("data-val") === "custom" ? "custom" : "linked";
+      const c = state.appearanceDraft.corners;
+      if (mode === "custom" && c.mode === "linked") {
+        const v = c.all;
+        c.messages = v;
+        c.composer = v;
+        c.buttons = v;
+        c.cards = v;
+        c.code = Math.min(24, v);
+        c.sidebar = Math.min(24, v);
+        c.overlays = v;
+        c.inputs = Math.min(24, v);
+      }
+      c.mode = mode;
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "apply-corner-preset") {
+      const pid = actionEl.getAttribute("data-id");
+      const pr = spGetCornerPresets().find((x) => x.id === pid);
+      if (pr) {
+        const c = state.appearanceDraft.corners;
+        c.mode = pr.mode === "custom" ? "custom" : "linked";
+        c.all = pr.all;
+        state.appearanceDraft.radius = pr.all;
+        if (pr.mode === "custom") {
+          c.messages = pr.messages;
+          c.composer = pr.composer;
+          c.buttons = pr.buttons;
+          c.cards = pr.cards;
+          c.code = pr.code;
+          c.sidebar = pr.sidebar;
+          c.overlays = pr.overlays;
+          c.inputs = pr.inputs;
+        } else {
+          c.messages = pr.all;
+          c.composer = pr.all;
+          c.buttons = pr.all;
+          c.cards = pr.all;
+          c.code = Math.min(24, pr.all);
+          c.sidebar = Math.min(24, pr.all);
+          c.overlays = pr.all;
+          c.inputs = Math.min(24, pr.all);
+        }
+        markAppearanceDirty();
+        renderStructure();
+      }
+      return;
+    }
+    if (action === "sync-all-corners") {
+      const c = state.appearanceDraft.corners;
+      const v = c.all;
+      c.messages = v;
+      c.composer = v;
+      c.buttons = v;
+      c.cards = v;
+      c.code = Math.min(24, v);
+      c.sidebar = Math.min(24, v);
+      c.overlays = v;
+      c.inputs = Math.min(24, v);
+      state.appearanceDraft.radius = v;
       markAppearanceDirty();
       renderStructure();
       return;
@@ -5171,18 +6232,19 @@ function createStudioPanel(options) {
     }
     if (action === "pick-media") {
       const kind = actionEl.getAttribute("data-kind") === "video" ? "video" : "image";
-      const oldMediaFile = state.appearanceDraft.wallpaper.mediaFile;
       invokeIpc("agy-studio:pick-media", { kind }).then((res) => {
         if (state.destroyed) return;
         if (res && res.ok && res.mediaUrl) {
-          if (oldMediaFile && oldMediaFile !== res.fileName && oldMediaFile !== (state.settings.appearance.wallpaper && state.settings.appearance.wallpaper.mediaFile)) {
-            invokeIpc("agy-studio:delete-media", { fileName: oldMediaFile });
+          if (res.fileName && state.tempUploadedMediaFiles.indexOf(res.fileName) === -1) {
+            state.tempUploadedMediaFiles.push(res.fileName);
           }
           state.appearanceDraft.wallpaper.type = kind;
           state.appearanceDraft.wallpaper.mediaFile = res.fileName || "";
           state.appearanceDraft.wallpaper.mediaUrl = res.mediaUrl;
           state.appearanceDraft.wallpaper.mediaMime = res.mime || "";
           markAppearanceDirty();
+          refreshMediaLibrary();
+          setToast(tr.appMediaPickedMsg, false);
           renderStructure();
         } else if (res && !res.canceled) {
           setToast(tr.appMediaErrMsg + (res.error ? ` (${res.error})` : ""), true);
@@ -5191,10 +6253,6 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "clear-wallpaper-media") {
-      const oldFile = state.appearanceDraft.wallpaper.mediaFile;
-      if (oldFile && oldFile !== (state.settings.appearance.wallpaper && state.settings.appearance.wallpaper.mediaFile)) {
-        invokeIpc("agy-studio:delete-media", { fileName: oldFile });
-      }
       state.appearanceDraft.wallpaper.mediaFile = "";
       state.appearanceDraft.wallpaper.mediaUrl = "";
       state.appearanceDraft.wallpaper.mediaMime = "";
@@ -5236,8 +6294,19 @@ function createStudioPanel(options) {
     }
     if (action === "insert-greeting-token") {
       const tok = actionEl.getAttribute("data-val") || "{name}";
+      const inp = modalMountEl ? modalMountEl.querySelector('[data-greet-field="title"]') : null;
+      const cur = state.greetingDraft.title || "";
+      if (inp && typeof inp.selectionStart === "number" && typeof inp.selectionEnd === "number") {
+        const sPos = inp.selectionStart;
+        const ePos = inp.selectionEnd;
+        const prefix = cur.slice(0, sPos);
+        const suffix = cur.slice(ePos);
+        const spacer = prefix && !/\s$/.test(prefix) ? " " : "";
+        state.greetingDraft.title = (prefix + spacer + tok + suffix).slice(0, 160);
+      } else {
+        state.greetingDraft.title = ((cur ? cur + " " : "") + tok).slice(0, 160);
+      }
       state.greetingDraft.enabled = true;
-      state.greetingDraft.title = (state.greetingDraft.title ? state.greetingDraft.title + " " : "") + tok;
       state.appearanceDirty = true;
       syncTranslatorGreeting(state.greetingDraft);
       renderStructure();
@@ -5288,20 +6357,21 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "apply-appearance") {
-      const oldSavedFile = state.settings.appearance && state.settings.appearance.wallpaper && state.settings.appearance.wallpaper.mediaFile;
       const newSavedFile = state.appearanceDraft.wallpaper && state.appearanceDraft.wallpaper.mediaFile;
-      if (oldSavedFile && oldSavedFile !== newSavedFile) {
-        invokeIpc("agy-studio:delete-media", { fileName: oldSavedFile });
-      }
+      state.tempUploadedMediaFiles = (state.tempUploadedMediaFiles || []).filter((f) => f === newSavedFile);
+      cleanupTempUploadedMedia();
+      state.tempUploadedMediaFiles = [];
       state.appearanceDirty = false;
       state.appearanceLivePreview = state.isOpen && state.activeTab === "appearance";
       saveSettingsPatch({
         appearance: spCloneAppearance(state.appearanceDraft),
         greeting: spCloneGreeting(state.greetingDraft),
       });
+      setToast(tr.appAppliedMsg, false);
       return;
     }
     if (action === "discard-appearance") {
+      cleanupTempUploadedMedia();
       state.appearanceDraft = spCloneAppearance(state.settings.appearance);
       state.greetingDraft = spCloneGreeting(state.settings.greeting);
       state.appearanceDirty = false;
@@ -5312,6 +6382,7 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "reset-appearance") {
+      cleanupTempUploadedMedia();
       const defApp = spCloneAppearance(spDefaultAppearance());
       const defGreet = spCloneGreeting(null);
       state.appearanceDraft = spCloneAppearance(defApp);
@@ -5319,6 +6390,7 @@ function createStudioPanel(options) {
       state.appearanceDirty = false;
       state.appearanceLivePreview = state.isOpen && state.activeTab === "appearance";
       saveSettingsPatch({ appearance: defApp, greeting: defGreet });
+      setToast(tr.appResetMsg, false);
       return;
     }
     if (action === "toggle-export-opt") {
@@ -5386,7 +6458,30 @@ function createStudioPanel(options) {
     } else if (field === "glassOpacity" || field === "sidebarOpacity" || field === "glassBlur" || field === "radius" || field === "messageCardOpacity" || field === "borderStrength") {
       const n = Math.round(Number(rawVal) || 0);
       draft[field] = n;
+      if (field === "radius" && draft.corners) draft.corners.all = n;
       labelText = (field === "glassBlur" || field === "radius") ? `${n}px` : `${n}%`;
+    } else if (field.startsWith("corners.")) {
+      const sub = field.split(".")[1];
+      const n = Math.round(Number(rawVal) || 0);
+      if (!draft.corners) draft.corners = spDefaultAppearance().corners;
+      draft.corners[sub] = n;
+      if (sub === "all") draft.radius = n;
+      labelText = `${n}px`;
+      updateLiveCornersPreviewDom();
+    } else if (field.startsWith("studioUi.")) {
+      const sub = field.split(".")[1];
+      const rawNum = Number(rawVal) || 0;
+      const val = sub === "widgetRadius" && rawNum >= 25 ? 999 : Math.round(rawNum);
+      state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, { [sub]: val }));
+      syncTheme();
+      const suiLabel = sub === "widgetOpacity"
+        ? `${val}%`
+        : (sub === "widgetRadius" && val >= 999 ? tr.widgetRadiusPill : `${val}px`);
+      if (modalMountEl) {
+        setLiveSlot(modalMountEl, `[data-live-app-val="${field}"]`, suiLabel, false);
+      }
+      invokeIpc("agy-studio:save-settings", { studioUi: { [sub]: val } });
+      return true;
     } else if (field === "wallpaper.gradColor0" || field === "wallpaper.gradColor1" || field === "wallpaper.gradColor2") {
       const idx = parseInt(field.slice(-1), 10);
       if (draft.wallpaper.type === "image" || draft.wallpaper.type === "video") {
@@ -5395,6 +6490,10 @@ function createStudioPanel(options) {
         draft.wallpaper.type = "gradient";
       }
       draft.wallpaper.gradColors[idx] = String(rawVal || "#0f172a").toLowerCase();
+      updateLiveWallpaperPreviewDom();
+    } else if (field === "wallpaper.tintBlend") {
+      draft.wallpaper.tintBlend = String(rawVal || "normal");
+      updateLiveWallpaperPreviewDom();
     } else if (field === "wallpaper.gradAngle") {
       const n = Math.round(Number(rawVal) || 0);
       draft.wallpaper.gradAngle = n;
@@ -5403,11 +6502,35 @@ function createStudioPanel(options) {
       const n = Math.round(Number(rawVal) || 18);
       draft.wallpaper.gradSpeed = n;
       labelText = `${n}s`;
-    } else if (field === "wallpaper.dim" || field === "wallpaper.blur" || field === "wallpaper.opacity" || field === "wallpaper.saturate" || field === "wallpaper.scale" || field === "wallpaper.tintOpacity") {
+    } else if (field === "wallpaper.playbackRate") {
+      const n = Math.round((Number(rawVal) || 1) * 100) / 100;
+      draft.wallpaper.playbackRate = n;
+      labelText = `${n}x`;
+      updateLiveWallpaperPreviewDom();
+    } else if (
+      field === "wallpaper.dim" ||
+      field === "wallpaper.blur" ||
+      field === "wallpaper.opacity" ||
+      field === "wallpaper.brightness" ||
+      field === "wallpaper.contrast" ||
+      field === "wallpaper.saturate" ||
+      field === "wallpaper.hue" ||
+      field === "wallpaper.scale" ||
+      field === "wallpaper.rotate" ||
+      field === "wallpaper.posX" ||
+      field === "wallpaper.posY" ||
+      field === "wallpaper.offsetX" ||
+      field === "wallpaper.offsetY" ||
+      field === "wallpaper.vignette" ||
+      field === "wallpaper.tintOpacity"
+    ) {
       const sub = field.split(".")[1];
       const n = Math.round(Number(rawVal) || 0);
       draft.wallpaper[sub] = n;
-      labelText = sub === "blur" ? `${n}px` : `${n}%`;
+      if (sub === "blur") labelText = `${n}px`;
+      else if (sub === "rotate" || sub === "hue") labelText = `${n}°`;
+      else labelText = `${n}%`;
+      updateLiveWallpaperPreviewDom();
     } else if (field === "typography.uiFont" || field === "typography.monoFont") {
       const sub = field.split(".")[1];
       draft.typography[sub] = String(rawVal || "system");
@@ -5474,6 +6597,33 @@ function createStudioPanel(options) {
   }
 
   function handlePointerMove(e) {
+    if (wpDragState && modalMountEl) {
+      const wp = state.appearanceDraft.wallpaper;
+      const dxPct = ((e.clientX - wpDragState.startX) / Math.max(40, wpDragState.width)) * 100;
+      const dyPct = ((e.clientY - wpDragState.startY) / Math.max(40, wpDragState.height)) * 100;
+      if (state.wpDragMode === "offset") {
+        wp.offsetX = Math.max(-50, Math.min(50, Math.round(wpDragState.startOffX + dxPct)));
+        wp.offsetY = Math.max(-50, Math.min(50, Math.round(wpDragState.startOffY + dyPct)));
+        setLiveSlot(modalMountEl, '[data-live-app-val="wallpaper.offsetX"]', `${wp.offsetX}%`, false);
+        setLiveSlot(modalMountEl, '[data-live-app-val="wallpaper.offsetY"]', `${wp.offsetY}%`, false);
+        const rx = modalMountEl.querySelector('[data-app-field="wallpaper.offsetX"]');
+        const ry = modalMountEl.querySelector('[data-app-field="wallpaper.offsetY"]');
+        if (rx) rx.value = String(wp.offsetX);
+        if (ry) ry.value = String(wp.offsetY);
+      } else {
+        wp.posX = Math.max(0, Math.min(100, Math.round(wpDragState.startPosX - dxPct)));
+        wp.posY = Math.max(0, Math.min(100, Math.round(wpDragState.startPosY - dyPct)));
+        setLiveSlot(modalMountEl, '[data-live-app-val="wallpaper.posX"]', `${wp.posX}%`, false);
+        setLiveSlot(modalMountEl, '[data-live-app-val="wallpaper.posY"]', `${wp.posY}%`, false);
+        const rx = modalMountEl.querySelector('[data-app-field="wallpaper.posX"]');
+        const ry = modalMountEl.querySelector('[data-app-field="wallpaper.posY"]');
+        if (rx) rx.value = String(wp.posX);
+        if (ry) ry.value = String(wp.posY);
+      }
+      markAppearanceDirty();
+      updateLiveWallpaperPreviewDom();
+      return;
+    }
     if (!dragState || !widgetMountEl || state.settings.pinned) return;
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
@@ -5499,6 +6649,17 @@ function createStudioPanel(options) {
   }
 
   function handlePointerUp() {
+    if (wpDragState) {
+      const stageEl = wpDragState.stageEl;
+      const pid = wpDragState.pointerId;
+      wpDragState = null;
+      if (stageEl) {
+        if (stageEl.classList && typeof stageEl.classList.remove === "function") stageEl.classList.remove("is-dragging");
+        if (typeof stageEl.releasePointerCapture === "function" && pid !== undefined) {
+          try { stageEl.releasePointerCapture(pid); } catch (_e) {}
+        }
+      }
+    }
     if (!dragState) return;
     const wasMoved = dragState.moved;
     const finalX = dragState.lastX;
@@ -5549,11 +6710,19 @@ function createStudioPanel(options) {
       if (handleAppearanceFieldInput(target)) return;
       const gf = target.getAttribute("data-greet-field");
       if (gf) {
+        const wasOff = !state.greetingDraft.enabled;
         state.greetingDraft[gf] = target.value || "";
         state.greetingDraft.enabled = true;
         state.appearanceDirty = true;
         syncTranslatorGreeting(state.greetingDraft);
         updateGreetingLivePreview();
+        if (wasOff && modalMountEl) {
+          const sw = modalMountEl.querySelector('[data-action="toggle-greeting-enabled"]');
+          if (sw) {
+            sw.className = "switch is-on";
+            sw.setAttribute("aria-checked", "true");
+          }
+        }
         return;
       }
       const role = target.getAttribute("data-role");
@@ -5605,6 +6774,52 @@ function createStudioPanel(options) {
       });
       if (handled && typeof e.preventDefault === "function") e.preventDefault();
     });
+
+    rootEl.addEventListener("pointerdown", (e) => {
+      const target = e ? e.target : null;
+      if (!target || typeof target.closest !== "function" || (typeof e.button === "number" && e.button !== 0)) return;
+      if (target.closest("button") || target.closest("[data-action]")) return;
+      const stage = target.closest('[data-wp-stage="1"]');
+      if (!stage || (stage.classList && stage.classList.contains("is-empty"))) return;
+      const rect = typeof stage.getBoundingClientRect === "function"
+        ? stage.getBoundingClientRect()
+        : { width: 320, height: 196 };
+      const wp = state.appearanceDraft.wallpaper;
+      wpDragState = {
+        stageEl: stage,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        width: rect.width || 320,
+        height: rect.height || 196,
+        startPosX: wp.posX,
+        startPosY: wp.posY,
+        startOffX: wp.offsetX,
+        startOffY: wp.offsetY,
+      };
+      if (stage.classList && typeof stage.classList.add === "function") stage.classList.add("is-dragging");
+      if (typeof stage.setPointerCapture === "function" && e.pointerId !== undefined) {
+        try { stage.setPointerCapture(e.pointerId); } catch (_e) {}
+      }
+    });
+
+    rootEl.addEventListener("wheel", (e) => {
+      const target = e ? e.target : null;
+      if (!target || typeof target.closest !== "function") return;
+      const stage = target.closest('[data-wp-stage="1"]');
+      if (!stage || (stage.classList && stage.classList.contains("is-empty"))) return;
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      const wp = state.appearanceDraft.wallpaper;
+      const step = (e.deltaY || 0) < 0 ? 5 : -5;
+      wp.scale = Math.max(50, Math.min(250, (Number(wp.scale) || 100) + step));
+      markAppearanceDirty();
+      updateLiveWallpaperPreviewDom();
+      if (modalMountEl) {
+        setLiveSlot(modalMountEl, '[data-live-app-val="wallpaper.scale"]', `${wp.scale}%`, false);
+        const rScale = modalMountEl.querySelector('[data-app-field="wallpaper.scale"]');
+        if (rScale) rScale.value = String(wp.scale);
+      }
+    }, { passive: false });
 
     rootEl.addEventListener("change", (e) => {
       const target = e ? e.target : null;
@@ -5859,6 +7074,7 @@ function createStudioPanel(options) {
       if (typeof opts.dockedRight === "boolean") state.appearanceDockedRight = opts.dockedRight;
     }
     if (!next && (state.appearanceLivePreview || state.activeTab === "appearance")) {
+      cleanupTempUploadedMedia();
       state.appearanceLivePreview = false;
       state.appearanceDockedRight = false;
       state.appearanceDraft = spCloneAppearance(state.settings.appearance);
@@ -5877,6 +7093,7 @@ function createStudioPanel(options) {
         state.greetingDraft = spCloneGreeting(state.settings.greeting);
       }
       applyThemeFastToHost(state.appearanceDraft);
+      if (state.appearanceSubTab === "wallpaper") refreshMediaLibrary();
     }
     if (next && state.activeTab === "live-edits") {
       refreshLiveEdits();

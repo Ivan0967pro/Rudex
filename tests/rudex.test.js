@@ -33,9 +33,11 @@ const {
 } = require(path.join(RES_DIR, "telemetry-engine.js"));
 const {
   THEME_PRESETS,
+  CORNER_PRESETS,
   DEFAULT_APPEARANCE,
   normalizeAppearance,
   isAppearanceNativeDefault,
+  teResolveCornerRadii,
   detectHostIsLight,
   buildThemeCss,
   createThemeEngine,
@@ -2272,5 +2274,248 @@ test("Antigravity update survival: versionGuard auto-repatches, updater.js hooks
     assert.equal(fs.existsSync(markerFile), false, "Cooldown must prevent duplicate repatch spawns");
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// =============================================================================
+// 11. Corner Radii Builder, Advanced Wallpaper Studio & Studio UI Design Tests
+// =============================================================================
+test("Corner builder supports linked 0px sharp mode, custom per-element radii, and backwards compatibility", () => {
+  assert.ok(Array.isArray(CORNER_PRESETS) && CORNER_PRESETS.length >= 6);
+  assert.equal(isAppearanceNativeDefault({ radius: 12 }), true);
+  assert.equal(isAppearanceNativeDefault({ corners: { mode: "linked", all: 0 } }), false);
+  assert.equal(isAppearanceNativeDefault({ corners: { mode: "custom", messages: 18 } }), false);
+
+  const compat = normalizeAppearance({ radius: 16 });
+  assert.equal(compat.corners.mode, "linked");
+  assert.equal(compat.corners.all, 16);
+  assert.equal(compat.corners.messages, 16);
+
+  const sharpCss = buildThemeCss({
+    presetId: "native",
+    corners: { mode: "linked", all: 0 },
+  }, { hostIsLight: false });
+  assert.ok(sharpCss.includes("--radius: 0px !important;"));
+  assert.ok(sharpCss.includes("--radius-lg: 0px !important;"));
+  assert.ok(sharpCss.includes("border-radius: 0px !important;"));
+  assert.ok(sharpCss.includes(':not([role="switch"])'), "Must protect switches from radius override");
+
+  const customCss = buildThemeCss({
+    presetId: "tokyo-night",
+    corners: {
+      mode: "custom",
+      all: 12,
+      messages: 22,
+      composer: 24,
+      buttons: 4,
+      cards: 16,
+      code: 2,
+      sidebar: 8,
+      overlays: 20,
+      inputs: 6,
+    },
+  }, { hostIsLight: false });
+  assert.ok(customCss.includes('[data-testid="user-message-bubble"]'));
+  assert.ok(customCss.includes("border-radius: 22px !important;"));
+  assert.ok(customCss.includes("border-radius: 24px !important;"));
+  assert.ok(customCss.includes("border-radius: 4px !important;"));
+  assert.ok(customCss.includes("border-radius: 16px !important;"));
+  assert.ok(customCss.includes("border-radius: 2px !important;"));
+  assert.ok(customCss.includes("border-radius: 8px !important;"));
+  assert.ok(customCss.includes("border-radius: 20px !important;"));
+  assert.ok(customCss.includes("border-radius: 6px !important;"));
+  const resolved = teResolveCornerRadii({ corners: { mode: "custom", code: 10 } });
+  assert.equal(resolved.inlineCode, 5);
+});
+
+test("Advanced wallpaper studio applies framing, transforms, grading, vignette, mesh gradient and spares browser hole", () => {
+  const { doc, win } = createMockDom();
+  const hole = doc.createElement("div");
+  hole.setAttribute("data-browser-hole", "true");
+  hole.getBoundingClientRect = () => ({ left: 300, top: 80, right: 1100, bottom: 780, width: 800, height: 700 });
+  hole.style.backgroundColor = "rgb(10, 10, 14)";
+  doc.body.appendChild(hole);
+
+  const te = createThemeEngine({ document: doc, window: win });
+  try {
+    te.apply({
+      presetId: "sakura-dusk",
+      wallpaper: {
+        type: "image",
+        mediaUrl: "agy-media://local/sakura.png",
+        fit: "contain",
+        posX: 25,
+        posY: 75,
+        offsetX: 12,
+        offsetY: -8,
+        scale: 150,
+        rotate: 90,
+        flipX: true,
+        flipY: false,
+        brightness: 112,
+        contrast: 120,
+        saturate: 135,
+        hue: 15,
+        blur: 6,
+        vignette: 45,
+        tintEnabled: true,
+        tintOpacity: 30,
+        tintBlend: "soft-light",
+      },
+    });
+
+    assert.equal(hole.getAttribute("data-rudex-bg-shell"), null, "[data-browser-hole] must never be masked as wallpaper shell");
+    const bg = doc.getElementById("rudex-bg");
+    assert.ok(bg);
+    const img = bg.querySelector("img");
+    assert.equal(img.style.objectFit, "contain");
+    assert.equal(img.style.objectPosition, "25% 75%");
+    assert.ok(img.style.transform.includes("translate3d(12%, -8%, 0)"));
+    assert.ok(img.style.transform.includes("rotate(90deg)"));
+    assert.ok(img.style.transform.includes("scale(-1.50, 1.50)"));
+    assert.ok(img.style.filter.includes("brightness(112%)"));
+    assert.ok(img.style.filter.includes("contrast(120%)"));
+    assert.ok(img.style.filter.includes("hue-rotate(15deg)"));
+    const tint = bg.querySelector('[data-role="bg-tint"]');
+    assert.equal(tint.style.mixBlendMode, "soft-light");
+    const vig = bg.querySelector('[data-role="bg-vignette"]');
+    assert.ok(vig && vig.style.backgroundImage.includes("radial-gradient"));
+
+    te.apply({
+      presetId: "native",
+      wallpaper: {
+        type: "video",
+        mediaUrl: "agy-media://local/loop.mp4",
+        playbackRate: 0.5,
+        scale: 80,
+      },
+    });
+    const vid = doc.getElementById("rudex-bg").querySelector("video");
+    assert.ok(vid);
+    assert.equal(vid.playbackRate, 0.5);
+    assert.ok(vid.style.transform.includes("scale(0.80)"));
+
+    const meshCss = te.apply({
+      presetId: "native",
+      wallpaper: {
+        type: "gradient",
+        gradStyle: "mesh",
+        gradColors: ["#111111", "#222222", "#333333"],
+      },
+    });
+    assert.equal(meshCss.wallpaper.gradStyle, "mesh");
+  } finally {
+    te.destroy();
+  }
+});
+
+test("Redesigned Studio UI exposes window themes/layouts, mini widget designs, wallpaper stage, corners builder, and backend sanitizer", () => {
+  const css = buildStudioStyles();
+  for (const tok of [
+    '[data-studio-theme="frosted"]',
+    '[data-studio-theme="neon-cyber"]',
+    '[data-studio-theme="minimal-mono"]',
+    '[data-studio-theme="aurora"]',
+    '[data-studio-layout="rail"]',
+    '[data-studio-layout="topbar"]',
+    '[data-studio-layout="floating-glass"]',
+    '[data-widget-theme="island"]',
+    '[data-widget-theme="neon"]',
+    '[data-widget-theme="minimal"]',
+    '[data-widget-theme="solid"]',
+    ".wp-stage-canvas",
+    ".corners-preview-stage",
+  ]) {
+    assert.ok(css.includes(tok), `Missing Studio design token/selector: ${tok}`);
+  }
+
+  const { doc, win } = createMockDom();
+  const translator = createDomTranslator({ document: doc, window: win, dictionary, applyDynamicRules, initialLocale: "ru" });
+  translator.init();
+
+  const savedPatches = [];
+  const ipcMock = {
+    invoke: async (ch, payload) => {
+      if (ch === "agy-studio:get-state") {
+        return {
+          locale: "ru",
+          settings: {
+            viewMode: "mini",
+            studioUi: { windowTheme: "neon-cyber", windowLayout: "topbar", widgetTheme: "island", widgetScale: "lg", studioRadius: 20 },
+          },
+        };
+      }
+      if (ch === "agy-studio:save-settings") {
+        savedPatches.push(payload);
+        return { ok: true, settings: payload };
+      }
+      if (ch === "agy-studio:list-media") {
+        return { ok: true, items: [{ fileName: "bg.png", mediaUrl: "agy-media://local/bg.png", mime: "image/png", kind: "image", sizeBytes: 1024 }] };
+      }
+      return { ok: true };
+    },
+  };
+
+  const te = createThemeEngine({ document: doc, window: win });
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: ipcMock,
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine: te,
+  });
+
+  try {
+    panel.init();
+    panel.setOpen(true, { tab: "appearance", appSubTab: "corners", dockedRight: false });
+    const host = doc.getElementById("rudex-studio-host");
+    const root = host.shadowRoot.querySelector(".studio-root");
+    const modalMount = host.shadowRoot.querySelector(".modal-mount");
+    assert.ok(modalMount.innerHTML.includes("corners-preview-stage"), "Appearance -> Corners must render interactive preview stage");
+    assert.ok(modalMount.innerHTML.includes('data-action="set-corners-mode"'), "Appearance -> Corners must allow linked vs custom mode");
+
+    panel.setOpen(true, { tab: "appearance", appSubTab: "wallpaper", dockedRight: false });
+    const wpHtml = modalMount.innerHTML;
+    assert.ok(wpHtml.includes('data-action="set-wallpaper-type"'), "Appearance -> Wallpaper must render mode switcher");
+
+    panel.setOpen(true, { tab: "settings", subTab: "studio" });
+    const studioHtml = modalMount.innerHTML;
+    assert.ok(studioHtml.includes('data-action="set-studio-theme"'), "Settings -> Window Design must expose studio themes");
+    assert.ok(studioHtml.includes('data-action="set-studio-layout"'), "Settings -> Window Design must expose studio layouts");
+
+    // Switch studio theme and layout via UI click (createMockDom stores innerHTML as string)
+    const neonBtn = doc.createElement("button");
+    neonBtn.setAttribute("data-action", "set-studio-theme");
+    neonBtn.setAttribute("data-val", "aurora");
+    root.appendChild(neonBtn);
+    root.dispatchEvent({ type: "click", target: neonBtn });
+    assert.equal(root.getAttribute("data-studio-theme"), "aurora");
+    assert.ok(savedPatches.some((p) => p.studioUi && p.studioUi.windowTheme === "aurora"));
+
+    const railBtn = doc.createElement("button");
+    railBtn.setAttribute("data-action", "set-studio-layout");
+    railBtn.setAttribute("data-val", "rail");
+    root.appendChild(railBtn);
+    root.dispatchEvent({ type: "click", target: railBtn });
+    assert.ok(modalMount.innerHTML.includes('data-studio-layout="rail"'));
+
+    panel.setOpen(true, { tab: "settings", subTab: "widget" });
+    const widHtml = modalMount.innerHTML;
+    assert.ok(widHtml.includes('data-action="set-widget-theme"'), "Settings -> Mini Window must expose widget themes");
+    assert.ok(widHtml.includes('data-action="set-widget-scale"'), "Settings -> Mini Window must expose widget scales");
+
+    // Verify i18n-main.js contains sanitizer tokens for new fields
+    const i18nMainText = fs.readFileSync(path.join(SCRIPTS_DIR, "i18n-main.js"), "utf8");
+    assert.ok(i18nMainText.includes("VALID_STUDIO_THEMES"));
+    assert.ok(i18nMainText.includes("sanitizeStudioUi"));
+    assert.ok(i18nMainText.includes("tokyo-night"));
+    assert.ok(i18nMainText.includes("corners:"));
+  } finally {
+    panel.destroy();
+    te.destroy();
+    translator.destroy();
   }
 });
