@@ -108,7 +108,7 @@ const TEXT = {
     modalTitleWidget: "Виджет на экране",
     modalSubWidget: "Настройте компактную капсулу, поля и привязку к краю окна",
     modalTitlePersona: "Характер агента",
-    modalSubPersona: "Управляет глобальным правилом ~/.gemini/config/rules/antigravity-ru-persona.md",
+    modalSubPersona: "Глобальная инструкция для агента (активна во всех чатах со следующего сообщения)",
     modalTitleLanguage: "Язык и перевод",
     modalSubLanguage: "Переключение интерфейса Antigravity без перезапуска и горячие клавиши",
     modalTitleAppearance: "Оформление",
@@ -162,8 +162,11 @@ const TEXT = {
     trackHistoryLabel: "Сохранять историю замеров",
     trackHistoryDesc: "Фиксировать среднюю и пиковую скорость завершённых ответов",
     dockTitle: "Расположение и перетаскивание",
+    pinLockLabel: "Закрепить на месте",
+    pinLockDesc: "Запрещает перетаскивание; настройки открываются в 1 клик по виджету",
     dockStateDocked: "Режим: прикреплён к якорю",
     dockStateFloating: "Режим: свободная позиция (X/Y)",
+    dockStateLocked: " · зафиксирован на месте",
     dockResetBtn: "Вернуть к якорю",
     dockBottomRight: "Правый низ",
     dockTopRight: "Правый верх",
@@ -184,7 +187,11 @@ const TEXT = {
     personaApplyBtn: "Применить и сохранить",
     personaClearBtn: "Очистить",
     personaRulePathLabel: "Файл правила:",
-    personaSavedMsg: "Сохранено и применено",
+    personaSavedMsg: "Применено · правило активно (со следующего сообщения)",
+    personaDisabledMsg: "Характер отключён (текст сохранён)",
+    personaEmptyWarn: "Сначала введите текст инструкции или выберите пресет",
+    personaWriteErr: "Не удалось записать файл правила",
+    personaTooLargeErr: "Превышен лимит размера правила (23 500 байт)",
     personaClearedMsg: "Инструкция очищена",
     personaDeletedPreset: "Пресет удалён",
     personaLimitWarn: "Близко к лимиту правила (23 500 байт)",
@@ -197,8 +204,8 @@ const TEXT = {
     hotkeysTitle: "Горячие клавиши и быстрые жесты",
     hkToggleLang: "Переключить язык интерфейса RU / EN",
     hkToggleModal: "Открыть / закрыть полное окно Studio",
-    hkDoubleClick: "Открыть полные настройки в 1 жест",
-    hkDoubleClickKey: "Двойной клик по виджету",
+    hkDoubleClick: "Открыть настройки по виджету",
+    hkDoubleClickKey: "1 клик (закреплён) / 2 клика",
     hkEsc: "Закрыть окно настроек",
     pluginInfoTitle: "Сведения о плагине",
     pluginVersion: "Версия плагина",
@@ -216,8 +223,8 @@ const TEXT = {
     tooltipExpand: "Развернуть в карточку (M)",
     tooltipMini: "Свернуть в мини-капсулу (S)",
     tooltipSettings: "Открыть полные настройки (Ctrl+Alt+P)",
-    tooltipPinToDock: "Вернуть к краю экрана",
-    tooltipFloating: "Свободно перемещён (нажмите для привязки)",
+    tooltipPinLock: "Закрепить на месте (открытие в 1 клик)",
+    tooltipPinUnlock: "Открепить (разрешить перетаскивание)",
     tooltipLang: "Переключить RU / EN",
     tooltipClose: "Закрыть (Esc)",
     sidebarFooterHint: "Открыть настройки",
@@ -233,7 +240,7 @@ const TEXT = {
     modalTitleWidget: "Floating Widget",
     modalSubWidget: "Configure compact capsule fields, mode, and edge docking",
     modalTitlePersona: "Agent Persona",
-    modalSubPersona: "Manages global rule ~/.gemini/config/rules/antigravity-ru-persona.md",
+    modalSubPersona: "Global agent persona instructions (active across all chats from next turn)",
     modalTitleLanguage: "Language & UI",
     modalSubLanguage: "Switch Antigravity localization live without restarting",
     modalTitleAppearance: "Appearance",
@@ -287,8 +294,11 @@ const TEXT = {
     trackHistoryLabel: "Record turn history",
     trackHistoryDesc: "Log average and peak TPS for recent completed replies",
     dockTitle: "Position & dragging",
+    pinLockLabel: "Lock widget in place",
+    pinLockDesc: "Disables dragging; 1 click on the widget opens Settings",
     dockStateDocked: "Layout: edge-docked",
     dockStateFloating: "Layout: free-floating (X/Y)",
+    dockStateLocked: " · locked in place",
     dockResetBtn: "Snap to anchor",
     dockBottomRight: "Bottom right",
     dockTopRight: "Top right",
@@ -309,7 +319,11 @@ const TEXT = {
     personaApplyBtn: "Save & Apply",
     personaClearBtn: "Clear",
     personaRulePathLabel: "Rule file:",
-    personaSavedMsg: "Saved & applied",
+    personaSavedMsg: "Applied · rule active (from next message)",
+    personaDisabledMsg: "Persona disabled (draft kept)",
+    personaEmptyWarn: "Enter an instruction or select a preset first",
+    personaWriteErr: "Failed to write rule file",
+    personaTooLargeErr: "Rule size exceeds 23,500 bytes limit",
     personaClearedMsg: "Cleared",
     personaDeletedPreset: "Preset removed",
     personaLimitWarn: "Approaching rule size cap (23,500 bytes)",
@@ -322,8 +336,8 @@ const TEXT = {
     hotkeysTitle: "Shortcuts & quick gestures",
     hkToggleLang: "Toggle RU / EN localization",
     hkToggleModal: "Open / close full Studio settings",
-    hkDoubleClick: "Open full settings directly",
-    hkDoubleClickKey: "Double-click widget",
+    hkDoubleClick: "Open Settings from widget",
+    hkDoubleClickKey: "1 click (pinned) / 2 clicks",
     hkEsc: "Close full settings modal",
     pluginInfoTitle: "Plugin Diagnostics",
     pluginVersion: "Plugin version",
@@ -341,8 +355,8 @@ const TEXT = {
     tooltipExpand: "Expand to card (M)",
     tooltipMini: "Collapse to mini pill (S)",
     tooltipSettings: "Open full settings (Ctrl+Alt+P)",
-    tooltipPinToDock: "Snap back to edge anchor",
-    tooltipFloating: "Free-floating (click to snap back)",
+    tooltipPinLock: "Lock in place (1-click open)",
+    tooltipPinUnlock: "Unlock (allow dragging)",
     tooltipLang: "Switch RU / EN",
     tooltipClose: "Close (Esc)",
     sidebarFooterHint: "Open Settings",
@@ -435,14 +449,15 @@ function normalizeViewMode(rawMode) {
 function normalizeCustomPresets(list) {
   if (!Array.isArray(list)) return [];
   const out = [];
-  for (let i = 0; i < list.length && out.length < 16; i += 1) {
+  for (let i = 0; i < list.length && out.length < 20; i += 1) {
     const p = list[i];
     if (!p || typeof p !== "object") continue;
     const id = String(p.id || "").trim();
-    const title = String(p.title || "").trim();
-    const body = String(p.body || "");
-    if (!id || !title || !body) continue;
-    out.push({ id, title: title.slice(0, 48), body: body.slice(0, MAX_PERSONA_BODY_BYTES) });
+    const rawTitle = typeof p.title === "string" ? p.title : (typeof p.name === "string" ? p.name : "");
+    const rawBody = typeof p.body === "string" ? p.body : (typeof p.text === "string" ? p.text : "");
+    const title = rawTitle.trim();
+    if (!id || !title || !rawBody) continue;
+    out.push({ id, title: title.slice(0, 60), body: rawBody.slice(0, MAX_PERSONA_BODY_BYTES) });
   }
   return out;
 }
@@ -551,6 +566,15 @@ function buildStyles() {
     .widget-wrap.dock-top-right { right: 18px; top: 52px; }
     .widget-wrap.dock-middle-right { right: 18px; top: 50%; transform: translateY(-50%); }
     .widget-wrap.dock-bottom-left { left: 18px; bottom: 18px; }
+    .widget-wrap:not(.is-locked) .mini-pill,
+    .widget-wrap:not(.is-locked) .med-card { cursor: grab; }
+    .widget-wrap.is-locked .mini-pill,
+    .widget-wrap.is-locked .med-card,
+    .widget-wrap.is-locked .med-header { cursor: pointer; }
+    .widget-wrap.is-locked .drag-grip { opacity: 0.35; cursor: pointer; }
+    .widget-wrap.is-dragging .mini-pill,
+    .widget-wrap.is-dragging .med-card,
+    .widget-wrap.is-dragging .med-header { cursor: grabbing !important; }
 
     .mini-pill {
       display: inline-flex;
@@ -688,7 +712,14 @@ function buildStyles() {
       border-color: var(--st-accent);
     }
     .icon-btn.is-pinned {
+      background: var(--st-accent-soft);
       color: var(--st-accent);
+      border-color: var(--st-accent-border);
+    }
+    .icon-btn.is-pinned:hover {
+      background: var(--st-accent);
+      color: #ffffff;
+      border-color: var(--st-accent);
     }
 
     /* Medium Card */
@@ -1232,6 +1263,11 @@ function buildStyles() {
     }
 
     /* Persona Tab */
+    .persona-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
     .preset-strip {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
@@ -1239,7 +1275,7 @@ function buildStyles() {
     }
     .preset-card {
       position: relative;
-      padding: 10px 11px;
+      padding: 8px 10px;
       border-radius: 9px;
       border: 1px solid var(--st-border);
       background: var(--st-card);
@@ -1269,7 +1305,7 @@ function buildStyles() {
 
     .editor-box {
       width: 100%;
-      min-height: 158px;
+      min-height: 110px;
       resize: vertical;
       padding: 11px 13px;
       border-radius: 9px;
@@ -1401,6 +1437,7 @@ function createStudioPanel(options) {
     theme: "dark",
     settings: {
       panelEnabled: true,
+      pinned: false,
       viewMode: "mini",
       layoutMode: "docked",
       dockPosition: "bottom-right",
@@ -1418,7 +1455,7 @@ function createStudioPanel(options) {
     draftDirty: false,
     newPresetName: "",
     personaFileExists: false,
-    personaFilePath: "~/.gemini/config/rules/antigravity-ru-persona.md",
+    personaFilePath: "~/.gemini/config/plugins/antigravity-ru/rules/AGENTS.md",
     toastMsg: "",
     toastError: false,
     telemetry: {
@@ -1453,6 +1490,8 @@ function createStudioPanel(options) {
   let keydownHandler = null;
   let resizeHandler = null;
   let dragState = null;
+  let lastBodyClickAt = 0;
+  let lastDragEndedAt = 0;
 
   function t() {
     return TEXT[state.locale] || TEXT.ru;
@@ -1548,6 +1587,7 @@ function createStudioPanel(options) {
     const rawSettings = remote.settings && typeof remote.settings === "object" ? remote.settings : remote;
     if (rawSettings && typeof rawSettings === "object") {
       if (typeof rawSettings.panelEnabled === "boolean") state.settings.panelEnabled = rawSettings.panelEnabled;
+      if (typeof rawSettings.pinned === "boolean") state.settings.pinned = rawSettings.pinned;
       if (rawSettings.viewMode) {
         state.settings.viewMode = normalizeViewMode(rawSettings.viewMode);
       }
@@ -1788,21 +1828,23 @@ function createStudioPanel(options) {
       chips.push(`<span class="status-chip"><span class="status-dot${tel.isGenerating ? " is-live" : ""}" data-live="dot"></span>Studio</span>`);
     }
 
+    const isPinned = Boolean(state.settings.pinned);
     const joined = chips.join('<span class="pill-sep"></span>');
     const grip = isPreview
       ? `<span class="drag-grip">${iconSvg("grip", 13)}</span>`
-      : `<span class="drag-grip" data-drag-handle="1">${iconSvg("grip", 13)}</span>`;
+      : `<span class="drag-grip">${iconSvg("grip", 13)}</span>`;
     const btns = isPreview
-      ? `<span class="icon-btn">${iconSvg("expand", 13)}</span><span class="icon-btn is-primary">${iconSvg("gear", 13)}</span>`
-      : `<button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 13)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 13)}</button>`;
+      ? `<span class="icon-btn">${iconSvg("expand", 13)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 13)}</span><span class="icon-btn is-primary">${iconSvg("gear", 13)}</span>`
+      : `<button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 13)}</button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 13)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 13)}</button>`;
 
-    return `<div class="mini-pill" data-dbl-settings="1">${grip}${joined}<span class="pill-sep"></span>${btns}</div>`;
+    const bodyAttrs = isPreview ? "" : ` data-widget-body="1"${isPinned ? "" : ' data-drag-handle="1"'}`;
+    return `<div class="mini-pill"${bodyAttrs}>${grip}${joined}<span class="pill-sep"></span>${btns}</div>`;
   }
 
   function renderMediumCardMarkup() {
     const tr = t();
     const tel = state.telemetry;
-    const isFloating = state.settings.layoutMode === "floating";
+    const isPinned = Boolean(state.settings.pinned);
     const phase = tel.isGenerating ? tr.phaseLive : tr.phaseIdle;
     const chatVal = tel.contextLabel || `~${formatCompact(tel.chatTokens)} ${tr.tokShort}`;
     const respVal = `~${formatCompact(tel.respTokens)} ${tr.tokShort}`;
@@ -1813,8 +1855,8 @@ function createStudioPanel(options) {
     const langText = state.locale === "en" ? "EN" : "RU";
 
     return `
-      <div class="med-card" data-dbl-settings="1">
-        <div class="med-header" data-drag-handle="1">
+      <div class="med-card" data-widget-body="1"${isPinned ? "" : ' data-drag-handle="1"'}>
+        <div class="med-header">
           <div class="med-head-left">
             <span class="drag-grip">${iconSvg("grip", 13)}</span>
             <span class="status-dot${tel.isGenerating ? " is-live" : ""}" data-live="dot"></span>
@@ -1822,7 +1864,7 @@ function createStudioPanel(options) {
           </div>
           <div class="med-head-actions">
             <button type="button" class="lang-pill-btn" data-action="toggle-locale" data-no-drag="1" title="${escAttr(tr.tooltipLang)}">${langText}</button>
-            <button type="button" class="icon-btn${isFloating ? "" : " is-pinned"}" data-action="snap-dock" data-no-drag="1" title="${escAttr(isFloating ? tr.tooltipFloating : tr.tooltipPinToDock)}">${iconSvg("pin", 13)}</button>
+            <button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 13)}</button>
             <button type="button" class="icon-btn" data-action="to-mini" data-no-drag="1" title="${escAttr(tr.tooltipMini)}">${iconSvg("minimize", 13)}</button>
             <button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 13)}</button>
           </div>
@@ -1960,7 +2002,7 @@ function createStudioPanel(options) {
       { id: "bottom-left", label: tr.dockBottomLeft },
       { id: "hidden", label: tr.dockHidden },
     ];
-    const dockStatus = s.layoutMode === "floating" ? tr.dockStateFloating : tr.dockStateDocked;
+    const dockStatus = (s.layoutMode === "floating" ? tr.dockStateFloating : tr.dockStateDocked) + (s.pinned ? tr.dockStateLocked : "");
 
     return `
       <div class="section-group">
@@ -2011,6 +2053,17 @@ function createStudioPanel(options) {
 
       <div class="section-group">
         <span class="section-label">${escHtml(tr.dockTitle)}</span>
+        <div class="card">
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${escHtml(tr.pinLockLabel)}</span>
+              <span class="row-desc">${escHtml(tr.pinLockDesc)}</span>
+            </div>
+            <button type="button" class="switch${s.pinned ? " is-on" : ""}" role="switch" aria-checked="${s.pinned ? "true" : "false"}" data-action="toggle-pin">
+              <span class="switch-thumb"></span>
+            </button>
+          </div>
+        </div>
         <div class="dock-grid">
           ${docks.map((d) => `
             <button type="button" class="dock-btn${s.dockPosition === d.id && s.layoutMode !== "floating" ? " is-selected" : ""}" data-action="set-dock" data-val="${d.id}">${escHtml(d.label)}</button>
@@ -2033,6 +2086,7 @@ function createStudioPanel(options) {
     const customs = s.customPresets || [];
 
     return `
+      <div class="persona-stack">
       <div class="card">
         <div class="row-item">
           <div class="row-info">
@@ -2100,6 +2154,7 @@ function createStudioPanel(options) {
 
       <div class="row-desc" style="font-family:var(--st-mono);font-size:11px;word-break:break-all">
         ${escHtml(tr.personaRulePathLabel)} ${escHtml(state.personaFilePath)}
+      </div>
       </div>
     `;
   }
@@ -2241,7 +2296,8 @@ function createStudioPanel(options) {
     const s = state.settings;
     const dock = normalizeDockPosition(s.dockPosition);
     const shouldHide = dock === "hidden";
-    widgetMountEl.className = "widget-wrap" + (shouldHide ? " is-hidden" : "");
+    const lockedCls = s.pinned ? " is-locked" : "";
+    widgetMountEl.className = "widget-wrap" + lockedCls + (shouldHide ? " is-hidden" : "");
 
     if (shouldHide) {
       widgetMountEl.style.left = "";
@@ -2262,7 +2318,7 @@ function createStudioPanel(options) {
       widgetMountEl.style.top = "";
       widgetMountEl.style.right = "";
       widgetMountEl.style.bottom = "";
-      widgetMountEl.className = `widget-wrap dock-${dock}`;
+      widgetMountEl.className = `widget-wrap dock-${dock}${lockedCls}`;
     }
   }
 
@@ -2399,9 +2455,16 @@ function createStudioPanel(options) {
       state.draftDirty = false;
       if (res && res.state) applyRemoteState(res.state, false);
       if (res && res.ok === false) {
-        setToast(res.error || "Error", true);
+        const errMsg = res.error === "EXCEEDS_BYTE_LIMIT" ? tr.personaTooLargeErr : (res.error || tr.personaWriteErr);
+        setToast(errMsg, true);
+      } else if (nextEnabled) {
+        if (res && res.exists) {
+          setToast(tr.personaSavedMsg, false);
+        } else {
+          setToast(tr.personaWriteErr, true);
+        }
       } else {
-        setToast(state.draftPersonaText.trim() ? tr.personaSavedMsg : tr.personaClearedMsg, false);
+        setToast(state.draftPersonaText.trim() ? tr.personaDisabledMsg : tr.personaClearedMsg, false);
       }
       return res;
     });
@@ -2481,7 +2544,11 @@ function createStudioPanel(options) {
       saveSettingsPatch({ dockPosition: dock, layoutMode: "docked", floatX: null, floatY: null });
       return;
     }
-    if (action === "snap-dock" || action === "reset-position") {
+    if (action === "toggle-pin") {
+      saveSettingsPatch({ pinned: !state.settings.pinned });
+      return;
+    }
+    if (action === "reset-position") {
       const dock = state.settings.dockPosition === "hidden" ? "bottom-right" : state.settings.dockPosition;
       saveSettingsPatch({ dockPosition: dock, layoutMode: "docked", floatX: null, floatY: null });
       return;
@@ -2497,6 +2564,10 @@ function createStudioPanel(options) {
     }
     if (action === "toggle-persona-enabled") {
       const next = !state.settings.personaEnabled;
+      if (next && !state.draftPersonaText.trim()) {
+        setToast(tr.personaEmptyWarn, true);
+        return;
+      }
       state.settings.personaEnabled = next;
       renderStructure();
       persistPersona(next);
@@ -2527,7 +2598,9 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "save-persona") {
-      persistPersona(state.settings.personaEnabled);
+      const hasText = Boolean(state.draftPersonaText.trim());
+      state.settings.personaEnabled = hasText;
+      persistPersona(hasText);
       return;
     }
     if (action === "clear-persona") {
@@ -2540,7 +2613,7 @@ function createStudioPanel(options) {
   }
 
   function handlePointerDown(e) {
-    if (!widgetMountEl || !e || e.button !== 0) return;
+    if (!widgetMountEl || !e || e.button !== 0 || state.settings.pinned) return;
     const tEl = e.target;
     if (!tEl || typeof tEl.closest !== "function") return;
     if (tEl.closest('[data-no-drag="1"]') || tEl.closest("button")) return;
@@ -2564,10 +2637,10 @@ function createStudioPanel(options) {
   }
 
   function handlePointerMove(e) {
-    if (!dragState || !widgetMountEl) return;
+    if (!dragState || !widgetMountEl || state.settings.pinned) return;
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
-    if (!dragState.moved && Math.hypot(dx, dy) < 4) return;
+    if (!dragState.moved && Math.hypot(dx, dy) < 6) return;
 
     if (!dragState.moved) {
       dragState.moved = true;
@@ -2594,6 +2667,7 @@ function createStudioPanel(options) {
     const finalY = dragState.lastY;
     dragState = null;
     if (wasMoved && widgetMountEl) {
+      lastDragEndedAt = Date.now();
       if (widgetMountEl.classList && typeof widgetMountEl.classList.remove === "function") {
         widgetMountEl.classList.remove("is-dragging");
       }
@@ -2603,14 +2677,31 @@ function createStudioPanel(options) {
 
   function attachDomEvents() {
     if (!rootEl) return;
-    rootEl.addEventListener("click", (e) => handleActionClick(e.target));
-    rootEl.addEventListener("dblclick", (e) => {
-      const target = e.target;
-      if (!target || typeof target.closest !== "function") return;
-      if (target.closest("button") || target.closest('[data-no-drag="1"]')) return;
-      if (target.closest('[data-dbl-settings="1"]')) {
-        setOpen(true);
+    rootEl.addEventListener("click", (e) => {
+      const target = e ? e.target : null;
+      if (!target) return;
+      if (typeof target.closest === "function") {
+        if (target.closest("[data-action]") || target.closest("button") || target.closest('[data-no-drag="1"]')) {
+          handleActionClick(target);
+          return;
+        }
+        if (target.closest('[data-widget-body="1"]') && Date.now() - lastDragEndedAt > 250) {
+          if (state.settings.pinned) {
+            lastBodyClickAt = 0;
+            setOpen(true);
+          } else {
+            const now = Date.now();
+            if (now - lastBodyClickAt <= 380) {
+              lastBodyClickAt = 0;
+              setOpen(true);
+            } else {
+              lastBodyClickAt = now;
+            }
+          }
+          return;
+        }
       }
+      handleActionClick(target);
     });
     rootEl.addEventListener("input", (e) => {
       const target = e.target;

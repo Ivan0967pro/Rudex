@@ -58,6 +58,7 @@ const DEFAULT_MINI_FIELDS = {
 };
 const DEFAULT_STUDIO_SETTINGS = {
   panelEnabled: true,
+  pinned: false,
   viewMode: "mini",
   layoutMode: "docked",
   dockPosition: "bottom-right",
@@ -76,8 +77,24 @@ function getStudioSettingsPath() {
   return path.join(app.getPath("userData"), "agy_studio_settings.json");
 }
 
-function getPersonaRulePath() {
+function getPluginPersonaRulePath() {
+  return path.join(os.homedir(), ".gemini", "config", "plugins", "antigravity-ru", "rules", "AGENTS.md");
+}
+
+function getLegacyPersonaRulePath() {
   return path.join(os.homedir(), ".gemini", "config", "rules", "antigravity-ru-persona.md");
+}
+
+function isPluginInstalled() {
+  try {
+    return fs.existsSync(path.join(os.homedir(), ".gemini", "config", "plugins", "antigravity-ru", "plugin.json"));
+  } catch {
+    return false;
+  }
+}
+
+function getPersonaRulePath() {
+  return isPluginInstalled() ? getPluginPersonaRulePath() : getLegacyPersonaRulePath();
 }
 
 function sanitizeStudioSettings(raw) {
@@ -101,16 +118,24 @@ function sanitizeStudioSettings(raw) {
   };
   const presets = Array.isArray(src.customPresets)
     ? src.customPresets
-        .filter((item) => item && typeof item === "object" && typeof item.name === "string" && typeof item.text === "string")
+        .map((item, idx) => {
+          if (!item || typeof item !== "object") return null;
+          const rawTitle = typeof item.title === "string" ? item.title : (typeof item.name === "string" ? item.name : "");
+          const rawBody = typeof item.body === "string" ? item.body : (typeof item.text === "string" ? item.text : "");
+          const title = rawTitle.trim().slice(0, 60);
+          if (!title || !rawBody) return null;
+          return {
+            id: typeof item.id === "string" && item.id ? item.id : "custom-" + idx,
+            title,
+            body: rawBody.slice(0, MAX_PERSONA_BODY_BYTES),
+          };
+        })
+        .filter(Boolean)
         .slice(0, 20)
-        .map((item, idx) => ({
-          id: typeof item.id === "string" && item.id ? item.id : "custom-" + idx,
-          name: item.name.trim().slice(0, 60) || "Preset",
-          text: item.text,
-        }))
     : [];
   return {
     panelEnabled: src.panelEnabled !== false,
+    pinned: Boolean(src.pinned),
     viewMode,
     layoutMode,
     dockPosition: validDock,
@@ -159,7 +184,14 @@ function stripRuleFrontmatter(md) {
 }
 
 function syncPersonaRuleFile(enabled, text) {
-  const rulePath = getPersonaRulePath();
+  const usePlugin = isPluginInstalled();
+  const rulePath = usePlugin ? getPluginPersonaRulePath() : getLegacyPersonaRulePath();
+  const otherPath = usePlugin ? getLegacyPersonaRulePath() : getPluginPersonaRulePath();
+  try {
+    if (fs.existsSync(otherPath)) {
+      fs.unlinkSync(otherPath);
+    }
+  } catch {}
   const trimmed = String(text || "").trim();
   if (!enabled || !trimmed) {
     try {
@@ -167,22 +199,23 @@ function syncPersonaRuleFile(enabled, text) {
         fs.unlinkSync(rulePath);
       }
     } catch (err) {
-      return { ok: false, exists: fs.existsSync(rulePath), byteLength: 0, error: err && err.message ? err.message : String(err) };
+      return { ok: false, exists: fs.existsSync(rulePath), byteLength: 0, error: err && err.message ? err.message : String(err), rulePath };
     }
-    return { ok: true, exists: false, byteLength: 0 };
+    return { ok: true, exists: false, byteLength: 0, rulePath };
   }
   const bodyBytes = Buffer.byteLength(trimmed, "utf8");
   if (bodyBytes > MAX_PERSONA_BODY_BYTES) {
-    return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: "EXCEEDS_BYTE_LIMIT" };
+    return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: "EXCEEDS_BYTE_LIMIT", rulePath };
   }
-  const header = "---\\ntrigger: always_on\\ndescription: \\"Пользовательский характер и инструкции агента (Antigravity RU Studio)\\"\\n---\\n\\n";
-  const content = header + trimmed + "\\n";
+  const content = usePlugin
+    ? trimmed + "\\n"
+    : "---\\ntrigger: always_on\\n---\\n\\n" + trimmed + "\\n";
   try {
     fs.mkdirSync(path.dirname(rulePath), { recursive: true });
     fs.writeFileSync(rulePath, content, "utf8");
-    return { ok: true, exists: true, byteLength: Buffer.byteLength(content, "utf8") };
+    return { ok: true, exists: true, byteLength: Buffer.byteLength(content, "utf8"), rulePath };
   } catch (err) {
-    return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: err && err.message ? err.message : String(err) };
+    return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: err && err.message ? err.message : String(err), rulePath };
   }
 }
 
@@ -429,7 +462,7 @@ function registerI18nIpc() {
     const text = typeof p.personaText === "string" ? p.personaText : "";
     const syncRes = syncPersonaRuleFile(enabled, text);
     if (!syncRes.ok) {
-      return { ok: false, error: syncRes.error || "SAVE_FAILED", byteLength: syncRes.byteLength, exists: syncRes.exists, state: getStudioState() };
+      return { ok: false, error: syncRes.error || "SAVE_FAILED", byteLength: syncRes.byteLength, exists: syncRes.exists, rulePath: syncRes.rulePath, state: getStudioState() };
     }
     saveStudioSettings({
       personaEnabled: enabled && syncRes.exists,
@@ -439,7 +472,7 @@ function registerI18nIpc() {
     });
     const state = getStudioState();
     broadcastStudioSettings(state);
-    return { ok: true, exists: syncRes.exists, byteLength: syncRes.byteLength, state };
+    return { ok: true, exists: syncRes.exists, byteLength: syncRes.byteLength, rulePath: syncRes.rulePath, state };
   });
 }
 

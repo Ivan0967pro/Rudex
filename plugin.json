@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "antigravity-ru",
   "displayName": "Antigravity RU",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Полная русификация Antigravity 2.0 + виджет Studio (Мини/Средний виджет, окно настроек в 2 колонки, TPS и токены, RU/EN, характер агента).",
   "logo": "assets/logo.svg",
   "author": {
