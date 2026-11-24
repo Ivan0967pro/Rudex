@@ -229,7 +229,7 @@ function buildPreloadSnippet(dictObj, pluginMeta) {
   const dictJson = JSON.stringify(dictObj)
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
-  const metaJson = JSON.stringify(pluginMeta || { version: "3.0.2", dictEntries: Object.keys(dictObj).length, dynamicRulesCount: 0 });
+  const metaJson = JSON.stringify(pluginMeta || { version: "3.1.0", dictEntries: Object.keys(dictObj).length, dynamicRulesCount: 0 });
 
   return [
     "// === ANTIGRAVITY_RU_I18N_START ===",
@@ -293,6 +293,12 @@ function buildPreloadSnippet(dictObj, pluginMeta) {
     `    });`,
     `    electron_1.ipcRenderer.on("agy-studio:toggle-panel", () => {`,
     `      try { studioPanel.toggleOpen(); } catch {}`,
+    `    });`,
+    `    electron_1.ipcRenderer.on("agy-studio:toggle-live-edit", () => {`,
+    `      try { if (typeof studioPanel.toggleLiveEditPopover === "function") studioPanel.toggleLiveEditPopover(); } catch {}`,
+    `    });`,
+    `    electron_1.ipcRenderer.on("agy-studio:live-edits-changed", (_event, data) => {`,
+    `      try { if (typeof studioPanel.applyLiveEditsUpdate === "function") studioPanel.applyLiveEditsUpdate(data); } catch {}`,
     `    });`,
     `    electron_1.ipcRenderer.on("agy-studio:settings-changed", (_event, nextState) => {`,
     `      try { studioPanel.applyRemoteState(nextState); } catch {}`,
@@ -453,7 +459,7 @@ function runInstall(targetAppDir, sourceAsar, stampVersion, dictObj, dynRuleCoun
 
   const pkg = JSON.parse(fs.readFileSync(path.join(targetAppDir, "package.json"), "utf8"));
   const resolvedStamp = stampVersion || pkg.version || "custom";
-  let pluginVersion = "3.0.2";
+  let pluginVersion = "3.1.0";
   try {
     const pluginJsonPath = path.join(PLUGIN_ROOT, "plugin.json");
     if (fs.existsSync(pluginJsonPath)) {

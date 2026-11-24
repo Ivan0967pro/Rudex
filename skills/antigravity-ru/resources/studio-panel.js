@@ -36,6 +36,9 @@ const ICON_PATHS = {
   trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   check: '<polyline points="20 6 9 17 4 12"/>',
   external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+  bolt: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
 };
 
 const TEXT = {
@@ -52,21 +55,23 @@ const TEXT = {
     modalTitleLanguage: "Язык и перевод",
     modalSubLanguage: "Переключение интерфейса Antigravity без перезапуска и горячие клавиши",
     modalTitleAppearance: "Оформление (Студия)",
-    modalSubAppearance: "Темы интерфейса, статичные и видео-обои с предпросмотром, шрифты и профили",
+    modalSubAppearance: "Мгновенный предпросмотр на реальном чате",
     modalTitleExport: "Экспорт и лимиты",
     modalSubExport: "Выгрузка всего контекста чата в ZIP и динамический учёт лимитов 5ч / Неделя",
+    modalTitleLiveEdits: "Живые правки",
+    modalSubLiveEdits: "Отправка текста и фото работающему агенту без остановки задачи",
     navMonitor: "Монитор",
     navWidget: "Виджет",
     navPersona: "Характер агента",
-    navLanguage: "Язык и перевод",
     navAppearance: "Оформление",
+    navLiveEdits: "Живые правки",
     navExport: "Экспорт и лимиты",
+    navLanguage: "Язык и перевод",
     fieldQuota: "Расход лимитов (5ч / Нед.)",
     fieldQuotaDesc: "Показывать оценку расхода 5-часового и недельного лимита текущего чата",
     quota5hShort: "5ч",
     quotaWeekShort: "Нед.",
-    appPreviewTitle: "Живой предпросмотр стиля до сохранения",
-    appLivePreviewToggle: "Предпросмотр на всём окне",
+    appLiveBanner: "Предпросмотр сразу на реальном чате",
     appThemesTitle: "Тема и стеклянные поверхности",
     appPolishLabel: "Улучшенная полировка интерфейса (скроллбары и фокус)",
     appCustomColorsTitle: "Тонкая настройка цветов и стекла",
@@ -75,7 +80,22 @@ const TEXT = {
     appCardColor: "Фон карточек",
     appGlassOpacity: "Плотность стекла",
     appGlassBlur: "Размытие (Blur)",
+    appMessageCardOpacity: "Подложка текста сообщений",
+    appHighContrastText: "Повышенный контраст текста на обоях",
     appRadius: "Скругление",
+    liveEditTitle: "Живая правка агенту",
+    liveEditSub: "Приходит на следующем шаге без отмены работы",
+    liveEditPlaceholder: "Напишите правку или вставьте скриншот (Ctrl+V)... Enter — отправить",
+    liveEditPickPhoto: "Фото",
+    liveEditSendBtn: "Отправить",
+    liveEditClearBtn: "Очистить",
+    liveEditEmpty: "Правок пока нет. Можно прикрепить фото или текст даже во время генерации.",
+    liveEditStatusPending: "Ждёт шага",
+    liveEditStatusDelivered: "У агента",
+    liveEditStatusApplied: "Выполнено",
+    liveEditHookNote: "Хуки плагина PreInvocation + Stop активны (~/.gemini/config/plugins/antigravity-ru/hooks.json). Горячая клавиша: Ctrl+Alt+E.",
+    tooltipLiveEdit: "Живая правка агенту без остановки (Ctrl+Alt+E)",
+    hkLiveEdit: "Открыть панель живых правок",
     appWallpaperTitle: "Студия обоев для чатов",
     appWpNone: "Без обоев",
     appWpGradient: "Градиент",
@@ -285,21 +305,23 @@ const TEXT = {
     modalTitleLanguage: "Language & UI",
     modalSubLanguage: "Switch Antigravity localization live without restarting",
     modalTitleAppearance: "Appearance Studio",
-    modalSubAppearance: "UI themes, static/gradient/video chat wallpapers with live preview, fonts and profiles",
+    modalSubAppearance: "Instant live preview directly on your real chat",
     modalTitleExport: "Export & Limits",
     modalSubExport: "Export full chat context to ZIP and track per-chat 5-hour / weekly quota usage",
+    modalTitleLiveEdits: "Live Edits",
+    modalSubLiveEdits: "Send text & photos to a running agent without interrupting its task",
     navMonitor: "Monitor",
     navWidget: "Widget",
     navPersona: "Agent Persona",
-    navLanguage: "Language & UI",
     navAppearance: "Appearance",
+    navLiveEdits: "Live Edits",
     navExport: "Export & Limits",
+    navLanguage: "Language & UI",
     fieldQuota: "Quota usage (5h / Week)",
     fieldQuotaDesc: "Show estimated 5-hour and weekly limit usage for the active chat",
     quota5hShort: "5h",
     quotaWeekShort: "Wk",
-    appPreviewTitle: "Interactive style preview before applying",
-    appLivePreviewToggle: "Preview across entire window",
+    appLiveBanner: "Live preview on real chat",
     appThemesTitle: "Theme presets & glass surfaces",
     appPolishLabel: "Visual UI polish (refined scrollbars & composer focus)",
     appCustomColorsTitle: "Custom colors & glass tuning",
@@ -308,7 +330,22 @@ const TEXT = {
     appCardColor: "Card background",
     appGlassOpacity: "Glass opacity",
     appGlassBlur: "Backdrop blur",
+    appMessageCardOpacity: "Message readability plate",
+    appHighContrastText: "High-contrast text over wallpaper",
     appRadius: "Corner radius",
+    liveEditTitle: "Live Edit to Agent",
+    liveEditSub: "Injected on next step without canceling work",
+    liveEditPlaceholder: "Type a mid-turn edit or paste image (Ctrl+V)... Enter to send",
+    liveEditPickPhoto: "Photo",
+    liveEditSendBtn: "Send",
+    liveEditClearBtn: "Clear",
+    liveEditEmpty: "No live edits yet. Attach photos or instructions while the agent works.",
+    liveEditStatusPending: "Pending",
+    liveEditStatusDelivered: "Delivered",
+    liveEditStatusApplied: "Applied",
+    liveEditHookNote: "Plugin PreInvocation + Stop hooks active. Shortcut: Ctrl+Alt+E.",
+    tooltipLiveEdit: "Send live edit without interrupting (Ctrl+Alt+E)",
+    hkLiveEdit: "Toggle live edits composer",
     appWallpaperTitle: "Chat Wallpaper Studio",
     appWpNone: "None",
     appWpGradient: "Gradient",
@@ -728,6 +765,8 @@ const SP_FALLBACK_APPEARANCE = {
   cardBg: "#131316",
   glassOpacity: 78,
   glassBlur: 12,
+  messageCardOpacity: 74,
+  highContrastText: true,
   radius: 12,
   wallpaper: {
     type: "none",
@@ -818,6 +857,8 @@ function spNormalizeAppearance(raw) {
     cardBg: typeof src.cardBg === "string" ? src.cardBg : "#131316",
     glassOpacity: Number.isFinite(Number(src.glassOpacity)) ? Number(src.glassOpacity) : 78,
     glassBlur: Number.isFinite(Number(src.glassBlur)) ? Number(src.glassBlur) : 12,
+    messageCardOpacity: Number.isFinite(Number(src.messageCardOpacity)) ? Number(src.messageCardOpacity) : 74,
+    highContrastText: src.highContrastText !== false,
     radius: Number.isFinite(Number(src.radius)) ? Number(src.radius) : 12,
     wallpaper: Object.assign({}, SP_FALLBACK_APPEARANCE.wallpaper, wpSrc, {
       gradColors: Array.isArray(wpSrc.gradColors) ? wpSrc.gradColors.slice(0, 3) : SP_FALLBACK_APPEARANCE.wallpaper.gradColors.slice(),
@@ -836,6 +877,8 @@ function spCloneAppearance(raw) {
     cardBg: n.cardBg,
     glassOpacity: n.glassOpacity,
     glassBlur: n.glassBlur,
+    messageCardOpacity: n.messageCardOpacity,
+    highContrastText: n.highContrastText !== false,
     radius: n.radius,
     wallpaper: Object.assign({}, n.wallpaper, {
       gradColors: Array.isArray(n.wallpaper.gradColors) ? n.wallpaper.gradColors.slice(0, 3) : ["#0f172a", "#1e1b4b", "#09090b"],
@@ -1580,6 +1623,7 @@ function buildStyles() {
     .modal-main {
       flex: 1;
       min-width: 0;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       background: var(--st-bg);
@@ -2230,6 +2274,180 @@ function buildStyles() {
       font-size: 12px;
     }
 
+    /* Appearance Live Side Drawer (Real-Chat Preview) */
+    .modal-backdrop.is-appearance-live {
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      justify-content: flex-end;
+      align-items: stretch;
+      padding: 12px 12px 12px 0;
+      pointer-events: none;
+    }
+    .modal-shell.is-appearance-live {
+      pointer-events: auto;
+      width: min(440px, calc(100vw - 24px));
+      height: calc(100vh - 24px);
+      flex-direction: column;
+      background: rgba(16, 17, 22, 0.94);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 20px 64px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+    .studio-root[data-theme="light"] .modal-shell.is-appearance-live {
+      background: rgba(248, 248, 251, 0.95);
+    }
+    .drawer-top-tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--st-border);
+      background: var(--st-sidebar);
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .drawer-top-tabs::-webkit-scrollbar { height: 4px; }
+    .drawer-tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 9px;
+      border-radius: 7px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--st-muted);
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.12s ease, color 0.12s ease;
+    }
+    .drawer-tab-btn:hover { background: var(--st-nav-hover); color: var(--st-fg-strong); }
+    .drawer-tab-btn.is-active { background: var(--st-accent-soft); border-color: var(--st-accent-border); color: var(--st-fg-strong); }
+    .drawer-sticky-footer {
+      flex-shrink: 0;
+      padding: 12px 18px;
+      border-top: 1px solid var(--st-border);
+      background: var(--st-sidebar);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .live-banner-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--st-accent-soft);
+      border: 1px solid var(--st-accent-border);
+      color: var(--st-fg-strong);
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+
+    /* Live Edits Floating Composer & Feed */
+    .icon-btn { position: relative; }
+    .le-dot-ind {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--st-accent);
+      box-shadow: 0 0 0 1.5px var(--st-card);
+    }
+    .live-edit-popover {
+      position: fixed;
+      right: 18px;
+      bottom: 62px;
+      z-index: 2147483644;
+      width: min(360px, calc(100vw - 24px));
+      max-height: min(460px, calc(100vh - 96px));
+      border-radius: 12px;
+      background: var(--st-glass-strong);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--st-border-strong);
+      box-shadow: var(--st-modal-shadow);
+      color: var(--st-fg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: agyModalIn 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .le-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--st-border);
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .le-title-col { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .le-title { font-size: 12.5px; font-weight: 700; color: var(--st-fg-strong); display: flex; align-items: center; gap: 6px; }
+    .le-sub { font-size: 10.5px; color: var(--st-muted); }
+    .le-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+    .le-textarea {
+      width: 100%;
+      min-height: 66px;
+      max-height: 140px;
+      resize: vertical;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--st-border-strong);
+      background: var(--st-sidebar);
+      color: var(--st-fg-strong);
+      font-size: 12px;
+      line-height: 1.45;
+      outline: none;
+    }
+    .le-textarea:focus { border-color: var(--st-accent); }
+    .le-thumbs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .le-thumb-chip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 6px 3px 3px;
+      border-radius: 7px;
+      border: 1px solid var(--st-border-strong);
+      background: var(--st-card);
+      font-size: 11px;
+      max-width: 156px;
+    }
+    .le-thumb-img { width: 24px; height: 24px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+    .le-thumb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--st-fg); }
+    .le-actions { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .le-feed { display: flex; flex-direction: column; gap: 6px; max-height: 168px; overflow-y: auto; }
+    .le-item {
+      padding: 7px 9px;
+      border-radius: 8px;
+      border: 1px solid var(--st-border);
+      background: var(--st-card);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11.5px;
+    }
+    .le-item-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 10.5px; color: var(--st-muted); }
+    .le-status-pill {
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      background: var(--st-card-hover);
+      color: var(--st-muted);
+    }
+    .le-status-pill.is-pending { background: rgba(232, 151, 95, 0.16); color: var(--st-warning); }
+    .le-status-pill.is-delivered { background: var(--st-accent-soft); color: var(--st-accent); }
+    .le-status-pill.is-applied { background: var(--st-success-soft); color: var(--st-success); }
+
     @media (max-width: 720px) {
       .modal-shell { flex-direction: column; height: min(660px, calc(100vh - 24px)); }
       .modal-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--st-border); padding: 10px; }
@@ -2249,7 +2467,7 @@ function createStudioPanel(options) {
   const ipc = opts.ipcRenderer || null;
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "3.0.2", dictEntries: 4017, dynamicRulesCount: 471 };
+    : { version: "3.1.0", dictEntries: 4017, dynamicRulesCount: 471 };
   const mediaBlobCache = new Map();
   const mediaLoadInflight = new Set();
 
@@ -2293,9 +2511,6 @@ function createStudioPanel(options) {
           mediaBlobCache.set(key, blobUrl);
           if (state.mounted) {
             applyThemeToHost(state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance);
-            if (state.isOpen && state.activeTab === "appearance" && modalMountEl) {
-              setLiveSlot(modalMountEl, '[data-live="appearancePreview"]', buildAppearancePreviewHtml(state.appearanceDraft), true);
-            }
           }
         } catch (_e) {}
       });
@@ -2370,6 +2585,13 @@ function createStudioPanel(options) {
     personaFilePath: "~/.gemini/config/plugins/antigravity-ru/rules/AGENTS.md",
     toastMsg: "",
     toastError: false,
+    liveEditOpen: false,
+    liveEditDraftText: "",
+    liveEditDraftImages: [],
+    liveEditBusy: false,
+    liveEditError: "",
+    liveEdits: [],
+    liveEditsAll: [],
     telemetry: createEmptyTelemetry(),
   };
 
@@ -2378,6 +2600,7 @@ function createStudioPanel(options) {
   let styleEl = null;
   let rootEl = null;
   let widgetMountEl = null;
+  let popoverMountEl = null;
   let modalMountEl = null;
   let pollTimer = null;
   let repaintTimer = null;
@@ -3059,6 +3282,7 @@ function createStudioPanel(options) {
       if (res.quotaSummary && typeof res.quotaSummary === "object") {
         state.quotaSummary = res.quotaSummary;
       }
+      refreshLiveEdits();
       renderStructure();
       updateLiveDom();
     });
@@ -3416,18 +3640,155 @@ function createStudioPanel(options) {
     } catch (_e) {}
   }
 
-  function buildAppearancePreviewHtml(appCfg) {
-    const cfg = spNormalizeAppearance(appCfg || state.appearanceDraft);
-    const resolvedMedia = cfg.wallpaper && cfg.wallpaper.mediaUrl
-      ? resolveStudioMediaUrl(cfg.wallpaper.mediaFile, cfg.wallpaper.mediaUrl)
-      : "";
-    if (themeEngine && typeof themeEngine.buildPreviewMarkup === "function") {
-      return themeEngine.buildPreviewMarkup(cfg, state.locale, resolvedMedia);
+  function applyThemeFastToHost(appCfg) {
+    if (!themeEngine) return;
+    try {
+      if (typeof themeEngine.applyFast === "function") {
+        themeEngine.applyFast(appCfg || state.appearanceDraft);
+      } else if (typeof themeEngine.apply === "function") {
+        themeEngine.apply(appCfg || state.appearanceDraft);
+      }
+    } catch (_e) {}
+  }
+
+  function applyLiveEditsPayload(payload) {
+    if (!payload || typeof payload !== "object") return;
+    const all = Array.isArray(payload.allItems) ? payload.allItems : (Array.isArray(payload.items) ? payload.items : []);
+    state.liveEditsAll = all.slice(-30);
+    const curKey = state.activeChatKey || "__new__";
+    state.liveEdits = all.filter((x) => {
+      if (!x) return false;
+      if (curKey === "__new__") return x.chatKey === "__new__" || x.fallbackAny;
+      return x.chatKey === curKey || x.deliveredConversationId === curKey || (x.fallbackAny && x.status === "pending");
+    }).slice(-20);
+  }
+
+  function countPendingLiveEdits() {
+    let n = 0;
+    for (let i = 0; i < state.liveEdits.length; i += 1) {
+      if (state.liveEdits[i] && state.liveEdits[i].status === "pending") n += 1;
     }
-    const preset = spFindThemePreset(cfg.presetId);
-    const v = cfg.presetId === "custom" ? { accentColor: cfg.accentColor, canvasBg: cfg.canvasBg, cardBg: cfg.cardBg } : preset.vars;
-    const isRu = state.locale !== "en";
-    return `<div style="padding:12px;border-radius:10px;background:${escAttr(v.canvasBg)};border:1px solid ${escAttr(v.accentColor)};color:#f1f2f6;font-size:12px">${escHtml(isRu ? preset.nameRu : preset.nameEn)} · ${escHtml(cfg.wallpaper.type)}</div>`;
+    return n;
+  }
+
+  function refreshLiveEdits() {
+    return invokeIpc("agy-studio:get-live-edits", { chatKey: state.activeChatKey || "__new__" }).then((res) => {
+      if (state.destroyed || !res || !res.ok) return res;
+      applyLiveEditsPayload(res);
+      renderPopoverStructure();
+      updateLiveDom();
+      if (state.isOpen && state.activeTab === "live-edits") {
+        renderStructure();
+      }
+      return res;
+    });
+  }
+
+  function sendLiveEditFromDraft() {
+    if (state.liveEditBusy) return;
+    const text = String(state.liveEditDraftText || "").trim();
+    const imgs = Array.isArray(state.liveEditDraftImages) ? state.liveEditDraftImages.slice(0, 4) : [];
+    if (!text && imgs.length === 0) return;
+    state.liveEditBusy = true;
+    state.liveEditError = "";
+    renderPopoverStructure();
+    if (state.isOpen && state.activeTab === "live-edits") renderStructure();
+    invokeIpc("agy-studio:send-live-edit", {
+      chatKey: state.activeChatKey || "__new__",
+      title: state.activeChatTitle || "",
+      text,
+      images: imgs.map((im) => ({ name: im.name, sourcePath: im.sourcePath || "", dataUrl: im.dataUrl || "" })),
+      fallbackAny: !UUID_RE.test(String(state.activeChatKey || "")),
+    }).then((res) => {
+      if (state.destroyed) return;
+      state.liveEditBusy = false;
+      if (res && res.ok) {
+        state.liveEditDraftText = "";
+        state.liveEditDraftImages = [];
+        state.liveEditError = "";
+        applyLiveEditsPayload(res);
+      } else {
+        state.liveEditError = (res && res.error) || "SEND_FAILED";
+      }
+      renderPopoverStructure();
+      updateLiveDom();
+      if (state.isOpen && state.activeTab === "live-edits") renderStructure();
+    });
+  }
+
+  function formatLiveEditStatus(status, tr) {
+    if (status === "applied") return { label: tr.liveEditStatusApplied, cls: "is-applied" };
+    if (status === "delivered") return { label: tr.liveEditStatusDelivered, cls: "is-delivered" };
+    return { label: tr.liveEditStatusPending, cls: "is-pending" };
+  }
+
+  function renderLiveEditPopoverMarkup() {
+    if (!state.liveEditOpen) return "";
+    const tr = t();
+    const list = state.liveEdits || [];
+    const draftImgs = state.liveEditDraftImages || [];
+    const canSend = Boolean((state.liveEditDraftText && state.liveEditDraftText.trim()) || draftImgs.length > 0) && !state.liveEditBusy;
+
+    return `
+      <div class="live-edit-popover" role="dialog" aria-label="${escAttr(tr.liveEditTitle)}">
+        <div class="le-head">
+          <div class="le-title-col">
+            <span class="le-title">${iconSvg("bolt", 13)}<span>${escHtml(tr.liveEditTitle)}</span></span>
+            <span class="le-sub">${escHtml(tr.liveEditSub)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button type="button" class="icon-btn" data-action="open-live-edits-tab" title="${escAttr(tr.modalTitleLiveEdits)}">${iconSvg("expand", 12)}</button>
+            <button type="button" class="icon-btn" data-action="close-live-edit" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 13)}</button>
+          </div>
+        </div>
+        <div class="le-body">
+          <textarea class="le-textarea" data-role="liveEditInput" placeholder="${escAttr(tr.liveEditPlaceholder)}">${escHtml(state.liveEditDraftText)}</textarea>
+          ${draftImgs.length > 0 ? `
+            <div class="le-thumbs">
+              ${draftImgs.map((im, idx) => `
+                <div class="le-thumb-chip">
+                  ${im.previewDataUrl ? `<img class="le-thumb-img" src="${escAttr(im.previewDataUrl)}" alt=""/>` : iconSvg("image", 14)}
+                  <span class="le-thumb-name">${escHtml(im.name || ("photo-" + (idx + 1)))}</span>
+                  <button type="button" class="preset-del-btn" data-action="remove-live-edit-img" data-idx="${idx}" title="Remove">${iconSvg("close", 11)}</button>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+          ${state.liveEditError ? `<span class="toast-text is-err" style="font-size:11px">${escHtml(state.liveEditError)}</span>` : ""}
+          <div class="le-actions">
+            <button type="button" class="btn btn-sm" data-action="pick-live-edit-images">${iconSvg("image", 12)}${escHtml(tr.liveEditPickPhoto)}</button>
+            <div style="display:flex;align-items:center;gap:6px">
+              ${list.length > 0 ? `<button type="button" class="btn btn-sm" data-action="clear-live-edits" title="${escAttr(tr.liveEditClearBtn)}">${iconSvg("trash", 12)}</button>` : ""}
+              <button type="button" class="btn btn-sm btn-primary" ${canSend ? "" : "disabled"} data-action="send-live-edit">${iconSvg("send", 12)}${escHtml(tr.liveEditSendBtn)}</button>
+            </div>
+          </div>
+          ${list.length > 0 ? `
+            <div class="le-feed">
+              ${list.slice().reverse().slice(0, 6).map((it) => {
+                const st = formatLiveEditStatus(it.status, tr);
+                const tStr = new Date(it.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                const imgCount = Array.isArray(it.images) ? it.images.length : 0;
+                return `
+                  <div class="le-item">
+                    <div class="le-item-top">
+                      <span class="num">${escHtml(tStr)}${imgCount > 0 ? ` · ${imgCount} фото` : ""}</span>
+                      <span class="le-status-pill ${st.cls}">${escHtml(st.label)}</span>
+                    </div>
+                    ${it.text ? `<span style="color:var(--st-fg-strong);word-break:break-word">${escHtml(it.text.slice(0, 140))}</span>` : ""}
+                    ${it.agentReply ? `<span style="color:var(--st-success);font-size:11px">${escHtml(it.agentReply)}</span>` : ""}
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          ` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderPopoverStructure() {
+    if (!popoverMountEl || state.destroyed) return;
+    popoverMountEl.innerHTML = renderLiveEditPopoverMarkup();
   }
 
   function scrapeDomQuotaSnapshot(force) {
@@ -3560,12 +3921,11 @@ function createStudioPanel(options) {
 
     const isPinned = Boolean(state.settings.pinned);
     const joined = chips.join('<span class="pill-sep"></span>');
-    const grip = isPreview
-      ? `<span class="drag-grip">${iconSvg("grip", 13)}</span>`
-      : `<span class="drag-grip">${iconSvg("grip", 13)}</span>`;
+    const hasPendingLe = countPendingLiveEdits() > 0;
+    const grip = `<span class="drag-grip">${iconSvg("grip", 13)}</span>`;
     const btns = isPreview
-      ? `<span class="icon-btn">${iconSvg("expand", 13)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 13)}</span><span class="icon-btn is-primary">${iconSvg("gear", 13)}</span>`
-      : `<button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 13)}</button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 13)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 13)}</button>`;
+      ? `<span class="icon-btn">${iconSvg("bolt", 13)}</span><span class="icon-btn">${iconSvg("expand", 13)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 13)}</span><span class="icon-btn is-primary">${iconSvg("gear", 13)}</span>`
+      : `<button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipLiveEdit)}">${iconSvg("bolt", 13)}<span class="le-dot-ind" data-live="liveEditDot"${hasPendingLe ? "" : ' style="display:none"'}></span></button><button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 13)}</button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 13)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 13)}</button>`;
 
     const bodyAttrs = isPreview ? "" : ` data-widget-body="1"${isPinned ? "" : ' data-drag-handle="1"'}`;
     return `<div class="mini-pill"${bodyAttrs}>${grip}${joined}<span class="pill-sep"></span>${btns}</div>`;
@@ -3596,6 +3956,7 @@ function createStudioPanel(options) {
           </div>
           <div class="med-head-actions">
             <button type="button" class="lang-pill-btn" data-action="toggle-locale" data-no-drag="1" title="${escAttr(tr.tooltipLang)}">${langText}</button>
+            <button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipLiveEdit)}">${iconSvg("bolt", 13)}<span class="le-dot-ind" data-live="liveEditDot"${countPendingLiveEdits() > 0 ? "" : ' style="display:none"'}></span></button>
             <button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 13)}</button>
             <button type="button" class="icon-btn" data-action="to-mini" data-no-drag="1" title="${escAttr(tr.tooltipMini)}">${iconSvg("minimize", 13)}</button>
             <button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 13)}</button>
@@ -3914,7 +4275,7 @@ function createStudioPanel(options) {
   function renderLanguageTab() {
     const tr = t();
     const isRu = state.locale !== "en";
-    const ver = pluginMeta.version || "3.0.2";
+    const ver = pluginMeta.version || "3.1.0";
     const dictCount = pluginMeta.dictEntries || 4017;
     const dynCount = pluginMeta.dynamicRulesCount || 471;
 
@@ -3938,6 +4299,7 @@ function createStudioPanel(options) {
         <div class="card">
           <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleLang)}</span><span class="kbd">Ctrl + Alt + L</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleModal)}</span><span class="kbd">Ctrl + Alt + P</span></div>
+          <div class="row-item"><span class="row-title">${escHtml(tr.hkLiveEdit)}</span><span class="kbd">Ctrl + Alt + E</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.hkDoubleClick)}</span><span class="kbd">${escHtml(tr.hkDoubleClickKey)}</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.hkEsc)}</span><span class="kbd">Esc</span></div>
         </div>
@@ -4055,14 +4417,10 @@ function createStudioPanel(options) {
 
     return `
       <div class="section-group">
-        <div class="studio-preview-head">
-          <span class="section-label">${escHtml(tr.appPreviewTitle)}</span>
-          <label style="display:inline-flex;align-items:center;gap:8px;font-size:11.5px;color:var(--st-muted);cursor:pointer">
-            <span>${escHtml(tr.appLivePreviewToggle)}</span>
-            <button type="button" class="switch${state.appearanceLivePreview ? " is-on" : ""}" role="switch" aria-checked="${state.appearanceLivePreview ? "true" : "false"}" data-action="toggle-appearance-live-preview"><span class="switch-thumb"></span></button>
-          </label>
+        <div class="live-banner-pill">
+          <span class="status-dot is-live"></span>
+          <span>${escHtml(tr.appLiveBanner)}</span>
         </div>
-        <div data-live="appearancePreview">${buildAppearancePreviewHtml(draft)}</div>
       </div>
 
       <div class="section-group">
@@ -4113,6 +4471,18 @@ function createStudioPanel(options) {
           <div class="slider-box">
             <div class="slider-head"><span>${escHtml(tr.appRadius)}</span><b class="num" data-live-app-val="radius">${draft.radius}px</b></div>
             <input type="range" class="range-input" min="4" max="20" step="1" data-app-field="radius" value="${draft.radius}"/>
+          </div>
+        </div>
+        <div class="control-grid-2">
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appMessageCardOpacity)}</span><b class="num" data-live-app-val="messageCardOpacity">${draft.messageCardOpacity}%</b></div>
+            <input type="range" class="range-input" min="0" max="96" step="2" data-app-field="messageCardOpacity" value="${draft.messageCardOpacity}"/>
+          </div>
+          <div class="card">
+            <div class="row-item">
+              <span class="row-title">${escHtml(tr.appHighContrastText)}</span>
+              <button type="button" class="switch${draft.highContrastText !== false ? " is-on" : ""}" role="switch" aria-checked="${draft.highContrastText !== false ? "true" : "false"}" data-action="toggle-appearance-contrast"><span class="switch-thumb"></span></button>
+            </div>
           </div>
         </div>
       </div>
@@ -4184,15 +4554,6 @@ function createStudioPanel(options) {
           <input type="text" class="text-input" data-role="newProfileInput" maxlength="44" value="${escAttr(state.newProfileName)}" placeholder="${escAttr(tr.appProfilePlaceholder)}"/>
           <button type="button" class="btn btn-sm" data-action="save-appearance-profile">${iconSvg("plus", 13)}${escHtml(tr.appSaveProfile)}</button>
         </div>
-      </div>
-
-      <div class="action-bar">
-        <div class="action-btns" style="flex-wrap:wrap">
-          <button type="button" class="btn btn-primary" data-action="apply-appearance">${iconSvg("check", 14)}${escHtml(tr.appApplyBtn)}</button>
-          <button type="button" class="btn" data-action="discard-appearance">${escHtml(tr.appCancelBtn)}</button>
-          <button type="button" class="btn" data-action="reset-appearance">${iconSvg("reset", 13)}${escHtml(tr.appResetBtn)}</button>
-        </div>
-        <span class="toast-text${state.toastError ? " is-err" : ""}" data-role="toast">${escHtml(state.toastMsg)}</span>
       </div>
     `;
   }
@@ -4315,33 +4676,105 @@ function createStudioPanel(options) {
     `;
   }
 
+  function renderLiveEditsTab() {
+    const tr = t();
+    const list = state.liveEdits || [];
+    const draftImgs = state.liveEditDraftImages || [];
+    const canSend = Boolean((state.liveEditDraftText && state.liveEditDraftText.trim()) || draftImgs.length > 0) && !state.liveEditBusy;
+
+    return `
+      <div class="hint-banner">${iconSvg("bolt", 14)}<span>${escHtml(tr.liveEditHookNote)}</span></div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.liveEditTitle)}</span>
+        <div class="card" style="padding:12px;display:flex;flex-direction:column;gap:10px">
+          <textarea class="le-textarea" style="min-height:92px" data-role="liveEditInput" placeholder="${escAttr(tr.liveEditPlaceholder)}">${escHtml(state.liveEditDraftText)}</textarea>
+          ${draftImgs.length > 0 ? `
+            <div class="le-thumbs">
+              ${draftImgs.map((im, idx) => `
+                <div class="le-thumb-chip">
+                  ${im.previewDataUrl ? `<img class="le-thumb-img" src="${escAttr(im.previewDataUrl)}" alt=""/>` : iconSvg("image", 14)}
+                  <span class="le-thumb-name">${escHtml(im.name || ("photo-" + (idx + 1)))}</span>
+                  <button type="button" class="preset-del-btn" data-action="remove-live-edit-img" data-idx="${idx}" title="Remove">${iconSvg("close", 11)}</button>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+          ${state.liveEditError ? `<span class="toast-text is-err">${escHtml(state.liveEditError)}</span>` : ""}
+          <div class="le-actions">
+            <button type="button" class="btn btn-sm" data-action="pick-live-edit-images">${iconSvg("image", 13)}${escHtml(tr.liveEditPickPhoto)}</button>
+            <div style="display:flex;align-items:center;gap:8px">
+              ${list.length > 0 ? `<button type="button" class="btn btn-sm" data-action="clear-live-edits">${iconSvg("trash", 13)}${escHtml(tr.liveEditClearBtn)}</button>` : ""}
+              <button type="button" class="btn btn-sm btn-primary" ${canSend ? "" : "disabled"} data-action="send-live-edit">${iconSvg("send", 13)}${escHtml(tr.liveEditSendBtn)}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.liveEditSub)}</span>
+        ${list.length === 0 ? `<div class="empty-msg">${escHtml(tr.liveEditEmpty)}</div>` : `
+          <div class="le-feed" style="max-height:280px">
+            ${list.slice().reverse().map((it) => {
+              const st = formatLiveEditStatus(it.status, tr);
+              const tStr = new Date(it.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+              const imgs = Array.isArray(it.images) ? it.images : [];
+              return `
+                <div class="le-item">
+                  <div class="le-item-top">
+                    <span class="num">${escHtml(tStr)}${imgs.length > 0 ? ` · ${imgs.length} ${escHtml(tr.liveEditPickPhoto.toLowerCase())}` : ""}</span>
+                    <span class="le-status-pill ${st.cls}">${escHtml(st.label)}</span>
+                  </div>
+                  ${it.text ? `<span style="color:var(--st-fg-strong);word-break:break-word;white-space:pre-wrap">${escHtml(it.text)}</span>` : ""}
+                  ${imgs.length > 0 ? `
+                    <div class="le-thumbs">
+                      ${imgs.map((im) => `
+                        <span class="le-thumb-chip">${iconSvg("image", 12)}<span class="le-thumb-name">${escHtml(im.name || "image")}</span></span>
+                      `).join("")}
+                    </div>
+                  ` : ""}
+                  ${it.agentReply ? `<span style="color:var(--st-success);font-size:11.5px">${escHtml(it.agentReply)}</span>` : ""}
+                </div>
+              `;
+            }).join("")}
+          </div>
+        `}
+      </div>
+    `;
+  }
+
   function renderModalShell() {
     if (!state.isOpen) return "";
     const tr = t();
+    const pendingLe = countPendingLiveEdits();
     const tabs = [
       { id: "monitor", label: tr.navMonitor, ic: "activity", title: tr.modalTitleMonitor, sub: tr.modalSubMonitor },
       { id: "widget", label: tr.navWidget, ic: "sliders", title: tr.modalTitleWidget, sub: tr.modalSubWidget },
       { id: "persona", label: tr.navPersona, ic: "sparkles", title: tr.modalTitlePersona, sub: tr.modalSubPersona, dot: state.chatPersona.enabled },
+      { id: "live-edits", label: tr.navLiveEdits, ic: "bolt", title: tr.modalTitleLiveEdits, sub: tr.modalSubLiveEdits, dot: pendingLe > 0, badge: pendingLe > 0 ? String(pendingLe) : "" },
       { id: "appearance", label: tr.navAppearance, ic: "palette", title: tr.modalTitleAppearance, sub: tr.modalSubAppearance },
       { id: "export", label: tr.navExport, ic: "archive", title: tr.modalTitleExport, sub: tr.modalSubExport },
       { id: "language", label: tr.navLanguage, ic: "globe", title: tr.modalTitleLanguage, sub: tr.modalSubLanguage },
     ];
     const current = tabs.find((x) => x.id === state.activeTab) || tabs[0];
+    const isAppearanceLive = current.id === "appearance";
     let bodyHtml = "";
     if (current.id === "monitor") bodyHtml = renderMonitorTab();
     else if (current.id === "widget") bodyHtml = renderWidgetTab();
     else if (current.id === "persona") bodyHtml = renderPersonaTab();
+    else if (current.id === "live-edits") bodyHtml = renderLiveEditsTab();
     else if (current.id === "appearance") bodyHtml = renderAppearanceTab();
     else if (current.id === "export") bodyHtml = renderExportAndLimitsTab();
     else bodyHtml = renderLanguageTab();
 
     return `
-      <div class="modal-backdrop" data-action="backdrop-close">
-        <div class="modal-shell" role="dialog" aria-modal="true" aria-label="${escAttr(tr.brandTitle)}">
+      <div class="modal-backdrop${isAppearanceLive ? " is-appearance-live" : ""}" data-action="backdrop-close">
+        <div class="modal-shell${isAppearanceLive ? " is-appearance-live" : ""}" role="dialog" aria-modal="${isAppearanceLive ? "false" : "true"}" aria-label="${escAttr(tr.brandTitle)}">
+          ${isAppearanceLive ? "" : `
           <aside class="modal-sidebar">
             <div class="sidebar-brand">
               <span class="brand-title">${escHtml(tr.brandTitle)}</span>
-              <span class="brand-ver num">v${escHtml(pluginMeta.version || "3.0.2")}</span>
+              <span class="brand-ver num">v${escHtml(pluginMeta.version || "3.1.0")}</span>
             </div>
             <span class="sidebar-section-label">${escHtml(tr.sidebarSectionStudio)}</span>
             <nav class="nav-list">
@@ -4359,7 +4792,18 @@ function createStudioPanel(options) {
               <span class="kbd">Ctrl+Alt+P</span>
             </div>
           </aside>
+          `}
           <section class="modal-main">
+            ${isAppearanceLive ? `
+              <div class="drawer-top-tabs">
+                ${tabs.map((tb) => `
+                  <button type="button" class="drawer-tab-btn${tb.id === current.id ? " is-active" : ""}" data-action="switch-tab" data-tab="${tb.id}">
+                    ${iconSvg(tb.ic, 13)}
+                    <span>${escHtml(tb.label)}</span>
+                  </button>
+                `).join("")}
+              </div>
+            ` : ""}
             <header class="modal-header">
               <div>
                 <h2 class="modal-title">${escHtml(current.title)}</h2>
@@ -4368,6 +4812,16 @@ function createStudioPanel(options) {
               <button type="button" class="modal-close-btn" data-action="close-modal" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 16)}</button>
             </header>
             <div class="modal-body">${bodyHtml}</div>
+            ${isAppearanceLive ? `
+              <footer class="drawer-sticky-footer">
+                <div class="action-btns" style="flex-wrap:wrap">
+                  <button type="button" class="btn btn-sm btn-primary" data-action="apply-appearance">${iconSvg("check", 13)}${escHtml(tr.appApplyBtn)}</button>
+                  <button type="button" class="btn btn-sm" data-action="discard-appearance">${escHtml(tr.appCancelBtn)}</button>
+                  <button type="button" class="btn btn-sm" data-action="reset-appearance">${iconSvg("reset", 13)}${escHtml(tr.appResetBtn)}</button>
+                </div>
+                <span class="toast-text${state.toastError ? " is-err" : ""}" data-role="toast">${escHtml(state.toastMsg)}</span>
+              </footer>
+            ` : ""}
           </section>
         </div>
       </div>
@@ -4456,6 +4910,7 @@ function createStudioPanel(options) {
     const phaseText = tel.phase === "thinking" ? tr.phaseThinking : (tel.isGenerating ? tr.phaseLive : tr.phaseIdle);
     const modelText = tel.modelName || tr.modelUnknown;
 
+    const hasPendingLe = countPendingLiveEdits() > 0;
     const containers = [widgetMountEl, modalMountEl].filter(Boolean);
     for (let i = 0; i < containers.length; i += 1) {
       const box = containers[i];
@@ -4463,6 +4918,10 @@ function createStudioPanel(options) {
       const dots = box.querySelectorAll('[data-live="dot"]');
       for (let d = 0; d < dots.length; d += 1) {
         dots[d].className = "status-dot" + (tel.isGenerating ? " is-live" : "");
+      }
+      const leDots = box.querySelectorAll('[data-live="liveEditDot"]');
+      for (let ld = 0; ld < leDots.length; ld += 1) {
+        leDots[ld].style.display = hasPendingLe ? "" : "none";
       }
       setLiveSlot(box, '[data-live="tps"]', tpsText, false);
       setLiveSlot(box, '[data-live="tpsUnit"]', tpsUnitText, false);
@@ -4504,6 +4963,9 @@ function createStudioPanel(options) {
     }
     if (modalMountEl) {
       modalMountEl.innerHTML = state.isOpen ? renderModalShell() : "";
+    }
+    if (popoverMountEl) {
+      renderPopoverStructure();
     }
   }
 
@@ -4612,10 +5074,24 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "switch-tab") {
+      const prevTab = state.activeTab;
       const tab = actionEl.getAttribute("data-tab") || "monitor";
       state.activeTab = tab;
-      if (tab === "appearance" && !state.appearanceDirty) {
+      if (prevTab === "appearance" && tab !== "appearance") {
+        state.appearanceLivePreview = false;
         state.appearanceDraft = spCloneAppearance(state.settings.appearance);
+        state.appearanceDirty = false;
+        applyThemeToHost(state.settings.appearance);
+      }
+      if (tab === "appearance") {
+        state.appearanceLivePreview = true;
+        if (!state.appearanceDirty) {
+          state.appearanceDraft = spCloneAppearance(state.settings.appearance);
+        }
+        applyThemeFastToHost(state.appearanceDraft);
+      }
+      if (tab === "live-edits") {
+        refreshLiveEdits();
       }
       if (tab === "export") {
         invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
@@ -4745,9 +5221,83 @@ function createStudioPanel(options) {
       persistPersona(false);
       return;
     }
-    if (action === "toggle-appearance-live-preview") {
-      state.appearanceLivePreview = !state.appearanceLivePreview;
-      applyThemeToHost(state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance);
+    if (action === "toggle-live-edit") {
+      state.liveEditOpen = !state.liveEditOpen;
+      state.liveEditError = "";
+      renderPopoverStructure();
+      if (state.liveEditOpen) {
+        refreshLiveEdits();
+        if (win && typeof win.setTimeout === "function") {
+          win.setTimeout(() => {
+            try {
+              const inp = popoverMountEl && popoverMountEl.querySelector('[data-role="liveEditInput"]');
+              if (inp && typeof inp.focus === "function") inp.focus();
+            } catch (_e) {}
+          }, 20);
+        }
+      }
+      return;
+    }
+    if (action === "close-live-edit") {
+      state.liveEditOpen = false;
+      renderPopoverStructure();
+      return;
+    }
+    if (action === "open-live-edits-tab") {
+      state.liveEditOpen = false;
+      state.activeTab = "live-edits";
+      renderPopoverStructure();
+      setOpen(true);
+      return;
+    }
+    if (action === "pick-live-edit-images") {
+      invokeIpc("agy-studio:pick-live-edit-images").then((res) => {
+        if (state.destroyed || !res || !res.ok || !Array.isArray(res.items)) return;
+        const cur = Array.isArray(state.liveEditDraftImages) ? state.liveEditDraftImages.slice() : [];
+        for (let i = 0; i < res.items.length && cur.length < 4; i += 1) {
+          const it = res.items[i];
+          if (!it) continue;
+          cur.push({
+            name: it.name || ("photo-" + (cur.length + 1)),
+            sourcePath: it.sourcePath || "",
+            dataUrl: it.sourcePath ? "" : (it.previewDataUrl || ""),
+            previewDataUrl: it.previewDataUrl || "",
+          });
+        }
+        state.liveEditDraftImages = cur;
+        renderPopoverStructure();
+        if (state.isOpen && state.activeTab === "live-edits") renderStructure();
+      });
+      return;
+    }
+    if (action === "remove-live-edit-img") {
+      const idx = parseInt(actionEl.getAttribute("data-idx"), 10);
+      if (!isNaN(idx) && idx >= 0 && Array.isArray(state.liveEditDraftImages)) {
+        state.liveEditDraftImages.splice(idx, 1);
+        renderPopoverStructure();
+        if (state.isOpen && state.activeTab === "live-edits") renderStructure();
+      }
+      return;
+    }
+    if (action === "send-live-edit") {
+      sendLiveEditFromDraft();
+      return;
+    }
+    if (action === "clear-live-edits") {
+      invokeIpc("agy-studio:clear-live-edits", { chatKey: state.activeChatKey || "__new__" }).then((res) => {
+        if (state.destroyed || !res) return;
+        applyLiveEditsPayload(res);
+        renderPopoverStructure();
+        updateLiveDom();
+        if (state.isOpen && state.activeTab === "live-edits") renderStructure();
+      });
+      return;
+    }
+    if (action === "toggle-appearance-contrast") {
+      state.appearanceDraft.highContrastText = state.appearanceDraft.highContrastText === false;
+      state.appearanceDirty = true;
+      state.appearanceLivePreview = true;
+      applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
@@ -4764,14 +5314,16 @@ function createStudioPanel(options) {
         state.appearanceDraft.radius = pr.vars.radius;
       }
       state.appearanceDirty = true;
-      if (state.appearanceLivePreview) applyThemeToHost(state.appearanceDraft);
+      state.appearanceLivePreview = true;
+      applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
     if (action === "toggle-appearance-polish") {
       state.appearanceDraft.uiPolish = !state.appearanceDraft.uiPolish;
       state.appearanceDirty = true;
-      if (state.appearanceLivePreview) applyThemeToHost(state.appearanceDraft);
+      state.appearanceLivePreview = true;
+      applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
@@ -4779,7 +5331,8 @@ function createStudioPanel(options) {
       const val = actionEl.getAttribute("data-val");
       state.appearanceDraft.wallpaper.type = val === "gradient" || val === "image" || val === "video" ? val : "none";
       state.appearanceDirty = true;
-      if (state.appearanceLivePreview) applyThemeToHost(state.appearanceDraft);
+      state.appearanceLivePreview = true;
+      applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
@@ -4796,21 +5349,23 @@ function createStudioPanel(options) {
       state.appearanceDraft.wallpaper.gradAngle = found.angle;
       state.appearanceDirty = true;
       state.appearanceLivePreview = true;
-      applyThemeToHost(state.appearanceDraft);
+      applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
     if (action === "toggle-wallpaper-animated") {
       state.appearanceDraft.wallpaper.gradAnimated = !state.appearanceDraft.wallpaper.gradAnimated;
       state.appearanceDirty = true;
-      if (state.appearanceLivePreview) applyThemeToHost(state.appearanceDraft);
+      state.appearanceLivePreview = true;
+      applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
     if (action === "toggle-wallpaper-autopause") {
       state.appearanceDraft.wallpaper.pauseWhenHidden = !state.appearanceDraft.wallpaper.pauseWhenHidden;
       state.appearanceDirty = true;
-      if (state.appearanceLivePreview) applyThemeToHost(state.appearanceDraft);
+      state.appearanceLivePreview = true;
+      applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
@@ -4826,7 +5381,7 @@ function createStudioPanel(options) {
           state.appearanceDirty = true;
           state.appearanceLivePreview = true;
           resolveStudioMediaUrl(res.fileName, res.mediaUrl);
-          applyThemeToHost(state.appearanceDraft);
+          applyThemeFastToHost(state.appearanceDraft);
           setToast(tr.appMediaPickedMsg, false);
           renderStructure();
         } else if (res && !res.canceled) {
@@ -4841,7 +5396,8 @@ function createStudioPanel(options) {
       state.appearanceDraft.wallpaper.mediaMime = "";
       state.appearanceDraft.wallpaper.type = "none";
       state.appearanceDirty = true;
-      if (state.appearanceLivePreview) applyThemeToHost(state.appearanceDraft);
+      state.appearanceLivePreview = true;
+      applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
@@ -4849,7 +5405,8 @@ function createStudioPanel(options) {
       const d = actionEl.getAttribute("data-val");
       state.appearanceDraft.typography.density = d === "compact" || d === "spacious" ? d : "comfortable";
       state.appearanceDirty = true;
-      if (state.appearanceLivePreview) applyThemeToHost(state.appearanceDraft);
+      state.appearanceLivePreview = true;
+      applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
@@ -4893,6 +5450,7 @@ function createStudioPanel(options) {
     if (action === "apply-appearance") {
       const toSave = spCloneAppearance(state.appearanceDraft);
       state.appearanceDirty = false;
+      state.appearanceLivePreview = state.isOpen && state.activeTab === "appearance";
       saveSettingsPatch({ appearance: toSave });
       setToast(tr.appAppliedMsg, false);
       return;
@@ -4900,8 +5458,8 @@ function createStudioPanel(options) {
     if (action === "discard-appearance") {
       state.appearanceDraft = spCloneAppearance(state.settings.appearance);
       state.appearanceDirty = false;
-      state.appearanceLivePreview = false;
-      applyThemeToHost(state.settings.appearance);
+      state.appearanceLivePreview = state.isOpen && state.activeTab === "appearance";
+      applyThemeFastToHost(state.settings.appearance);
       renderStructure();
       return;
     }
@@ -4909,7 +5467,7 @@ function createStudioPanel(options) {
       const def = spCloneAppearance(SP_FALLBACK_APPEARANCE);
       state.appearanceDraft = spCloneAppearance(def);
       state.appearanceDirty = false;
-      state.appearanceLivePreview = false;
+      state.appearanceLivePreview = state.isOpen && state.activeTab === "appearance";
       saveSettingsPatch({ appearance: def });
       setToast(tr.appResetMsg, false);
       return;
@@ -4973,11 +5531,11 @@ function createStudioPanel(options) {
     if (field === "accentColor" || field === "canvasBg" || field === "cardBg") {
       draft[field] = String(rawVal || "#09090b").toLowerCase();
       draft.presetId = "custom";
-    } else if (field === "glassOpacity" || field === "glassBlur" || field === "radius") {
+    } else if (field === "glassOpacity" || field === "glassBlur" || field === "radius" || field === "messageCardOpacity") {
       const n = Math.round(Number(rawVal) || 0);
       draft[field] = n;
       if (draft.presetId === "native") draft.presetId = "custom";
-      labelText = field === "glassOpacity" ? `${n}%` : `${n}px`;
+      labelText = (field === "glassOpacity" || field === "messageCardOpacity") ? `${n}%` : `${n}px`;
     } else if (field === "wallpaper.gradColor0" || field === "wallpaper.gradColor1" || field === "wallpaper.gradColor2") {
       const idx = parseInt(field.slice(-1), 10);
       draft.wallpaper.type = "gradient";
@@ -5015,15 +5573,11 @@ function createStudioPanel(options) {
     }
 
     state.appearanceDirty = true;
+    state.appearanceLivePreview = true;
     if (labelText !== null && modalMountEl) {
       setLiveSlot(modalMountEl, `[data-live-app-val="${field}"]`, labelText, false);
     }
-    if (modalMountEl) {
-      setLiveSlot(modalMountEl, '[data-live="appearancePreview"]', buildAppearancePreviewHtml(draft), true);
-    }
-    if (state.appearanceLivePreview) {
-      applyThemeToHost(draft);
-    }
+    applyThemeFastToHost(draft);
     return true;
   }
 
@@ -5139,7 +5693,60 @@ function createStudioPanel(options) {
         state.newPresetName = target.value || "";
       } else if (role === "newProfileInput") {
         state.newProfileName = target.value || "";
+      } else if (role === "liveEditInput") {
+        state.liveEditDraftText = target.value || "";
+        const canSend = Boolean(state.liveEditDraftText.trim() || (state.liveEditDraftImages && state.liveEditDraftImages.length > 0)) && !state.liveEditBusy;
+        const sendBtns = rootEl.querySelectorAll('[data-action="send-live-edit"]');
+        for (let b = 0; b < sendBtns.length; b += 1) {
+          sendBtns[b].disabled = !canSend;
+        }
       }
+    });
+    rootEl.addEventListener("keydown", (e) => {
+      const target = e ? e.target : null;
+      if (!target || typeof target.getAttribute !== "function") return;
+      if (target.getAttribute("data-role") === "liveEditInput" && e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.isComposing) {
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        sendLiveEditFromDraft();
+      }
+    });
+    rootEl.addEventListener("paste", (e) => {
+      if (!state.liveEditOpen && !(state.isOpen && state.activeTab === "live-edits")) return;
+      const cd = e && e.clipboardData;
+      const items = cd && cd.items ? cd.items : null;
+      if (!items || typeof items.length !== "number") return;
+      const files = [];
+      for (let i = 0; i < items.length; i += 1) {
+        const it = items[i];
+        if (it && typeof it.type === "string" && it.type.indexOf("image/") === 0 && typeof it.getAsFile === "function") {
+          const f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length === 0) return;
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      const ReaderCtor = win && typeof win.FileReader === "function" ? win.FileReader : (typeof FileReader === "function" ? FileReader : null);
+      if (!ReaderCtor) return;
+      files.forEach((file, idx) => {
+        if (!Array.isArray(state.liveEditDraftImages)) state.liveEditDraftImages = [];
+        if (state.liveEditDraftImages.length >= 4) return;
+        const reader = new ReaderCtor();
+        reader.onload = () => {
+          if (state.destroyed || typeof reader.result !== "string") return;
+          if (!Array.isArray(state.liveEditDraftImages)) state.liveEditDraftImages = [];
+          if (state.liveEditDraftImages.length >= 4) return;
+          const rawExt = file.type && file.type.split("/")[1] ? file.type.split("/")[1].replace(/[^a-z0-9]/gi, "") : "png";
+          state.liveEditDraftImages.push({
+            name: file.name || `clipboard-${Date.now()}-${idx + 1}.${rawExt || "png"}`,
+            sourcePath: "",
+            dataUrl: reader.result,
+            previewDataUrl: reader.result,
+          });
+          renderPopoverStructure();
+          if (state.isOpen && state.activeTab === "live-edits") renderStructure();
+        };
+        try { reader.readAsDataURL(file); } catch (_err) {}
+      });
     });
     rootEl.addEventListener("change", (e) => {
       const target = e ? e.target : null;
@@ -5171,8 +5778,12 @@ function createStudioPanel(options) {
     }
     if (doc && typeof doc.addEventListener === "function") {
       keydownHandler = (e) => {
-        if (e && e.key === "Escape" && state.isOpen) {
-          setOpen(false);
+        if (e && e.key === "Escape") {
+          if (state.isOpen) setOpen(false);
+          else if (state.liveEditOpen) {
+            state.liveEditOpen = false;
+            renderPopoverStructure();
+          }
         }
       };
       doc.addEventListener("keydown", keydownHandler, true);
@@ -5214,10 +5825,13 @@ function createStudioPanel(options) {
     rootEl.className = "studio-root";
     widgetMountEl = doc.createElement("div");
     widgetMountEl.className = "widget-wrap";
+    popoverMountEl = doc.createElement("div");
+    popoverMountEl.className = "popover-mount";
     modalMountEl = doc.createElement("div");
     modalMountEl.className = "modal-mount";
 
     rootEl.appendChild(widgetMountEl);
+    rootEl.appendChild(popoverMountEl);
     rootEl.appendChild(modalMountEl);
     shadowRoot.appendChild(styleEl);
     shadowRoot.appendChild(rootEl);
@@ -5226,6 +5840,7 @@ function createStudioPanel(options) {
     state.mounted = true;
     state.hydrationIgnoreUntil = nowHiRes() + 2500;
     renderStructure();
+    refreshLiveEdits();
     pollStream();
 
     if (win && typeof win.setInterval === "function") {
@@ -5346,11 +5961,23 @@ function createStudioPanel(options) {
 
   function setOpen(nextOpen) {
     const next = Boolean(nextOpen);
-    if (!next && state.appearanceLivePreview) {
+    if (!next && (state.appearanceLivePreview || state.activeTab === "appearance")) {
       state.appearanceLivePreview = false;
+      state.appearanceDraft = spCloneAppearance(state.settings.appearance);
+      state.appearanceDirty = false;
       applyThemeToHost(state.settings.appearance);
     }
     state.isOpen = next;
+    if (next && state.activeTab === "appearance") {
+      state.appearanceLivePreview = true;
+      if (!state.appearanceDirty) {
+        state.appearanceDraft = spCloneAppearance(state.settings.appearance);
+      }
+      applyThemeFastToHost(state.appearanceDraft);
+    }
+    if (next && state.activeTab === "live-edits") {
+      refreshLiveEdits();
+    }
     if (next && state.activeTab === "export") {
       invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
         if (!state.destroyed && qs) {
@@ -5364,6 +5991,30 @@ function createStudioPanel(options) {
 
   function toggleOpen() {
     setOpen(!state.isOpen);
+  }
+
+  function toggleLiveEditPopover() {
+    state.liveEditOpen = !state.liveEditOpen;
+    state.liveEditError = "";
+    renderPopoverStructure();
+    if (state.liveEditOpen) {
+      refreshLiveEdits();
+      if (win && typeof win.setTimeout === "function") {
+        win.setTimeout(() => {
+          try {
+            const inp = popoverMountEl && popoverMountEl.querySelector('[data-role="liveEditInput"]');
+            if (inp && typeof inp.focus === "function") inp.focus();
+          } catch (_e) {}
+        }, 20);
+      }
+    }
+  }
+
+  function applyLiveEditsUpdate(payload) {
+    applyLiveEditsPayload(payload);
+    renderPopoverStructure();
+    updateLiveDom();
+    if (state.isOpen && state.activeTab === "live-edits") renderStructure();
   }
 
   function setViewMode(mode) {
@@ -5434,6 +6085,7 @@ function createStudioPanel(options) {
     shadowRoot = null;
     rootEl = null;
     widgetMountEl = null;
+    popoverMountEl = null;
     modalMountEl = null;
   }
 
@@ -5442,6 +6094,8 @@ function createStudioPanel(options) {
     destroy,
     setOpen,
     toggleOpen,
+    toggleLiveEditPopover,
+    applyLiveEditsUpdate,
     setViewMode,
     setLocale,
     applyRemoteState,

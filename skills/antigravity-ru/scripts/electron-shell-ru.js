@@ -45,6 +45,10 @@ let ipcRegistered = false;
 let mediaProtocolRegistered = false;
 let lastHotkeyAt = 0;
 let lastPanelHotkeyAt = 0;
+let lastLiveEditHotkeyAt = 0;
+let liveEditWatcherTimer = null;
+let liveEditLastSig = "";
+let liveEditWatchUntil = 0;
 const listeners = new Set();
 let uiMaps = null;
 
@@ -90,6 +94,8 @@ const DEFAULT_APPEARANCE = {
   cardBg: "#131316",
   glassOpacity: 78,
   glassBlur: 12,
+  messageCardOpacity: 74,
+  highContrastText: true,
   radius: 12,
   wallpaper: {
     type: "none",
@@ -181,6 +187,8 @@ function sanitizeAppearance(raw) {
     cardBg: sanitizeHexColor(src.cardBg, DEFAULT_APPEARANCE.cardBg),
     glassOpacity: Math.round(clampNum(src.glassOpacity, 25, 100, DEFAULT_APPEARANCE.glassOpacity)),
     glassBlur: Math.round(clampNum(src.glassBlur, 0, 24, DEFAULT_APPEARANCE.glassBlur)),
+    messageCardOpacity: Math.round(clampNum(src.messageCardOpacity, 0, 96, DEFAULT_APPEARANCE.messageCardOpacity)),
+    highContrastText: src.highContrastText !== false,
     radius: Math.round(clampNum(src.radius, 4, 20, DEFAULT_APPEARANCE.radius)),
     wallpaper: {
       type: wpType,
@@ -1263,6 +1271,189 @@ function togglePanelFromHotkey(contents) {
   } catch {}
 }
 
+function toggleLiveEditFromHotkey(contents) {
+  const now = Date.now();
+  if (now - lastLiveEditHotkeyAt < 180) return;
+  lastLiveEditHotkeyAt = now;
+  try {
+    if (contents && !contents.isDestroyed()) {
+      contents.send("agy-studio:toggle-live-edit");
+    }
+  } catch {}
+}
+
+function getLiveEditsDir() {
+  return path.join(app.getPath("userData"), "studio_live_edits");
+}
+
+function getLiveEditsInboxPath() {
+  return path.join(getLiveEditsDir(), "inbox.json");
+}
+
+function getLiveEditsFlagPath() {
+  return path.join(getLiveEditsDir(), "pending.flag");
+}
+
+function getLiveEditsMediaDir() {
+  return path.join(getLiveEditsDir(), "media");
+}
+
+function sanitizeLiveEditStatus(raw) {
+  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (s === "delivered" || s === "applied" || s === "canceled") return s;
+  return "pending";
+}
+
+function loadLiveEditsInbox() {
+  const inboxPath = getLiveEditsInboxPath();
+  try {
+    if (fs.existsSync(inboxPath)) {
+      const parsed = JSON.parse(fs.readFileSync(inboxPath, "utf8"));
+      if (parsed && Array.isArray(parsed.items)) {
+        return {
+          version: 1,
+          items: parsed.items.filter((x) => x && typeof x === "object" && typeof x.id === "string").slice(-60),
+        };
+      }
+    }
+  } catch {}
+  return { version: 1, items: [] };
+}
+
+function saveLiveEditsInbox(inboxObj) {
+  const inboxPath = getLiveEditsInboxPath();
+  const flagPath = getLiveEditsFlagPath();
+  const normalized = {
+    version: 1,
+    items: Array.isArray(inboxObj && inboxObj.items) ? inboxObj.items.slice(-60) : [],
+  };
+  fs.mkdirSync(path.dirname(inboxPath), { recursive: true });
+  const tmpPath = inboxPath + ".tmp-" + process.pid;
+  fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2) + "\\n", "utf8");
+  try {
+    fs.renameSync(tmpPath, inboxPath);
+  } catch {
+    fs.writeFileSync(inboxPath, JSON.stringify(normalized, null, 2) + "\\n", "utf8");
+    try { fs.unlinkSync(tmpPath); } catch {}
+  }
+  const hasPending = normalized.items.some((x) => x && x.status === "pending");
+  try {
+    if (hasPending) {
+      fs.writeFileSync(flagPath, String(Date.now()), "utf8");
+    } else if (fs.existsSync(flagPath)) {
+      fs.unlinkSync(flagPath);
+    }
+  } catch {}
+  return normalized;
+}
+
+function filterLiveEditsForChat(inbox, chatKey) {
+  const norm = normalizeChatKey(chatKey);
+  const all = Array.isArray(inbox && inbox.items) ? inbox.items : [];
+  if (!norm || norm === "__new__") {
+    return all.filter((x) => x && (x.chatKey === "__new__" || x.fallbackAny)).slice(-20);
+  }
+  return all.filter((x) => {
+    if (!x) return false;
+    const xk = normalizeChatKey(x.chatKey);
+    const dk = normalizeChatKey(x.deliveredConversationId);
+    return xk === norm || dk === norm || (x.fallbackAny && x.status === "pending");
+  }).slice(-20);
+}
+
+function broadcastLiveEditsChanged(inboxObj) {
+  const payload = {
+    items: Array.isArray(inboxObj && inboxObj.items) ? inboxObj.items.slice(-30) : [],
+  };
+  try {
+    for (const wc of webContents.getAllWebContents()) {
+      if (wc && !wc.isDestroyed()) {
+        wc.send("agy-studio:live-edits-changed", payload);
+      }
+    }
+  } catch {}
+}
+
+function ensureLiveEditWatcher() {
+  liveEditWatchUntil = Math.max(liveEditWatchUntil, Date.now() + 180000);
+  if (liveEditWatcherTimer) return;
+  liveEditWatcherTimer = setInterval(() => {
+    try {
+      const inboxPath = getLiveEditsInboxPath();
+      let sig = "";
+      if (fs.existsSync(inboxPath)) {
+        const st = fs.statSync(inboxPath);
+        sig = st.mtimeMs + ":" + st.size;
+      }
+      const inbox = loadLiveEditsInbox();
+      const hasPending = inbox.items.some((x) => x && x.status === "pending");
+      if (sig && sig !== liveEditLastSig) {
+        liveEditLastSig = sig;
+        broadcastLiveEditsChanged(inbox);
+      }
+      if (!hasPending && Date.now() > liveEditWatchUntil) {
+        clearInterval(liveEditWatcherTimer);
+        liveEditWatcherTimer = null;
+      }
+    } catch {}
+  }, 1100);
+}
+
+function saveLiveEditImagePayload(imgObj, idx) {
+  if (!imgObj || typeof imgObj !== "object") return null;
+  const maxBytes = 15 * 1024 * 1024;
+  const mediaDir = getLiveEditsMediaDir();
+  fs.mkdirSync(mediaDir, { recursive: true });
+  const extFromMime = (mime) => {
+    const m = String(mime || "").toLowerCase();
+    if (m.includes("jpeg") || m.includes("jpg")) return ".jpg";
+    if (m.includes("webp")) return ".webp";
+    if (m.includes("gif")) return ".gif";
+    return ".png";
+  };
+
+  if (typeof imgObj.sourcePath === "string" && imgObj.sourcePath.trim()) {
+    const src = imgObj.sourcePath.trim();
+    if (!fs.existsSync(src)) return null;
+    const ext = path.extname(src).toLowerCase();
+    if (![".png", ".jpg", ".jpeg", ".webp", ".gif"].includes(ext)) return null;
+    const st = fs.statSync(src);
+    if (!st.isFile() || st.size <= 0 || st.size > maxBytes) return null;
+    const destName = "le-" + Date.now() + "-" + idx + ext;
+    const destPath = path.join(mediaDir, destName);
+    fs.copyFileSync(src, destPath);
+    return {
+      name: typeof imgObj.name === "string" && imgObj.name ? imgObj.name.slice(0, 64) : path.basename(src),
+      mime: STUDIO_MEDIA_MIMES[ext] || "image/png",
+      path: destPath,
+      sizeBytes: st.size,
+    };
+  }
+
+  if (typeof imgObj.dataUrl === "string" && imgObj.dataUrl.startsWith("data:image/")) {
+    const commaIdx = imgObj.dataUrl.indexOf(",");
+    if (commaIdx <= 0) return null;
+    const header = imgObj.dataUrl.slice(0, commaIdx);
+    const b64 = imgObj.dataUrl.slice(commaIdx + 1);
+    const mimeMatch = /^data:(image\\/[a-z0-9+.-]+);base64$/i.exec(header);
+    if (!mimeMatch) return null;
+    const buf = Buffer.from(b64, "base64");
+    if (!buf || buf.length === 0 || buf.length > maxBytes) return null;
+    const mime = mimeMatch[1].toLowerCase();
+    const ext = extFromMime(mime);
+    const destName = "le-" + Date.now() + "-" + idx + ext;
+    const destPath = path.join(mediaDir, destName);
+    fs.writeFileSync(destPath, buf);
+    return {
+      name: typeof imgObj.name === "string" && imgObj.name ? imgObj.name.slice(0, 64) : ("screenshot" + ext),
+      mime,
+      path: destPath,
+      sizeBytes: buf.length,
+    };
+  }
+  return null;
+}
+
 function normalizeUiPunct(str) {
   return String(str)
     .replace(/[\\u2018\\u2019]/g, "'")
@@ -1736,7 +1927,7 @@ function registerI18nIpc() {
         includeArtifacts: p.includeArtifacts !== false,
         includePersona: p.includePersona !== false,
         includeFullLog: Boolean(p.includeFullLog),
-        pluginVersion: (meta && meta.pluginVersion) || "3.0.2",
+        pluginVersion: (meta && meta.pluginVersion) || "3.1.0",
         outPath,
       });
       return res;
@@ -1893,6 +2084,110 @@ function registerI18nIpc() {
     saveStudioChats(chats);
     return { ok: true, summary: buildQuotaSummary(p.chatKey) };
   });
+  ipcMain.handle("agy-studio:get-live-edits", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const inbox = loadLiveEditsInbox();
+    const key = normalizeChatKey(p.chatKey);
+    return {
+      ok: true,
+      chatKey: key,
+      items: filterLiveEditsForChat(inbox, key),
+      allItems: inbox.items.slice(-30),
+    };
+  });
+  ipcMain.handle("agy-studio:send-live-edit", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey);
+    const text = typeof p.text === "string" ? p.text.trim().slice(0, 8000) : "";
+    const rawImgs = Array.isArray(p.images) ? p.images.slice(0, 4) : [];
+    const savedImgs = [];
+    for (let i = 0; i < rawImgs.length; i += 1) {
+      const saved = saveLiveEditImagePayload(rawImgs[i], i);
+      if (saved) savedImgs.push(saved);
+    }
+    if (!text && savedImgs.length === 0) {
+      return { ok: false, error: "EMPTY_LIVE_EDIT" };
+    }
+    const now = Date.now();
+    const editId = "le-" + now + "-" + Math.random().toString(36).slice(2, 7);
+    const entry = {
+      id: editId,
+      chatKey: key,
+      title: typeof p.title === "string" ? p.title.trim().slice(0, 80) : "",
+      text,
+      images: savedImgs,
+      status: "pending",
+      fallbackAny: Boolean(p.fallbackAny || key === "__new__" || key.startsWith("chat-")),
+      createdAt: now,
+      deliveredAt: 0,
+      agentReply: "",
+    };
+    const inbox = loadLiveEditsInbox();
+    inbox.items.push(entry);
+    const savedInbox = saveLiveEditsInbox(inbox);
+    ensureLiveEditWatcher();
+    broadcastLiveEditsChanged(savedInbox);
+    return {
+      ok: true,
+      entry,
+      items: filterLiveEditsForChat(savedInbox, key),
+      allItems: savedInbox.items.slice(-30),
+    };
+  });
+  ipcMain.handle("agy-studio:pick-live-edit-images", async () => {
+    if (!dialog || typeof dialog.showOpenDialog !== "function") {
+      return { ok: false, error: "DIALOG_UNAVAILABLE" };
+    }
+    const parentWin = getFocusedOrFirstWindow();
+    const res = await dialog.showOpenDialog(parentWin, {
+      title: tr("Выберите фото для живой правки", "Select images for live edit"),
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }],
+    });
+    if (!res || res.canceled || !Array.isArray(res.filePaths) || res.filePaths.length === 0) {
+      return { ok: false, canceled: true };
+    }
+    const items = [];
+    for (let i = 0; i < Math.min(res.filePaths.length, 4); i += 1) {
+      const fp = res.filePaths[i];
+      try {
+        const ext = path.extname(fp).toLowerCase();
+        const st = fs.statSync(fp);
+        if (!st.isFile() || st.size <= 0 || st.size > 15 * 1024 * 1024) continue;
+        const mime = STUDIO_MEDIA_MIMES[ext] || "image/png";
+        let previewDataUrl = "";
+        if (st.size <= 4 * 1024 * 1024) {
+          previewDataUrl = "data:" + mime + ";base64," + fs.readFileSync(fp).toString("base64");
+        }
+        items.push({
+          name: path.basename(fp),
+          sourcePath: fp,
+          mime,
+          sizeBytes: st.size,
+          previewDataUrl,
+        });
+      } catch {}
+    }
+    return { ok: items.length > 0, items };
+  });
+  ipcMain.handle("agy-studio:clear-live-edits", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey);
+    const inbox = loadLiveEditsInbox();
+    if (!p.chatKey || key === "__new__" && p.all === true) {
+      inbox.items = [];
+    } else {
+      inbox.items = inbox.items.filter((x) => {
+        if (!x) return false;
+        const xk = normalizeChatKey(x.chatKey);
+        const dk = normalizeChatKey(x.deliveredConversationId);
+        return xk !== key && dk !== key;
+      });
+    }
+    const savedInbox = saveLiveEditsInbox(inbox);
+    broadcastLiveEditsChanged(savedInbox);
+    return { ok: true, items: filterLiveEditsForChat(savedInbox, key), allItems: savedInbox.items.slice(-30) };
+  });
 }
 
 exports.getLocale = getLocale;
@@ -1900,6 +2195,7 @@ exports.setLocale = setLocale;
 exports.toggleLocale = toggleLocale;
 exports.toggleLocaleFromHotkey = toggleLocaleFromHotkey;
 exports.togglePanelFromHotkey = togglePanelFromHotkey;
+exports.toggleLiveEditFromHotkey = toggleLiveEditFromHotkey;
 exports.isRu = isRu;
 exports.tr = tr;
 exports.ruPlural = ruPlural;
@@ -1984,6 +2280,14 @@ function patchMainJs(src, stampVersion, warnings) {
                 (input.code === 'KeyP' || (input.key && input.key.toLowerCase() === 'p'))) {
                 event.preventDefault();
                 i18nMain_1.togglePanelFromHotkey(contents);
+            } else if (input.type === 'keyDown' &&
+                (input.control || input.meta) &&
+                input.alt &&
+                !input.shift &&
+                !input.isAutoRepeat &&
+                (input.code === 'KeyE' || (input.key && input.key.toLowerCase() === 'e'))) {
+                event.preventDefault();
+                i18nMain_1.toggleLiveEditFromHotkey(contents);
             }
         });
     }`,

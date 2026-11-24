@@ -158,6 +158,8 @@ const DEFAULT_APPEARANCE = {
   cardBg: "#131316",
   glassOpacity: 78,
   glassBlur: 12,
+  messageCardOpacity: 74,
+  highContrastText: true,
   radius: 12,
   wallpaper: {
     type: "none",
@@ -312,6 +314,8 @@ function normalizeAppearance(raw) {
     cardBg: teValidHex(src.cardBg, DEFAULT_APPEARANCE.cardBg),
     glassOpacity: Math.round(teClamp(src.glassOpacity, 25, 100, DEFAULT_APPEARANCE.glassOpacity)),
     glassBlur: Math.round(teClamp(src.glassBlur, 0, 24, DEFAULT_APPEARANCE.glassBlur)),
+    messageCardOpacity: Math.round(teClamp(src.messageCardOpacity, 0, 96, DEFAULT_APPEARANCE.messageCardOpacity)),
+    highContrastText: src.highContrastText !== false,
     radius: Math.round(teClamp(src.radius, 4, 20, DEFAULT_APPEARANCE.radius)),
     wallpaper: {
       type: wpType,
@@ -452,6 +456,70 @@ html, body {
       ? teHexToRgba(vars.cardBg, Math.min(98, Math.max(92, vars.glassOpacity + 14)))
       : "rgba(22, 22, 28, 0.96)";
     const blurPx = cfg.glassBlur;
+    const msgAlpha = Math.round(teClamp(cfg.messageCardOpacity, 0, 96, 74));
+    const agentSurfaceBg = msgAlpha <= 0
+      ? "transparent"
+      : (hasThemeOverride
+          ? (isLight
+              ? teHexToRgba("#ffffff", Math.min(96, msgAlpha + 8))
+              : teHexToRgba(vars.cardBg, msgAlpha))
+          : `rgba(12, 13, 18, ${msgAlpha / 100})`);
+    const userSurfaceBg = msgAlpha <= 0
+      ? surfaceBg
+      : (hasThemeOverride
+          ? (isLight
+              ? teHexToRgba("#ffffff", Math.min(96, msgAlpha + 12))
+              : teHexToRgba(vars.cardBg, Math.min(96, msgAlpha + 6)))
+          : `rgba(18, 20, 28, ${Math.min(96, msgAlpha + 6) / 100})`);
+    const msgBorderCol = isLight ? "rgba(15, 23, 42, 0.12)" : "rgba(255, 255, 255, 0.10)";
+    const msgBlurCss = msgAlpha > 0 && blurPx > 0
+      ? `backdrop-filter: blur(${blurPx}px); -webkit-backdrop-filter: blur(${blurPx}px);`
+      : "";
+    const msgShadowCss = msgAlpha > 0
+      ? (isLight ? "box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);" : "box-shadow: 0 4px 24px rgba(0, 0, 0, 0.32);")
+      : "";
+    const msgContrastCss = cfg.highContrastText !== false
+      ? (isLight
+          ? `
+[data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root] {
+  color: #111216 !important;
+  --foreground: #111216;
+  --muted-foreground: #3f4452;
+}
+[data-testid="agent-response"] a, [data-markdown-root] a {
+  color: #1d4ed8 !important;
+}
+[data-testid="agent-response"] code:not(pre code), [data-markdown-root] code:not(pre code) {
+  background-color: rgba(15, 23, 42, 0.09) !important;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+[data-testid="agent-response"] pre, [data-markdown-root] pre {
+  background-color: rgba(244, 245, 248, 0.92) !important;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}`
+          : `
+[data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root] {
+  color: #f4f5f8 !important;
+  --foreground: #f4f5f8;
+  --muted-foreground: #c4c8d4;
+}
+[data-testid="agent-response"] a, [data-markdown-root] a {
+  color: #7cb3ff !important;
+}
+[data-testid="agent-response"] code:not(pre code), [data-markdown-root] code:not(pre code) {
+  background-color: rgba(8, 9, 14, 0.62) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f8fafc !important;
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+[data-testid="agent-response"] pre, [data-markdown-root] pre {
+  background-color: rgba(10, 11, 16, 0.88) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}`)
+      : "";
     const fallbackBg = hasThemeOverride ? vars.canvasBg : "#09090b";
 
     chunks.push(`
@@ -494,16 +562,26 @@ main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="to
 .bg-black:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]) {
   background-color: transparent !important;
 }
-[data-testid="agent-response"], [data-testid="user-message-content"] {
-  border-radius: ${vars.radius}px;
+[data-testid="agent-response"] {
+  background-color: ${agentSurfaceBg} !important;
+  border: ${msgAlpha > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
+  border-radius: ${vars.radius}px !important;
+  ${msgAlpha > 0 ? "padding: 14px 18px !important;" : ""}
+  ${msgShadowCss}
+  ${msgBlurCss}
+  ${msgAlpha <= 0 && cfg.highContrastText !== false ? `text-shadow: ${isLight ? "0 1px 2px rgba(255,255,255,0.85)" : "0 1px 3px rgba(0,0,0,0.85)"};` : ""}
 }
 [data-testid="user-message-content"] {
-  background-color: ${surfaceBg};
+  background-color: ${userSurfaceBg} !important;
+  border: 1px solid ${msgBorderCol} !important;
+  border-radius: ${vars.radius}px !important;
+  ${msgShadowCss}
   backdrop-filter: blur(${blurPx}px);
   -webkit-backdrop-filter: blur(${blurPx}px);
 }
+${msgContrastCss}
 form:has(textarea), [data-testid="composer"], .composer-container {
-  background-color: ${surfaceBg} !important;
+  background-color: ${userSurfaceBg} !important;
   border-radius: ${vars.radius}px;
 }
 [role="dialog"],
@@ -618,6 +696,9 @@ function createThemeEngine(options = {}) {
   let shellObserver = null;
   let shellResizeHandler = null;
   let wallpaperActive = false;
+  let lastCssText = "";
+  let pendingFastConfig = null;
+  let fastRafId = 0;
 
   const SHELL_ATTRS = ["data-agy-ru-bg-shell", "data-agy-ru-bg-sidebar", "data-agy-ru-bg-header"];
   const SHELL_SKIP_TAGS = new Set(["PRE", "CODE", "BUTTON", "INPUT", "TEXTAREA", "FORM", "SVG", "IMG", "VIDEO", "CANVAS", "SCRIPT", "STYLE"]);
@@ -924,8 +1005,10 @@ function createThemeEngine(options = {}) {
   function applyWallpaper(cfg) {
     const wp = cfg.wallpaper;
     if (wp.type === "none") {
-      wallpaperActive = false;
-      clearWallpaperShells();
+      if (wallpaperActive) {
+        wallpaperActive = false;
+        clearWallpaperShells();
+      }
       removeBgLayer();
       return;
     }
@@ -934,14 +1017,19 @@ function createThemeEngine(options = {}) {
       ? ((resolveMediaUrl ? resolveMediaUrl(wp.mediaFile, rawMediaUrl) : "") || rawMediaUrl)
       : "";
     if ((wp.type === "image" || wp.type === "video") && !resolvedSrc) {
-      wallpaperActive = false;
-      clearWallpaperShells();
+      if (wallpaperActive) {
+        wallpaperActive = false;
+        clearWallpaperShells();
+      }
       removeBgLayer();
       return;
     }
 
+    const wasActive = wallpaperActive;
     wallpaperActive = true;
-    ensureShellWatchers();
+    if (!wasActive) {
+      ensureShellWatchers();
+    }
 
     const layer = ensureBgLayer();
     if (!layer) return;
@@ -1057,18 +1145,52 @@ function createThemeEngine(options = {}) {
     ensureScrim(layer, Math.round(wp.dim * 0.55));
   }
 
-  function apply(rawAppearance) {
+  function applySync(rawAppearance) {
     currentConfig = normalizeAppearance(rawAppearance);
     if (isAppearanceNativeDefault(currentConfig)) {
-      wallpaperActive = false;
-      clearWallpaperShells();
+      if (wallpaperActive) {
+        wallpaperActive = false;
+        clearWallpaperShells();
+      }
+      lastCssText = "";
       removeStyleNode();
       removeBgLayer();
       return currentConfig;
     }
     const cssText = buildThemeCss(currentConfig);
-    ensureStyleNode(cssText);
+    if (cssText !== lastCssText) {
+      lastCssText = cssText;
+      ensureStyleNode(cssText);
+    }
     applyWallpaper(currentConfig);
+    return currentConfig;
+  }
+
+  function apply(rawAppearance) {
+    pendingFastConfig = null;
+    if (fastRafId && win && typeof win.cancelAnimationFrame === "function") {
+      try { win.cancelAnimationFrame(fastRafId); } catch (_e) {}
+      fastRafId = 0;
+    }
+    return applySync(rawAppearance);
+  }
+
+  function applyFast(rawAppearance) {
+    pendingFastConfig = rawAppearance;
+    if (!win || typeof win.requestAnimationFrame !== "function") {
+      const cfgToApply = pendingFastConfig;
+      pendingFastConfig = null;
+      return applySync(cfgToApply);
+    }
+    if (fastRafId) return currentConfig;
+    fastRafId = win.requestAnimationFrame(() => {
+      fastRafId = 0;
+      if (pendingFastConfig !== null) {
+        const nextCfg = pendingFastConfig;
+        pendingFastConfig = null;
+        applySync(nextCfg);
+      }
+    });
     return currentConfig;
   }
 
@@ -1135,12 +1257,19 @@ function createThemeEngine(options = {}) {
 
   return {
     apply,
+    applyFast,
     buildPreviewMarkup,
     scanWallpaperShells,
     clearWallpaperShells,
     getCurrent: () => normalizeAppearance(currentConfig),
     destroy: () => {
+      pendingFastConfig = null;
+      if (fastRafId && win && typeof win.cancelAnimationFrame === "function") {
+        try { win.cancelAnimationFrame(fastRafId); } catch (_e) {}
+        fastRafId = 0;
+      }
       wallpaperActive = false;
+      lastCssText = "";
       clearWallpaperShells();
       removeStyleNode();
       removeBgLayer();

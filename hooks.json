@@ -1,0 +1,18 @@
+{
+  "antigravity-ru-live-edits": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "node ./skills/antigravity-ru/scripts/live-edits-hook.js",
+        "timeout": 5
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node ./skills/antigravity-ru/scripts/live-edits-hook.js",
+        "timeout": 5
+      }
+    ]
+  }
+}
