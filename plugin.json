@@ -2,8 +2,8 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "antigravity-ru",
   "displayName": "Antigravity RU",
-  "version": "2.4.0",
-  "description": "Полная русификация Antigravity 2.0 + виджет Studio (динамический TPS, характер и статистика отдельно для каждого чата, Мини/Средний виджет).",
+  "version": "2.5.0",
+  "description": "Полная русификация Antigravity 2.0 + виджет Studio (точный TPS, строгий характер по чатам, отложенный запуск, нативный дизайн).",
   "logo": "assets/logo.svg",
   "author": {
     "name": "Ivan0967pro",

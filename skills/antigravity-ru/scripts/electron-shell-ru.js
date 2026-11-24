@@ -47,7 +47,7 @@ let lastPanelHotkeyAt = 0;
 const listeners = new Set();
 let uiMaps = null;
 
-const MAX_PERSONA_BODY_BYTES = 23500;
+const MAX_PERSONA_BODY_BYTES = 23000;
 const DEFAULT_MINI_FIELDS = {
   status: true,
   lang: true,
@@ -195,6 +195,8 @@ function defaultChatTelemetry() {
   return {
     lastAvgTps: 0,
     peakTps: 0,
+    lastDurSec: 0,
+    lastThinkingSec: 0,
     respTokens: 0,
     chatTokens: 0,
     modelName: "",
@@ -218,6 +220,10 @@ function toNonNegInt(val) {
   return typeof val === "number" && Number.isFinite(val) && val > 0 ? Math.round(val) : 0;
 }
 
+function toNonNegFloat(val) {
+  return typeof val === "number" && Number.isFinite(val) && val > 0 ? Math.round(val * 100) / 100 : 0;
+}
+
 function sanitizeChatTelemetry(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const samples = Array.isArray(src.samples)
@@ -230,6 +236,7 @@ function sanitizeChatTelemetry(raw) {
         .map((h) => ({
           model: typeof h.model === "string" ? h.model.slice(0, 60) : "",
           tokens: toNonNegInt(h.tokens),
+          durSec: toNonNegFloat(h.durSec),
           avgTps: toNonNegInt(h.avgTps),
           peakTps: toNonNegInt(h.peakTps),
           at: typeof h.at === "string" ? h.at.slice(0, 20) : "",
@@ -238,6 +245,8 @@ function sanitizeChatTelemetry(raw) {
   return {
     lastAvgTps: toNonNegInt(src.lastAvgTps),
     peakTps: toNonNegInt(src.peakTps),
+    lastDurSec: toNonNegFloat(src.lastDurSec),
+    lastThinkingSec: toNonNegFloat(src.lastThinkingSec),
     respTokens: toNonNegInt(src.respTokens),
     chatTokens: toNonNegInt(src.chatTokens),
     modelName: typeof src.modelName === "string" ? src.modelName.slice(0, 60) : "",
@@ -301,6 +310,26 @@ function stripRuleFrontmatter(md) {
   return String(md || "").replace(/^---\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n*/, "");
 }
 
+function formatPersonaRuleContent(trimmed, usePlugin) {
+  const header = usePlugin ? "" : "---\\ntrigger: always_on\\n---\\n\\n";
+  const body = [
+    "# Active Chat Persona & Response Rules (Antigravity Studio)",
+    "",
+    "Follow the user-defined persona, tone, voice, and formatting instructions strictly and consistently in EVERY user-facing response in this chat (including after tool calls, planning hand-offs, and multi-step execution), while keeping technical facts, code, and paths accurate:",
+    "",
+    "<user_persona>",
+    trimmed,
+    "</user_persona>",
+    "",
+    "## Enforcement Rules",
+    "- Apply the defined persona and style from the first sentence to the last in every reply.",
+    "- Never revert to a generic neutral voice after running tools or subagents.",
+    "- Keep all code, commands, file paths, and verified facts accurate while writing all user-facing prose strictly in the defined persona.",
+    "",
+  ].join("\\n");
+  return header + body;
+}
+
 function syncPersonaRuleFile(enabled, text) {
   const usePlugin = isPluginInstalled();
   const rulePath = usePlugin ? getPluginPersonaRulePath() : getLegacyPersonaRulePath();
@@ -325,9 +354,7 @@ function syncPersonaRuleFile(enabled, text) {
   if (bodyBytes > MAX_PERSONA_BODY_BYTES) {
     return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: "EXCEEDS_BYTE_LIMIT", rulePath };
   }
-  const content = usePlugin
-    ? trimmed + "\\n"
-    : "---\\ntrigger: always_on\\n---\\n\\n" + trimmed + "\\n";
+  const content = formatPersonaRuleContent(trimmed, usePlugin);
   try {
     fs.mkdirSync(path.dirname(rulePath), { recursive: true });
     fs.writeFileSync(rulePath, content, "utf8");

@@ -1,74 +1,8 @@
 "use strict";
 
-const BUILTIN_PERSONA_PRESETS = [
-  {
-    id: "concise",
-    titleRu: "Лаконичный профи",
-    titleEn: "Concise Pro",
-    descRu: "Короткие ответы по сути, без воды и лишних вступлений",
-    descEn: "Short, direct answers with no filler",
-    body: [
-      "# Стиль ответа",
-      "- Отвечай максимально сжато и по делу, сразу к коду и решению.",
-      "- Не повторяй вопрос пользователя и не пиши длинных вступлений.",
-      "- Если есть несколько вариантов, назови лучший и кратко обоснуй.",
-    ].join("\n"),
-  },
-  {
-    id: "architect",
-    titleRu: "Сеньор-архитектор",
-    titleEn: "Senior Architect",
-    descRu: "Структурный разбор, крайние случаи, надёжность и чистота кода",
-    descEn: "Design rigor, edge cases, and clean structure",
-    body: [
-      "# Инженерный стандарт",
-      "- Перед правками оценивай влияние на архитектуру и сопутствующие модули.",
-      "- Явно фиксируй допущения, граничные случаи и потенциальные риски.",
-      "- Предпочитай простые, поддерживаемые решения без дублирования логики.",
-    ].join("\n"),
-  },
-  {
-    id: "mentor",
-    titleRu: "Наставник",
-    titleEn: "Mentor",
-    descRu: "Понятные пошаговые объяснения, чтобы быстро разобраться в теме",
-    descEn: "Clear step-by-step explanations and takeaways",
-    body: [
-      "# Формат наставника",
-      "- Объясняй ключевые шаги простым и понятным языком с примерами.",
-      "- Поясняй не только что меняется, но и почему выбран такой подход.",
-      "- В конце давай краткую сводку, что важно запомнить.",
-    ].join("\n"),
-  },
-  {
-    id: "strict-ru",
-    titleRu: "Строгий RU",
-    titleEn: "Strict Russian",
-    descRu: "Вся коммуникация на чистом русском, код и символы в оригинале",
-    descEn: "Russian explanations with exact code identifiers",
-    body: [
-      "# Языковой режим",
-      "- Всегда отвечай на грамотном, естественном русском языке.",
-      "- Имена файлов, функций, переменных, команд CLI и пути оставляй в точном оригинале.",
-      "- Не переводи англоязычные термины неестественными кальками, если в разработке принят оригинал.",
-    ].join("\n"),
-  },
-  {
-    id: "qa",
-    titleRu: "Критик и ревьюер",
-    titleEn: "Strict Reviewer",
-    descRu: "Поиск багов, регрессий, слабых мест и обязательная проверка фактов",
-    descEn: "Find bugs, regressions, and verify every claim",
-    body: [
-      "# Фокус на проверке",
-      "- Относись к любому решению скептически: ищи регрессии, утечки и ошибки обработки сбоев.",
-      "- Проверяй крайние состояния, права доступа, таймауты и пустые входные данные.",
-      "- Отделяй подтверждённые тестами факты от предположений.",
-    ].join("\n"),
-  },
-];
+const BUILTIN_PERSONA_PRESETS = [];
 
-const MAX_PERSONA_BODY_BYTES = 23500;
+const MAX_PERSONA_BODY_BYTES = 23000;
 const DOCK_POSITIONS = ["bottom-right", "top-right", "middle-right", "bottom-left", "hidden"];
 const MINI_FIELD_KEYS = ["status", "lang", "tps", "respTokens", "chatTokens", "model"];
 const DEFAULT_MINI_FIELDS = {
@@ -103,6 +37,7 @@ const TEXT = {
   ru: {
     brandTitle: "Antigravity Studio",
     brandSub: "Панель управления и телеметрия",
+    sidebarSectionStudio: "Студия",
     modalTitleMonitor: "Монитор генерации",
     modalSubMonitor: "Живая оценка скорости (TPS) и расхода токенов в активном чате",
     modalTitleWidget: "Виджет на экране",
@@ -130,6 +65,7 @@ const TEXT = {
     kpiChat: "Объём чата",
     tpsUnit: "TPS",
     avgPrefix: "ср.",
+    secUnit: "с",
     chatScopeNew: "Новый чат · по умолчанию",
     chatScopeNamed: "Чат:",
     chatScopeHint: "Характер и статистика TPS сохраняются отдельно для этого чата; новые чаты начинаются с чистого листа.",
@@ -183,23 +119,24 @@ const TEXT = {
     personaMasterDesc: "Применяется только в текущем чате (при переходе в другой или новый чат переключается автоматически)",
     personaActiveTag: "Правило активно",
     personaOffTag: "Отключено",
-    personaPresetsLabel: "Готовые пресеты и ваши шаблоны",
-    personaCustomLabel: "Свой",
-    personaEditorLabel: "Текст инструкции (Markdown)",
+    personaPresetsLabel: "Мои шаблоны",
+    personaCustomLabel: "Сохранённый шаблон",
+    personaEditorLabel: "Инструкция характера (Markdown)",
+    personaEditorPlaceholder: "Например: Отвечай как опытный тимлид, кратко, сразу к коду и без лишних вступлений...",
     personaBytes: "байт",
-    personaSavePresetPlaceholder: "Название нового пресета...",
-    personaAddPresetBtn: "Сохранить пресет",
-    personaApplyBtn: "Применить и сохранить",
+    personaSavePresetPlaceholder: "Название нового шаблона...",
+    personaAddPresetBtn: "Сохранить шаблон",
+    personaApplyBtn: "Применить для этого чата",
     personaClearBtn: "Очистить",
     personaRulePathLabel: "Файл правила:",
     personaSavedMsg: "Применено · правило активно (со следующего сообщения)",
     personaDisabledMsg: "Характер отключён (текст сохранён)",
-    personaEmptyWarn: "Сначала введите текст инструкции или выберите пресет",
+    personaEmptyWarn: "Сначала введите текст инструкции",
     personaWriteErr: "Не удалось записать файл правила",
-    personaTooLargeErr: "Превышен лимит размера правила (23 500 байт)",
+    personaTooLargeErr: "Превышен лимит размера правила (23 000 байт)",
     personaClearedMsg: "Инструкция очищена",
-    personaDeletedPreset: "Пресет удалён",
-    personaLimitWarn: "Близко к лимиту правила (23 500 байт)",
+    personaDeletedPreset: "Шаблон удалён",
+    personaLimitWarn: "Близко к лимиту правила (23 000 байт)",
     langCardsTitle: "Язык интерфейса Antigravity",
     langRuTitle: "Русский (RU)",
     langRuDesc: "Полный перевод меню, диалогов, панелей и настроек",
@@ -240,6 +177,7 @@ const TEXT = {
   en: {
     brandTitle: "Antigravity Studio",
     brandSub: "Control center & live telemetry",
+    sidebarSectionStudio: "Studio",
     modalTitleMonitor: "Generation Monitor",
     modalSubMonitor: "Live token throughput (TPS) and context size estimation",
     modalTitleWidget: "Floating Widget",
@@ -267,6 +205,7 @@ const TEXT = {
     kpiChat: "Chat context",
     tpsUnit: "TPS",
     avgPrefix: "avg",
+    secUnit: "s",
     chatScopeNew: "New chat · default",
     chatScopeNamed: "Chat:",
     chatScopeHint: "Persona and TPS stats are stored per chat; every new chat starts clean at default.",
@@ -320,23 +259,24 @@ const TEXT = {
     personaMasterDesc: "Active only in this chat (switches automatically when changing chats or opening a new chat)",
     personaActiveTag: "Rule active",
     personaOffTag: "Disabled",
-    personaPresetsLabel: "Built-in & saved presets",
-    personaCustomLabel: "Custom",
-    personaEditorLabel: "Instruction body (Markdown)",
+    personaPresetsLabel: "My templates",
+    personaCustomLabel: "Saved template",
+    personaEditorLabel: "Persona instruction (Markdown)",
+    personaEditorPlaceholder: "Example: Answer like a concise senior engineer, straight to the solution...",
     personaBytes: "bytes",
-    personaSavePresetPlaceholder: "New preset name...",
-    personaAddPresetBtn: "Save preset",
-    personaApplyBtn: "Save & Apply",
+    personaSavePresetPlaceholder: "New template name...",
+    personaAddPresetBtn: "Save template",
+    personaApplyBtn: "Apply to this chat",
     personaClearBtn: "Clear",
     personaRulePathLabel: "Rule file:",
     personaSavedMsg: "Applied · rule active (from next message)",
     personaDisabledMsg: "Persona disabled (draft kept)",
-    personaEmptyWarn: "Enter an instruction or select a preset first",
+    personaEmptyWarn: "Enter a persona instruction first",
     personaWriteErr: "Failed to write rule file",
-    personaTooLargeErr: "Rule size exceeds 23,500 bytes limit",
+    personaTooLargeErr: "Rule size exceeds 23,000 bytes limit",
     personaClearedMsg: "Cleared",
-    personaDeletedPreset: "Preset removed",
-    personaLimitWarn: "Approaching rule size cap (23,500 bytes)",
+    personaDeletedPreset: "Template removed",
+    personaLimitWarn: "Approaching rule size cap (23,000 bytes)",
     langCardsTitle: "Antigravity Interface Language",
     langRuTitle: "Русский (RU)",
     langRuDesc: "Complete Russian localization for menus, dialogs, and workspace",
@@ -376,7 +316,7 @@ const TEXT = {
   },
 };
 
-function estimateTokens(text) {
+function estimateTokensFloat(text) {
   if (!text || typeof text !== "string") return 0;
   const trimmed = text.trim();
   if (!trimmed) return 0;
@@ -385,7 +325,12 @@ function estimateTokens(text) {
     if (trimmed.charCodeAt(i) > 127) nonAscii += 1;
   }
   const ascii = trimmed.length - nonAscii;
-  return Math.max(1, Math.round(ascii / 3.5 + nonAscii / 2.1));
+  return ascii / 3.5 + nonAscii / 2.1;
+}
+
+function estimateTokens(text) {
+  const f = estimateTokensFloat(text);
+  return f > 0 ? Math.max(1, Math.round(f)) : 0;
 }
 
 function escHtml(str) {
@@ -531,6 +476,8 @@ function createEmptyTelemetry() {
     currentTps: 0,
     lastAvgTps: 0,
     peakTps: 0,
+    lastDurSec: 0,
+    lastThinkingSec: 0,
     respTokens: 0,
     chatTokens: 0,
     contextLabel: "",
@@ -538,11 +485,12 @@ function createEmptyTelemetry() {
     samples: [],
     history: [],
     turnStartMs: 0,
-    firstTokenMs: 0,
-    turnStartTokens: 0,
-    prevTokens: 0,
-    prevSampleMs: 0,
+    firstGrowthAt: 0,
     lastGrowthAt: 0,
+    preTokenAt: 0,
+    activeStreamMs: 0,
+    turnStartFloatTok: 0,
+    prevFloatTok: 0,
     activeRespEl: null,
     prevRespCount: 0,
     prevUserCount: 0,
@@ -591,49 +539,55 @@ function buildStyles() {
       all: initial;
       --st-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
       --st-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
-      --st-bg: var(--background, #101010);
-      --st-sidebar: var(--sidebar, #151515);
-      --st-card: var(--card, #18181a);
-      --st-card-hover: #222327;
-      --st-glass: rgba(20, 20, 23, 0.84);
-      --st-glass-strong: rgba(16, 16, 19, 0.94);
+      --st-bg: var(--background, #0c0c0e);
+      --st-sidebar: var(--sidebar, #131316);
+      --st-nav-active: #222328;
+      --st-nav-hover: rgba(255, 255, 255, 0.05);
+      --st-card: var(--card, #161619);
+      --st-card-hover: #1e1f24;
+      --st-glass: rgba(20, 20, 24, 0.86);
+      --st-glass-strong: rgba(16, 16, 20, 0.94);
       --st-fg: var(--foreground, #d4d4d8);
-      --st-fg-strong: #f4f4f5;
-      --st-muted: var(--muted-foreground, #8b8d94);
-      --st-border: rgba(255, 255, 255, 0.09);
-      --st-border-strong: rgba(255, 255, 255, 0.16);
-      --st-accent: var(--primary, #007acc);
-      --st-accent-soft: rgba(0, 122, 204, 0.16);
-      --st-accent-border: rgba(0, 122, 204, 0.45);
-      --st-success: var(--success, #7aae66);
-      --st-success-soft: rgba(122, 174, 102, 0.15);
+      --st-fg-strong: #f4f4f6;
+      --st-muted: var(--muted-foreground, #8b8e98);
+      --st-border: rgba(255, 255, 255, 0.075);
+      --st-border-strong: rgba(255, 255, 255, 0.14);
+      --st-accent: var(--primary, #2563eb);
+      --st-accent-hover: #3b82f6;
+      --st-accent-soft: rgba(37, 99, 235, 0.16);
+      --st-accent-border: rgba(37, 99, 235, 0.44);
+      --st-success: var(--success, #6db875);
+      --st-success-soft: rgba(109, 184, 117, 0.14);
       --st-warning: var(--warning, #e8975f);
-      --st-error: var(--error, #de5555);
-      --st-shadow: 0 12px 32px rgba(0, 0, 0, 0.48), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-      --st-modal-shadow: 0 28px 80px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      --st-error: var(--error, #e05d5d);
+      --st-shadow: 0 12px 34px rgba(0, 0, 0, 0.52), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+      --st-modal-shadow: 0 30px 90px rgba(0, 0, 0, 0.78), 0 0 0 1px rgba(255, 255, 255, 0.07);
       font-family: var(--st-font);
       color-scheme: dark;
     }
 
     .studio-root[data-theme="light"] {
-      --st-bg: #f6f7f9;
+      --st-bg: #f7f8fa;
       --st-sidebar: #eef0f4;
+      --st-nav-active: #ffffff;
+      --st-nav-hover: rgba(15, 23, 42, 0.05);
       --st-card: #ffffff;
       --st-card-hover: #f2f4f8;
-      --st-glass: rgba(255, 255, 255, 0.86);
+      --st-glass: rgba(255, 255, 255, 0.88);
       --st-glass-strong: rgba(255, 255, 255, 0.96);
       --st-fg: #27272a;
       --st-fg-strong: #09090b;
       --st-muted: #646973;
-      --st-border: rgba(15, 23, 42, 0.10);
-      --st-border-strong: rgba(15, 23, 42, 0.18);
-      --st-accent: #006bb3;
-      --st-accent-soft: rgba(0, 107, 179, 0.12);
-      --st-accent-border: rgba(0, 107, 179, 0.42);
-      --st-success: #2f7d32;
-      --st-success-soft: rgba(47, 125, 50, 0.12);
-      --st-shadow: 0 10px 28px rgba(15, 23, 42, 0.16), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
-      --st-modal-shadow: 0 26px 70px rgba(15, 23, 42, 0.24), 0 0 0 1px rgba(15, 23, 42, 0.10);
+      --st-border: rgba(15, 23, 42, 0.09);
+      --st-border-strong: rgba(15, 23, 42, 0.16);
+      --st-accent: #2563eb;
+      --st-accent-hover: #1d4ed8;
+      --st-accent-soft: rgba(37, 99, 235, 0.11);
+      --st-accent-border: rgba(37, 99, 235, 0.40);
+      --st-success: #2e7d32;
+      --st-success-soft: rgba(46, 125, 50, 0.12);
+      --st-shadow: 0 10px 28px rgba(15, 23, 42, 0.15), 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+      --st-modal-shadow: 0 28px 76px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.09);
       color-scheme: light;
     }
 
@@ -650,7 +604,7 @@ function buildStyles() {
       transition: opacity 0.16s ease, transform 0.16s ease;
     }
     .widget-wrap.is-hidden { display: none; }
-    .widget-wrap.is-dragging { transition: none !important; opacity: 0.96; }
+    .widget-wrap.is-dragging { transition: none !important; opacity: 0.97; }
 
     .widget-wrap.dock-bottom-right { right: 18px; bottom: 18px; }
     .widget-wrap.dock-top-right { right: 18px; top: 52px; }
@@ -666,22 +620,28 @@ function buildStyles() {
     .widget-wrap.is-dragging .med-card,
     .widget-wrap.is-dragging .med-header { cursor: grabbing !important; }
 
+    @keyframes agyWidgetIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     .mini-pill {
       display: inline-flex;
       align-items: center;
-      height: 34px;
+      height: 32px;
       gap: 6px;
-      padding: 4px 5px 4px 8px;
+      padding: 3px 5px 3px 8px;
       border-radius: 999px;
       background: var(--st-glass);
-      backdrop-filter: blur(18px) saturate(150%);
-      -webkit-backdrop-filter: blur(18px) saturate(150%);
+      backdrop-filter: blur(22px) saturate(150%);
+      -webkit-backdrop-filter: blur(22px) saturate(150%);
       border: 1px solid var(--st-border-strong);
       box-shadow: var(--st-shadow);
       color: var(--st-fg);
       font-size: 12px;
       line-height: 1;
       max-width: calc(100vw - 24px);
+      animation: agyWidgetIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .drag-grip {
@@ -814,15 +774,16 @@ function buildStyles() {
 
     /* Medium Card */
     .med-card {
-      width: 286px;
+      width: 292px;
       border-radius: 12px;
       background: var(--st-glass-strong);
-      backdrop-filter: blur(20px) saturate(155%);
-      -webkit-backdrop-filter: blur(20px) saturate(155%);
+      backdrop-filter: blur(22px) saturate(155%);
+      -webkit-backdrop-filter: blur(22px) saturate(155%);
       border: 1px solid var(--st-border-strong);
       box-shadow: var(--st-shadow);
       color: var(--st-fg);
       overflow: hidden;
+      animation: agyWidgetIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .med-header {
       display: flex;
@@ -953,9 +914,13 @@ function buildStyles() {
       from { opacity: 0; }
       to { opacity: 1; }
     }
+    @keyframes agyModalIn {
+      from { opacity: 0; transform: scale(0.985) translateY(4px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
     .modal-shell {
-      width: min(800px, calc(100vw - 32px));
-      height: min(580px, calc(100vh - 36px));
+      width: min(860px, calc(100vw - 40px));
+      height: min(620px, calc(100vh - 44px));
       border-radius: 12px;
       background: var(--st-bg);
       color: var(--st-fg);
@@ -965,28 +930,35 @@ function buildStyles() {
       overflow: hidden;
       border: 1px solid var(--st-border-strong);
       -webkit-font-smoothing: antialiased;
+      animation: agyModalIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     /* Sidebar */
     .modal-sidebar {
-      width: 214px;
+      width: 222px;
       flex-shrink: 0;
       background: var(--st-sidebar);
       border-right: 1px solid var(--st-border);
       display: flex;
       flex-direction: column;
-      padding: 16px 10px 12px;
+      padding: 16px 12px 14px;
+    }
+    .sidebar-section-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--st-muted);
+      padding: 2px 10px 8px;
     }
     .sidebar-brand {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      padding: 4px 8px 14px;
+      padding: 4px 10px 10px;
     }
     .brand-title {
       font-size: 13.5px;
-      font-weight: 700;
+      font-weight: 600;
       color: var(--st-fg-strong);
       letter-spacing: -0.01em;
     }
@@ -1002,7 +974,7 @@ function buildStyles() {
     .nav-list {
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 2px;
       flex: 1;
     }
     .nav-item {
@@ -1012,23 +984,22 @@ function buildStyles() {
       width: 100%;
       padding: 8px 10px;
       border-radius: 8px;
-      border: 1px solid transparent;
+      border: none;
       background: transparent;
-      color: var(--st-fg);
+      color: var(--st-muted);
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
       text-align: left;
-      transition: background 0.13s ease, color 0.13s ease, border-color 0.13s ease;
+      transition: background 0.13s ease, color 0.13s ease;
     }
     .nav-item:hover {
-      background: var(--st-card-hover);
+      background: var(--st-nav-hover);
       color: var(--st-fg-strong);
     }
     .nav-item.is-active {
-      background: var(--st-card);
+      background: var(--st-nav-active);
       color: var(--st-fg-strong);
-      border-color: var(--st-border-strong);
       font-weight: 600;
     }
     .nav-item .nav-ic {
@@ -1135,11 +1106,10 @@ function buildStyles() {
     /* Cards & Groups */
     .section-group { display: flex; flex-direction: column; gap: 8px; }
     .section-label {
-      font-size: 11.5px;
+      font-size: 13px;
       font-weight: 600;
-      color: var(--st-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      color: var(--st-fg-strong);
+      letter-spacing: -0.005em;
     }
     .card {
       background: var(--st-card);
@@ -1153,7 +1123,7 @@ function buildStyles() {
       align-items: center;
       justify-content: space-between;
       gap: 14px;
-      padding: 11px 15px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--st-border);
     }
     .row-item:last-child { border-bottom: none; }
@@ -1164,10 +1134,10 @@ function buildStyles() {
     /* Antigravity Native Switch */
     .switch {
       position: relative;
-      width: 36px;
-      height: 20px;
+      width: 38px;
+      height: 21px;
       border-radius: 999px;
-      background: rgba(128, 134, 145, 0.35);
+      background: rgba(128, 134, 145, 0.34);
       border: 1px solid var(--st-border-strong);
       cursor: pointer;
       flex-shrink: 0;
@@ -1178,18 +1148,18 @@ function buildStyles() {
       position: absolute;
       top: 2px;
       left: 2px;
-      width: 14px;
-      height: 14px;
+      width: 15px;
+      height: 15px;
       border-radius: 50%;
       background: #ffffff;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-      transition: transform 0.16s ease;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.38);
+      transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
     }
     .switch.is-on {
       background: var(--st-accent);
       border-color: var(--st-accent);
     }
-    .switch.is-on .switch-thumb { transform: translateX(16px); }
+    .switch.is-on .switch-thumb { transform: translateX(17px); }
 
     /* Buttons */
     .btn {
@@ -1395,17 +1365,18 @@ function buildStyles() {
 
     .editor-box {
       width: 100%;
-      min-height: 110px;
+      min-height: 205px;
       resize: vertical;
-      padding: 11px 13px;
+      padding: 12px 14px;
       border-radius: 9px;
       border: 1px solid var(--st-border-strong);
       background: var(--st-sidebar);
       color: var(--st-fg-strong);
       font-family: var(--st-mono);
       font-size: 12.5px;
-      line-height: 1.5;
+      line-height: 1.55;
       outline: none;
+      transition: border-color 0.14s ease;
     }
     .editor-box:focus { border-color: var(--st-accent); }
     .editor-meta-row {
@@ -1516,10 +1487,11 @@ function createStudioPanel(options) {
   const ipc = opts.ipcRenderer || null;
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "2.4.0", dictEntries: 4017, dynamicRulesCount: 471 };
+    : { version: "2.5.0", dictEntries: 4017, dynamicRulesCount: 471 };
 
   const state = {
     initialized: false,
+    mounted: false,
     destroyed: false,
     locale: opts.initialLocale === "en" ? "en" : "ru",
     isOpen: false,
@@ -1565,7 +1537,10 @@ function createStudioPanel(options) {
   let widgetMountEl = null;
   let modalMountEl = null;
   let pollTimer = null;
-  let throttleTimer = null;
+  let repaintTimer = null;
+  let readyTimer = null;
+  let settleTimer = null;
+  let readyObserver = null;
   let domObserver = null;
   let themeObserver = null;
   let toastTimer = null;
@@ -1574,6 +1549,40 @@ function createStudioPanel(options) {
   let dragState = null;
   let lastBodyClickAt = 0;
   let lastDragEndedAt = 0;
+
+  function nowHiRes() {
+    try {
+      if (win && win.performance && typeof win.performance.now === "function") {
+        return win.performance.now();
+      }
+      if (typeof performance !== "undefined" && typeof performance.now === "function") {
+        return performance.now();
+      }
+    } catch (_e) {}
+    return Date.now();
+  }
+
+  function isRealHttpPage() {
+    try {
+      return Boolean(win && win.location && typeof win.location.protocol === "string" && /^https?:$/i.test(win.location.protocol));
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function isAntigravityUiReady() {
+    if (!doc || typeof doc.querySelector !== "function") return true;
+    if (!isRealHttpPage()) return true;
+    try {
+      if (doc.querySelector('[data-testid="model-selector-trigger"], [data-testid="user-message-content"], [data-testid="agent-response"]')) {
+        return true;
+      }
+      if (doc.querySelector('textarea, [contenteditable="true"]') && doc.querySelector("nav, aside")) {
+        return true;
+      }
+    } catch (_e) {}
+    return false;
+  }
 
   function t() {
     return TEXT[state.locale] || TEXT.ru;
@@ -1702,6 +1711,8 @@ function createStudioPanel(options) {
     return {
       lastAvgTps: Math.max(0, Math.round(Number(tel.lastAvgTps) || 0)),
       peakTps: Math.max(0, Math.round(Number(tel.peakTps) || 0)),
+      lastDurSec: typeof tel.lastDurSec === "number" && Number.isFinite(tel.lastDurSec) && tel.lastDurSec > 0 ? Math.round(tel.lastDurSec * 100) / 100 : 0,
+      lastThinkingSec: typeof tel.lastThinkingSec === "number" && Number.isFinite(tel.lastThinkingSec) && tel.lastThinkingSec > 0 ? Math.round(tel.lastThinkingSec * 100) / 100 : 0,
       respTokens: Math.max(0, Math.round(Number(tel.respTokens) || 0)),
       chatTokens: Math.max(0, Math.round(Number(tel.chatTokens) || 0)),
       modelName: String(tel.modelName || "").slice(0, 60),
@@ -1810,7 +1821,7 @@ function createStudioPanel(options) {
 
   function collectDomTelemetry() {
     if (!doc || typeof doc.querySelectorAll !== "function") {
-      return { isGenerating: false, isThinking: false, respTokens: 0, chatTokens: 0, userMsgCount: 0, respCount: 0, lastResp: null, firstUserNorm: "", modelName: "", contextLabel: "" };
+      return { isGenerating: false, isThinking: false, thinkingSec: 0, respFloatTok: 0, respTokens: 0, chatTokens: 0, userMsgCount: 0, respCount: 0, lastResp: null, firstUserNorm: "", modelName: "", contextLabel: "" };
     }
     try {
       const responses = doc.querySelectorAll('[data-testid="agent-response"]');
@@ -1848,6 +1859,13 @@ function createStudioPanel(options) {
       }
 
       const visibleRespText = lastResp ? extractVisibleText(lastResp) : "";
+      const respFloatTok = estimateTokensFloat(visibleRespText);
+      const respTokens = respFloatTok > 0 ? Math.max(1, Math.round(respFloatTok)) : 0;
+      let thinkingSec = 0;
+      if (lastResp && lastResp.textContent) {
+        const tm = /(?:Thought|Thinking|Думал|Думает)[^0-9]{0,12}(\d+(?:[.,]\d+)?)\s*(?:s|с)/i.exec(lastResp.textContent);
+        if (tm) thinkingSec = parseFloat(tm[1].replace(",", ".")) || 0;
+      }
       let chatTokens = 0;
       if (userMsgs) {
         for (let i = 0; i < userMsgs.length; i += 1) {
@@ -1863,7 +1881,9 @@ function createStudioPanel(options) {
       return {
         isGenerating,
         isThinking,
-        respTokens: estimateTokens(visibleRespText),
+        thinkingSec,
+        respFloatTok,
+        respTokens,
         chatTokens,
         userMsgCount,
         respCount,
@@ -1873,7 +1893,7 @@ function createStudioPanel(options) {
         contextLabel: detectContextLabel(),
       };
     } catch (_e) {
-      return { isGenerating: false, isThinking: false, respTokens: 0, chatTokens: 0, userMsgCount: 0, respCount: 0, lastResp: null, firstUserNorm: "", modelName: "", contextLabel: "" };
+      return { isGenerating: false, isThinking: false, thinkingSec: 0, respFloatTok: 0, respTokens: 0, chatTokens: 0, userMsgCount: 0, respCount: 0, lastResp: null, firstUserNorm: "", modelName: "", contextLabel: "" };
     }
   }
 
@@ -1916,8 +1936,8 @@ function createStudioPanel(options) {
         telemetry: serializeChatTelemetry(tel),
       };
       if (!snap.isGenerating && !tel.isGenerating && snap.respCount >= 1 && tel.prevRespCount === 0) {
-        tel.prevTokens = snap.respTokens;
-        tel.turnStartTokens = snap.respTokens;
+        tel.prevFloatTok = snap.respFloatTok;
+        tel.turnStartFloatTok = snap.respFloatTok;
       }
       state.newChatDraftPersona = null;
     } else {
@@ -1925,9 +1945,9 @@ function createStudioPanel(options) {
       const freshTel = createEmptyTelemetry();
       freshTel.respTokens = snap.respTokens;
       freshTel.chatTokens = snap.chatTokens;
-      freshTel.prevTokens = snap.respTokens;
-      freshTel.turnStartTokens = snap.respTokens;
-      freshTel.prevSampleMs = Date.now();
+      freshTel.prevFloatTok = snap.respFloatTok;
+      freshTel.turnStartFloatTok = snap.respFloatTok;
+      freshTel.preTokenAt = nowHiRes();
       freshTel.activeRespEl = snap.lastResp;
       freshTel.prevRespCount = snap.respCount;
       freshTel.prevUserCount = snap.userMsgCount;
@@ -1971,6 +1991,8 @@ function createStudioPanel(options) {
       if (rt && !curTel.isGenerating && !curTel.wasGenerating && (rt.lastAvgTps > 0 || rt.peakTps > 0 || (Array.isArray(rt.history) && rt.history.length > 0))) {
         curTel.lastAvgTps = rt.lastAvgTps || 0;
         curTel.peakTps = rt.peakTps || 0;
+        curTel.lastDurSec = rt.lastDurSec || 0;
+        curTel.lastThinkingSec = rt.lastThinkingSec || 0;
         if (!curTel.modelName && rt.modelName) curTel.modelName = rt.modelName;
         if (Array.isArray(rt.samples) && rt.samples.length > 0) curTel.samples = rt.samples.slice(-24);
         if (Array.isArray(rt.history) && rt.history.length > 0) curTel.history = rt.history.slice(0, 8);
@@ -1982,9 +2004,55 @@ function createStudioPanel(options) {
     return { switched: true, promoted: isPromotion };
   }
 
-  function pollStream() {
+  function finalizeTurn(tel, snap, hiNow) {
+    const gainedFloat = Math.max(0, snap.respFloatTok - tel.turnStartFloatTok);
+    if (gainedFloat >= 1.5) {
+      let durMs = 0;
+      if (tel.activeStreamMs > 40) {
+        const initSlice = tel.preTokenAt > 0 && tel.firstGrowthAt > tel.preTokenAt
+          ? Math.min(200, Math.max(60, tel.firstGrowthAt - tel.preTokenAt))
+          : 90;
+        durMs = tel.activeStreamMs + initSlice;
+      } else if (tel.preTokenAt > 0 && tel.lastGrowthAt > tel.preTokenAt) {
+        durMs = Math.min(400, Math.max(85, tel.lastGrowthAt - tel.preTokenAt));
+      } else {
+        durMs = 120;
+      }
+      const durSec = Math.max(0.08, durMs / 1000);
+      const avgTps = Math.min(999, Math.max(1, Math.round(gainedFloat / durSec)));
+      tel.lastAvgTps = avgTps;
+      tel.lastDurSec = Number(durSec.toFixed(2));
+      tel.lastThinkingSec = snap.thinkingSec || (tel.firstGrowthAt > tel.turnStartMs ? Number(((tel.firstGrowthAt - tel.turnStartMs) / 1000).toFixed(2)) : 0);
+      tel.peakTps = Math.max(tel.peakTps, avgTps);
+      if (state.settings.trackHistory !== false) {
+        tel.history.unshift({
+          model: tel.modelName || t().modelUnknown,
+          tokens: Math.max(1, Math.round(gainedFloat)),
+          durSec: tel.lastDurSec,
+          avgTps,
+          peakTps: tel.peakTps,
+          at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        });
+        if (tel.history.length > 8) tel.history.length = 8;
+        if (state.isOpen && state.activeTab === "monitor") {
+          updateHistoryDom();
+        }
+      }
+      tel.dirty = true;
+    }
+    tel.currentTps = 0;
+    tel.tpsBuckets = [];
+    tel.phase = "idle";
+    tel.lastGrowthAt = 0;
+    tel.firstGrowthAt = 0;
+    tel.activeStreamMs = 0;
+    tel.preTokenAt = hiNow;
+    tel.prevFloatTok = snap.respFloatTok;
+  }
+
+  function sampleStreamTick() {
     if (state.destroyed) return;
-    const now = Date.now();
+    const hiNow = nowHiRes();
     const snap = collectDomTelemetry();
     const detected = detectChatIdentity(snap);
     const sw = switchChatIfNeeded(detected, snap);
@@ -1996,148 +2064,151 @@ function createStudioPanel(options) {
 
     if (!sw.switched) {
       const sameConvGrowth = snap.userMsgCount <= tel.prevUserCount + 1;
-      const newRespAppeared = Boolean(snap.lastResp && tel.activeRespEl && snap.lastResp !== tel.activeRespEl);
+      const newRespAppeared = Boolean(
+        snap.lastResp &&
+        tel.activeRespEl &&
+        snap.lastResp !== tel.activeRespEl &&
+        (snap.respCount !== tel.prevRespCount || snap.respFloatTok + 2 < tel.prevFloatTok)
+      );
       if (newRespAppeared) {
         if (tel.wasGenerating) {
-          const prevGained = Math.max(0, tel.respTokens - tel.turnStartTokens);
-          if (prevGained >= 2) {
-            const durSec = Math.max(0.25, (now - (tel.firstTokenMs || tel.turnStartMs || now)) / 1000);
-            const avgTps = Math.round(prevGained / durSec);
-            tel.lastAvgTps = avgTps;
-            tel.peakTps = Math.max(tel.peakTps, avgTps);
-            if (state.settings.trackHistory !== false) {
-              tel.history.unshift({
-                model: tel.modelName || t().modelUnknown,
-                tokens: prevGained,
-                avgTps,
-                peakTps: Math.max(tel.peakTps, avgTps),
-                at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-              });
-              if (tel.history.length > 8) tel.history.length = 8;
-            }
-            tel.dirty = true;
+          finalizeTurn(tel, Object.assign({}, snap, { respFloatTok: tel.prevFloatTok }), hiNow);
+          if (tel.dirty && state.activeChatKey !== "__new__") {
+            flushChatTelemetry(state.activeChatKey, state.activeChatTitle, tel);
           }
         }
         tel.activeRespEl = snap.lastResp;
-        tel.turnStartTokens = 0;
-        tel.prevTokens = 0;
-        tel.firstTokenMs = 0;
-        tel.turnStartMs = now;
+        tel.turnStartFloatTok = 0;
+        tel.prevFloatTok = 0;
+        tel.firstGrowthAt = 0;
+        tel.lastGrowthAt = 0;
+        tel.preTokenAt = hiNow;
+        tel.activeStreamMs = 0;
+        tel.turnStartMs = hiNow;
         tel.tpsBuckets = [];
         tel.currentTps = 0;
-      } else if (!tel.activeRespEl && snap.lastResp) {
+      } else if (snap.lastResp) {
         tel.activeRespEl = snap.lastResp;
       }
 
-      const rawDelta = snap.respTokens - tel.prevTokens;
-      const deltaTok = rawDelta > 0 ? rawDelta : 0;
-      if (sameConvGrowth && deltaTok > 0) {
-        tel.lastGrowthAt = now;
+      const rawDeltaFloat = snap.respFloatTok - tel.prevFloatTok;
+      const deltaFloat = sameConvGrowth && rawDeltaFloat > 0 ? rawDeltaFloat : 0;
+      let seedMs = 120;
+
+      if (deltaFloat > 0) {
+        if (!tel.firstGrowthAt) {
+          tel.firstGrowthAt = hiNow;
+          tel.activeStreamMs = 0;
+          seedMs = tel.preTokenAt > 0 ? Math.min(260, Math.max(40, hiNow - tel.preTokenAt)) : 120;
+        } else if (tel.lastGrowthAt > 0) {
+          const gap = hiNow - tel.lastGrowthAt;
+          if (gap > 0 && gap <= 650) {
+            tel.activeStreamMs += gap;
+          }
+        }
+        tel.lastGrowthAt = hiNow;
+      } else if (!tel.firstGrowthAt) {
+        tel.preTokenAt = hiNow;
       }
-      const recentlyGrew = tel.lastGrowthAt > 0 && (now - tel.lastGrowthAt) <= 1200;
+
+      const idleSinceGrowth = tel.lastGrowthAt > 0 ? (hiNow - tel.lastGrowthAt) : Infinity;
+      const graceMs = snap.isGenerating ? 900 : 240;
+      const recentlyGrew = tel.lastGrowthAt > 0 && idleSinceGrowth <= graceMs;
       const effectiveGenerating = Boolean(snap.isGenerating || recentlyGrew);
 
       if (effectiveGenerating && !tel.wasGenerating) {
-        tel.turnStartMs = now;
-        tel.turnStartTokens = newRespAppeared ? 0 : tel.prevTokens;
-        tel.firstTokenMs = deltaTok > 0 ? now : 0;
-        tel.prevSampleMs = now;
+        tel.turnStartMs = hiNow;
+        tel.turnStartFloatTok = newRespAppeared ? 0 : tel.prevFloatTok;
         tel.tpsBuckets = [];
         tel.peakTps = 0;
         tel.currentTps = 0;
       }
 
       if (effectiveGenerating) {
-        if (!tel.firstTokenMs && snap.respTokens > tel.turnStartTokens) {
-          tel.firstTokenMs = now;
-        }
-        if (deltaTok > 0) {
-          tel.tpsBuckets.push({ t: now, d: deltaTok });
-        }
-        tel.tpsBuckets = tel.tpsBuckets.filter((b) => now - b.t <= 1800);
-        let sumD = 0;
-        for (let i = 0; i < tel.tpsBuckets.length; i += 1) sumD += tel.tpsBuckets[i].d;
-        const oldest = tel.tpsBuckets.length > 0 ? tel.tpsBuckets[0].t : now;
-        const spanSec = Math.max(0.25, (now - oldest + 200) / 1000);
-        const rawTps = sumD / spanSec;
-        const smoothed = tel.currentTps > 0
-          ? Math.round(tel.currentTps * 0.35 + rawTps * 0.65)
-          : Math.round(rawTps);
-        tel.currentTps = Math.max(0, smoothed);
-        const gainedTotal = Math.max(0, snap.respTokens - tel.turnStartTokens);
-        if (gainedTotal >= 2 && tel.currentTps > tel.peakTps) {
-          tel.peakTps = tel.currentTps;
-        }
-        if (deltaTok > 0 || tel.currentTps > 0) {
-          tel.samples.push(tel.currentTps);
-          if (tel.samples.length > 24) tel.samples.shift();
-          tel.dirty = true;
-        }
-        tel.phase = tel.firstTokenMs ? "streaming" : "thinking";
-        tel.prevTokens = snap.respTokens;
-        tel.prevSampleMs = now;
-      } else if (tel.wasGenerating) {
-        const gainedTotal = Math.max(0, snap.respTokens - tel.turnStartTokens);
-        if (gainedTotal >= 2) {
-          const baseMs = tel.firstTokenMs || tel.turnStartMs || now;
-          const durSec = Math.max(0.25, (now - baseMs) / 1000);
-          const avgTps = Math.round(gainedTotal / durSec);
-          tel.lastAvgTps = avgTps;
-          tel.peakTps = Math.max(tel.peakTps, avgTps);
-          if (state.settings.trackHistory !== false) {
-            tel.history.unshift({
-              model: tel.modelName || t().modelUnknown,
-              tokens: gainedTotal,
-              avgTps,
-              peakTps: Math.max(tel.peakTps, avgTps),
-              at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            });
-            if (tel.history.length > 8) tel.history.length = 8;
-            if (state.isOpen && state.activeTab === "monitor") {
-              updateHistoryDom();
-            }
+        if (deltaFloat > 0) {
+          tel.tpsBuckets.push({ t: hiNow, d: deltaFloat });
+          tel.tpsBuckets = tel.tpsBuckets.filter((b) => hiNow - b.t <= 1400);
+          let sumD = 0;
+          for (let i = 0; i < tel.tpsBuckets.length; i += 1) sumD += tel.tpsBuckets[i].d;
+          const winSpanMs = tel.tpsBuckets.length >= 2 ? (hiNow - tel.tpsBuckets[0].t) : 0;
+          const rawTps = winSpanMs >= 60
+            ? (sumD / Math.max(0.08, winSpanMs / 1000))
+            : (deltaFloat / Math.max(0.08, seedMs / 1000));
+          const clampedRaw = Math.min(999, Math.max(0, rawTps));
+          const smoothed = tel.currentTps > 0
+            ? Math.round(tel.currentTps * 0.30 + clampedRaw * 0.70)
+            : Math.round(clampedRaw);
+          tel.currentTps = Math.min(999, Math.max(0, smoothed));
+          const gainedFloat = Math.max(0, snap.respFloatTok - tel.turnStartFloatTok);
+          if (gainedFloat >= 1.5 && tel.currentTps > tel.peakTps) {
+            tel.peakTps = tel.currentTps;
+          }
+          if (tel.currentTps > 0) {
+            tel.samples.push(tel.currentTps);
+            if (tel.samples.length > 24) tel.samples.shift();
           }
           tel.dirty = true;
         }
-        tel.currentTps = 0;
-        tel.tpsBuckets = [];
-        tel.phase = "idle";
-        tel.lastGrowthAt = 0;
-        tel.prevTokens = snap.respTokens;
+        tel.phase = (tel.firstGrowthAt && idleSinceGrowth <= 650) ? "streaming" : "thinking";
+        tel.prevFloatTok = snap.respFloatTok;
+      } else if (tel.wasGenerating) {
+        finalizeTurn(tel, snap, hiNow);
         if (tel.dirty && state.activeChatKey !== "__new__") {
           flushChatTelemetry(state.activeChatKey, state.activeChatTitle, tel);
         }
       } else {
         tel.phase = "idle";
-        tel.prevTokens = snap.respTokens;
+        tel.prevFloatTok = snap.respFloatTok;
       }
 
       tel.isGenerating = effectiveGenerating;
       tel.wasGenerating = effectiveGenerating;
-    } else if (sw.promoted && (snap.isGenerating || snap.respTokens > tel.prevTokens)) {
-      const gained = Math.max(0, snap.respTokens - tel.prevTokens);
+    } else if (sw.promoted && (snap.isGenerating || snap.respFloatTok > tel.prevFloatTok)) {
+      const gained = Math.max(0, snap.respFloatTok - tel.prevFloatTok);
       if (gained > 0) {
-        tel.lastGrowthAt = now;
-        if (!tel.firstTokenMs) tel.firstTokenMs = now;
-        if (!tel.turnStartMs) tel.turnStartMs = now;
-        tel.tpsBuckets.push({ t: now, d: gained });
-        const rawTps = Math.round(gained / 0.25);
+        const seedMs = tel.preTokenAt > 0 ? Math.min(260, Math.max(40, hiNow - tel.preTokenAt)) : 120;
+        tel.lastGrowthAt = hiNow;
+        if (!tel.firstGrowthAt) tel.firstGrowthAt = hiNow;
+        if (!tel.turnStartMs) tel.turnStartMs = hiNow;
+        tel.tpsBuckets.push({ t: hiNow, d: gained });
+        const rawTps = Math.min(999, Math.round(gained / Math.max(0.08, seedMs / 1000)));
         tel.currentTps = rawTps;
-        if (snap.respTokens >= 2) tel.peakTps = Math.max(tel.peakTps, rawTps);
-        tel.samples.push(rawTps);
-        if (tel.samples.length > 24) tel.samples.shift();
+        if (snap.respFloatTok >= 1.5) tel.peakTps = Math.max(tel.peakTps, rawTps);
+        if (rawTps > 0) {
+          tel.samples.push(rawTps);
+          if (tel.samples.length > 24) tel.samples.shift();
+        }
         tel.dirty = true;
+      } else {
+        tel.preTokenAt = hiNow;
+        if (!tel.turnStartMs) tel.turnStartMs = hiNow;
       }
-      tel.prevTokens = snap.respTokens;
+      tel.prevFloatTok = snap.respFloatTok;
       tel.isGenerating = Boolean(snap.isGenerating || gained > 0);
       tel.wasGenerating = tel.isGenerating;
-      tel.phase = tel.isGenerating ? (tel.firstTokenMs ? "streaming" : "thinking") : "idle";
+      tel.phase = tel.isGenerating ? (tel.firstGrowthAt ? "streaming" : "thinking") : "idle";
     }
 
     tel.prevRespCount = snap.respCount;
     tel.prevUserCount = snap.userMsgCount;
     tel.respTokens = snap.respTokens;
+  }
 
+  function scheduleRepaint() {
+    if (state.destroyed || !state.mounted) return;
+    if (repaintTimer || !win || typeof win.setTimeout !== "function") {
+      if (!repaintTimer) updateLiveDom();
+      return;
+    }
+    repaintTimer = win.setTimeout(() => {
+      repaintTimer = null;
+      if (!state.destroyed && state.mounted) updateLiveDom();
+    }, 75);
+  }
+
+  function pollStream() {
+    if (state.destroyed) return;
+    sampleStreamTick();
     updateLiveDom();
   }
 
@@ -2350,13 +2421,16 @@ function createStudioPanel(options) {
     if (list.length === 0) {
       return `<div class="card-pad" style="font-size:12.5px;color:var(--st-muted)">${escHtml(tr.historyEmpty)}</div>`;
     }
-    return list.map((item) => `
+    return list.map((item) => {
+      const durPart = item.durSec ? ` · ${item.durSec}${escHtml(tr.secUnit)}` : "";
+      return `
       <div class="history-row">
         <span class="history-model">${escHtml(item.model)}</span>
-        <span class="history-meta num">${escHtml(item.at)} · ~${formatCompact(item.tokens)} ${escHtml(tr.tokShort)}</span>
+        <span class="history-meta num">${escHtml(item.at)}${durPart} · ~${formatCompact(item.tokens)} ${escHtml(tr.tokShort)}</span>
         <span class="history-tps num">${item.avgTps} TPS (${escHtml(tr.peakLabel)} ${item.peakTps})</span>
       </div>
-    `).join("");
+    `;
+    }).join("");
   }
 
   function renderWidgetTab() {
@@ -2459,6 +2533,7 @@ function createStudioPanel(options) {
     const s = state.settings;
     const cp = state.chatPersona;
     const bytes = utf8ByteLength(state.draftPersonaText);
+    const estTok = estimateTokens(state.draftPersonaText);
     const overWarn = bytes >= 20000;
     const customs = s.customPresets || [];
 
@@ -2487,19 +2562,25 @@ function createStudioPanel(options) {
       </div>
 
       <div class="section-group">
+        <div class="editor-meta-row">
+          <span class="section-label">${escHtml(tr.personaEditorLabel)}</span>
+          <span class="num" data-role="byteCounter" style="color:${overWarn ? "var(--st-warning)" : "var(--st-muted)"}">${bytes.toLocaleString()} / ${MAX_PERSONA_BODY_BYTES.toLocaleString()} ${escHtml(tr.personaBytes)} · ~${estTok.toLocaleString()} ${escHtml(tr.tokShort)}${overWarn ? " · " + escHtml(tr.personaLimitWarn) : ""}</span>
+        </div>
+        <textarea class="editor-box" data-role="personaEditor" spellcheck="false" placeholder="${escAttr(tr.personaEditorPlaceholder)}">${escHtml(state.draftPersonaText)}</textarea>
+      </div>
+
+      <div class="action-bar">
+        <div class="action-btns">
+          <button type="button" class="btn btn-primary" data-action="save-persona">${iconSvg("check", 14)}${escHtml(tr.personaApplyBtn)}</button>
+          <button type="button" class="btn" data-action="clear-persona">${escHtml(tr.personaClearBtn)}</button>
+        </div>
+        <span class="toast-text${state.toastError ? " is-err" : ""}" data-role="toast">${escHtml(state.toastMsg)}</span>
+      </div>
+
+      <div class="section-group">
         <span class="section-label">${escHtml(tr.personaPresetsLabel)}</span>
+        ${customs.length > 0 ? `
         <div class="preset-strip">
-          ${BUILTIN_PERSONA_PRESETS.map((p) => {
-            const title = state.locale === "en" ? p.titleEn : p.titleRu;
-            const desc = state.locale === "en" ? p.descEn : p.descRu;
-            const selected = cp.activePreset === p.id;
-            return `
-              <div class="preset-card${selected ? " is-selected" : ""}" data-action="select-preset" data-id="${escAttr(p.id)}">
-                <div class="preset-head"><span class="preset-name">${escHtml(title)}</span>${selected ? iconSvg("check", 13) : ""}</div>
-                <span class="preset-desc">${escHtml(desc)}</span>
-              </div>
-            `;
-          }).join("")}
           ${customs.map((item) => {
             const selected = cp.activePreset === item.id;
             return `
@@ -2513,27 +2594,11 @@ function createStudioPanel(options) {
             `;
           }).join("")}
         </div>
-      </div>
-
-      <div class="section-group">
-        <div class="editor-meta-row">
-          <span class="section-label">${escHtml(tr.personaEditorLabel)}</span>
-          <span class="num" data-role="byteCounter" style="color:${overWarn ? "var(--st-warning)" : "var(--st-muted)"}">${bytes.toLocaleString()} / ${MAX_PERSONA_BODY_BYTES.toLocaleString()} ${escHtml(tr.personaBytes)}${overWarn ? " · " + escHtml(tr.personaLimitWarn) : ""}</span>
+        ` : ""}
+        <div class="preset-add-row">
+          <input type="text" class="text-input" data-role="newPresetInput" maxlength="44" value="${escAttr(state.newPresetName)}" placeholder="${escAttr(tr.personaSavePresetPlaceholder)}"/>
+          <button type="button" class="btn btn-sm" data-action="save-custom-preset">${iconSvg("plus", 13)}${escHtml(tr.personaAddPresetBtn)}</button>
         </div>
-        <textarea class="editor-box" data-role="personaEditor" spellcheck="false">${escHtml(state.draftPersonaText)}</textarea>
-      </div>
-
-      <div class="preset-add-row">
-        <input type="text" class="text-input" data-role="newPresetInput" maxlength="44" value="${escAttr(state.newPresetName)}" placeholder="${escAttr(tr.personaSavePresetPlaceholder)}"/>
-        <button type="button" class="btn btn-sm" data-action="save-custom-preset">${iconSvg("plus", 13)}${escHtml(tr.personaAddPresetBtn)}</button>
-      </div>
-
-      <div class="action-bar">
-        <div class="action-btns">
-          <button type="button" class="btn btn-primary" data-action="save-persona">${iconSvg("check", 14)}${escHtml(tr.personaApplyBtn)}</button>
-          <button type="button" class="btn" data-action="clear-persona">${escHtml(tr.personaClearBtn)}</button>
-        </div>
-        <span class="toast-text${state.toastError ? " is-err" : ""}" data-role="toast">${escHtml(state.toastMsg)}</span>
       </div>
 
       <div class="row-desc" style="font-family:var(--st-mono);font-size:11px;word-break:break-all">
@@ -2643,8 +2708,9 @@ function createStudioPanel(options) {
           <aside class="modal-sidebar">
             <div class="sidebar-brand">
               <span class="brand-title">${escHtml(tr.brandTitle)}</span>
-              <span class="brand-ver num">v${escHtml(pluginMeta.version || "2.3.0")}</span>
+              <span class="brand-ver num">v${escHtml(pluginMeta.version || "2.5.0")}</span>
             </div>
+            <span class="sidebar-section-label">${escHtml(tr.sidebarSectionStudio)}</span>
             <nav class="nav-list">
               ${tabs.map((tb) => `
                 <button type="button" class="nav-item${tb.id === current.id ? " is-active" : ""}" data-action="switch-tab" data-tab="${tb.id}">
@@ -3127,9 +3193,10 @@ function createStudioPanel(options) {
         const counter = modalMountEl ? modalMountEl.querySelector('[data-role="byteCounter"]') : null;
         if (counter) {
           const bytes = utf8ByteLength(state.draftPersonaText);
+          const estTok = estimateTokens(state.draftPersonaText);
           const warn = bytes >= 20000;
           const tr = t();
-          counter.textContent = `${bytes.toLocaleString()} / ${MAX_PERSONA_BODY_BYTES.toLocaleString()} ${tr.personaBytes}${warn ? " · " + tr.personaLimitWarn : ""}`;
+          counter.textContent = `${bytes.toLocaleString()} / ${MAX_PERSONA_BODY_BYTES.toLocaleString()} ${tr.personaBytes} · ~${estTok.toLocaleString()} ${tr.tokShort}${warn ? " · " + tr.personaLimitWarn : ""}`;
           counter.style.color = warn ? "var(--st-warning)" : "var(--st-muted)";
         }
       } else if (role === "newPresetInput") {
@@ -3155,8 +3222,8 @@ function createStudioPanel(options) {
     }
   }
 
-  function init() {
-    if (state.initialized || state.destroyed || !doc) return;
+  function mountStudioUi() {
+    if (state.mounted || state.destroyed || !doc) return;
     const mountTarget = doc.body || doc.documentElement;
     if (!mountTarget || typeof doc.createElement !== "function") return;
 
@@ -3191,7 +3258,7 @@ function createStudioPanel(options) {
     shadowRoot.appendChild(rootEl);
 
     attachDomEvents();
-    state.initialized = true;
+    state.mounted = true;
     renderStructure();
     pollStream();
 
@@ -3215,12 +3282,8 @@ function createStudioPanel(options) {
             }
             if (allOwn) return;
           }
-          if (!throttleTimer && win && typeof win.setTimeout === "function") {
-            throttleTimer = win.setTimeout(() => {
-              throttleTimer = null;
-              pollStream();
-            }, 120);
-          }
+          sampleStreamTick();
+          scheduleRepaint();
         });
         domObserver.observe(doc.body, { childList: true, subtree: true, characterData: true });
       } catch (_e) {}
@@ -3236,6 +3299,76 @@ function createStudioPanel(options) {
     invokeIpc("agy-studio:get-state").then((remote) => {
       if (remote) applyRemoteState(remote, true);
     });
+  }
+
+  function clearReadinessWatchers() {
+    if (readyTimer && win && typeof win.clearInterval === "function") {
+      win.clearInterval(readyTimer);
+      readyTimer = null;
+    }
+    if (readyObserver && typeof readyObserver.disconnect === "function") {
+      readyObserver.disconnect();
+      readyObserver = null;
+    }
+  }
+
+  function scheduleMountAfterSettle() {
+    if (state.mounted || state.destroyed || settleTimer) return;
+    clearReadinessWatchers();
+    if (win && typeof win.setTimeout === "function") {
+      settleTimer = win.setTimeout(() => {
+        settleTimer = null;
+        mountStudioUi();
+      }, 150);
+    } else {
+      mountStudioUi();
+    }
+  }
+
+  function init() {
+    if (state.initialized || state.destroyed || !doc) return;
+    try {
+      const proto = win && win.location && typeof win.location.protocol === "string" ? win.location.protocol : "";
+      if (/^(data:|about:)$/i.test(proto)) return;
+    } catch (_e) {}
+
+    state.initialized = true;
+    if (isAntigravityUiReady()) {
+      mountStudioUi();
+      return;
+    }
+
+    const obsTarget = doc.documentElement || doc.body;
+    if (typeof win !== "undefined" && typeof win.MutationObserver === "function" && obsTarget) {
+      try {
+        readyObserver = new win.MutationObserver(() => {
+          if (isAntigravityUiReady()) {
+            scheduleMountAfterSettle();
+          }
+        });
+        readyObserver.observe(obsTarget, { childList: true, subtree: true });
+      } catch (_e) {}
+    }
+
+    if (win && typeof win.setInterval === "function") {
+      const startAt = Date.now();
+      readyTimer = win.setInterval(() => {
+        if (state.destroyed || state.mounted) {
+          clearReadinessWatchers();
+          return;
+        }
+        if (isAntigravityUiReady()) {
+          scheduleMountAfterSettle();
+          return;
+        }
+        if (Date.now() - startAt >= 10000) {
+          const bodyText = doc.body ? ((doc.body.innerText || doc.body.textContent || "").trim()) : "";
+          if (bodyText.length > 80) {
+            scheduleMountAfterSettle();
+          }
+        }
+      }, 180);
+    }
   }
 
   function setOpen(nextOpen) {
@@ -3258,13 +3391,18 @@ function createStudioPanel(options) {
 
   function destroy() {
     state.destroyed = true;
+    clearReadinessWatchers();
+    if (settleTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(settleTimer);
+      settleTimer = null;
+    }
     if (pollTimer && win && typeof win.clearInterval === "function") {
       win.clearInterval(pollTimer);
       pollTimer = null;
     }
-    if (throttleTimer && win && typeof win.clearTimeout === "function") {
-      win.clearTimeout(throttleTimer);
-      throttleTimer = null;
+    if (repaintTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(repaintTimer);
+      repaintTimer = null;
     }
     if (toastTimer && win && typeof win.clearTimeout === "function") {
       win.clearTimeout(toastTimer);
@@ -3313,6 +3451,7 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     createStudioPanel,
     estimateTokens,
+    estimateTokensFloat,
     BUILTIN_PERSONA_PRESETS,
   };
 }
