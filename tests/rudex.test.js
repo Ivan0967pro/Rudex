@@ -403,7 +403,7 @@ test("Manifest & hooks.json follow Rudex v4.2.1 architecture without PostInvocat
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.4.1");
+  assert.equal(pkg.version, "4.4.2");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -3073,10 +3073,14 @@ test("Claude Code themes, fonts, Google Fonts loader, one-click suite, full UI c
 });
 
 // =============================================================================
-// 18. Windows 10 EPERM-Safe In-Place Plugin Sync & PS1 Lock Handling (v4.4.1)
+// 18. Windows 10 EPERM-Safe Sync & Bulletproof Post-Update Survival (v4.4.2)
 // =============================================================================
-test("Installer syncs plugin in-place without deleting targetSkillsDir first (prevents Win10 NTFS EPERM) and closes Antigravity safely in remote PS1 mode", () => {
+test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t in detached cmd scripts, and recovers shadowed app.asar", async () => {
   const installJsText = fs.readFileSync(path.join(SCRIPTS_DIR, "install.js"), "utf8");
+  const i18nMainText = fs.readFileSync(path.join(SCRIPTS_DIR, "i18n-main.js"), "utf8");
+  const updaterCoreText = fs.readFileSync(path.join(SCRIPTS_DIR, "updater-core.js"), "utf8");
+  const ps1Text = fs.readFileSync(path.join(REPO_ROOT, "install.ps1"), "utf8");
+
   assert.equal(
     installJsText.includes("fs.rmSync(targetSkillsDir"),
     false,
@@ -3086,8 +3090,64 @@ test("Installer syncs plugin in-place without deleting targetSkillsDir first (pr
   assert.ok(installJsText.includes("function copyFileSafe("), "install.js must define retry-safe copyFileSafe");
   assert.ok(installJsText.includes("function pruneObsoleteEntries("), "install.js must prune obsolete files after in-place copy");
 
-  const ps1Text = fs.readFileSync(path.join(REPO_ROOT, "install.ps1"), "utf8");
-  assert.ok(ps1Text.includes("Rudex v4.4.1"), "install.ps1 banner must show v4.4.1");
+  // Detached Windows .cmd scripts with stdio:"ignore" MUST NEVER use `timeout /t` (fails immediately with input redirection error)
+  for (const [label, src] of [
+    ["install.js", installJsText],
+    ["i18n-main.js", i18nMainText],
+    ["updater-core.js", updaterCoreText],
+    ["install.ps1", ps1Text],
+  ]) {
+    assert.equal(/timeout\s+\/t/i.test(src), false, `${label} must NOT use 'timeout /t' in detached cmd scripts (use ping -n instead)`);
+    assert.ok(src.includes("ping -n "), `${label} must use ping -n delay in detached cmd scripts`);
+  }
+
+  // Post-app-update watcher must trigger whenever app.asar reappears (even if resources/app/rudex-patch-meta.json remained)
+  assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
+  assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
+
+  assert.ok(ps1Text.includes("Rudex v4.4.2"), "install.ps1 banner must show v4.4.2");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
+
+  // rudex-hook.js must still arm recovery if app.asar shadows an already-patched resources/app of the SAME version
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-shadow-asar-"));
+  try {
+    const mockResDir = path.join(tmpDir, "antigravity", "resources");
+    const mockAppRoot = path.dirname(mockResDir);
+    const mockAppDir = path.join(mockResDir, "app");
+    const mockPluginDir = path.join(tmpDir, "plugin-rudex");
+    const mockUserData = path.join(tmpDir, "userData");
+    const markerFile = path.join(tmpDir, "shadow-repatch.txt");
+    fs.mkdirSync(mockAppDir, { recursive: true });
+    fs.mkdirSync(path.join(mockPluginDir, "skills", "rudex", "scripts"), { recursive: true });
+    fs.mkdirSync(mockUserData, { recursive: true });
+
+    fs.writeFileSync(path.join(mockAppRoot, "version"), "44.9.1\n", "utf8");
+    fs.writeFileSync(path.join(mockResDir, "app.asar"), "SHADOWING_ASAR_BYTES", "utf8");
+    fs.writeFileSync(path.join(mockAppDir, "rudex-patch-meta.json"), JSON.stringify({ stampVersion: "44.9.1", version: "4.4.2" }), "utf8");
+    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.4.2"}', "utf8");
+    fs.writeFileSync(
+      path.join(mockPluginDir, "skills", "rudex", "scripts", "install.js"),
+      `"use strict";\nconst fs = require("fs");\nfs.writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify(process.argv.slice(2)), "utf8");\n`,
+      "utf8"
+    );
+
+    const r = spawnSync(process.execPath, [path.join(SCRIPTS_DIR, "rudex-hook.js")], {
+      input: JSON.stringify({ hookEventName: "SessionStart", conversationId: "eeee2222-2222-4222-8222-222222222222" }),
+      env: Object.assign({}, process.env, {
+        AGY_STUDIO_USER_DATA: mockUserData,
+        ANTIGRAVITY_RESOURCES_DIR: mockResDir,
+        RUDEX_PLUGIN_DIR: mockPluginDir,
+        RUDEX_SKIP_AUTO_REPATCH: "0",
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(r.status, 0, r.stderr);
+    for (let i = 0; i < 40 && !fs.existsSync(markerFile); i += 1) {
+      await new Promise((res) => setTimeout(res, 25));
+    }
+    assert.ok(fs.existsSync(markerFile), "rudex-hook.js must trigger recovery even when stampVersion matches if app.asar still shadows resources/app");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

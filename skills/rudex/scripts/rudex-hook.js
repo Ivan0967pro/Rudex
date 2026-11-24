@@ -606,6 +606,8 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
   if (!fs.existsSync(pluginJsonPath) || !fs.existsSync(installJsPath)) return;
 
   const info = detectAntigravityResourcesFast();
+  // On Electron, if resources/app.asar exists it ALWAYS takes precedence over resources/app,
+  // meaning Rudex is currently shadowed/inactive — even if resources/app/rudex-patch-meta.json exists.
   if (!info || !fs.existsSync(info.asarPath)) return;
 
   let curVer = "unknown";
@@ -615,17 +617,6 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
       if (txt) curVer = txt;
     }
   } catch {}
-
-  const metaPath = path.join(info.appDir, "rudex-patch-meta.json");
-  let meta = null;
-  try {
-    if (fs.existsSync(metaPath)) {
-      meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
-    }
-  } catch {}
-  if (meta && meta.stampVersion && meta.stampVersion === curVer) {
-    return;
-  }
 
   let asarSize = 0;
   try {

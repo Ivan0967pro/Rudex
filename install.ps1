@@ -121,12 +121,12 @@ function Restart-AntigravityDetached([string]$ExePath) {
       "set `"AGY_EXE=$ExePath`"",
       "setlocal EnableDelayedExpansion",
       "taskkill /IM Antigravity.exe >nul 2>&1",
-      "timeout /t 2 /nobreak >nul",
+      "ping -n 3 127.0.0.1 >nul",
       "taskkill /F /T /IM Antigravity.exe >nul 2>&1",
-      "for /L %%I in (1,1,10) do (",
+      "for /L %%I in (1,1,12) do (",
       "  tasklist /FI `"IMAGENAME eq Antigravity.exe`" 2>nul | find /I `"Antigravity.exe`" >nul",
       "  if errorlevel 1 goto launch",
-      "  timeout /t 1 /nobreak >nul",
+      "  ping -n 2 127.0.0.1 >nul",
       ")",
       ":launch",
       "start `"`" `"!AGY_EXE!`"",
@@ -156,7 +156,7 @@ function Test-InsideAntigravityProcess {
   return $false
 }
 
-Write-Host "Rudex v4.4.1 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
+Write-Host "Rudex v4.4.2 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
 
 if ($IsLocalRepo) {
   $InstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"

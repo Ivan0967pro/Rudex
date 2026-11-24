@@ -538,8 +538,17 @@ function triggerCurrentUpdateAction() {
         }
     }
 }`,
-          `function updateMenuState(step) {
+          `let rudexQuitHooked = false;
+function updateMenuState(step) {
     currentStep = step;
+    if (step === MenuUpdateStep.RestartToUpdate && !rudexQuitHooked) {
+        rudexQuitHooked = true;
+        try {
+            electron_1.app.once('will-quit', () => {
+                try { if (typeof i18nMain_1.schedulePostAppUpdateRepatch === 'function') i18nMain_1.schedulePostAppUpdateRepatch(); } catch {}
+            });
+        } catch {}
+    }
     const menu = electron_1.Menu.getApplicationMenu();
     if (menu) {
         const item = menu.getMenuItemById('check-for-updates');

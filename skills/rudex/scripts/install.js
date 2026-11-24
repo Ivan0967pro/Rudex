@@ -401,7 +401,7 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "4.4.0",
+    version: pkg.version || "4.4.2",
     dictEntries,
     dynamicRulesCount,
     commitSha: commitMeta.commitSha,
@@ -681,7 +681,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "4.4.1";
+    let pkgVer = "4.4.2";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {
@@ -774,8 +774,8 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
       try {
         const bakStat = fs.statSync(newBackupPath);
         const asarStat = fs.statSync(info.asarPath);
-        if (bakStat.size !== asarStat.size) {
-          fs.copyFileSync(info.asarPath, newBackupPath);
+        if (bakStat.size !== asarStat.size || Math.abs((bakStat.mtimeMs || 0) - (asarStat.mtimeMs || 0)) > 2000) {
+          copyFileSafe(info.asarPath, newBackupPath);
         }
       } catch (err) {
         if (!err || (err.code !== "EBUSY" && err.code !== "EPERM")) {
@@ -853,6 +853,7 @@ function writeApplyRestartCmd(info, opts = {}) {
   if (process.platform !== "win32" || !info.exePath) return "";
   const outPath = opts.outPath || path.join(os.homedir(), "Desktop", "Rudex-Apply-Restart.cmd");
   const removeAsar = Boolean(opts.removeAsar);
+  // Use `ping -n` instead of cmd `timeout` so detached stdio:"ignore" runs never abort early on Windows
   const lines = [
     "@echo off",
     "chcp 65001 >nul",
@@ -861,27 +862,28 @@ function writeApplyRestartCmd(info, opts = {}) {
     "setlocal EnableDelayedExpansion",
     "echo Restarting Antigravity to apply Rudex...",
     "taskkill /IM Antigravity.exe >nul 2>&1",
-    "timeout /t 2 /nobreak >nul",
+    "ping -n 3 127.0.0.1 >nul",
     "taskkill /F /T /IM Antigravity.exe >nul 2>&1",
-    "for /L %%I in (1,1,8) do (",
+    "for /L %%I in (1,1,12) do (",
     '  tasklist /FI "IMAGENAME eq Antigravity.exe" 2>nul | find /I "Antigravity.exe" >nul',
     "  if errorlevel 1 goto after_exit",
-    "  timeout /t 1 /nobreak >nul",
+    "  ping -n 2 127.0.0.1 >nul",
     ")",
     ":after_exit",
   ];
   if (removeAsar && info.resourcesDir) {
     lines.push(
       'if exist "!RES_DIR!\\app.asar.orig-*" if exist "!RES_DIR!\\app" (',
-      '  del /F /Q "!RES_DIR!\\app.asar" >nul 2>&1',
-      '  if exist "!RES_DIR!\\app.asar" (',
-      "    timeout /t 1 /nobreak >nul",
+      "  for /L %%R in (1,1,6) do (",
+      '    if not exist "!RES_DIR!\\app.asar" goto launch_app',
       '    del /F /Q "!RES_DIR!\\app.asar" >nul 2>&1',
+      '    if exist "!RES_DIR!\\app.asar" ping -n 2 127.0.0.1 >nul',
       "  )",
       ")"
     );
   }
   lines.push(
+    ":launch_app",
     'start "" "!AGY_EXE!"',
     'del "%~f0" >nul 2>&1',
     ""
@@ -898,6 +900,7 @@ function writeApplyRestartCmd(info, opts = {}) {
 /**
  * Passive Windows exit watcher: NEVER kills Antigravity.exe.
  * Waits until Antigravity exits cleanly on its own, then removes the unlocked stale app.asar.
+ * Uses `ping -n` (never cmd timeout) so it works reliably when spawned with stdio:"ignore".
  */
 function writeOnExitActivateCmd(info, opts = {}) {
   if (process.platform !== "win32" || !info || !info.resourcesDir) return "";
@@ -913,13 +916,17 @@ function writeOnExitActivateCmd(info, opts = {}) {
     '  if not exist "!RES_DIR!\\app.asar" goto cleanup',
     '  tasklist /FI "IMAGENAME eq Antigravity.exe" 2>nul | find /I "Antigravity.exe" >nul',
     "  if errorlevel 1 goto unlock",
-    "  timeout /t 2 /nobreak >nul",
+    "  ping -n 3 127.0.0.1 >nul",
     ")",
     "goto cleanup",
     ":unlock",
-    "timeout /t 1 /nobreak >nul",
+    "ping -n 2 127.0.0.1 >nul",
     'if exist "!RES_DIR!\\app.asar.orig-*" if exist "!RES_DIR!\\app\\rudex-patch-meta.json" (',
-    '  del /F /Q "!RES_DIR!\\app.asar" >nul 2>&1',
+    "  for /L %%R in (1,1,6) do (",
+    '    if not exist "!RES_DIR!\\app.asar" goto cleanup',
+    '    del /F /Q "!RES_DIR!\\app.asar" >nul 2>&1',
+    '    if exist "!RES_DIR!\\app.asar" ping -n 2 127.0.0.1 >nul',
+    "  )",
     ")",
     ":cleanup",
     'if exist "!LOCK_FILE!" del /F /Q "!LOCK_FILE!" >nul 2>&1',
@@ -936,9 +943,10 @@ function writeOnExitActivateCmd(info, opts = {}) {
 
 function spawnOnExitActivatorIfNeeded(info) {
   if (process.platform !== "win32" || !info || !info.resourcesDir) return false;
+  const cmdTarget = path.join(os.tmpdir(), "rudex-on-exit-activate.cmd");
   const lockPath = path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
   try {
-    if (fs.existsSync(lockPath)) {
+    if (fs.existsSync(lockPath) && fs.existsSync(cmdTarget)) {
       const st = fs.statSync(lockPath);
       if (Date.now() - st.mtimeMs < 90 * 60 * 1000) {
         return true;
@@ -948,7 +956,7 @@ function spawnOnExitActivatorIfNeeded(info) {
 
   try {
     fs.writeFileSync(lockPath, String(Date.now()), "utf8");
-    const cmdPath = writeOnExitActivateCmd(info, { lockPath });
+    const cmdPath = writeOnExitActivateCmd(info, { outPath: cmdTarget, lockPath });
     if (!cmdPath || !fs.existsSync(cmdPath)) return false;
     const child = spawn("cmd.exe", ["/c", `"${cmdPath}"`], {
       detached: true,

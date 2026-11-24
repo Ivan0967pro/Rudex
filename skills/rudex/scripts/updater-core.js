@@ -653,25 +653,30 @@ function writeUpdaterRestartScript(exePath, opts = {}) {
   }
   lines.push(
     "setlocal EnableDelayedExpansion",
-    "timeout /t 1 /nobreak >nul",
+    "ping -n 2 127.0.0.1 >nul",
     "taskkill /IM Antigravity.exe >nul 2>&1",
-    "timeout /t 2 /nobreak >nul",
+    "ping -n 3 127.0.0.1 >nul",
     "taskkill /F /T /IM Antigravity.exe >nul 2>&1",
-    "for /L %%I in (1,1,10) do (",
+    "for /L %%I in (1,1,12) do (",
     '  tasklist /FI "IMAGENAME eq Antigravity.exe" 2>nul | find /I "Antigravity.exe" >nul',
     "  if errorlevel 1 goto launch",
-    "  timeout /t 1 /nobreak >nul",
+    "  ping -n 2 127.0.0.1 >nul",
     ")",
     ":launch"
   );
   if (removeAsar) {
     lines.push(
       'if exist "!RES_DIR!\\app.asar.orig-*" if exist "!RES_DIR!\\app" (',
-      '  del /F /Q "!RES_DIR!\\app.asar" >nul 2>&1',
+      "  for /L %%R in (1,1,6) do (",
+      '    if not exist "!RES_DIR!\\app.asar" goto start_app',
+      '    del /F /Q "!RES_DIR!\\app.asar" >nul 2>&1',
+      '    if exist "!RES_DIR!\\app.asar" ping -n 2 127.0.0.1 >nul',
+      "  )",
       ")"
     );
   }
   lines.push(
+    ":start_app",
     'start "" "!AGY_EXE!"',
     'del "%~f0" >nul 2>&1',
     ""

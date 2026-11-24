@@ -2209,6 +2209,8 @@ function writePostAppUpdateWatcherScript(opts = {}) {
   const ts = Date.now();
   const outPath = opts.outPath || path.join(os.tmpdir(), `rudex-post-app-update-${ts}.cmd`);
   const logPath = path.join(os.tmpdir(), `rudex-post-app-update-${ts}.log`);
+  // IMPORTANT: Never use cmd `timeout` in detached stdio:"ignore" scripts on Windows
+  // because `timeout` exits immediately with "Input redirection is not supported". Use `ping` instead.
   const lines = [
     "@echo off",
     "chcp 65001 >nul",
@@ -2217,13 +2219,14 @@ function writePostAppUpdateWatcherScript(opts = {}) {
     `set "INSTALL_JS=${installJs}"`,
     `set "LOG_FILE=${logPath}"`,
     "setlocal EnableDelayedExpansion",
-    "for /L %%I in (1,1,90) do (",
-    "  timeout /t 2 /nobreak >nul",
-    '  if exist "!RES_DIR!\\app.asar" if not exist "!RES_DIR!\\app\\rudex-patch-meta.json" goto repatch',
+    "for /L %%I in (1,1,180) do (",
+    "  ping -n 3 127.0.0.1 >nul",
+    '  if exist "!RES_DIR!\\app.asar" goto repatch',
     ")",
     "goto done",
     ":repatch",
-    "timeout /t 2 /nobreak >nul",
+    "ping -n 4 127.0.0.1 >nul",
+    'if not exist "!RES_DIR!\\app.asar" goto done',
     'if not exist "!INSTALL_JS!" goto done',
     'if not exist "!AGY_EXE!" goto done',
     'set "ELECTRON_RUN_AS_NODE=1"',
@@ -3194,7 +3197,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.1",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.2",
         outPath,
       });
       return res;
