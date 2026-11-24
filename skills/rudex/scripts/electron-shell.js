@@ -58,7 +58,7 @@ function patchMainJs(src, stampVersion, warnings) {
                 if (_fs.existsSync(_installJs)) {
                     try {
                         const _r = require("child_process").spawnSync(process.execPath, [_installJs, "--no-sync-plugin"], {
-                            env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }),
+                            env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1" }),
                             timeout: 30000,
                             windowsHide: true,
                         });

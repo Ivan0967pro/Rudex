@@ -1,5 +1,8 @@
 "use strict";
 
+// Disable Electron's virtual ASAR fs wrapper so fs.existsSync/statSync treat app.asar as a regular file
+process.noAsar = true;
+
 const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
@@ -640,7 +643,7 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
       detached: true,
       stdio: "ignore",
       windowsHide: true,
-      env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }),
+      env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1" }),
     });
     if (child && typeof child.unref === "function") child.unref();
     injectSteps.push({

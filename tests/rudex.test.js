@@ -403,7 +403,7 @@ test("Manifest & hooks.json follow Rudex v4.2.1 architecture without PostInvocat
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.4.2");
+  assert.equal(pkg.version, "4.4.3");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -3073,7 +3073,7 @@ test("Claude Code themes, fonts, Google Fonts loader, one-click suite, full UI c
 });
 
 // =============================================================================
-// 18. Windows 10 EPERM-Safe Sync & Bulletproof Post-Update Survival (v4.4.2)
+// 18. Windows 10 EPERM-Safe Sync & Bulletproof Post-Update Survival (v4.4.3)
 // =============================================================================
 test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t in detached cmd scripts, and recovers shadowed app.asar", async () => {
   const installJsText = fs.readFileSync(path.join(SCRIPTS_DIR, "install.js"), "utf8");
@@ -3105,9 +3105,36 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v4.4.2"), "install.ps1 banner must show v4.4.2");
+  assert.ok(ps1Text.includes("Rudex v4.4.3"), "install.ps1 banner must show v4.4.3");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
+
+  // Disable Electron ASAR interception everywhere scripts run under ELECTRON_RUN_AS_NODE=1
+  const uninstallJsText = fs.readFileSync(path.join(SCRIPTS_DIR, "uninstall.js"), "utf8");
+  const hookJsText = fs.readFileSync(path.join(SCRIPTS_DIR, "rudex-hook.js"), "utf8");
+  const hookRunnerText = fs.readFileSync(path.join(SCRIPTS_DIR, "hook-runner.cmd"), "utf8");
+  const shellJsText = fs.readFileSync(path.join(SCRIPTS_DIR, "electron-shell.js"), "utf8");
+  const installCmdText = fs.readFileSync(path.join(REPO_ROOT, "Install-Rudex.cmd"), "utf8");
+  const uninstallCmdText = fs.readFileSync(path.join(REPO_ROOT, "Uninstall-Rudex.cmd"), "utf8");
+  for (const [label, src] of [
+    ["install.js", installJsText],
+    ["uninstall.js", uninstallJsText],
+    ["rudex-hook.js", hookJsText],
+  ]) {
+    assert.ok(src.includes("process.noAsar = true;"), `${label} must set process.noAsar = true for ELECTRON_RUN_AS_NODE=1 compatibility`);
+  }
+  for (const [label, src] of [
+    ["install.ps1", ps1Text],
+    ["hook-runner.cmd", hookRunnerText],
+    ["i18n-main.js", i18nMainText],
+    ["updater-core.js", updaterCoreText],
+    ["electron-shell.js", shellJsText],
+    ["rudex-hook.js", hookJsText],
+    ["Install-Rudex.cmd", installCmdText],
+    ["Uninstall-Rudex.cmd", uninstallCmdText],
+  ]) {
+    assert.ok(src.includes("ELECTRON_NO_ASAR"), `${label} must set ELECTRON_NO_ASAR=1 alongside ELECTRON_RUN_AS_NODE=1`);
+  }
 
   // rudex-hook.js must still arm recovery if app.asar shadows an already-patched resources/app of the SAME version
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-shadow-asar-"));
@@ -3124,8 +3151,8 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
 
     fs.writeFileSync(path.join(mockAppRoot, "version"), "44.9.1\n", "utf8");
     fs.writeFileSync(path.join(mockResDir, "app.asar"), "SHADOWING_ASAR_BYTES", "utf8");
-    fs.writeFileSync(path.join(mockAppDir, "rudex-patch-meta.json"), JSON.stringify({ stampVersion: "44.9.1", version: "4.4.2" }), "utf8");
-    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.4.2"}', "utf8");
+    fs.writeFileSync(path.join(mockAppDir, "rudex-patch-meta.json"), JSON.stringify({ stampVersion: "44.9.1", version: "4.4.3" }), "utf8");
+    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.4.3"}', "utf8");
     fs.writeFileSync(
       path.join(mockPluginDir, "skills", "rudex", "scripts", "install.js"),
       `"use strict";\nconst fs = require("fs");\nfs.writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify(process.argv.slice(2)), "utf8");\n`,

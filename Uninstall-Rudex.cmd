@@ -49,8 +49,10 @@ if "!RUNTIME_MODE!"=="node" (
   node "!UNINSTALL_JS!" !USER_ARGS!
 ) else (
   set "ELECTRON_RUN_AS_NODE=1"
+  set "ELECTRON_NO_ASAR=1"
   "!AGY_EXE!" "!UNINSTALL_JS!" !USER_ARGS!
   set "ELECTRON_RUN_AS_NODE="
+  set "ELECTRON_NO_ASAR="
 )
 set "EXIT_CODE=!ERRORLEVEL!"
 

@@ -67,8 +67,10 @@ if "!RUNTIME_MODE!"=="node" (
   node "!INSTALL_JS!" --sync-plugin !USER_ARGS!
 ) else (
   set "ELECTRON_RUN_AS_NODE=1"
+  set "ELECTRON_NO_ASAR=1"
   "!AGY_EXE!" "!INSTALL_JS!" --sync-plugin !USER_ARGS!
   set "ELECTRON_RUN_AS_NODE="
+  set "ELECTRON_NO_ASAR="
 )
 set "EXIT_CODE=!ERRORLEVEL!"
 

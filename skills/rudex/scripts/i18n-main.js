@@ -2230,6 +2230,7 @@ function writePostAppUpdateWatcherScript(opts = {}) {
     'if not exist "!INSTALL_JS!" goto done',
     'if not exist "!AGY_EXE!" goto done',
     'set "ELECTRON_RUN_AS_NODE=1"',
+    'set "ELECTRON_NO_ASAR=1"',
     '"!AGY_EXE!" "!INSTALL_JS!" --no-sync-plugin > "!LOG_FILE!" 2>&1',
     'set "ACT_PATH="',
     'if exist "!LOG_FILE!" (',
@@ -3197,7 +3198,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.2",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.3",
         outPath,
       });
       return res;

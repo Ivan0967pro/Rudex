@@ -62,8 +62,11 @@ function Invoke-RudexNode([string]$TargetScript, [string[]]$ScriptArgs) {
 
   $prevElectronNode = $env:ELECTRON_RUN_AS_NODE
   $hadElectronNode = Test-Path Env:ELECTRON_RUN_AS_NODE
+  $prevElectronNoAsar = $env:ELECTRON_NO_ASAR
+  $hadElectronNoAsar = Test-Path Env:ELECTRON_NO_ASAR
   try {
     $env:ELECTRON_RUN_AS_NODE = "1"
+    $env:ELECTRON_NO_ASAR = "1"
     $argList = @("`"$TargetScript`"") + $ScriptArgs
     $proc = Start-Process -FilePath $agyExe `
       -ArgumentList $argList `
@@ -94,6 +97,11 @@ function Invoke-RudexNode([string]$TargetScript, [string[]]$ScriptArgs) {
       $env:ELECTRON_RUN_AS_NODE = $prevElectronNode
     } else {
       Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+    }
+    if ($hadElectronNoAsar) {
+      $env:ELECTRON_NO_ASAR = $prevElectronNoAsar
+    } else {
+      Remove-Item Env:ELECTRON_NO_ASAR -ErrorAction SilentlyContinue
     }
     Remove-Item -Path $logDir -Recurse -Force -ErrorAction SilentlyContinue
   }
@@ -156,7 +164,7 @@ function Test-InsideAntigravityProcess {
   return $false
 }
 
-Write-Host "Rudex v4.4.2 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
+Write-Host "Rudex v4.4.3 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
 
 if ($IsLocalRepo) {
   $InstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"

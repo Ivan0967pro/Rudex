@@ -21,5 +21,6 @@ if not defined AGY_EXE (
 )
 
 set "ELECTRON_RUN_AS_NODE=1"
+set "ELECTRON_NO_ASAR=1"
 "!AGY_EXE!" "!HOOK_JS!"
 exit /b !ERRORLEVEL!

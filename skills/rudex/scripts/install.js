@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 "use strict";
 
+// CRITICAL: When invoked via Antigravity.exe (ELECTRON_RUN_AS_NODE=1) without system Node.js,
+// Electron wraps `fs` with ASAR interception so fs.existsSync/copyFileSync/openSync treat
+// `app.asar` as a virtual directory and crash with `ENOENT,  not found in ...\app.asar`.
+process.noAsar = true;
+
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -401,7 +406,7 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "4.4.2",
+    version: pkg.version || "4.4.3",
     dictEntries,
     dynamicRulesCount,
     commitSha: commitMeta.commitSha,
@@ -681,7 +686,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "4.4.2";
+    let pkgVer = "4.4.3";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {
@@ -763,7 +768,7 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
         fs.renameSync(info.asarPath, newBackupPath);
       } catch (err) {
         if (err && (err.code === "EBUSY" || err.code === "EPERM")) {
-          fs.copyFileSync(info.asarPath, newBackupPath);
+          copyFileSafe(info.asarPath, newBackupPath);
           asarLocked = true;
         } else {
           throw err;

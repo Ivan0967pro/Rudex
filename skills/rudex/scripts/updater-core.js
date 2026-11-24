@@ -723,6 +723,7 @@ async function installUpdateFromZip(opts = {}) {
     const childEnv = Object.assign({}, process.env);
     if (!opts.useSystemNode) {
       childEnv.ELECTRON_RUN_AS_NODE = "1";
+      childEnv.ELECTRON_NO_ASAR = "1";
     }
     if (zipSha) childEnv.RUDEX_COMMIT_SHA = zipSha;
     if (remoteMeta.commitDate) childEnv.RUDEX_COMMIT_DATE = String(remoteMeta.commitDate);

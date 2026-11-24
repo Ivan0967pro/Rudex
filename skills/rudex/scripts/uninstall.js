@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 "use strict";
 
+// Disable Electron's virtual ASAR fs wrapper when run via ELECTRON_RUN_AS_NODE=1
+process.noAsar = true;
+
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
