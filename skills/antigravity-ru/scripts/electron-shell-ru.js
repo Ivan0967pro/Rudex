@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 
 function replaceExact(src, target, replacement, desc) {
   const idx = src.indexOf(target);
@@ -37,12 +38,169 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const { app, ipcMain, webContents } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 
 let cachedLocale = null;
 let ipcRegistered = false;
 let lastHotkeyAt = 0;
+let lastPanelHotkeyAt = 0;
 const listeners = new Set();
 let uiMaps = null;
+
+const MAX_PERSONA_BODY_BYTES = 23500;
+const DEFAULT_STUDIO_SETTINGS = {
+  panelEnabled: true,
+  dockPosition: "middle",
+  showMiniTps: true,
+  trackHistory: true,
+  personaEnabled: false,
+  personaActivePreset: "custom",
+  personaText: "",
+  customPresets: [],
+};
+
+function getStudioSettingsPath() {
+  return path.join(app.getPath("userData"), "agy_studio_settings.json");
+}
+
+function getPersonaRulePath() {
+  return path.join(os.homedir(), ".gemini", "config", "rules", "antigravity-ru-persona.md");
+}
+
+function sanitizeStudioSettings(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const dock = src.dockPosition;
+  const validDock = dock === "top" || dock === "middle" || dock === "bottom" || dock === "hidden" ? dock : "middle";
+  const presets = Array.isArray(src.customPresets)
+    ? src.customPresets
+        .filter((item) => item && typeof item === "object" && typeof item.name === "string" && typeof item.text === "string")
+        .slice(0, 20)
+        .map((item, idx) => ({
+          id: typeof item.id === "string" && item.id ? item.id : "custom-" + idx,
+          name: item.name.trim().slice(0, 60) || "Preset",
+          text: item.text,
+        }))
+    : [];
+  return {
+    panelEnabled: src.panelEnabled !== false,
+    dockPosition: validDock,
+    showMiniTps: src.showMiniTps !== false,
+    trackHistory: src.trackHistory !== false,
+    personaEnabled: Boolean(src.personaEnabled),
+    personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
+    personaText: typeof src.personaText === "string" ? src.personaText : "",
+    customPresets: presets,
+  };
+}
+
+function loadStudioSettings() {
+  try {
+    const p = getStudioSettingsPath();
+    if (fs.existsSync(p)) {
+      const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+      return sanitizeStudioSettings(parsed);
+    }
+  } catch {}
+  return sanitizeStudioSettings({});
+}
+
+function saveStudioSettings(patch) {
+  const current = loadStudioSettings();
+  const next = sanitizeStudioSettings(Object.assign({}, current, patch && typeof patch === "object" ? patch : {}));
+  try {
+    const p = getStudioSettingsPath();
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify(next, null, 2) + "\\n", "utf8");
+  } catch (err) {
+    console.warn("[i18nMain] Failed to persist studio settings:", err && err.message ? err.message : err);
+  }
+  return next;
+}
+
+function stripRuleFrontmatter(md) {
+  return String(md || "").replace(/^---\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n*/, "");
+}
+
+function syncPersonaRuleFile(enabled, text) {
+  const rulePath = getPersonaRulePath();
+  const trimmed = String(text || "").trim();
+  if (!enabled || !trimmed) {
+    try {
+      if (fs.existsSync(rulePath)) {
+        fs.unlinkSync(rulePath);
+      }
+    } catch (err) {
+      return { ok: false, exists: fs.existsSync(rulePath), byteLength: 0, error: err && err.message ? err.message : String(err) };
+    }
+    return { ok: true, exists: false, byteLength: 0 };
+  }
+  const bodyBytes = Buffer.byteLength(trimmed, "utf8");
+  if (bodyBytes > MAX_PERSONA_BODY_BYTES) {
+    return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: "EXCEEDS_BYTE_LIMIT" };
+  }
+  const header = "---\\ntrigger: always_on\\ndescription: \\"Пользовательский характер и инструкции агента (Antigravity RU Studio)\\"\\n---\\n\\n";
+  const content = header + trimmed + "\\n";
+  try {
+    fs.mkdirSync(path.dirname(rulePath), { recursive: true });
+    fs.writeFileSync(rulePath, content, "utf8");
+    return { ok: true, exists: true, byteLength: Buffer.byteLength(content, "utf8") };
+  } catch (err) {
+    return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: err && err.message ? err.message : String(err) };
+  }
+}
+
+function getPatchMeta() {
+  try {
+    const p = path.join(__dirname, "..", "ru-patch-meta.json");
+    if (fs.existsSync(p)) {
+      return JSON.parse(fs.readFileSync(p, "utf8"));
+    }
+  } catch {}
+  return null;
+}
+
+function getStudioState() {
+  const settings = loadStudioSettings();
+  const rulePath = getPersonaRulePath();
+  let personaFileExists = false;
+  try {
+    personaFileExists = fs.existsSync(rulePath);
+    if (personaFileExists) {
+      const diskBody = stripRuleFrontmatter(fs.readFileSync(rulePath, "utf8")).trim();
+      if (diskBody && (settings.personaEnabled || !settings.personaText)) {
+        settings.personaText = diskBody;
+      }
+    }
+  } catch {}
+  return {
+    locale: getLocale(),
+    settings,
+    personaFileExists,
+    personaFilePath: rulePath,
+    patchMeta: getPatchMeta(),
+  };
+}
+
+function broadcastStudioSettings(state) {
+  try {
+    for (const wc of webContents.getAllWebContents()) {
+      if (wc && !wc.isDestroyed()) {
+        wc.send("agy-studio:settings-changed", state);
+      }
+    }
+  } catch {}
+}
+
+function togglePanelFromHotkey(contents) {
+  const now = Date.now();
+  if (now - lastPanelHotkeyAt < 180) return;
+  lastPanelHotkeyAt = now;
+  try {
+    if (contents && !contents.isDestroyed()) {
+      contents.send("agy-studio:toggle-panel");
+    }
+  } catch {}
+}
 
 function normalizeUiPunct(str) {
   return String(str)
@@ -221,12 +379,38 @@ function registerI18nIpc() {
   ipcMain.handle("agy-i18n:get-locale", () => getLocale());
   ipcMain.handle("agy-i18n:set-locale", (_event, next) => setLocale(next));
   ipcMain.handle("agy-i18n:toggle-locale", () => toggleLocale());
+  ipcMain.handle("agy-studio:get-state", () => getStudioState());
+  ipcMain.handle("agy-studio:save-settings", (_event, patch) => {
+    saveStudioSettings(patch);
+    const state = getStudioState();
+    broadcastStudioSettings(state);
+    return state;
+  });
+  ipcMain.handle("agy-studio:save-persona", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const enabled = Boolean(p.personaEnabled);
+    const text = typeof p.personaText === "string" ? p.personaText : "";
+    const syncRes = syncPersonaRuleFile(enabled, text);
+    if (!syncRes.ok) {
+      return { ok: false, error: syncRes.error || "SAVE_FAILED", byteLength: syncRes.byteLength, exists: syncRes.exists, state: getStudioState() };
+    }
+    saveStudioSettings({
+      personaEnabled: enabled && syncRes.exists,
+      personaText: text,
+      personaActivePreset: typeof p.personaActivePreset === "string" ? p.personaActivePreset : "custom",
+      customPresets: Array.isArray(p.customPresets) ? p.customPresets : undefined,
+    });
+    const state = getStudioState();
+    broadcastStudioSettings(state);
+    return { ok: true, exists: syncRes.exists, byteLength: syncRes.byteLength, state };
+  });
 }
 
 exports.getLocale = getLocale;
 exports.setLocale = setLocale;
 exports.toggleLocale = toggleLocale;
 exports.toggleLocaleFromHotkey = toggleLocaleFromHotkey;
+exports.togglePanelFromHotkey = togglePanelFromHotkey;
 exports.isRu = isRu;
 exports.tr = tr;
 exports.ruPlural = ruPlural;
@@ -301,6 +485,14 @@ function patchMainJs(src, stampVersion, warnings) {
                 (input.code === 'KeyL' || (input.key && input.key.toLowerCase() === 'l'))) {
                 event.preventDefault();
                 i18nMain_1.toggleLocaleFromHotkey();
+            } else if (input.type === 'keyDown' &&
+                (input.control || input.meta) &&
+                input.alt &&
+                !input.shift &&
+                !input.isAutoRepeat &&
+                (input.code === 'KeyP' || (input.key && input.key.toLowerCase() === 'p'))) {
+                event.preventDefault();
+                i18nMain_1.togglePanelFromHotkey(contents);
             }
         });
     }`,

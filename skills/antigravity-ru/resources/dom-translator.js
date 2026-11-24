@@ -118,6 +118,9 @@ function createDomTranslator(options) {
 
   function isHardExcludedElement(el, skipInputTextareaTagCheck) {
     if (!el || el.nodeType !== 1) return false;
+    if (el.id === "agy-ru-studio-host" || getAttrSafe(el, "data-agy-ru-ignore") === "1") {
+      return true;
+    }
     const tag = el.tagName ? el.tagName.toUpperCase() : "";
     if (!skipInputTextareaTagCheck && HARD_EXCLUDED_TAGS.has(tag)) {
       return true;
