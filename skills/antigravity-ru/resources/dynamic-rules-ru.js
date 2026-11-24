@@ -52,6 +52,62 @@ function translateGenitiveTimeUnit(n, unit) {
   return unit;
 }
 
+function translateEnglishDurationList(str, accusative) {
+  let s = String(str || "").trim();
+  if (/^less than a minute$/i.test(s)) return "менее минуты";
+  if (/^less than a second$/i.test(s)) return "менее секунды";
+  s = s.replace(/^less than (\d+)\s+(second|minute|hour|day|week|month|year)s?$/i, (_, n, u) => {
+    return `менее ${n} ${translateGenitiveTimeUnit(n, u)}`;
+  });
+  s = s.replace(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\b/gi, (_, n, u) => {
+    return `${n} ${translateTimeUnit(n, u, Boolean(accusative))}`;
+  });
+  return s.replace(/\s*,\s*/g, " ").replace(/\s+and\s+/gi, " ").replace(/\s+/g, " ").trim();
+}
+
+function translateQuotaWindow(windowStr, caseForm) {
+  const w = String(windowStr || "").trim().toLowerCase();
+  const isGen = caseForm === "gen";
+  if (w === "weekly") return isGen ? "недельного" : "недельный";
+  if (w === "daily") return isGen ? "дневного" : "дневной";
+  if (w === "monthly") return isGen ? "месячного" : "месячный";
+  if (w === "hourly") return isGen ? "часового" : "часовой";
+  if (w === "5-hour" || w === "five-hour" || w === "five hour") return isGen ? "5-часового" : "5-часовой";
+  const m = /^(\d+)[- ](hour|day|minute)$/.exec(w);
+  if (m) {
+    const n = m[1];
+    const u = m[2];
+    if (u === "hour") return isGen ? `${n}-часового` : `${n}-часовой`;
+    if (u === "day") return isGen ? `${n}-дневного` : `${n}-дневной`;
+    if (u === "minute") return isGen ? `${n}-минутного` : `${n}-минутный`;
+  }
+  return windowStr;
+}
+
+function translatePlanBenefit(str) {
+  const s = String(str || "").trim().toLowerCase();
+  if (s === "higher rate limits") return "более высокие лимиты";
+  if (s === "higher quotas") return "более высокие квоты";
+  if (s === "more ai credits") return "больше AI-кредитов";
+  return str;
+}
+
+function translateConvVerb(verb) {
+  return (
+    {
+      archive: "архивировать",
+      unarchive: "разархивировать",
+      delete: "удалить",
+      rename: "переименовать",
+      pin: "закрепить",
+      unpin: "открепить",
+      move: "переместить",
+      fork: "ответвить",
+      duplicate: "дублировать",
+    }[String(verb || "").toLowerCase()] || verb
+  );
+}
+
 function translateEntityType(word, caseForm) {
   const w = word.trim().toLowerCase();
   const map = {
@@ -79,6 +135,7 @@ function translateEntityType(word, caseForm) {
     recordings: { nom: "записи", gen: "записей", acc: "записи", prep: "записях", plGen: "записей" },
     device: { nom: "устройство", gen: "устройства", acc: "устройство", prep: "устройстве", plGen: "устройств" },
     automation: { nom: "автоматизация", gen: "автоматизации", acc: "автоматизацию", prep: "автоматизации", plGen: "автоматизаций" },
+    automations: { nom: "автоматизации", gen: "автоматизаций", acc: "автоматизации", prep: "автоматизациях", plGen: "автоматизаций" },
     folder: { nom: "папка", gen: "папки", acc: "папку", prep: "папке", plGen: "папок" },
     folders: { nom: "папки", gen: "папок", acc: "папки", prep: "папках", plGen: "папок" },
     resource: { nom: "ресурс", gen: "ресурса", acc: "ресурс", prep: "ресурсе", plGen: "ресурсов" },
@@ -436,7 +493,7 @@ const DYNAMIC_RULES = [
   },
   {
     re: /^Show (\d+) breakdowns?$/,
-    fn: (_, n) => `Показать ${n} ${ruPlural(n, "разбивку", "разбивки", "разбивок")}`,
+    fn: (_, n) => `Показать детализацию (${n})`,
   },
   {
     re: /^Showing first (\d+) references$/,
@@ -1288,6 +1345,10 @@ const DYNAMIC_RULES = [
     fn: (_, model) => `Оркестратор ${model}`,
   },
   {
+    re: /^((?:Gemini|Claude|GPT|o1|o3|o4|Gemma|Llama|DeepSeek|Qwen|Mistral)[^\n]*?) (Extra High|High|Medium|Low|Max|Minimal)$/i,
+    fn: (_, model, eff) => `${model} ${EFFORT_RU[eff.toLowerCase()] || eff}`,
+  },
+  {
     re: /^(\d+) (files?|items?|steps?|tasks?|agents?|conversations?|projects?|rules?|skills?|plugins?|errors?|warnings?|matches?)$/i,
     fn: (_, n, unit) => {
       const low = unit.toLowerCase();
@@ -1517,6 +1578,597 @@ const DYNAMIC_RULES = [
   {
     re: /^(.+) color picker$/,
     fn: (_, a) => `Палитра цветов: ${a}`,
+  },
+
+  // 11. Models, quota, credits, plan & usage messages
+  {
+    re: /^You have used some of your (weekly|daily|monthly|hourly|5-hour|five[- ]hour|\d+[- ](?:hour|day|minute)) limit,\s*it will fully refresh in (.+?)\.?$/i,
+    fn: (_, w, dur) =>
+      `Вы израсходовали часть ${translateQuotaWindow(w, "gen")} лимита — полное обновление через ${translateEnglishDurationList(dur, true)}.`,
+  },
+  {
+    re: /^You have (?:used all of|reached|exhausted) your (weekly|daily|monthly|hourly|5-hour|five[- ]hour|\d+[- ](?:hour|day|minute)) limit[,.;]?\s*(?:it will (?:fully )?refresh|refreshing|resets?) in (.+?)\.?$/i,
+    fn: (_, w, dur) =>
+      `Вы исчерпали ${translateQuotaWindow(w, "acc")} лимит — обновление через ${translateEnglishDurationList(dur, true)}.`,
+  },
+  {
+    re: /^You have (?:used all of|reached|exhausted) your (weekly|daily|monthly|hourly|5-hour|five[- ]hour|\d+[- ](?:hour|day|minute)) limit\.?$/i,
+    fn: (_, w) => `Вы исчерпали ${translateQuotaWindow(w, "acc")} лимит.`,
+  },
+  {
+    re: /^You have not used any of your (weekly|daily|monthly|hourly|5-hour|five[- ]hour|\d+[- ](?:hour|day|minute)) limit\.?$/i,
+    fn: (_, w) => `Вы ещё не расходовали ${translateQuotaWindow(w, "acc")} лимит.`,
+  },
+  {
+    re: /^(?:It will )?(?:fully )?refresh(?:es)? in (.+?)\.?$/i,
+    fn: (_, dur) => `Полное обновление через ${translateEnglishDurationList(dur, true)}.`,
+  },
+  {
+    re: /^(\d+)([smhd]) limit$/i,
+    fn: (_, n, u) => {
+      const unitRu = { s: "с", m: "мин", h: "ч", d: "д" }[u.toLowerCase()] || u;
+      return `Лимит (${n} ${unitRu})`;
+    },
+  },
+  {
+    re: /^You can upgrade to (?:a|an) (.+?) plan to receive (.+?)\.?$/i,
+    fn: (_, plan, benefit) => `Вы можете перейти на тариф ${plan}, чтобы получить ${translatePlanBenefit(benefit)}.`,
+  },
+  {
+    re: /^When toggled on, (.+?) will use your AI credits to fulfill model requests once you're out of model quota\. \1 will always use your model quota first before using AI credits\.$/,
+    fn: (_, app) =>
+      `Если включено, ${app} будет использовать ваши AI-кредиты для запросов к моделям после исчерпания квоты. Сначала всегда расходуется основная квота моделей.`,
+  },
+  {
+    re: /^When toggled on, (.+?) collects usage data to help Google enhance performance and features\.$/,
+    fn: (_, app) =>
+      `Если включено, ${app} собирает данные об использовании, чтобы помогать Google улучшать производительность и функции.`,
+  },
+  {
+    re: /^Your Plan: (.+)$/,
+    fn: (_, p) => `Ваш тариф: ${p}`,
+  },
+
+  // 12. Conversations / projects / workspaces settings & management
+  {
+    re: /^Settings for conversations outside of (.+?)\.$/,
+    fn: (_, what) => `Настройки для чатов вне ${translateEntityType(what, "plGen")}.`,
+  },
+  {
+    re: /^Agent settings and permissions for conversations outside of (.+?)\.$/,
+    fn: (_, what) => `Настройки агента и разрешения для чатов вне ${translateEntityType(what, "plGen")}.`,
+  },
+  {
+    re: /^Manage (.+?) (resources|folders), agent settings, and permissions\.$/,
+    fn: (_, entity, what) =>
+      `Управление ${what === "resources" ? "ресурсами" : "папками"} ${translateEntityType(entity, "gen")}, настройками агента и разрешениями.`,
+  },
+  {
+    re: /^Manage (.+?) (resources|folders) and settings\.$/,
+    fn: (_, entity, what) =>
+      `Управление ${what === "resources" ? "ресурсами" : "папками"} ${translateEntityType(entity, "gen")} и настройками.`,
+  },
+  {
+    re: /^Manage (.+?) app settings\.$/,
+    fn: (_, app) => `Управление настройками приложения ${app}.`,
+  },
+  {
+    re: /^A (.+?) with this name already exists\.$/,
+    fn: (_, entity) => `${capitalize(translateEntityType(entity, "nom"))} с таким именем уже существует.`,
+  },
+  {
+    re: /^Duplicate (.+?) name$/,
+    fn: (_, entity) => `Дублирующееся название (${translateEntityType(entity, "gen")})`,
+  },
+  {
+    re: /^(Project|Workspace|Conversation) (archived|deleted)$/i,
+    fn: (_, ent, act) => {
+      const e = ent.toLowerCase();
+      const isArch = act.toLowerCase() === "archived";
+      if (e === "workspace") return `Рабочая область ${isArch ? "архивирована" : "удалена"}`;
+      if (e === "project") return `Проект ${isArch ? "архивирован" : "удалён"}`;
+      return `Чат ${isArch ? "архивирован" : "удалён"}`;
+    },
+  },
+  {
+    re: /^(Delete|Archive|Unarchive) (project|projects|workspace|workspaces|conversation|conversations|skill|rule|plugin|agent|hook|automation|folder)$/i,
+    fn: (_, act, ent) => {
+      const v = { delete: "Удалить", archive: "Архивировать", unarchive: "Разархивировать" }[act.toLowerCase()] || act;
+      return `${v} ${translateEntityType(ent, "acc")}`;
+    },
+  },
+
+  // 13. Additional UI templates & toast/dialog messages
+  {
+    re: /^\+(\d+) more \(Show all\)$/,
+    fn: (_, n) => `+${n} ещё (показать все)`,
+  },
+  {
+    re: /^\+(\d+) more$/,
+    fn: (_, n) => `+${n} ещё`,
+  },
+  {
+    re: /^(\d+) files? changed$/,
+    fn: (_, n) => `${n} ${ruPlural(n, "файл изменён", "файла изменены", "файлов изменено")}`,
+  },
+  {
+    re: /^(\d+) tools?$/,
+    fn: (_, n) => `${n} ${ruPlural(n, "инструмент", "инструмента", "инструментов")}`,
+  },
+  {
+    re: /^(\d+) customizations? failed to load$/,
+    fn: (_, n) => `Не удалось загрузить ${n} ${ruPlural(n, "элемент", "элемента", "элементов")} кастомизации`,
+  },
+  {
+    re: /^(\d+) MCP servers? failed to start$/,
+    fn: (_, n) => `Не удалось запустить ${n} ${ruPlural(n, "MCP-сервер", "MCP-сервера", "MCP-серверов")}`,
+  },
+  {
+    re: /^(.+?) · sign in for more$/,
+    fn: (_, a) => `${a} · войдите, чтобы увидеть больше`,
+  },
+  {
+    re: /^(.+?) · This computer$/,
+    fn: (_, a) => `${a} · Этот компьютер`,
+  },
+  {
+    re: /^(.+?)\. Starting in local workspace\.$/,
+    fn: (_, a) => `${a}. Запуск в локальной рабочей области.`,
+  },
+  {
+    re: /^(.+?), showing (\d+) of (\d+)$/,
+    fn: (_, t, a, b) => `${t}, показано ${a} из ${b}`,
+  },
+  {
+    re: /^(.+?), setup required$/,
+    fn: (_, l) => `${l}, требуется настройка`,
+  },
+  {
+    re: /^(.+?), voice (\d+) of (\d+)$/,
+    fn: (_, name, a, b) => `${name}, голос ${a} из ${b}`,
+  },
+  {
+    re: /^(.+?)\. (Hide|Show) plan$/,
+    fn: (_, a, act) => `${a}. ${act === "Hide" ? "Скрыть" : "Показать"} план`,
+  },
+  {
+    re: /^(.+?)\. Switch (?:mic|microphone)\.?$/,
+    fn: (_, a) => `${a}. Сменить микрофон`,
+  },
+  {
+    re: /^(.+?)\. Show in (.+)$/,
+    fn: (_, a, k) => `${a}. Показать в ${k}`,
+  },
+  {
+    re: /^(.+?)\. View site information$/,
+    fn: (_, a) => `${a}. Информация о сайте`,
+  },
+  {
+    re: /^(.+?)[’']s server IP address could not be found\.$/,
+    fn: (_, d) => `Не удалось найти IP-адрес сервера ${d}.`,
+  },
+  {
+    re: /^(.+?) could not find the requested page\.$/,
+    fn: (_, d) => `Сервер ${d} не нашёл запрошенную страницу.`,
+  },
+  {
+    re: /^(.+?) is currently unable to handle this request\.$/,
+    fn: (_, d) => `Сервер ${d} сейчас не может обработать этот запрос.`,
+  },
+  {
+    re: /^(.+?) took too long to respond\.$/,
+    fn: (_, d) => `Превышено время ожидания ответа от ${d}.`,
+  },
+  {
+    re: /^Check if there is a typo in (.+?), or open the page in your external browser\.$/,
+    fn: (_, a) => `Проверьте, нет ли опечатки в ${a === "the address" ? "адресе" : a}, или откройте страницу во внешнем браузере.`,
+  },
+  {
+    re: /^The certificate was rejected \((.+)\)\.$/,
+    fn: (_, a) => `Сертификат был отклонён (${a}).`,
+  },
+  {
+    re: /^The folder [“"](.+?)[”"] does not exist\. Would you like to create it\?$/,
+    fn: (_, o) => `Папка «${o}» не существует. Создать её?`,
+  },
+  {
+    re: /^[“"](.+?)[”"] isn[’']t a valid folder name\.$/,
+    fn: (_, o) => `«${o}» — недопустимое имя папки.`,
+  },
+  {
+    re: /^Can[’']t create this path — [“"](.+?)[”"] is a file, not a folder\.$/,
+    fn: (_, o) => `Невозможно создать путь — «${o}» является файлом, а не папкой.`,
+  },
+  {
+    re: /^A file already exists at (.+)\.$/,
+    fn: (_, p) => `Файл уже существует по пути ${p}.`,
+  },
+  {
+    re: /^Choose (.+?)'s Voice$/,
+    fn: (_, app) => `Выберите голос ${app}`,
+  },
+  {
+    re: /^Select (.+?) Theme$/,
+    fn: (_, a) => `Выбрать тему: ${a}`,
+  },
+  {
+    re: /^Reset (.+?) to default$/,
+    fn: (_, b) => `Сбросить «${b}» по умолчанию`,
+  },
+  {
+    re: /^Reset (\d+) overrides?$/,
+    fn: (_, n) => `Сбросить ${n} ${ruPlural(n, "переопределение", "переопределения", "переопределений")}`,
+  },
+  {
+    re: /^Send all \((\d+)\)$/,
+    fn: (_, n) => `Отправить все (${n})`,
+  },
+  {
+    re: /^Running for (.+)$/,
+    fn: (_, d) => `Выполняется ${translateCompactDuration(d)}`,
+  },
+  {
+    re: /^Stopped voice chat · (.+)$/,
+    fn: (_, d) => `Голосовой чат остановлен · ${translateCompactDuration(d)}`,
+  },
+  {
+    re: /^Runs even when your computer is off\. (Schedules and events\.|Schedules only\.)$/,
+    fn: (_, m) => `Работает даже при выключенном компьютере. ${m === "Schedules and events." ? "Расписания и события." : "Только расписания."}`,
+  },
+  {
+    re: /^Credentials expire in (.+?)\. Refresh credentials to keep this automation running$/,
+    fn: (_, b) => `Срок действия учётных данных истекает через ${translateCompactDuration(translateEnglishDurationList(b, true))}. Обновите их, чтобы автоматизация продолжала работать.`,
+  },
+  {
+    re: /^Compare responses from (\d+) models side-by-side to find the best result\.$/,
+    fn: (_, n) => `Сравните ответы от ${n} моделей рядом, чтобы выбрать лучший результат.`,
+  },
+  {
+    re: /^You have (\d+) conversations in progress\. Updating will interrupt them, and they will automatically resume once the update completes\.$/,
+    fn: (_, n) =>
+      `У вас сейчас ${n} ${ruPlural(n, "активный чат", "активных чата", "активных чатов")}. Обновление временно прервёт их, и они автоматически возобновятся после завершения.`,
+  },
+  {
+    re: /^Receive product updates, tips, and promotions from Google (.+?) via email\.$/,
+    fn: (_, p) => `Получать новости о продукте, советы и предложения от Google ${p} по электронной почте.`,
+  },
+  {
+    re: /^File exceeds the ([\d.]+)MB display limit \(([\d.]+)MB\), so it can't be opened or downloaded here\.$/,
+    fn: (_, lim, sz) => `Файл превышает лимит отображения ${lim} МБ (${sz} МБ) — его нельзя открыть или скачать здесь.`,
+  },
+  {
+    re: /^Recording exceeds 15MB limit \(([\d.]+)MB\)$/,
+    fn: (_, sz) => `Запись превышает лимит 15 МБ (${sz} МБ)`,
+  },
+  {
+    re: /^Total media size exceeds (\d+)MB limit$/,
+    fn: (_, n) => `Общий размер медиафайлов превышает лимит ${n} МБ`,
+  },
+  {
+    re: /^Configure (.+?), values missing$/,
+    fn: (_, g) => `Настроить ${g}: не хватает параметров`,
+  },
+  {
+    re: /^Configure (.+)$/,
+    fn: (_, g) => `Настроить ${g}`,
+  },
+  {
+    re: /^Auth(?:orization)? code for (.+)$/,
+    fn: (_, g) => `Код авторизации для ${g}`,
+  },
+  {
+    re: /^Cost summary: (.+)$/,
+    fn: (_, n) => `Сводка расходов: ${n}`,
+  },
+  {
+    re: /^Detached at ([0-9a-f]{6,12})$/i,
+    fn: (_, h) => `Отделённый HEAD (${h})`,
+  },
+  {
+    re: /^Checked out in (.+)$/,
+    fn: (_, p) => `Открыто в ${p}`,
+  },
+  {
+    re: /^Fix with Agent: (.+)$/,
+    fn: (_, c) => `Исправить с агентом: ${c}`,
+  },
+  {
+    re: /^Deleted cookies for (.+)$/,
+    fn: (_, d) => `Файлы cookie для ${d} удалены`,
+  },
+  {
+    re: /^Disconnected from logs for (.+)$/,
+    fn: (_, b) => `Отключено от журналов ${b}`,
+  },
+  {
+    re: /^No MCP servers found for "(.+)"$/,
+    fn: (_, f) => `MCP-серверы по запросу «${f}» не найдены`,
+  },
+  {
+    re: /^No connectors match [“"](.+?)[”"]$/,
+    fn: (_, a) => `Нет коннекторов по запросу «${a}»`,
+  },
+  {
+    re: /^Searching as (.+)$/,
+    fn: (_, a) => `Поиск от имени ${a}`,
+  },
+  {
+    re: /^New secret for (.+)$/,
+    fn: (_, p) => `Новый секрет для ${p}`,
+  },
+  {
+    re: /^Secret for a new (.+?) account$/,
+    fn: (_, p) => `Секрет для нового аккаунта ${p}`,
+  },
+  {
+    re: /^Secret for (.+)$/,
+    fn: (_, p) => `Секрет для ${p}`,
+  },
+  {
+    re: /^Select at least (\d+) items?$/,
+    fn: (_, n) => `Выберите минимум ${n} ${ruPlural(n, "элемент", "элемента", "элементов")}`,
+  },
+  {
+    re: /^Select at most (\d+) items?$/,
+    fn: (_, n) => `Выберите максимум ${n} ${ruPlural(n, "элемент", "элемента", "элементов")}`,
+  },
+  {
+    re: /^Minimum length is (\d+)$/,
+    fn: (_, n) => `Минимальная длина: ${n}`,
+  },
+  {
+    re: /^Maximum length is (\d+)$/,
+    fn: (_, n) => `Максимальная длина: ${n}`,
+  },
+  {
+    re: /^Minimum value is (.+)$/,
+    fn: (_, n) => `Минимальное значение: ${n}`,
+  },
+  {
+    re: /^Maximum value is (.+)$/,
+    fn: (_, n) => `Максимальное значение: ${n}`,
+  },
+  {
+    re: /^Relaunch (.+?) to finish Screen Recording\.$/,
+    fn: (_, n) => `Перезапустите ${n}, чтобы завершить настройку записи экрана.`,
+  },
+  {
+    re: /^Open Google Chrome on (.+?)\.$/,
+    fn: (_, b) => `Откройте Google Chrome на ${b}.`,
+  },
+  {
+    re: /^Hidden by policy \((.+)\)\.$/,
+    fn: (_, g) => `Скрыто политикой (${g}).`,
+  },
+  {
+    re: /^Low contrast ratio \((.+?)\)\. Text may be hard to read\.$/,
+    fn: (_, r) => `Низкая контрастность (${r}). Текст может плохо читаться.`,
+  },
+  {
+    re: /^Install folder "(.+)" is already in use$/,
+    fn: (_, d) => `Папка установки «${d}» уже используется`,
+  },
+  {
+    re: /^Agents created by this (.+?) run in a dedicated (.+?) with its own permissions\. You can change the permissions in the \2 settings page\.$/,
+    fn: (_, k, d) =>
+      `Агенты, созданные этим объектом (${translateEntityType(k, "nom")}), работают в выделенном окружении (${translateEntityType(d, "nom")}) со своими разрешениями. Их можно изменить на странице настроек.`,
+  },
+  {
+    re: /^The selected (.+?) can't be found\. Pick another \1 from the \1 selector to send\.$/,
+    fn: (_, u) =>
+      `Выбранный объект (${translateEntityType(u, "nom")}) не найден. Выберите другой в меню выбора, чтобы отправить сообщение.`,
+  },
+  {
+    re: /^Sign-ins to (.+?) are kept in the cloud with your account\.$/,
+    fn: (_, c) => `Авторизации в ${c} хранятся в облаке вместе с вашим аккаунтом.`,
+  },
+  {
+    re: /^Sorry, this account is ineligible to use (.+)$/,
+    fn: (_, a) => `К сожалению, этот аккаунт не имеет доступа к ${a}`,
+  },
+  {
+    re: /^Used tool: (.+)$/,
+    fn: (_, a) => `Использован инструмент: ${a}`,
+  },
+  {
+    re: /^Web app: (.+)$/,
+    fn: (_, a) => `Веб-приложение: ${a}`,
+  },
+  {
+    re: /^(Reading|Read) terminal:$/,
+    fn: (_, a) => (a === "Reading" ? "Чтение терминала:" : "Прочитан терминал:"),
+  },
+  {
+    re: /^(Failed to execute|Executing|Executed) notebook cells$/,
+    fn: (_, a) =>
+      a === "Executing"
+        ? "Выполнение ячеек блокнота"
+        : a === "Executed"
+          ? "Ячейки блокнота выполнены"
+          : "Ошибка выполнения ячеек блокнота",
+  },
+  {
+    re: /^(.+?): ([\d,.\s]+) tokens$/,
+    fn: (_, l, tok) => `${l}: ${tok} токенов`,
+  },
+  {
+    re: /^Page (\d+) failed to load$/,
+    fn: (_, p) => `Не удалось загрузить страницу ${p}`,
+  },
+  {
+    re: /^Render error on page (\d+):$/,
+    fn: (_, p) => `Ошибка отображения на странице ${p}:`,
+  },
+  {
+    re: /^Scroll to: (.+) on page (\d+)$/,
+    fn: (_, b, p) => `Прокрутить к «${b}» на странице ${p}`,
+  },
+  {
+    re: /^Multiple (?:markers|search matches) near page (\d+)$/,
+    fn: (_, p) => `Несколько совпадений около страницы ${p}`,
+  },
+  {
+    re: /^Select model with (.+)$/,
+    fn: (_, c) => `Выбрать модель (${c})`,
+  },
+  {
+    re: /^Send Message (.+)$/,
+    fn: (_, n) => `Отправить сообщение (${n})`,
+  },
+  {
+    re: /^Remove context from (.+)$/,
+    fn: (_, f) => `Удалить контекст из ${f}`,
+  },
+  {
+    re: /^App view for (.+)$/,
+    fn: (_, g) => `Представление приложения: ${g}`,
+  },
+  {
+    re: /^Artifact image (.+)$/,
+    fn: (_, a) => `Изображение артефакта: ${a}`,
+  },
+  {
+    re: /^Attachment error: (.+)$/,
+    fn: (_, e) => `Ошибка вложения: ${e}`,
+  },
+  {
+    re: /^Upload error: (.+)$/,
+    fn: (_, e) => `Ошибка загрузки: ${e}`,
+  },
+  {
+    re: /^(?:Couldn't|Failed to) (archive|unarchive|delete|rename|pin|unpin|move|fork|duplicate) conversation$/i,
+    fn: (_, v) => `Не удалось ${translateConvVerb(v)} чат`,
+  },
+  {
+    re: /^Couldn't remove (.+) from Recent$/,
+    fn: (_, h) => `Не удалось удалить ${h} из недавних`,
+  },
+  {
+    re: /^Couldn't save base branch: (.+)$/,
+    fn: (_, e) => `Не удалось сохранить базовую ветку: ${e}`,
+  },
+  {
+    re: /^Couldn't load apps: (.+)$/,
+    fn: (_, e) => `Не удалось загрузить приложения: ${e}`,
+  },
+  {
+    re: /^Couldn't disconnect (.+?): (.+)$/,
+    fn: (_, a, e) => `Не удалось отключить ${a}: ${e}`,
+  },
+  {
+    re: /^Could not open folder: (.+)$/,
+    fn: (_, e) => `Не удалось открыть папку: ${e}`,
+  },
+  {
+    re: /^Could not read (.+?)\.$/,
+    fn: (_, p) => `Не удалось прочитать ${p}.`,
+  },
+  {
+    re: /^Could not attach image: (.+)$/,
+    fn: (_, e) => `Не удалось прикрепить изображение: ${e}`,
+  },
+  {
+    re: /^Could not attach folder "(.+)": (.+)$/,
+    fn: (_, d, e) => `Не удалось прикрепить папку «${d}»: ${e}`,
+  },
+  {
+    re: /^Could not apply the selected permissions: (.+)$/,
+    fn: (_, e) => `Не удалось применить выбранные разрешения: ${e}`,
+  },
+  {
+    re: /^Failed to (archive|delete) (project|workspace|conversation|skill|rule|plugin|agent)(?:: (.+))?$/i,
+    fn: (_, act, ent, err) => {
+      const v = act.toLowerCase() === "archive" ? "архивировать" : "удалить";
+      return `Не удалось ${v} ${translateEntityType(ent, "acc")}${err ? `: ${err}` : ""}`;
+    },
+  },
+  {
+    re: /^Failed to save (cloud permission settings|project permissions|configuration|project Google3 configuration): (.+)$/i,
+    fn: (_, what, err) => {
+      const m = {
+        "cloud permission settings": "облачные настройки разрешений",
+        "project permissions": "разрешения проекта",
+        configuration: "конфигурацию",
+        "project google3 configuration": "конфигурацию Google3 проекта",
+      }[what.toLowerCase()] || what;
+      return `Не удалось сохранить ${m}: ${err}`;
+    },
+  },
+  {
+    re: /^Failed to (remove|toggle|update|enable) (agent|plugin)(?: ([^:]+))?(?:: (.+))?$/i,
+    fn: (_, act, ent, name, err) => {
+      const v = { remove: "удалить", toggle: "переключить", update: "обновить", enable: "включить" }[act.toLowerCase()] || act;
+      const e = ent.toLowerCase() === "agent" ? "агента" : "плагин";
+      return `Не удалось ${v} ${e}${name ? ` «${name}»` : ""}${err ? `: ${err}` : ""}`;
+    },
+  },
+  {
+    re: /^Failed to unarchive project: (.+)$/,
+    fn: (_, e) => `Не удалось разархивировать проект: ${e}`,
+  },
+  {
+    re: /^Failed to delete recordings: (.+)$/,
+    fn: (_, e) => `Не удалось удалить записи: ${e}`,
+  },
+  {
+    re: /^Failed to open workspace: (.+)$/,
+    fn: (_, e) => `Не удалось открыть рабочую область: ${e}`,
+  },
+  {
+    re: /^Failed to load (PDF|page (\d+)): (.+)$/i,
+    fn: (_, target, pageNum, err) =>
+      pageNum ? `Не удалось загрузить страницу ${pageNum}: ${err}` : `Не удалось загрузить PDF: ${err}`,
+  },
+  {
+    re: /^Honors standard VS Code shortcuts without collisions \(e\.g\. (.+)\)\.$/,
+    fn: (_, s) => `Сохраняет стандартные сочетания клавиш VS Code без конфликтов (например, ${s}).`,
+  },
+  {
+    re: /^Build with (.+) Plugins$/,
+    fn: (_, a) => `Разработка с плагинами ${a}`,
+  },
+  {
+    re: /^Browser tools run on (.+?), the SSH host this window is connected to, and Chrome there isn't accepting remote debugging\. Complete these steps on \1, not on this computer:$/,
+    fn: (_, f) =>
+      `Инструменты браузера работают на SSH-хосте ${f}, к которому подключено это окно, и Chrome там не принимает удалённую отладку. Выполните эти шаги на ${f}, а не на этом компьютере:`,
+  },
+  {
+    re: /^(This plugin|These plugins) in (.+?) may have looser code review\. Review (?:its|their) contents before adding the bundle\.$/,
+    fn: (_, who, f) =>
+      `${who === "This plugin" ? "Этот плагин" : "Эти плагины"} в ${f} ${who === "This plugin" ? "может" : "могут"} проходить менее строгую проверку кода. Проверьте содержимое перед добавлением.`,
+  },
+  {
+    re: /^(.+?), all already installed\. Adding the bundle installs plugins it gains later\.$/,
+    fn: (_, d) => `${d} — все уже установлены. Добавление набора будет устанавливать новые плагины по мере их появления.`,
+  },
+  {
+    re: /^(.+?)\. Add bundle installs (all of them|it)\.$/,
+    fn: (_, d, what) => `${d}. Добавление набора установит ${what === "it" ? "его" : "их все"}.`,
+  },
+  {
+    re: /^(.+?)\. Adding the bundle installs plugins it gains later\.$/,
+    fn: (_, d) => `${d}. Добавление набора будет устанавливать новые плагины по мере их появления.`,
+  },
+  {
+    re: /^(.+?)\. Add bundle installs (.+?); the ones you already have stay as they are\.$/,
+    fn: (_, d, b) => `${d}. Добавление набора установит ${b}; уже установленные останутся без изменений.`,
+  },
+  {
+    re: /^Can[’']t access "(.+?)"\. macOS privacy settings are blocking Antigravity from this location\. Allow Antigravity in System Settings > Privacy & Security > Files and Folders \(or Full Disk Access\)\.$/,
+    fn: (_, p) =>
+      `Нет доступа к «${p}». Настройки конфиденциальности macOS блокируют доступ Antigravity. Разрешите доступ в «Системные настройки → Конфиденциальность и безопасность → Файлы и папки» (или «Полный доступ к диску»).`,
+  },
+  {
+    re: /^Do you want to navigate to (.+?)\?\s*WARNING: This link could potentially be dangerous$/,
+    fn: (_, t) => `Перейти по ссылке ${t}?\n\nВНИМАНИЕ: эта ссылка может быть потенциально опасной`,
+  },
+  {
+    re: /^"(.+?)" not found on page (\d+)$/,
+    fn: (_, d, p) => `«${d}» не найдено на странице ${p}`,
+  },
+  {
+    re: /^Added MCP server "(.+?)", but it failed to start: (.+)$/,
+    fn: (_, n, e) => `MCP-сервер «${n}» добавлен, но не удалось его запустить: ${e}`,
   },
 ];
 

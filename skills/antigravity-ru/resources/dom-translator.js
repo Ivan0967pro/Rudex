@@ -72,6 +72,18 @@ function createDomTranslator(options) {
     "vcs-commit-message",
     "webview-download-filename",
     "webview-prompt-origin",
+    "file-title-name",
+    "branch-pill-label",
+    "branch-repo-label",
+    "ssh-host-label",
+    "url-security-host",
+    "voice-picker-name",
+    "voice-settings-name",
+    "plugin-detail-footer-author",
+    "plugin-detail-footer-version",
+    "automation-name",
+    "coordinator-card-title",
+    "coordinator-settings-name",
   ]);
 
   const CONTENT_CONTAINER_TESTIDS = new Set([
@@ -136,7 +148,7 @@ function createDomTranslator(options) {
 
   function isContentContainer(el) {
     if (!el || el.nodeType !== 1) return false;
-    if (hasClassSafe(el, "markdown-root")) return true;
+    if (hasClassSafe(el, "markdown-root") || getAttrSafe(el, "data-markdown-root") !== null) return true;
     const tid = getAttrSafe(el, "data-testid");
     if (tid && CONTENT_CONTAINER_TESTIDS.has(tid)) return true;
     return false;
@@ -210,7 +222,7 @@ function createDomTranslator(options) {
       const dynNorm = applyDynamic(norm);
       if (dynNorm) return dynNorm;
     }
-    if (trimmed.length >= 4) {
+    if (trimmed.length >= 4 && !/^[a-z][a-z0-9_-]*$/.test(trimmed)) {
       const fromLower = lowerMap.get(norm.toLowerCase());
       if (fromLower !== undefined) return fromLower;
     }

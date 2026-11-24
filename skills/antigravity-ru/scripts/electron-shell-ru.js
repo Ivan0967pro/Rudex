@@ -1439,6 +1439,250 @@ const usbItem = (d) => ({
   );
 }
 
+function patchWebviewPopupSecurityJs(src, warnings) {
+  return applySecondaryFile(
+    src,
+    `const electron_1 = require("electron");`,
+    `const electron_1 = require("electron");\nconst i18nMain_1 = require("./i18nMain");`,
+    "webviewPopupSecurity.js require i18nMain",
+    (text, warns) => {
+      let out = text;
+
+      out = tryReplaceExact(
+        out,
+        `    return POPUP_TITLE_SECURITY_LABELS[state.level];`,
+        `    const lbl = POPUP_TITLE_SECURITY_LABELS[state.level];
+    if (lbl === 'Not secure') return i18nMain_1.tr('Небезопасно', 'Not secure');
+    if (lbl === '⚠ Not secure') return i18nMain_1.tr('⚠ Небезопасно', '⚠ Not secure');
+    return lbl;`,
+        "webviewPopupSecurity.js popup title label",
+        warns
+      ).text;
+
+      out = tryReplaceExact(
+        out,
+        `function formatDate(ms) {
+    return ms > 0 ? new Date(ms).toLocaleString() : 'unknown';
+}
+/** Formats \`state\` as the message and detail lines of a connection dialog. */
+function formatConnectionInfo(state) {
+    const lines = [...SECURITY_LEVEL_SUMMARIES[state.level]];
+    const certificate = state.certificate;
+    if (certificate) {
+        lines.push('', state.level === 'secure' ? 'Certificate is valid' : 'Certificate details');
+        if (state.certificateError) {
+            lines.push(\`Error: \${state.certificateError}\`);
+        }
+        lines.push(\`Issued to: \${certificate.subjectName}\`, \`Issued by: \${certificate.issuer}\`, \`Valid from: \${formatDate(certificate.validFromMs)}\`, \`Valid until: \${formatDate(certificate.validToMs)}\`);
+        if (certificate.protocol) {
+            lines.push(\`Protocol: \${certificate.protocol}\`);
+        }
+    }
+    return {
+        message: extractOrigin(state.url) ?? (state.url || 'This page'),
+        detail: lines.join('\\n'),
+    };
+}`,
+        `function formatDate(ms) {
+    return ms > 0 ? new Date(ms).toLocaleString() : i18nMain_1.tr('неизвестно', 'unknown');
+}
+/** Formats \`state\` as the message and detail lines of a connection dialog. */
+function formatConnectionInfo(state) {
+    const summaryMap = {
+        secure: [
+            i18nMain_1.tr('Подключение защищено', 'Connection is secure'),
+            i18nMain_1.tr('Ваши данные (например, пароли и номера банковских карт) передаются на этот сайт в зашифрованном виде.', 'Your information (for example, passwords or credit card numbers) is private when it is sent to this site.'),
+        ],
+        insecure: [
+            i18nMain_1.tr('Подключение к этому сайту не защищено', 'Your connection to this site is not secure'),
+            i18nMain_1.tr('Не рекомендуется вводить на этом сайте конфиденциальную информацию (например, пароли или данные банковских карт) — она может быть перехвачена злоумышленниками.', 'You should not enter any sensitive information on this site (for example, passwords or credit cards), because it could be stolen by attackers.'),
+        ],
+        neutral: [i18nMain_1.tr('Сведения о безопасности подключения для этой страницы недоступны', 'Connection security information is not available for this page')],
+    };
+    summaryMap.dangerous = summaryMap.insecure;
+    const lines = [...(summaryMap[state.level] || SECURITY_LEVEL_SUMMARIES[state.level])];
+    const certificate = state.certificate;
+    if (certificate) {
+        lines.push('', state.level === 'secure' ? i18nMain_1.tr('Сертификат действителен', 'Certificate is valid') : i18nMain_1.tr('Сведения о сертификате', 'Certificate details'));
+        if (state.certificateError) {
+            lines.push(\`\${i18nMain_1.tr('Ошибка', 'Error')}: \${state.certificateError}\`);
+        }
+        lines.push(\`\${i18nMain_1.tr('Выдан для', 'Issued to')}: \${certificate.subjectName}\`, \`\${i18nMain_1.tr('Кем выдан', 'Issued by')}: \${certificate.issuer}\`, \`\${i18nMain_1.tr('Действителен с', 'Valid from')}: \${formatDate(certificate.validFromMs)}\`, \`\${i18nMain_1.tr('Действителен по', 'Valid until')}: \${formatDate(certificate.validToMs)}\`);
+        if (certificate.protocol) {
+            lines.push(\`\${i18nMain_1.tr('Протокол', 'Protocol')}: \${certificate.protocol}\`);
+        }
+    }
+    return {
+        message: extractOrigin(state.url) ?? (state.url || i18nMain_1.tr('Эта страница', 'This page')),
+        detail: lines.join('\\n'),
+    };
+}`,
+        "webviewPopupSecurity.js formatConnectionInfo",
+        warns
+      ).text;
+
+      out = tryReplaceExact(
+        out,
+        `        electron_1.Menu.buildFromTemplate([
+            { role: 'cut', enabled: canCut },
+            { role: 'copy', enabled: canCopy },
+            { role: 'paste', enabled: canPaste },
+            { role: 'selectAll', enabled: canSelectAll },
+            { type: 'separator' },
+            {
+                label: 'Connection info…',`,
+        `        electron_1.Menu.buildFromTemplate([
+            { role: 'cut', label: i18nMain_1.tr('Вырезать', 'Cut'), enabled: canCut },
+            { role: 'copy', label: i18nMain_1.tr('Копировать', 'Copy'), enabled: canCopy },
+            { role: 'paste', label: i18nMain_1.tr('Вставить', 'Paste'), enabled: canPaste },
+            { role: 'selectAll', label: i18nMain_1.tr('Выделить всё', 'Select All'), enabled: canSelectAll },
+            { type: 'separator' },
+            {
+                label: i18nMain_1.tr('Сведения о подключении…', 'Connection info…'),`,
+        "webviewPopupSecurity.js context menu",
+        warns
+      ).text;
+
+      out = tryReplaceExact(
+        out,
+        `                        title: 'Connection info',
+                        message,
+                        detail,
+                        buttons: ['OK'],`,
+        `                        title: i18nMain_1.tr('Сведения о подключении', 'Connection info'),
+                        message,
+                        detail,
+                        buttons: [i18nMain_1.tr('ОК', 'OK')],`,
+        "webviewPopupSecurity.js messageBox",
+        warns
+      ).text;
+
+      return out;
+    },
+    warnings
+  );
+}
+
+function patchWebauthnJs(src, warnings) {
+  return applySecondaryFile(
+    src,
+    `const utils_1 = require("./utils");`,
+    `const utils_1 = require("./utils");\nconst i18nMain_1 = require("./i18nMain");`,
+    "webauthn.js require i18nMain",
+    (text, warns) => {
+      return tryReplaceExact(
+        text,
+        `                    const rpLabel = details.relyingPartyId || 'this site';
+                    const result = await showMessageBox(win, {
+                        type: 'question',
+                        title: 'Choose a Passkey',
+                        message: \`Sign in to \${rpLabel}\`,
+                        detail: 'Select a passkey account to continue:',
+                        buttons: [...accountLabels, 'Cancel'],`,
+        `                    const rpLabel = details.relyingPartyId || i18nMain_1.tr('этот сайт', 'this site');
+                    const result = await showMessageBox(win, {
+                        type: 'question',
+                        title: i18nMain_1.tr('Выбор ключа доступа (Passkey)', 'Choose a Passkey'),
+                        message: i18nMain_1.tr(\`Вход в \${rpLabel}\`, \`Sign in to \${rpLabel}\`),
+                        detail: i18nMain_1.tr('Выберите аккаунт ключа доступа для продолжения:', 'Select a passkey account to continue:'),
+                        buttons: [...accountLabels, i18nMain_1.tr('Отмена', 'Cancel')],`,
+        "webauthn.js passkey dialog",
+        warns
+      ).text;
+    },
+    warnings
+  );
+}
+
+function patchRemoteManagerJs(src, warnings) {
+  return applySecondaryFile(
+    src,
+    `const utils_1 = require("../utils");`,
+    `const utils_1 = require("../utils");\nconst i18nMain_1 = require("../i18nMain");`,
+    "remoteManager.js require i18nMain",
+    (text, warns) => {
+      let out = text;
+
+      out = tryReplaceExact(
+        out,
+        `            const { canceled, filePaths } = await electron_1.dialog.showOpenDialog(parent, {
+                title: 'Choose an SSH config file',`,
+        `            const { canceled, filePaths } = await electron_1.dialog.showOpenDialog(parent, {
+                title: i18nMain_1.tr('Выберите файл конфигурации SSH', 'Choose an SSH config file'),`,
+        "remoteManager.js open SSH config dialog",
+        warns
+      ).text;
+
+      out = tryReplaceExact(
+        out,
+        `            const { response } = await electron_1.dialog.showMessageBox(parent, {
+                type: 'warning',
+                title: 'Choose another SSH config file',
+                ...refusal,
+                buttons: ['Choose Another File…', 'Cancel'],`,
+        `            const { response } = await electron_1.dialog.showMessageBox(parent, {
+                type: 'warning',
+                title: i18nMain_1.tr('Выберите другой файл конфигурации SSH', 'Choose another SSH config file'),
+                ...refusal,
+                buttons: [i18nMain_1.tr('Выбрать другой файл…', 'Choose Another File…'), i18nMain_1.tr('Отмена', 'Cancel')],`,
+        "remoteManager.js choose another SSH config dialog",
+        warns
+      ).text;
+
+      out = tryReplaceExact(
+        out,
+        `                return electron_1.dialog.showMessageBox(win, {
+                    type: 'warning',
+                    buttons: ['Stop Server', 'Cancel'],
+                    defaultId: 1,
+                    cancelId: 1,
+                    title: 'Stop SSH server',
+                    message: \`Stop the Antigravity server on \${entry.label}?\`,
+                    detail: 'Agents running on this host will stop and its window will close. ' +
+                        'The server starts again the next time you connect.',`,
+        `                return electron_1.dialog.showMessageBox(win, {
+                    type: 'warning',
+                    buttons: [i18nMain_1.tr('Остановить сервер', 'Stop Server'), i18nMain_1.tr('Отмена', 'Cancel')],
+                    defaultId: 1,
+                    cancelId: 1,
+                    title: i18nMain_1.tr('Остановка SSH-сервера', 'Stop SSH server'),
+                    message: i18nMain_1.tr(\`Остановить сервер Antigravity на \${entry.label}?\`, \`Stop the Antigravity server on \${entry.label}?\`),
+                    detail: i18nMain_1.tr(
+                        'Агенты, запущенные на этом хосте, будут остановлены, а его окно закроется. Сервер запустится снова при следующем подключении.',
+                        'Agents running on this host will stop and its window will close. The server starts again the next time you connect.'
+                    ),`,
+        "remoteManager.js stop SSH server dialog",
+        warns
+      ).text;
+
+      out = tryReplaceExact(
+        out,
+        `    tellNotConnected(win, label) {
+        return this.showSheet(win, {
+            type: 'info',
+            title: 'Stop SSH server',
+            message: \`Not connected to \${label}\`,
+            detail: 'Reconnect first, then stop its server.',
+        });
+    }`,
+        `    tellNotConnected(win, label) {
+        return this.showSheet(win, {
+            type: 'info',
+            title: i18nMain_1.tr('Остановка SSH-сервера', 'Stop SSH server'),
+            message: i18nMain_1.tr(\`Нет подключения к \${label}\`, \`Not connected to \${label}\`),
+            detail: i18nMain_1.tr('Сначала переподключитесь, затем остановите сервер.', 'Reconnect first, then stop its server.'),
+        });
+    }`,
+        "remoteManager.js tellNotConnected dialog",
+        warns
+      ).text;
+
+      return out;
+    },
+    warnings
+  );
+}
+
 function patchPreloadJs(src, preloadSnippet) {
   const marker = "\n// === ANTIGRAVITY_RU_I18N_START ===";
   const idx = src.indexOf(marker);
@@ -1481,6 +1725,9 @@ function patchElectronShell(appDir, preloadSnippet, options = {}) {
     [path.join("remote", "disconnectedPage.js"), patchDisconnectedPageJs],
     [path.join("remote", "sshPrompts.js"), patchSshPromptsJs],
     ["deviceChooser.js", patchDeviceChooserJs],
+    ["webviewPopupSecurity.js", patchWebviewPopupSecurityJs],
+    ["webauthn.js", patchWebauthnJs],
+    [path.join("remote", "remoteManager.js"), patchRemoteManagerJs],
   ];
 
   for (const [rel, fn] of secondaryPatches) {

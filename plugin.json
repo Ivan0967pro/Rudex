@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "antigravity-ru",
   "displayName": "Antigravity RU",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Полная русификация интерфейса Antigravity 2.0 (UI, меню, трей, контекстные меню и диалоги) с переключением RU/EN по Ctrl+Alt+L и откатом.",
   "logo": "assets/logo.svg",
   "author": {
