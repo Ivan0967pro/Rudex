@@ -1994,6 +1994,7 @@ function getStorePath() {
 }
 
 function getLocale() {
+  if (globalThis.__RUDEX_DISABLED__) return "en";
   if (cachedLocale === "ru" || cachedLocale === "en") {
     return cachedLocale;
   }
@@ -2053,6 +2054,7 @@ function toggleLocaleFromHotkey() {
 }
 
 function isRu() {
+  if (globalThis.__RUDEX_DISABLED__) return false;
   return getLocale() !== "en";
 }
 
@@ -2084,6 +2086,12 @@ function onLocaleChange(cb) {
 function registerI18nIpc() {
   if (ipcRegistered) return;
   ipcRegistered = true;
+  if (globalThis.__RUDEX_DISABLED__) {
+    ipcMain.on("agy-i18n:get-locale-sync", (event) => {
+      event.returnValue = "__disabled__";
+    });
+    return;
+  }
   if (!fs.existsSync(getStorePath())) {
     saveLocale(getLocale());
   }

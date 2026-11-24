@@ -43,6 +43,7 @@ function patchMainJs(src, stampVersion, warnings) {
     try {
         const _fs = require("fs");
         const _path = require("path");
+        const _os = require("os");
         const { app: _app } = require("electron");
         const _resDir = process.resourcesPath || _path.resolve(__dirname, "..", "..");
         const _verPath = _path.join(_resDir, "..", "version");
@@ -57,6 +58,95 @@ function patchMainJs(src, stampVersion, warnings) {
                     _app.exit(0);
                     return;
                 } catch {}
+            }
+        }
+
+        const _metaPath = _path.join(_appDir, "rudex-patch-meta.json");
+        let _managed = true;
+        if (_fs.existsSync(_metaPath)) {
+            try {
+                const _meta = JSON.parse(_fs.readFileSync(_metaPath, "utf8"));
+                if (_meta && _meta.managedByPlugin === false) _managed = false;
+            } catch {}
+        }
+        if (_managed) {
+            const _homeDir = _os.homedir();
+            const _rudexDir = _path.join(_homeDir, ".gemini", "config", "plugins", "rudex");
+            const _hasPlugin = _fs.existsSync(_path.join(_rudexDir, "plugin.json")) &&
+                _fs.existsSync(_path.join(_rudexDir, "skills", "rudex", "SKILL.md"));
+            if (!_hasPlugin) {
+                const _userDataDir = (() => { try { return _app.getPath("userData"); } catch { return ""; } })();
+                const _staleFlags = [
+                    _userDataDir ? _path.join(_userDataDir, "agy_studio_persona_active.flag") : "",
+                    _userDataDir ? _path.join(_userDataDir, "studio_live_edits", "pending.flag") : "",
+                    _path.join(_homeDir, ".gemini", "config", "rules", "antigravity-ru-persona.md"),
+                ];
+                for (let _fi = 0; _fi < _staleFlags.length; _fi += 1) {
+                    const _fp = _staleFlags[_fi];
+                    if (!_fp) continue;
+                    try { if (_fs.existsSync(_fp)) _fs.unlinkSync(_fp); } catch {}
+                }
+
+                const _cmpVer = (a, b) => {
+                    const _p = (v) => String(v || "").trim().replace(/^v/i, "").split(/[-+]/)[0].split(".").map((n) => parseInt(n, 10) || 0);
+                    const _pa = _p(a);
+                    const _pb = _p(b);
+                    const _len = Math.max(_pa.length, _pb.length, 3);
+                    for (let _k = 0; _k < _len; _k += 1) {
+                        const _d = (_pa[_k] || 0) - (_pb[_k] || 0);
+                        if (_d !== 0) return _d;
+                    }
+                    return String(a || "").localeCompare(String(b || ""));
+                };
+
+                const _backups = [];
+                try {
+                    const _entries = _fs.readdirSync(_resDir);
+                    for (let _ei = 0; _ei < _entries.length; _ei += 1) {
+                        const _name = _entries[_ei];
+                        const _m = /^app\\.asar\\.orig-(.+)$/.exec(_name);
+                        if (!_m) continue;
+                        const _bp = _path.join(_resDir, _name);
+                        try {
+                            const _bst = _fs.statSync(_bp);
+                            if (_bst.isFile() && _bst.size > 0) _backups.push({ version: _m[1], path: _bp });
+                        } catch {}
+                    }
+                    _backups.sort((x, y) => _cmpVer(y.version, x.version));
+                } catch {}
+
+                const _asarPath = _path.join(_resDir, "app.asar");
+                const _hasValidAsar = () => {
+                    try { return _fs.existsSync(_asarPath) && _fs.statSync(_asarPath).size > 0; } catch { return false; }
+                };
+
+                if (!_hasValidAsar() && _backups.length > 0) {
+                    const _tmpAsar = _path.join(_resDir, "app.asar.rudex-restore.tmp");
+                    try {
+                        _fs.copyFileSync(_backups[0].path, _tmpAsar);
+                        if (_fs.statSync(_tmpAsar).size > 0) _fs.renameSync(_tmpAsar, _asarPath);
+                    } catch {
+                        try { if (_fs.existsSync(_tmpAsar)) _fs.unlinkSync(_tmpAsar); } catch {}
+                    }
+                }
+
+                if (_hasValidAsar() && _fs.existsSync(_appDir)) {
+                    const _removedDir = _appDir + ".rudex-removed-" + Date.now();
+                    try {
+                        _fs.renameSync(_appDir, _removedDir);
+                        try { _fs.rmSync(_removedDir, { recursive: true, force: true }); } catch {}
+                        for (let _bi = 0; _bi < _backups.length; _bi += 1) {
+                            try { _fs.unlinkSync(_backups[_bi].path); } catch {}
+                        }
+                        _app.relaunch();
+                        _app.exit(0);
+                        return;
+                    } catch {
+                        globalThis.__RUDEX_DISABLED__ = true;
+                    }
+                } else {
+                    globalThis.__RUDEX_DISABLED__ = true;
+                }
             }
         }
     } catch {}
@@ -91,7 +181,8 @@ function patchMainJs(src, stampVersion, warnings) {
     src,
     `electron_1.app.on('web-contents-created', (_event, contents) => {`,
     `electron_1.app.on('web-contents-created', (_event, contents) => {
-    if (!(0, scriptJail_1.isScriptJailSession)(contents.session) &&
+    if (!globalThis.__RUDEX_DISABLED__ &&
+        !(0, scriptJail_1.isScriptJailSession)(contents.session) &&
         !(0, captureWindow_1.isBrowserStreamSession)(contents.session)) {
         contents.on('before-input-event', (event, input) => {
             const notAltGr = !(Array.isArray(input.modifiers) && input.modifiers.includes('altgraph'));
@@ -1604,4 +1695,5 @@ function patchElectronShell(appDir, preloadSnippet, options = {}) {
 module.exports = {
   I18N_MAIN_SOURCE,
   patchElectronShell,
+  patchMainJs,
 };

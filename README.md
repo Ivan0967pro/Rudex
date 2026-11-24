@@ -57,7 +57,9 @@ node ./skills/rudex/scripts/install.js --status
 ---
 
 ## Удаление и возврат к английскому интерфейсу
-Запустите **[`Uninstall-Rudex.cmd`](./Uninstall-Rudex.cmd)** или:
+Достаточно удалить плагин или скилл **Rudex** прямо в интерфейсе Antigravity и перезапустить приложение — при запуске оболочка автоматически восстановит оригинальный `app.asar`, удалит `resources/app` и очистит временные флаги.
+
+Для ручного удаления также доступны **[`Uninstall-Rudex.cmd`](./Uninstall-Rudex.cmd)** или:
 ```powershell
 .\install.ps1 -Uninstall -RestartApp
 ```

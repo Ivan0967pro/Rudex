@@ -46,6 +46,7 @@ const {
   stripCjsPrologueEpilogue,
   buildPreloadSnippet,
 } = require(path.join(SCRIPTS_DIR, "install.js"));
+const { patchMainJs } = require(path.join(SCRIPTS_DIR, "electron-shell.js"));
 const {
   crc32,
   createZipBuffer,
@@ -1017,4 +1018,143 @@ test("zip-builder writes valid UTF-8 Cyrillic & POSIX ZIP archives and builds lo
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+});
+
+// =============================================================================
+// 7. Plugin-Removal Auto-Rollback Guard Tests
+// =============================================================================
+test("patchMainJs startup guard auto-restores stock app.asar when Rudex plugin/skill is removed and never bricks", () => {
+  const minimalMainSrc = [
+    `"use strict";`,
+    `const menu_1 = require("./menu");`,
+    `const electron_1 = require("electron");`,
+    `    const ipc = (0, ipcHandlers_1.registerIpcHandlers)(storageManager, {`,
+    `electron_1.app.on('web-contents-created', (_event, contents) => {`,
+  ].join("\n");
+  const patchedMain = patchMainJs(minimalMainSrc, "44.10.0", []);
+  const cut = patchedMain.indexOf("\nconst menu_1");
+  assert.ok(cut > 0);
+  const guardCode = patchedMain.slice(0, cut);
+
+  const runGuardScenario = ({ withPlugin, withSkill, backups, hasPreAsar }) => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-rollback-"));
+    try {
+      const homeDir = path.join(tmpRoot, "home");
+      const userDataDir = path.join(tmpRoot, "userData");
+      const appRoot = path.join(tmpRoot, "antigravity");
+      const resDir = path.join(appRoot, "resources");
+      const appDir = path.join(resDir, "app");
+      const distDir = path.join(appDir, "dist");
+      fs.mkdirSync(distDir, { recursive: true });
+      fs.mkdirSync(path.join(userDataDir, "studio_live_edits"), { recursive: true });
+      fs.writeFileSync(path.join(appRoot, "version"), "44.10.0\n", "utf8");
+      fs.writeFileSync(path.join(appDir, "rudex-patch-meta.json"), JSON.stringify({ managedByPlugin: true }), "utf8");
+      fs.writeFileSync(path.join(userDataDir, "agy_studio_persona_active.flag"), "1\n", "utf8");
+      fs.writeFileSync(path.join(userDataDir, "studio_live_edits", "pending.flag"), "1\n", "utf8");
+
+      const legacyGlobalRule = path.join(homeDir, ".gemini", "config", "rules", "antigravity-ru-persona.md");
+      fs.mkdirSync(path.dirname(legacyGlobalRule), { recursive: true });
+      fs.writeFileSync(legacyGlobalRule, "stale", "utf8");
+
+      const rudexPluginDir = path.join(homeDir, ".gemini", "config", "plugins", "rudex");
+      if (withPlugin) {
+        fs.mkdirSync(rudexPluginDir, { recursive: true });
+        fs.writeFileSync(path.join(rudexPluginDir, "plugin.json"), '{"name":"rudex"}', "utf8");
+      }
+      if (withSkill) {
+        fs.mkdirSync(path.join(rudexPluginDir, "skills", "rudex"), { recursive: true });
+        fs.writeFileSync(path.join(rudexPluginDir, "skills", "rudex", "SKILL.md"), "# Rudex\n", "utf8");
+      }
+
+      for (const b of backups) {
+        fs.writeFileSync(path.join(resDir, `app.asar.orig-${b.ver}`), b.content, "utf8");
+      }
+      if (hasPreAsar) {
+        fs.writeFileSync(path.join(resDir, "app.asar"), "EXISTING_ASAR", "utf8");
+      }
+
+      let relaunchCalls = 0;
+      let exitCode = null;
+      const sandbox = {
+        process: { resourcesPath: resDir },
+        __dirname: distDir,
+        require: (mod) => {
+          if (mod === "fs") return fs;
+          if (mod === "path") return path;
+          if (mod === "os") return Object.assign({}, os, { homedir: () => homeDir });
+          if (mod === "electron") {
+            return {
+              app: {
+                getPath: () => userDataDir,
+                relaunch: () => { relaunchCalls += 1; },
+                exit: (c) => { exitCode = c; },
+              },
+            };
+          }
+          throw new Error(`Unexpected require: ${mod}`);
+        },
+      };
+      sandbox.globalThis = sandbox;
+      vm.runInNewContext(guardCode, sandbox);
+
+      const asarPath = path.join(resDir, "app.asar");
+      return {
+        relaunchCalls,
+        exitCode,
+        disabled: Boolean(sandbox.__RUDEX_DISABLED__),
+        appDirExists: fs.existsSync(appDir),
+        asarContent: fs.existsSync(asarPath) ? fs.readFileSync(asarPath, "utf8") : "",
+        remainingBackups: fs.readdirSync(resDir).filter((n) => n.startsWith("app.asar.orig-")),
+        personaFlagExists: fs.existsSync(path.join(userDataDir, "agy_studio_persona_active.flag")),
+        liveEditFlagExists: fs.existsSync(path.join(userDataDir, "studio_live_edits", "pending.flag")),
+        legacyRuleExists: fs.existsSync(legacyGlobalRule),
+      };
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  };
+
+  // Case 1: Both plugin.json and SKILL.md present -> keep Rudex active untouched
+  const active = runGuardScenario({
+    withPlugin: true,
+    withSkill: true,
+    backups: [{ ver: "44.10.0", content: "STOCK_44_10" }],
+    hasPreAsar: false,
+  });
+  assert.equal(active.relaunchCalls, 0);
+  assert.equal(active.exitCode, null);
+  assert.equal(active.disabled, false);
+  assert.equal(active.appDirExists, true);
+  assert.equal(active.personaFlagExists, true);
+
+  // Case 2: User removed plugin/skill -> restores newest semver backup (44.10.0 > 44.9.1), cleans flags, relaunches
+  const rolledBack = runGuardScenario({
+    withPlugin: false,
+    withSkill: false,
+    backups: [
+      { ver: "44.9.1", content: "OLD_44_9_1" },
+      { ver: "44.10.0", content: "NEWEST_STOCK_44_10_0" },
+    ],
+    hasPreAsar: false,
+  });
+  assert.equal(rolledBack.relaunchCalls, 1);
+  assert.equal(rolledBack.exitCode, 0);
+  assert.equal(rolledBack.appDirExists, false);
+  assert.equal(rolledBack.asarContent, "NEWEST_STOCK_44_10_0");
+  assert.deepEqual(rolledBack.remainingBackups, []);
+  assert.equal(rolledBack.personaFlagExists, false);
+  assert.equal(rolledBack.liveEditFlagExists, false);
+  assert.equal(rolledBack.legacyRuleExists, false);
+
+  // Case 3: User removed only SKILL.md and NO backups/app.asar exist -> NEVER brick; enter dormant mode cleanly
+  const dormant = runGuardScenario({
+    withPlugin: true,
+    withSkill: false,
+    backups: [],
+    hasPreAsar: false,
+  });
+  assert.equal(dormant.relaunchCalls, 0);
+  assert.equal(dormant.appDirExists, true, "Must NEVER delete resources/app when no valid app.asar exists");
+  assert.equal(dormant.disabled, true);
+  assert.equal(dormant.personaFlagExists, false);
 });

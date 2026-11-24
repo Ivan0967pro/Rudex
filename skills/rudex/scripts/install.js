@@ -411,7 +411,9 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     themeSrc,
     stylesSrc,
     panelSrc,
-    `const _bootLocale = (() => { try { return _ipc.sendSync("agy-i18n:get-locale-sync") === "en" ? "en" : "ru"; } catch (_e) { return "ru"; } })();`,
+    `const _rawBootLocale = (() => { try { return _ipc.sendSync("agy-i18n:get-locale-sync"); } catch (_e) { return "ru"; } })();`,
+    `if (_rawBootLocale === "__disabled__") return;`,
+    `const _bootLocale = _rawBootLocale === "en" ? "en" : "ru";`,
     `const _translator = createDomTranslator({ document, window: typeof window !== "undefined" ? window : globalThis, dictionary: DICT, applyDynamicRules: typeof applyDynamicRules === "function" ? applyDynamicRules : () => null, initialLocale: _bootLocale });`,
     `const _studioPanel = createStudioPanel({ document, window: typeof window !== "undefined" ? window : globalThis, ipcRenderer: _ipc, translator: _translator, initialLocale: _bootLocale, pluginMeta: STUDIO_META, buildStyles: typeof buildStudioStyles === "function" ? buildStudioStyles : null });`,
     `_ipc.on("agy-i18n:locale-changed", (_event, nextLocale) => { try { _translator.setLocale(nextLocale); } catch (_e) {} try { _studioPanel.setLocale(nextLocale); } catch (_e) {} });`,
@@ -717,6 +719,7 @@ function runInstall(options = {}) {
       name: "rudex",
       displayName: pluginMeta.displayName,
       version: pluginMeta.version,
+      managedByPlugin: true,
       appVersion: info.appVersion,
       shellVersion: info.shellVersion,
       stampVersion,
@@ -729,11 +732,18 @@ function runInstall(options = {}) {
 
     deployStagedApp(stagingDir, info.appDir);
 
-    // Clean up legacy ru-patch-meta.json if overwriting existing resources/app
+    // Clean up legacy meta and stale removed/outdated directories
     const staleLegacyMeta = path.join(info.appDir, LEGACY_META_FILENAME);
     if (fs.existsSync(staleLegacyMeta)) {
       try { fs.unlinkSync(staleLegacyMeta); } catch (_e) {}
     }
+    try {
+      for (const entryName of fs.readdirSync(info.resourcesDir)) {
+        if (/^app\.(rudex|ru)-(removed|outdated|prev)-/.test(entryName)) {
+          fs.rmSync(path.join(info.resourcesDir, entryName), { recursive: true, force: true });
+        }
+      }
+    } catch (_e) {}
 
     verifyJsFilesSyntax([
       path.join(info.appDir, "dist", "main.js"),
