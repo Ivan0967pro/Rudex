@@ -56,6 +56,12 @@ const {
   readGitHeadMeta,
 } = require(path.join(SCRIPTS_DIR, "updater-core.js"));
 const {
+  needsRussianTranslation,
+  protectInlineTokens,
+  restoreInlineTokens,
+  createThinkingTranslator,
+} = require(path.join(SCRIPTS_DIR, "thinking-translator.js"));
+const {
   crc32,
   createZipBuffer,
   writeZipFile,
@@ -385,12 +391,13 @@ function createMockDom() {
 // =============================================================================
 // 1. Metadata, Hooks Schema & Installer Helpers
 // =============================================================================
-test("Manifest & hooks.json follow Rudex v4.1.0 architecture without PostInvocation", () => {
+test("Manifest & hooks.json follow Rudex v4.1.1 architecture without PostInvocation", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.1.0");
+  assert.equal(pkg.version, "4.1.1");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
+  assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
   assert.ok(Object.keys(dictionary).length >= 4000);
   assert.equal(DYNAMIC_RULES.length, 474);
@@ -897,13 +904,22 @@ test("Studio styles and panel UI render without layout/CSS regressions and sync 
   assert.ok(sysHtmlOn.includes('class="switch is-on" role="switch" aria-checked="true" data-action="toggle-thinking-ru"'));
   assert.ok(sysHtmlOn.includes("Русский"), "Enabled thinkingInRussian must show Russian badge");
 
-  // Mini widget never exposes removed medium-card switch, and Settings -> Widget omits it
+  // Mini widget exposes expand-to-medium button, Settings -> Widget exposes size selector, and S <-> M toggle works
   const widgetMount = host && host.shadowRoot ? host.shadowRoot.querySelector(".widget-wrap") : null;
   const widgetHtml = widgetMount ? widgetMount.innerHTML : "";
-  assert.equal(widgetHtml.includes('data-action="to-medium"'), false, "Mini pill must not include removed expand button");
+  assert.ok(widgetHtml.includes('data-action="to-medium"'), "Mini pill must include expand-to-medium button");
   panel.setOpen(true, { tab: "settings", subTab: "widget" });
   const widgetTabHtml = modalMount ? modalMount.innerHTML : "";
-  assert.equal(widgetTabHtml.includes("Размер виджета"), false, "Medium card size option must be removed");
+  assert.ok(widgetTabHtml.includes("Размер виджета"), "Settings -> Widget must expose widget size selector");
+  assert.ok(widgetTabHtml.includes('data-action="set-view-mode"'), "Settings -> Widget must expose S/M view mode buttons");
+
+  panel.setViewMode("medium");
+  const medHtml = widgetMount ? widgetMount.innerHTML : "";
+  assert.ok(medHtml.includes("med-card"), "Setting viewMode=medium must render medium card");
+  assert.ok(medHtml.includes('data-action="to-mini"'), "Medium card must include collapse-to-mini button");
+
+  panel.setViewMode("mini");
+  assert.ok((widgetMount ? widgetMount.innerHTML : "").includes("mini-pill"), "Setting viewMode=mini must restore mini pill");
 
   // Appearance opens centered inside monolithic Studio by default, with optional right-dock button
   panel.setOpen(true, { tab: "appearance", appSubTab: "theme", dockedRight: false });
@@ -1105,7 +1121,8 @@ test("rudex-hook.js injects Russian thinking directive, refreshes after 6 steps,
       initialNumSteps: 0,
     });
     assert.ok(Array.isArray(startOut.injectSteps) && startOut.injectSteps.length === 1);
-    assert.ok(startOut.injectSteps[0].systemMessage.systemMessage.includes("[Rudex · Язык внутренних размышлений]"));
+    assert.ok(startOut.injectSteps[0].systemMessage.systemMessage.includes("[Rudex · Язык внутренних размышлений / Thinking Language]"));
+    assert.ok(startOut.injectSteps[0].systemMessage.systemMessage.includes("MANDATORY: Write ALL internal reasoning"));
 
     // No duplicate injection before +6 steps
     const earlyOut = runHook({
@@ -1122,7 +1139,7 @@ test("rudex-hook.js injects Russian thinking directive, refreshes after 6 steps,
       initialNumSteps: 6,
     });
     assert.ok(Array.isArray(refreshOut.injectSteps) && refreshOut.injectSteps.length === 1);
-    assert.ok(refreshOut.injectSteps[0].systemMessage.systemMessage.includes("[Rudex · Напоминание]"));
+    assert.ok(refreshOut.injectSteps[0].systemMessage.systemMessage.includes("[Rudex · Reminder]"));
 
     // Turn thinkingInRussian OFF mid-chat -> emits revert directive and unlinks flag when no active anchors remain
     fs.writeFileSync(settingsPath, JSON.stringify({ thinkingInRussian: false }), "utf8");
@@ -1954,6 +1971,164 @@ test("Studio update popup and Settings -> Language & System update controls hand
     rootEl.dispatchEvent({ type: "click", target: installBtn });
     assert.ok(toastMount.innerHTML.includes("update-toast-progress"), "Clicking Update must immediately display download progress");
     assert.ok(ipcCalls.some((c) => c.ch === "agy-studio:install-update"));
+  } finally {
+    panel.destroy();
+    translator.destroy();
+  }
+});
+
+// =============================================================================
+// 12. Live Thinking-Block Translation Engine & DOM Integration Tests
+// =============================================================================
+test("Thinking translator protects inline code/paths, skips Russian, falls back cleanly, and live-translates/restores Antigravity thinking DOM", async () => {
+  assert.equal(needsRussianTranslation("I'm thinking through how to approach this."), true);
+  assert.equal(needsRussianTranslation("Я думаю, как решить эту задачу."), false);
+  assert.equal(needsRussianTranslation("C:\\Users\\ivanp\\app.js"), false);
+  assert.equal(needsRussianTranslation("https://github.com/Ivan0967pro/Rudex"), false);
+
+  const srcLine = "Inspect `studio-panel.js` via `--dry-run` before editing app_config_path.";
+  const maskedObj = protectInlineTokens(srcLine);
+  assert.equal(maskedObj.tokens.length, 3);
+  assert.ok(!maskedObj.masked.includes("studio-panel.js"));
+  assert.ok(!maskedObj.masked.includes("--dry-run"));
+  assert.ok(!maskedObj.masked.includes("app_config_path"));
+  const restored = restoreInlineTokens("Проверьте RUDX0Z через RUDX1Z перед правкой RUDX2Z.", maskedObj.tokens);
+  assert.equal(restored, "Проверьте `studio-panel.js` через `--dry-run` перед правкой app_config_path.");
+
+  let mode = "clients5";
+  let hits = 0;
+  const srv = http.createServer((req, res) => {
+    hits += 1;
+    const u = new URL(req.url, "http://127.0.0.1");
+    if (u.pathname === "/clients5") {
+      if (mode === "fallback") {
+        res.writeHead(500);
+        res.end("ERR");
+        return;
+      }
+      const q = u.searchParams.get("q") || "";
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify([`RU:${q}`]));
+      return;
+    }
+    if (u.pathname === "/mymemory") {
+      const q = u.searchParams.get("q") || "";
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ responseStatus: 200, responseData: { translatedText: `MM:${q}` } }));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => srv.listen(0, "127.0.0.1", resolve));
+  try {
+    const port = srv.address().port;
+    const tt = createThinkingTranslator({
+      clients5Url: `http://127.0.0.1:${port}/clients5`,
+      myMemoryUrl: `http://127.0.0.1:${port}/mymemory`,
+    });
+
+    const b1 = await tt.translateBatch(["Inspect `studio-panel.js` first.", "Уже на русском языке."]);
+    assert.ok(b1.translations["Inspect `studio-panel.js` first."].includes("`studio-panel.js`"));
+    assert.ok(b1.translations["Inspect `studio-panel.js` first."].startsWith("RU:"));
+    assert.equal(b1.translations["Уже на русском языке."], undefined);
+    const hitsAfterFirst = hits;
+
+    // Repeated text must be served from LRU cache with 0 extra HTTP requests
+    const b2 = await tt.translateBatch(["Inspect `studio-panel.js` first."]);
+    assert.equal(hits, hitsAfterFirst);
+    assert.equal(b2.translations["Inspect `studio-panel.js` first."], b1.translations["Inspect `studio-panel.js` first."]);
+
+    // When clients5 returns 500, translator falls back seamlessly to MyMemory
+    mode = "fallback";
+    const b3 = await tt.translateBatch(["Fallback test sentence."]);
+    assert.equal(b3.translations["Fallback test sentence."], "MM:Fallback test sentence.");
+  } finally {
+    await new Promise((resolve) => srv.close(resolve));
+  }
+
+  // Test DOM scanner + lossless rollback in Antigravity l2 collapsible structure
+  const { doc, win } = createMockDom();
+  const translator = createDomTranslator({
+    document: doc,
+    window: win,
+    dictionary,
+    applyDynamicRules,
+    initialLocale: "ru",
+  });
+  translator.init();
+
+  const resp = doc.createElement("div");
+  resp.setAttribute("data-testid", "agent-response");
+  const wrap = doc.createElement("div");
+  wrap.setAttribute("class", "relative");
+  const headerRow = doc.createElement("div");
+  headerRow.setAttribute("class", "flex min-w-0 items-center");
+  const trigger = doc.createElement("button");
+  trigger.setAttribute("type", "button");
+  trigger.setAttribute("data-testid", "thinking-collapsible-trigger");
+  trigger.setAttribute("aria-expanded", "true");
+  trigger.setAttribute("aria-label", "Thought for 6s");
+  headerRow.appendChild(trigger);
+
+  const panelBox = doc.createElement("div");
+  panelBox.setAttribute("class", "overflow-y-auto bleed-contain pl-3 pt-0.5");
+  const para = doc.createElement("p");
+  const enNode = doc.createTextNode("I'm thinking through how to approach ");
+  const codeEl = doc.createElement("code");
+  codeEl.textContent = "studio-panel.js";
+  const tailNode = doc.createTextNode(" and keep latency low.");
+  para.appendChild(enNode);
+  para.appendChild(codeEl);
+  para.appendChild(tailNode);
+  panelBox.appendChild(para);
+  wrap.appendChild(headerRow);
+  wrap.appendChild(panelBox);
+  resp.appendChild(wrap);
+  doc.body.appendChild(resp);
+
+  const translateCalls = [];
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      invoke: async (ch, payload) => {
+        if (ch === "agy-studio:get-state") {
+          return { locale: "ru", settings: { thinkingInRussian: true } };
+        }
+        if (ch === "agy-studio:translate-thinking-batch") {
+          translateCalls.push(payload.texts);
+          const map = {};
+          for (const txt of payload.texts) {
+            if (txt.includes("thinking through")) map[txt] = "Я обдумываю, как подойти к задаче";
+            else if (txt.includes("keep latency low")) map[txt] = "и сохранить низкую задержку.";
+          }
+          return { ok: true, translations: map };
+        }
+        return { ok: true };
+      },
+    },
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine: createThemeEngine({ document: doc, window: win }),
+  });
+
+  try {
+    panel.init();
+    await new Promise((r) => setTimeout(r, 40));
+
+    assert.ok(translateCalls.length >= 1, "Live DOM scanner must batch-translate expanded thinking block");
+    assert.equal(enNode.nodeValue, "Я обдумываю, как подойти к задаче ");
+    assert.equal(codeEl.textContent, "studio-panel.js", "Inline <code> tags inside thinking block must remain untouched");
+    assert.equal(tailNode.nodeValue, " и сохранить низкую задержку.");
+
+    // Turn thinkingInRussian OFF -> losslessly restores original English text nodes
+    panel.applyRemoteState({ locale: "ru", settings: { thinkingInRussian: false } }, false);
+    assert.equal(enNode.nodeValue, "I'm thinking through how to approach ");
+    assert.equal(tailNode.nodeValue, " and keep latency low.");
   } finally {
     panel.destroy();
     translator.destroy();

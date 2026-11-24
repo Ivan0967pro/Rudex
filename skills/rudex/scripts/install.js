@@ -401,7 +401,7 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "4.1.0",
+    version: pkg.version || "4.1.1",
     dictEntries,
     dynamicRulesCount,
     commitSha: commitMeta.commitSha,
@@ -473,6 +473,7 @@ function copyI18nDataFiles(distDir, resourcesDir = RESOURCES_SRC_DIR, scriptsDir
   fs.copyFileSync(path.join(resourcesDir, "dynamic-rules-ru.js"), path.join(dataDir, "dynamic-rules-ru.js"));
   fs.copyFileSync(path.join(scriptsDir, "zip-builder.js"), path.join(dataDir, "zip-builder.js"));
   fs.copyFileSync(path.join(scriptsDir, "updater-core.js"), path.join(dataDir, "updater-core.js"));
+  fs.copyFileSync(path.join(scriptsDir, "thinking-translator.js"), path.join(dataDir, "thinking-translator.js"));
 }
 
 function hasSystemNode() {
@@ -585,7 +586,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "4.1.0";
+    let pkgVer = "4.1.1";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {
@@ -720,6 +721,7 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
     path.join(distDir, "i18nData", "dynamic-rules-ru.js"),
     path.join(distDir, "i18nData", "zip-builder.js"),
     path.join(distDir, "i18nData", "updater-core.js"),
+    path.join(distDir, "i18nData", "thinking-translator.js"),
   ]);
 
   return { unpackedCount, patchResult, cleanAsarPath, stampVersion, asarLocked };

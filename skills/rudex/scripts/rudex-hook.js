@@ -247,14 +247,15 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
 
 function buildThinkingRuDirective() {
   return [
-    "[Rudex · Язык внутренних размышлений]",
-    "Веди ВСЁ внутреннее рассуждение (thinking / chain-of-thought / этап размышления) целиком на русском языке.",
-    "Сохраняй пути к файлам, идентификаторы кода, символы и команды терминала в точном оригинальном виде.",
+    "[Rudex · Язык внутренних размышлений / Thinking Language]",
+    "MANDATORY: Write ALL internal reasoning / thinking / chain-of-thought exclusively in Russian (на русском языке).",
+    "Веди ВСЁ внутреннее рассуждение (thinking / chain-of-thought / этап размышления) исключительно на русском языке.",
+    "Preserve file paths, code identifiers, symbols, and terminal commands verbatim (в точном оригинальном виде).",
   ].join("\n");
 }
 
 function buildThinkingRuRecency() {
-  return "[Rudex · Напоминание] Продолжай вести внутреннее рассуждение (thinking) целиком на русском языке, сохраняя имена файлов, код и команды точными.";
+  return "[Rudex · Reminder] Keep ALL internal reasoning / thinking strictly in Russian (веди внутреннее рассуждение целиком на русском языке), keeping file paths, code, and commands verbatim.";
 }
 
 function runThinkingLanguageEngine(userDataDir, payload, injectSteps) {

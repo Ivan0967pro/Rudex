@@ -345,7 +345,8 @@ function sanitizeStudioSettings(raw) {
   const rawDock = src.dockPosition;
   const dockAlias = rawDock === "top" ? "top-right" : rawDock === "middle" ? "middle-right" : rawDock === "bottom" ? "bottom-right" : rawDock;
   const validDock = dockAlias === "bottom-right" || dockAlias === "top-right" || dockAlias === "middle-right" || dockAlias === "bottom-left" || dockAlias === "hidden" ? dockAlias : "bottom-right";
-  const viewMode = "mini";
+  const rawView = src.viewMode === "large" ? "medium" : src.viewMode;
+  const viewMode = rawView === "mini" || rawView === "medium" ? rawView : "mini";
   const layoutMode = src.layoutMode === "docked" || src.layoutMode === "floating" ? src.layoutMode : "docked";
   const floatX = typeof src.floatX === "number" && Number.isFinite(src.floatX) ? Math.round(src.floatX) : null;
   const floatY = typeof src.floatY === "number" && Number.isFinite(src.floatY) ? Math.round(src.floatY) : null;
@@ -816,8 +817,9 @@ function formatThinkingRuRuleBlock() {
   return [
     "# Язык внутренних размышлений агента (Rudex Studio)",
     "",
+    "MANDATORY: Write ALL internal reasoning / thinking / chain-of-thought exclusively in Russian (на русском языке).",
     "Веди ВСЁ внутреннее рассуждение (thinking / chain-of-thought / этап размышления) целиком на **русском языке**.",
-    "- Сохраняй пути к файлам, идентификаторы кода, символы и команды терминала в точном оригинальном виде.",
+    "- Preserve file paths, code identifiers, symbols, and terminal commands verbatim (в точном оригинальном виде).",
   ].join("\n");
 }
 
@@ -1718,6 +1720,23 @@ function loadUpdaterCore() {
   throw new Error("updater-core.js module not found");
 }
 
+let thinkingTranslatorInstance = null;
+function loadThinkingTranslator() {
+  if (thinkingTranslatorInstance) return thinkingTranslatorInstance;
+  const candidates = [
+    path.join(__dirname, "i18nData", "thinking-translator.js"),
+    path.join(__dirname, "thinking-translator.js"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      const mod = require(p);
+      thinkingTranslatorInstance = mod.createThinkingTranslator();
+      return thinkingTranslatorInstance;
+    }
+  }
+  throw new Error("thinking-translator.js module not found");
+}
+
 function getUpdateStateCachePath() {
   return path.join(app.getPath("userData"), "agy_studio_update_state.json");
 }
@@ -1763,7 +1782,7 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.1.0");
+  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.1.1");
   const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
   const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
   const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
@@ -2819,7 +2838,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.1.0",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.1.1",
         outPath,
       });
       return res;
@@ -3200,6 +3219,33 @@ function registerI18nIpc() {
       }
     })();
     return updateInstallInflight;
+  });
+  ipcMain.handle("agy-studio:translate-thinking-batch", async (_event, payload) => {
+    if (!loadStudioSettings().thinkingInRussian) {
+      return { ok: true, disabled: true, translations: {} };
+    }
+    const p = payload && typeof payload === "object" ? payload : {};
+    const rawTexts = Array.isArray(p.texts) ? p.texts : [];
+    const safeTexts = [];
+    for (let i = 0; i < rawTexts.length && safeTexts.length < 12; i += 1) {
+      if (typeof rawTexts[i] === "string" && rawTexts[i].length > 0 && rawTexts[i].length <= 6000) {
+        safeTexts.push(rawTexts[i]);
+      }
+    }
+    if (safeTexts.length === 0) {
+      return { ok: true, translations: {} };
+    }
+    try {
+      const trInst = loadThinkingTranslator();
+      const res = await trInst.translateBatch(safeTexts);
+      return { ok: true, translations: (res && res.translations) || {} };
+    } catch (err) {
+      return {
+        ok: false,
+        translations: {},
+        error: err && err.message ? err.message : "TRANSLATE_FAILED",
+      };
+    }
   });
 }
 

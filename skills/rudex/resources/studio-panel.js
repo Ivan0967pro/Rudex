@@ -746,8 +746,8 @@ function normalizeDockPosition(rawDock) {
   return DOCK_POSITIONS.indexOf(rawDock) >= 0 ? rawDock : "bottom-right";
 }
 
-function normalizeViewMode(_rawMode) {
-  return "mini";
+function normalizeViewMode(rawMode) {
+  return rawMode === "medium" || rawMode === "large" ? "medium" : "mini";
 }
 
 function normalizeCustomPresets(list) {
@@ -1212,7 +1212,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.1.0", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "4.1.1", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1393,6 +1393,12 @@ function createStudioPanel(options) {
   let popoverMountEl = null;
   let updateToastMountEl = null;
   let modalMountEl = null;
+  let thinkingScanTimer = null;
+  let isApplyingThinkingTranslation = false;
+  const thinkingNodeMap = new WeakMap();
+  const trackedThinkingNodes = new Set();
+  const thinkingCache = new Map();
+  const thinkingInflight = new Set();
   let pollTimer = null;
   let repaintTimer = null;
   let streamSampleTimer = null;
@@ -1561,6 +1567,7 @@ function createStudioPanel(options) {
 
   function saveSettingsPatch(patch) {
     const seq = ++state.settingsSaveSeq;
+    const prevThinkRu = Boolean(state.settings.thinkingInRussian);
     Object.assign(state.settings, patch);
     if (patch.miniFields) {
       state.settings.miniFields = normalizeMiniFields(patch.miniFields);
@@ -1583,6 +1590,10 @@ function createStudioPanel(options) {
       applyThemeToHost(state.settings.appearance);
     }
     renderStructure();
+    if (typeof patch.thinkingInRussian === "boolean" && patch.thinkingInRussian !== prevThinkRu) {
+      if (state.settings.thinkingInRussian) scanThinkingBlocks(true);
+      else restoreAllThinkingNodes();
+    }
     return invokeIpc("agy-studio:save-settings", patch).then((res) => {
       if (state.destroyed || seq !== state.settingsSaveSeq) return res;
       if (res && res.settings) {
@@ -1601,6 +1612,7 @@ function createStudioPanel(options) {
     if (!forceRender && sig && sig === state.lastRemoteStateSig) return;
     if (sig) state.lastRemoteStateSig = sig;
 
+    const prevThinkRu = Boolean(state.settings.thinkingInRussian);
     if (remote.locale === "ru" || remote.locale === "en") {
       state.locale = remote.locale;
     }
@@ -1650,6 +1662,10 @@ function createStudioPanel(options) {
     }
     if (typeof remote.personaFilePath === "string" && remote.personaFilePath) state.personaFilePath = remote.personaFilePath;
     renderStructure();
+    if (state.settings.thinkingInRussian !== prevThinkRu) {
+      if (state.settings.thinkingInRussian) scanThinkingBlocks(true);
+      else restoreAllThinkingNodes();
+    }
   }
 
   function serializeChatTelemetry(tel) {
@@ -2574,7 +2590,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "4.1.0";
+    const instVer = (inst && inst.version) || pluginMeta.version || "4.1.1";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -2879,6 +2895,284 @@ function createStudioPanel(options) {
     return { fiveHour, week, miniText, activeChat: ac };
   }
 
+  function spNeedsRuThinking(str) {
+    const s = String(str || "").trim();
+    if (s.length < 3 || s.length > 6000) return false;
+    if (/^https?:\/\/\S+$/i.test(s)) return false;
+    if (/^[A-Za-z]:\\[^\s]+$/i.test(s) || /^\/[a-zA-Z0-9._-]+(?:\/[a-zA-Z0-9._-]+)*$/.test(s)) return false;
+    if (!/\s/.test(s) && /[\\/_=()[\]{}<>`]/.test(s)) return false;
+    const latin = s.match(/[A-Za-z]/g);
+    const latinCount = latin ? latin.length : 0;
+    if (latinCount < 3) return false;
+    const cyr = s.match(/[\u0410-\u042f\u0430-\u044f\u0401\u0451]/g);
+    const cyrCount = cyr ? cyr.length : 0;
+    return cyrCount / (latinCount + cyrCount) < 0.35;
+  }
+
+  function wrapEdgeSpaces(orig, translated) {
+    const raw = String(orig || "");
+    const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(raw);
+    if (!m) return String(translated || "");
+    return m[1] + String(translated || "").trim() + m[3];
+  }
+
+  function setThinkingCacheEntry(key, val) {
+    if (thinkingCache.has(key)) thinkingCache.delete(key);
+    thinkingCache.set(key, val);
+    while (thinkingCache.size > 500) {
+      const oldest = thinkingCache.keys().next().value;
+      thinkingCache.delete(oldest);
+    }
+  }
+
+  function applyThinkingNodeValue(node, nextVal) {
+    if (!node || node.nodeValue === nextVal) return;
+    isApplyingThinkingTranslation = true;
+    try {
+      node.nodeValue = nextVal;
+    } finally {
+      isApplyingThinkingTranslation = false;
+    }
+    if (!state.telemetry.isGenerating) {
+      state.hydrationIgnoreUntil = Math.max(state.hydrationIgnoreUntil || 0, nowHiRes() + 700);
+    }
+  }
+
+  function findThinkingContentSibling(container, afterEl) {
+    if (!container || !container.children || typeof container.children.length !== "number") return null;
+    const children = container.children;
+    let startIdx = -1;
+    for (let i = 0; i < children.length; i += 1) {
+      if (children[i] === afterEl) {
+        startIdx = i + 1;
+        break;
+      }
+    }
+    if (startIdx < 0 || startIdx >= children.length) return null;
+
+    for (let i = startIdx; i < children.length; i += 1) {
+      const ch = children[i];
+      if (!ch || (hostEl && (ch === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(ch))))) continue;
+      const tag = String(ch.tagName || "").toUpperCase();
+      if (tag === "BUTTON" || tag === "SVG" || tag === "STYLE") continue;
+      const cls = typeof ch.getAttribute === "function" ? (ch.getAttribute("class") || "") : (typeof ch.className === "string" ? ch.className : "");
+      if (/\b(?:overflow-y-auto|bleed-contain)\b/.test(cls)) return ch;
+    }
+
+    for (let i = startIdx; i < children.length; i += 1) {
+      const ch = children[i];
+      if (!ch || (hostEl && (ch === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(ch))))) continue;
+      if (typeof ch.getAttribute === "function" && ch.getAttribute("data-rudex-ignore")) continue;
+      const tag = String(ch.tagName || "").toUpperCase();
+      if (tag === "BUTTON" || tag === "SVG" || tag === "STYLE" || tag === "INPUT" || tag === "TEXTAREA") continue;
+      if (ch.childNodes && ch.childNodes.length > 0) return ch;
+    }
+    return null;
+  }
+
+  function findExpandedThinkingPanels() {
+    if (!doc || typeof doc.querySelectorAll !== "function") return [];
+    const panels = [];
+    const seen = new Set();
+    try {
+      const triggers = doc.querySelectorAll(
+        'button[data-testid="thinking-collapsible-trigger"][aria-expanded="true"], button[aria-expanded="true"][aria-label]'
+      );
+      for (let i = 0; triggers && i < triggers.length; i += 1) {
+        const btn = triggers[i];
+        if (!btn || (hostEl && (btn === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(btn))))) continue;
+        const testId = typeof btn.getAttribute === "function" ? (btn.getAttribute("data-testid") || "") : "";
+        if (testId !== "thinking-collapsible-trigger") {
+          const aria = typeof btn.getAttribute === "function" ? (btn.getAttribute("aria-label") || "").trim() : "";
+          if (!/^(?:Thought\s+for\b|Thought\s+Process\b|Thinking\b|Думал\b|Размышлял\b|Процесс\s+мышления\b|Размышлени)/i.test(aria)) {
+            continue;
+          }
+        }
+        const parent = btn.parentNode;
+        let panel = findThinkingContentSibling(parent, btn);
+        if (!panel && parent && parent !== doc.body && parent !== doc.documentElement && parent.parentNode) {
+          panel = findThinkingContentSibling(parent.parentNode, parent);
+        }
+        if (panel && !seen.has(panel)) {
+          seen.add(panel);
+          panels.push(panel);
+        }
+      }
+    } catch (_e) {}
+    return panels;
+  }
+
+  function collectTranslatableThinkingNodes(node, out) {
+    if (!node) return;
+    if (node.nodeType === 3) {
+      const val = node.nodeValue || "";
+      if (val.trim()) out.push(node);
+      return;
+    }
+    if (node.nodeType !== 1 && node.nodeType !== 11) return;
+    if (node.nodeType === 1) {
+      if (hostEl && (node === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(node)))) return;
+      if (typeof node.getAttribute === "function" && node.getAttribute("data-rudex-ignore")) return;
+      const tag = String(node.tagName || "").toUpperCase();
+      if (
+        tag === "CODE" ||
+        tag === "PRE" ||
+        tag === "KBD" ||
+        tag === "SAMP" ||
+        tag === "SCRIPT" ||
+        tag === "STYLE" ||
+        tag === "SVG" ||
+        tag === "NOSCRIPT" ||
+        tag === "BUTTON" ||
+        tag === "TEXTAREA" ||
+        tag === "INPUT"
+      ) {
+        return;
+      }
+    }
+    const children = node.childNodes;
+    if (children && typeof children.length === "number") {
+      for (let i = 0; i < children.length; i += 1) {
+        collectTranslatableThinkingNodes(children[i], out);
+      }
+    }
+  }
+
+  function restoreAllThinkingNodes() {
+    if (thinkingScanTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(thinkingScanTimer);
+      thinkingScanTimer = null;
+    }
+    if (trackedThinkingNodes.size === 0) return;
+    isApplyingThinkingTranslation = true;
+    try {
+      trackedThinkingNodes.forEach((tn) => {
+        const rec = thinkingNodeMap.get(tn);
+        if (rec && rec.translated && tn.nodeValue === rec.translated) {
+          tn.nodeValue = rec.orig;
+          rec.translated = "";
+        }
+      });
+      trackedThinkingNodes.clear();
+    } finally {
+      isApplyingThinkingTranslation = false;
+    }
+  }
+
+  function scheduleThinkingScan(delayMs) {
+    if (state.destroyed || !state.mounted || !state.settings.thinkingInRussian) return;
+    if (!win || typeof win.setTimeout !== "function") {
+      scanThinkingBlocks(false);
+      return;
+    }
+    if (thinkingScanTimer) return;
+    thinkingScanTimer = win.setTimeout(() => {
+      thinkingScanTimer = null;
+      if (!state.destroyed && state.mounted) scanThinkingBlocks(false);
+    }, typeof delayMs === "number" ? delayMs : 140);
+  }
+
+  function scanThinkingBlocks(immediate) {
+    if (state.destroyed || !doc) return;
+    if (!state.settings.thinkingInRussian) {
+      restoreAllThinkingNodes();
+      return;
+    }
+    const panels = findExpandedThinkingPanels();
+    if (panels.length === 0) return;
+
+    const nodes = [];
+    for (let i = 0; i < panels.length; i += 1) {
+      collectTranslatableThinkingNodes(panels[i], nodes);
+    }
+    if (nodes.length === 0) return;
+
+    const now = Date.now();
+    const isGen = Boolean(state.telemetry && state.telemetry.isGenerating);
+    const activeRespEl = state.telemetry ? state.telemetry.activeRespEl : null;
+    const batch = [];
+    const nodeGroups = new Map();
+    let needsFollowup = false;
+    let remainingReady = false;
+
+    for (let i = 0; i < nodes.length; i += 1) {
+      const tn = nodes[i];
+      const curVal = tn.nodeValue || "";
+      let rec = thinkingNodeMap.get(tn);
+      if (rec && rec.translated && curVal === rec.translated) {
+        continue;
+      }
+      if (!rec || curVal !== rec.orig) {
+        rec = { orig: curVal, translated: "", stableSince: now };
+        thinkingNodeMap.set(tn, rec);
+      }
+      const core = curVal.trim();
+      if (!spNeedsRuThinking(core)) continue;
+
+      if (thinkingCache.has(core)) {
+        const cached = thinkingCache.get(core);
+        setThinkingCacheEntry(core, cached);
+        const full = wrapEdgeSpaces(curVal, cached);
+        applyThinkingNodeValue(tn, full);
+        rec.translated = full;
+        trackedThinkingNodes.add(tn);
+        continue;
+      }
+
+      if (thinkingInflight.has(core)) continue;
+
+      const insideActiveResp = Boolean(
+        activeRespEl && typeof activeRespEl.contains === "function" && activeRespEl.contains(tn)
+      );
+      const isReady = Boolean(immediate || !isGen || !insideActiveResp || now - rec.stableSince >= 420);
+      if (!isReady) {
+        needsFollowup = true;
+        continue;
+      }
+
+      if (!nodeGroups.has(core)) {
+        if (batch.length >= 10) {
+          remainingReady = true;
+          continue;
+        }
+        batch.push(core);
+        nodeGroups.set(core, []);
+      }
+      nodeGroups.get(core).push(tn);
+    }
+
+    if (batch.length > 0) {
+      for (let i = 0; i < batch.length; i += 1) thinkingInflight.add(batch[i]);
+      invokeIpc("agy-studio:translate-thinking-batch", { texts: batch }).then((res) => {
+        for (let i = 0; i < batch.length; i += 1) thinkingInflight.delete(batch[i]);
+        if (state.destroyed || !state.settings.thinkingInRussian) return;
+        const map = res && res.translations && typeof res.translations === "object" ? res.translations : null;
+        if (map) {
+          for (let i = 0; i < batch.length; i += 1) {
+            const core = batch[i];
+            const trText = map[core];
+            if (typeof trText !== "string" || !trText.trim()) continue;
+            setThinkingCacheEntry(core, trText);
+            const list = nodeGroups.get(core) || [];
+            for (let j = 0; j < list.length; j += 1) {
+              const tn = list[j];
+              const rec = thinkingNodeMap.get(tn);
+              if (!rec) continue;
+              if ((tn.nodeValue || "") !== rec.orig) continue;
+              const full = wrapEdgeSpaces(rec.orig, trText);
+              applyThinkingNodeValue(tn, full);
+              rec.translated = full;
+              trackedThinkingNodes.add(tn);
+            }
+          }
+        }
+        if (remainingReady) scheduleThinkingScan(60);
+      });
+    } else if (needsFollowup) {
+      scheduleThinkingScan(460);
+    }
+  }
+
   function pollStream() {
     if (state.destroyed) return;
     if (doc && doc.hidden) return;
@@ -2889,6 +3183,7 @@ function createStudioPanel(options) {
 
     sampleStreamTick();
     scrapeDomQuotaSnapshot(false);
+    if (state.settings.thinkingInRussian) scanThinkingBlocks(false);
     updateLiveDom();
   }
 
@@ -2973,8 +3268,8 @@ function createStudioPanel(options) {
     const hasPendingLe = countPendingLiveEdits() > 0;
     const grip = `<span class="drag-grip">${iconSvg("grip", 12)}</span>`;
     const btns = isPreview
-      ? `<span class="icon-btn">${iconSvg("bolt", 12)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 12)}</span><span class="icon-btn is-primary">${iconSvg("gear", 12)}</span>`
-      : `<button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipSupplement)}">${iconSvg("bolt", 12)}<span class="le-dot-ind" data-live="liveEditDot"${hasPendingLe ? "" : ' style="display:none"'}></span></button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button>`;
+      ? `<span class="icon-btn">${iconSvg("bolt", 12)}</span><span class="icon-btn">${iconSvg("expand", 12)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 12)}</span><span class="icon-btn is-primary">${iconSvg("gear", 12)}</span>`
+      : `<button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipSupplement)}">${iconSvg("bolt", 12)}<span class="le-dot-ind" data-live="liveEditDot"${hasPendingLe ? "" : ' style="display:none"'}></span></button><button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 12)}</button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button>`;
 
     const bodyAttrs = isPreview ? "" : ` data-widget-body="1"${isPinned ? "" : ' data-drag-handle="1"'}`;
     return `<div class="mini-pill"${bodyAttrs}>${grip}${joined}<span class="pill-sep"></span>${btns}</div>`;
@@ -3824,6 +4119,20 @@ function createStudioPanel(options) {
       </div>
 
       <div class="section-group">
+        <span class="section-label">${escHtml(tr.modeTitle)}</span>
+        <div class="segmented-2">
+          <button type="button" class="choice-card${s.viewMode === "mini" ? " is-selected" : ""}" data-action="set-view-mode" data-val="mini">
+            <span class="choice-title"><span>${escHtml(tr.modeMiniTitle)}</span>${s.viewMode === "mini" ? iconSvg("check", 13) : ""}</span>
+            <span class="choice-desc">${escHtml(tr.modeMiniDesc)}</span>
+          </button>
+          <button type="button" class="choice-card${s.viewMode === "medium" ? " is-selected" : ""}" data-action="set-view-mode" data-val="medium">
+            <span class="choice-title"><span>${escHtml(tr.modeMedTitle)}</span>${s.viewMode === "medium" ? iconSvg("check", 13) : ""}</span>
+            <span class="choice-desc">${escHtml(tr.modeMedDesc)}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="section-group">
         <span class="section-label">${escHtml(tr.fieldsTitle)}</span>
         <div class="control-grid-2">
           ${fieldSpecs.map((f) => `
@@ -3982,7 +4291,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "4.1.0";
+    const ver = inst.version || pluginMeta.version || "4.1.1";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -4092,7 +4401,7 @@ function createStudioPanel(options) {
             <aside class="modal-sidebar">
               <div class="sidebar-brand">
                 <span class="brand-title">${escHtml(tr.brandTitle)}</span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.1.0")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.1.1")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
@@ -4524,10 +4833,10 @@ function createStudioPanel(options) {
       renderStructure();
       return;
     }
-    if (action === "to-medium") { setOpen(true); return; }
+    if (action === "to-medium") { setViewMode("medium"); return; }
     if (action === "to-mini") { setViewMode("mini"); return; }
     if (action === "set-view-mode") {
-      setViewMode("mini");
+      setViewMode(actionEl.getAttribute("data-val") === "medium" ? "medium" : "mini");
       return;
     }
     if (action === "toggle-locale") {
@@ -5435,7 +5744,7 @@ function createStudioPanel(options) {
     if (typeof win !== "undefined" && typeof win.MutationObserver === "function" && doc.body) {
       try {
         domObserver = new win.MutationObserver((muts) => {
-          if (state.destroyed) return;
+          if (state.destroyed || isApplyingThinkingTranslation) return;
           if (Array.isArray(muts) && muts.length > 0) {
             let hasExternal = false;
             for (let i = 0; i < muts.length; i += 1) {
@@ -5452,6 +5761,7 @@ function createStudioPanel(options) {
             if (!hasExternal) return;
           }
           scheduleStreamSample();
+          if (state.settings.thinkingInRussian) scheduleThinkingScan(160);
         });
         domObserver.observe(doc.body, { childList: true, subtree: true, characterData: true });
       } catch (_e) {}
@@ -5622,10 +5932,13 @@ function createStudioPanel(options) {
   function destroy() {
     state.destroyed = true;
     clearReadinessWatchers();
-    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer]) {
+    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer]) {
       if (timer && win && typeof win.clearTimeout === "function") win.clearTimeout(timer);
     }
-    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = null;
+    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = null;
+    restoreAllThinkingNodes();
+    thinkingCache.clear();
+    thinkingInflight.clear();
     if (pollTimer && win && typeof win.clearInterval === "function") {
       win.clearInterval(pollTimer);
       pollTimer = null;
