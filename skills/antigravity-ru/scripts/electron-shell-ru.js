@@ -434,7 +434,7 @@ function sanitizeFamilyQuota(raw) {
     estWeeklyPct: toQuotaPct(src.estWeeklyPct),
     observedFiveHourPct: toQuotaPct(src.observedFiveHourPct),
     observedWeeklyPct: toQuotaPct(src.observedWeeklyPct),
-    lastModel: typeof src.lastModel === "string" ? src.lastModel.slice(0, 60) : "",
+    lastModel: typeof src.lastModel === "string" ? src.lastModel.slice(0, 96) : "",
     lastTurnAt: toNonNegInt(src.lastTurnAt),
     recentTurns: recent,
   };
@@ -448,17 +448,21 @@ function sanitizeChatQuota(raw) {
   };
 }
 
+function isBogusHydrationSpikeEntry(h) {
+  return Boolean(h && h.durSec > 0 && h.durSec <= 0.25 && h.tokens >= 400 && h.avgTps >= 900);
+}
+
 function sanitizeChatTelemetry(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
-  const samples = Array.isArray(src.samples)
+  let samples = Array.isArray(src.samples)
     ? src.samples.slice(-24).map((n) => toNonNegInt(n))
     : [];
-  const history = Array.isArray(src.history)
+  const rawHist = Array.isArray(src.history)
     ? src.history
         .filter((h) => h && typeof h === "object")
         .slice(0, 8)
         .map((h) => ({
-          model: typeof h.model === "string" ? h.model.slice(0, 60) : "",
+          model: typeof h.model === "string" ? h.model.slice(0, 96) : "",
           tokens: toNonNegInt(h.tokens),
           durSec: toNonNegFloat(h.durSec),
           avgTps: toNonNegInt(h.avgTps),
@@ -466,14 +470,30 @@ function sanitizeChatTelemetry(raw) {
           at: typeof h.at === "string" ? h.at.slice(0, 20) : "",
         }))
     : [];
+  const history = rawHist.filter((h) => !isBogusHydrationSpikeEntry(h));
+  let lastAvgTps = toNonNegInt(src.lastAvgTps);
+  let peakTps = toNonNegInt(src.peakTps);
+  let lastDurSec = toNonNegFloat(src.lastDurSec);
+  const respTokens = toNonNegInt(src.respTokens);
+  if (history.length === 0 && rawHist.length > 0 && lastAvgTps >= 900 && lastDurSec > 0 && lastDurSec <= 0.25 && respTokens >= 400) {
+    lastAvgTps = 0;
+    peakTps = 0;
+    lastDurSec = 0;
+    samples = [];
+  } else if (lastAvgTps >= 900 && lastDurSec > 0 && lastDurSec <= 0.25 && respTokens >= 400) {
+    lastAvgTps = history[0] ? history[0].avgTps : 0;
+    lastDurSec = history[0] ? history[0].durSec : 0;
+    peakTps = history.reduce((mx, it) => Math.max(mx, it.peakTps || 0), 0);
+    samples = [];
+  }
   return {
-    lastAvgTps: toNonNegInt(src.lastAvgTps),
-    peakTps: toNonNegInt(src.peakTps),
-    lastDurSec: toNonNegFloat(src.lastDurSec),
+    lastAvgTps,
+    peakTps,
+    lastDurSec,
     lastThinkingSec: toNonNegFloat(src.lastThinkingSec),
-    respTokens: toNonNegInt(src.respTokens),
+    respTokens,
     chatTokens: toNonNegInt(src.chatTokens),
-    modelName: typeof src.modelName === "string" ? src.modelName.slice(0, 60) : "",
+    modelName: typeof src.modelName === "string" ? src.modelName.slice(0, 96) : "",
     samples,
     history,
   };
@@ -540,16 +560,16 @@ function formatPersonaRuleContent(trimmed, usePlugin) {
   const body = [
     "# Active Chat Persona & Response Rules (Antigravity Studio)",
     "",
-    "Follow the user-defined persona, tone, voice, and formatting instructions strictly and consistently in EVERY user-facing response in this chat (including after tool calls, planning hand-offs, and multi-step execution), while keeping technical facts, code, and paths accurate:",
+    "You MUST follow every instruction inside <user_persona> strictly, completely, and consistently in EVERY user-facing message of this conversation (orchestrator, planner, executor, and all subagents), including after tool calls, long multi-step runs, and status updates:",
     "",
     "<user_persona>",
     trimmed,
     "</user_persona>",
     "",
-    "## Enforcement Rules",
-    "- Apply the defined persona and style from the first sentence to the last in every reply.",
-    "- Never revert to a generic neutral voice after running tools or subagents.",
-    "- Keep all code, commands, file paths, and verified facts accurate while writing all user-facing prose strictly in the defined persona.",
+    "## Strict Adherence Requirements",
+    "- **Full compliance from first word to last:** Adopt the exact persona, voice, tone, directness, formatting, and length preferences specified above in every paragraph and sentence of your response.",
+    "- **No silent drift or unrequested hedging:** Never revert to a bland default voice after calling tools or subagents, and do not add unsolicited lectures, caveats, or stylistic filler that contradict the active <user_persona>.",
+    "- **Factual precision preserved:** While writing 100% of prose strictly in the active style/persona, keep all code blocks, file paths, commands, and verified facts accurate.",
     "",
   ].join("\\n");
   return header + body;
@@ -573,7 +593,7 @@ function syncPersonaRuleFile(enabled, text) {
     } catch (err) {
       return { ok: false, exists: fs.existsSync(rulePath), byteLength: 0, error: err && err.message ? err.message : String(err), rulePath };
     }
-    return { ok: true, exists: false, byteLength: 0, rulePath };
+    return { ok: !fs.existsSync(rulePath), exists: fs.existsSync(rulePath), byteLength: 0, rulePath };
   }
   const bodyBytes = Buffer.byteLength(trimmed, "utf8");
   if (bodyBytes > MAX_PERSONA_BODY_BYTES) {
@@ -582,9 +602,17 @@ function syncPersonaRuleFile(enabled, text) {
   const content = formatPersonaRuleContent(trimmed, usePlugin);
   try {
     fs.mkdirSync(path.dirname(rulePath), { recursive: true });
-    fs.writeFileSync(rulePath, content, "utf8");
-    return { ok: true, exists: true, byteLength: Buffer.byteLength(content, "utf8"), rulePath };
+    const tmpRule = rulePath + ".tmp";
+    fs.writeFileSync(tmpRule, content, "utf8");
+    fs.renameSync(tmpRule, rulePath);
+    const verified = fs.existsSync(rulePath);
+    return { ok: verified, exists: verified, byteLength: Buffer.byteLength(content, "utf8"), rulePath };
   } catch (err) {
+    try {
+      fs.writeFileSync(rulePath, content, "utf8");
+      const verifiedFallback = fs.existsSync(rulePath);
+      return { ok: verifiedFallback, exists: verifiedFallback, byteLength: Buffer.byteLength(content, "utf8"), rulePath };
+    } catch {}
     return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: err && err.message ? err.message : String(err), rulePath };
   }
 }
@@ -1249,7 +1277,15 @@ function registerI18nIpc() {
     }
     const chats = loadStudioChats();
     let changed = false;
-    if (!chats[key] && p.promoteFromNew && typeof p.promoteFromNew === "object") {
+    const migrateKey = normalizeChatKey(p.migrateFromKey);
+    if (!chats[key] && migrateKey !== "__new__" && migrateKey !== key && migrateKey.startsWith("chat-") && chats[migrateKey]) {
+      chats[key] = sanitizeChatRecord(Object.assign({}, chats[migrateKey], {
+        title: titleStr || chats[migrateKey].title || "",
+        updatedAt: Date.now(),
+      }));
+      delete chats[migrateKey];
+      changed = true;
+    } else if (!chats[key] && p.promoteFromNew && typeof p.promoteFromNew === "object") {
       const promo = p.promoteFromNew;
       chats[key] = sanitizeChatRecord(Object.assign({}, promo, {
         title: titleStr || (typeof promo.title === "string" ? promo.title : ""),
@@ -1493,7 +1529,7 @@ function registerI18nIpc() {
     if (key === "__new__") {
       return { ok: true, skipped: true, summary: buildQuotaSummary("__new__") };
     }
-    const modelName = typeof p.modelName === "string" ? p.modelName.trim().slice(0, 60) : "";
+    const modelName = typeof p.modelName === "string" ? p.modelName.trim().slice(0, 96) : "";
     const titleStr = typeof p.title === "string" ? p.title.trim().slice(0, 80) : "";
     const outputTok = toNonNegInt(p.outputTokens);
     const contextTok = toNonNegInt(p.contextTokens);

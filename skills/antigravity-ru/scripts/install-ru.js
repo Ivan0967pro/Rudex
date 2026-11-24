@@ -229,7 +229,7 @@ function buildPreloadSnippet(dictObj, pluginMeta) {
   const dictJson = JSON.stringify(dictObj)
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
-  const metaJson = JSON.stringify(pluginMeta || { version: "3.0.0", dictEntries: Object.keys(dictObj).length, dynamicRulesCount: 0 });
+  const metaJson = JSON.stringify(pluginMeta || { version: "3.0.1", dictEntries: Object.keys(dictObj).length, dynamicRulesCount: 0 });
 
   return [
     "// === ANTIGRAVITY_RU_I18N_START ===",
@@ -451,7 +451,7 @@ function runInstall(targetAppDir, sourceAsar, stampVersion, dictObj, dynRuleCoun
 
   const pkg = JSON.parse(fs.readFileSync(path.join(targetAppDir, "package.json"), "utf8"));
   const resolvedStamp = stampVersion || pkg.version || "custom";
-  let pluginVersion = "3.0.0";
+  let pluginVersion = "3.0.1";
   try {
     const pluginJsonPath = path.join(PLUGIN_ROOT, "plugin.json");
     if (fs.existsSync(pluginJsonPath)) {

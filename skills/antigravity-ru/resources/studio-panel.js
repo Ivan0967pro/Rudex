@@ -215,6 +215,7 @@ const TEXT = {
     personaMasterTitle: "Активировать характер в этом чате",
     personaMasterDesc: "Применяется только в текущем чате (при переходе в другой или новый чат переключается автоматически)",
     personaActiveTag: "Правило активно",
+    personaUnsavedTag: "Не применено",
     personaOffTag: "Отключено",
     personaPresetsLabel: "Мои шаблоны",
     personaCustomLabel: "Сохранённый шаблон",
@@ -447,6 +448,7 @@ const TEXT = {
     personaMasterTitle: "Enable persona for this chat",
     personaMasterDesc: "Active only in this chat (switches automatically when changing chats or opening a new chat)",
     personaActiveTag: "Rule active",
+    personaUnsavedTag: "Unsaved changes",
     personaOffTag: "Disabled",
     personaPresetsLabel: "My templates",
     personaCustomLabel: "Saved template",
@@ -639,6 +641,28 @@ function isHiddenAncestor(el, stopAt) {
   return false;
 }
 
+function hasDetailsAncestor(el, stopAt) {
+  let cur = el;
+  while (cur && cur !== stopAt) {
+    if (cur.nodeType === 1 && String(cur.tagName || "").toUpperCase() === "DETAILS") {
+      return true;
+    }
+    cur = cur.parentNode;
+  }
+  return false;
+}
+
+function hasMarkdownRootAncestor(el, stopAt) {
+  let cur = el;
+  while (cur && cur !== stopAt) {
+    if (cur.nodeType === 1 && typeof cur.hasAttribute === "function" && cur.hasAttribute("data-markdown-root")) {
+      return true;
+    }
+    cur = cur.parentNode;
+  }
+  return false;
+}
+
 function extractVisibleText(el) {
   if (!el) return "";
   try {
@@ -647,11 +671,14 @@ function extractVisibleText(el) {
       let out = "";
       for (let i = 0; i < mdRoots.length; i += 1) {
         const md = mdRoots[i];
-        if (!md || isHiddenAncestor(md, el)) continue;
+        if (!md || isHiddenAncestor(md, el) || hasDetailsAncestor(md, el)) continue;
         const txt = typeof md.innerText === "string" && md.innerText.length > 0 ? md.innerText : (md.textContent || "");
         if (txt) out += (out ? "\n" : "") + txt;
       }
-      if (out) return out;
+      return out;
+    }
+    if (typeof el.querySelector === "function" && el.querySelector("details")) {
+      return "";
     }
     return typeof el.innerText === "string" && el.innerText.length > 0 ? el.innerText : (el.textContent || "");
   } catch (_e) {
@@ -684,6 +711,8 @@ function createEmptyTelemetry() {
     activeRespEl: null,
     prevRespCount: 0,
     prevUserCount: 0,
+    firstUserNorm: "",
+    unconfirmedGrowthTicks: 0,
     tpsBuckets: [],
     wasGenerating: false,
     dirty: false,
@@ -1118,9 +1147,8 @@ function buildStyles() {
     .metric-chip b { color: var(--st-fg-strong); font-weight: 600; }
     .metric-chip.is-muted { color: var(--st-muted); }
     .model-badge {
-      max-width: 112px;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      max-width: none;
+      overflow: visible;
       white-space: nowrap;
       color: var(--st-muted);
       font-size: 11px;
@@ -1191,7 +1219,8 @@ function buildStyles() {
 
     /* Medium Card */
     .med-card {
-      width: 292px;
+      width: 340px;
+      max-width: calc(100vw - 24px);
       border-radius: 12px;
       background: var(--st-glass-strong);
       backdrop-filter: blur(22px) saturate(155%);
@@ -1281,9 +1310,9 @@ function buildStyles() {
     .med-stat-val { font-size: 12.5px; font-weight: 600; color: var(--st-fg-strong); }
     .med-footer {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
       padding-top: 2px;
     }
     .med-persona-pill {
@@ -1291,7 +1320,7 @@ function buildStyles() {
       align-items: center;
       gap: 6px;
       min-width: 0;
-      flex: 1;
+      width: 100%;
       padding: 4px 8px;
       border-radius: 7px;
       border: 1px solid var(--st-border);
@@ -1305,12 +1334,13 @@ function buildStyles() {
     .med-persona-pill:hover { border-color: var(--st-accent-border); background: var(--st-card-hover); }
     .med-persona-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .med-model-tag {
-      font-size: 10.5px;
+      font-size: 11px;
       color: var(--st-muted);
-      max-width: 96px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      max-width: none;
+      white-space: normal;
+      word-break: break-word;
+      line-height: 1.3;
+      padding: 0 2px;
     }
 
     /* Full Settings Modal */
@@ -2141,7 +2171,7 @@ function createStudioPanel(options) {
   const ipc = opts.ipcRenderer || null;
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "3.0.0", dictEntries: 4017, dynamicRulesCount: 471 };
+    : { version: "3.0.1", dictEntries: 4017, dynamicRulesCount: 471 };
   const themeEngine = opts.themeEngine || (typeof createThemeEngine === "function" ? createThemeEngine({ document: doc, window: win }) : null);
 
   const state = {
@@ -2156,6 +2186,12 @@ function createStudioPanel(options) {
     activeChatTitle: "",
     activeChatSwitchSeq: 0,
     hasActivatedChat: false,
+    hydrationIgnoreUntil: 0,
+    pendingNewSendAt: 0,
+    lastTempKey: "",
+    lastTempKeyAt: 0,
+    lastTempFirstUserNorm: "",
+    lastFocusSyncAt: 0,
     chatPersona: {
       enabled: false,
       activePreset: "custom",
@@ -2220,6 +2256,7 @@ function createStudioPanel(options) {
   let toastTimer = null;
   let keydownHandler = null;
   let resizeHandler = null;
+  let focusSyncHandler = null;
   let dragState = null;
   let lastBodyClickAt = 0;
   let lastDragEndedAt = 0;
@@ -2428,10 +2465,18 @@ function createStudioPanel(options) {
       lastThinkingSec: typeof tel.lastThinkingSec === "number" && Number.isFinite(tel.lastThinkingSec) && tel.lastThinkingSec > 0 ? Math.round(tel.lastThinkingSec * 100) / 100 : 0,
       respTokens: Math.max(0, Math.round(Number(tel.respTokens) || 0)),
       chatTokens: Math.max(0, Math.round(Number(tel.chatTokens) || 0)),
-      modelName: String(tel.modelName || "").slice(0, 60),
+      modelName: String(tel.modelName || "").slice(0, 96),
       samples: Array.isArray(tel.samples) ? tel.samples.slice(-24) : [],
       history: Array.isArray(tel.history) ? tel.history.slice(0, 8) : [],
     };
+  }
+
+  function cleanTitleStr(raw) {
+    return String(raw || "")
+      .replace(/\s*[-—|]\s*Antigravity.*$/i, "")
+      .replace(/\s*[-—|·]\s*(?:Outside of Project|Вне проекта)\b.*$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function detectChatTitle() {
@@ -2440,15 +2485,15 @@ function createStudioPanel(options) {
       const ignored = /^(antigravity|new chat|новый чат|untitled)$/i;
       if (typeof doc.querySelector === "function") {
         const titleEl = doc.querySelector('[data-testid="conversation-title"], [data-testid="chat-title"], main header h1, main header h2');
-        const t1 = titleEl && titleEl.textContent ? titleEl.textContent.replace(/\s+/g, " ").trim() : "";
+        const t1 = titleEl && titleEl.textContent ? cleanTitleStr(titleEl.textContent) : "";
         if (t1 && !ignored.test(t1)) return t1.slice(0, 60);
         const navEl = doc.querySelector('[aria-current="page"], [aria-selected="true"], [data-active="true"], [data-state="active"]');
         if (navEl && typeof navEl.getAttribute === "function" && (!hostEl || (typeof hostEl.contains !== "function" || !hostEl.contains(navEl)))) {
-          const t2 = (navEl.getAttribute("title") || navEl.textContent || "").replace(/\s+/g, " ").trim();
+          const t2 = cleanTitleStr(navEl.getAttribute("title") || navEl.textContent || "");
           if (t2 && !ignored.test(t2)) return t2.slice(0, 60);
         }
       }
-      const dt = String(doc.title || "").replace(/\s*[-—|]\s*Antigravity.*$/i, "").replace(/\s+/g, " ").trim();
+      const dt = cleanTitleStr(doc.title || "");
       if (dt && !ignored.test(dt)) return dt.slice(0, 60);
     } catch (_e) {}
     return "";
@@ -2502,12 +2547,20 @@ function createStudioPanel(options) {
     }
 
     if (snap.userMsgCount === 0 && snap.respCount === 0) {
+      state.pendingNewSendAt = 0;
       return { key: "__new__", isNew: true, title: "" };
     }
 
+    if (state.hasActivatedChat && state.activeChatKey === "__new__" && snap.userMsgCount <= 1) {
+      const now = Date.now();
+      if (!state.pendingNewSendAt) state.pendingNewSendAt = now;
+      if (now - state.pendingNewSendAt < 2500) {
+        return { key: "__new__", isNew: true, title };
+      }
+    }
+
     const cleanPath = cleanUrl.split(/[?#]/)[0] || "/";
-    const normTitle = /^(new chat|новый чат|antigravity)$/i.test(title) ? "" : title.toLowerCase();
-    const fpSource = `${cleanPath}||${domParts.stable}||${snap.firstUserNorm}||${normTitle}`;
+    const fpSource = `${cleanPath}||${domParts.stable}||${snap.firstUserNorm}`;
     return { key: "chat-" + hashDjb2(fpSource), isNew: false, title };
   }
 
@@ -2516,7 +2569,7 @@ function createStudioPanel(options) {
     try {
       const el = doc.querySelector('[data-testid="model-selector-trigger"]');
       const raw = el && el.textContent ? el.textContent.replace(/\s+/g, " ").trim() : "";
-      return raw.slice(0, 40);
+      return raw.slice(0, 96);
     } catch (_e) {
       return "";
     }
@@ -2534,7 +2587,7 @@ function createStudioPanel(options) {
 
   function collectDomTelemetry() {
     if (!doc || typeof doc.querySelectorAll !== "function") {
-      return { isGenerating: false, isThinking: false, thinkingSec: 0, respFloatTok: 0, respTokens: 0, chatTokens: 0, userMsgCount: 0, respCount: 0, lastResp: null, firstUserNorm: "", modelName: "", contextLabel: "" };
+      return { isGenerating: false, hasCancelBtn: false, isThinking: false, thinkingSec: 0, respFloatTok: 0, respTokens: 0, chatTokens: 0, userMsgCount: 0, respCount: 0, lastResp: null, firstUserNorm: "", modelName: "", contextLabel: "" };
     }
     try {
       const responses = doc.querySelectorAll('[data-testid="agent-response"]');
@@ -2543,28 +2596,45 @@ function createStudioPanel(options) {
       const userMsgCount = userMsgs ? userMsgs.length : 0;
       const lastResp = respCount > 0 ? responses[respCount - 1] : null;
 
-      let isGenerating = Boolean(typeof doc.querySelector === "function" && doc.querySelector('[data-testid="cancel-invocation-button"]'));
+      const hasCancelBtn = Boolean(typeof doc.querySelector === "function" && doc.querySelector('[data-testid="cancel-invocation-button"]'));
+      let isGenerating = hasCancelBtn;
       let isThinking = false;
       if (lastResp) {
-        const h6List = typeof lastResp.querySelectorAll === "function"
-          ? lastResp.querySelectorAll("h6")
-          : (typeof lastResp.querySelector === "function" && lastResp.querySelector("h6") ? [lastResp.querySelector("h6")] : []);
-        for (let i = 0; h6List && i < h6List.length; i += 1) {
-          const txt = h6List[i] && h6List[i].textContent ? h6List[i].textContent : "";
-          if (/working|generating|thinking|streaming|работает|думает|генерац|выполня|пишет/i.test(txt)) {
-            isGenerating = true;
-            if (/thinking|думает/i.test(txt)) isThinking = true;
-            break;
+        let hasCompletedActions = false;
+        if (typeof lastResp.querySelectorAll === "function") {
+          const actBtns = lastResp.querySelectorAll("button[aria-label]");
+          for (let i = 0; actBtns && i < actBtns.length; i += 1) {
+            const al = typeof actBtns[i].getAttribute === "function" ? (actBtns[i].getAttribute("aria-label") || "") : "";
+            if (/copy|копир|good|bad|like|dislike|thumb|upvote|downvote|нрав|полез|retry|повтор|regenerate/i.test(al)) {
+              hasCompletedActions = true;
+              break;
+            }
+          }
+        }
+        if (hasCancelBtn || !hasCompletedActions) {
+          const h6List = typeof lastResp.querySelectorAll === "function"
+            ? lastResp.querySelectorAll("h6")
+            : (typeof lastResp.querySelector === "function" && lastResp.querySelector("h6") ? [lastResp.querySelector("h6")] : []);
+          for (let i = 0; h6List && i < h6List.length; i += 1) {
+            if (!h6List[i] || hasMarkdownRootAncestor(h6List[i], lastResp)) continue;
+            const txt = (h6List[i].textContent || "").replace(/\s+/g, " ").trim();
+            if (!txt || txt.length > 48) continue;
+            if (/working|generating|thinking|streaming|работает|думает|генерац|выполня|пишет/i.test(txt)) {
+              isGenerating = true;
+              if (/thinking|думает/i.test(txt)) isThinking = true;
+              break;
+            }
           }
         }
       }
       if (!isGenerating) {
-        const ariaBtns = doc.querySelectorAll("button[aria-label]");
-        for (let i = 0; ariaBtns && i < ariaBtns.length; i += 1) {
-          const b = ariaBtns[i];
+        const composerBtns = doc.querySelectorAll('form button[aria-label], [data-testid="composer"] button[aria-label], .composer-container button[aria-label]');
+        for (let i = 0; composerBtns && i < composerBtns.length; i += 1) {
+          const b = composerBtns[i];
           if (!b || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(b))) continue;
-          const lbl = typeof b.getAttribute === "function" ? (b.getAttribute("aria-label") || "") : "";
-          if (/^(stop|cancel|останов|отмен)/i.test(lbl.trim())) {
+          if (isHiddenAncestor(b, doc.body)) continue;
+          const lbl = typeof b.getAttribute === "function" ? (b.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim() : "";
+          if (/^(?:stop\s+(?:generat|respond|stream|agent)|cancel\s+(?:invoc|generat|request)|остановить\s+(?:генерац|ответ|агент)|прервать\s+(?:генерац|ответ)|отменить\s+(?:генерац|запрос))/i.test(lbl)) {
             isGenerating = true;
             break;
           }
@@ -2593,6 +2663,7 @@ function createStudioPanel(options) {
       const firstUserNorm = userMsgCount > 0 ? (userMsgs[0].textContent || "").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 120) : "";
       return {
         isGenerating,
+        hasCancelBtn,
         isThinking,
         thinkingSec,
         respFloatTok,
@@ -2606,7 +2677,7 @@ function createStudioPanel(options) {
         contextLabel: detectContextLabel(),
       };
     } catch (_e) {
-      return { isGenerating: false, isThinking: false, thinkingSec: 0, respFloatTok: 0, respTokens: 0, chatTokens: 0, userMsgCount: 0, respCount: 0, lastResp: null, firstUserNorm: "", modelName: "", contextLabel: "" };
+      return { isGenerating: false, hasCancelBtn: false, isThinking: false, thinkingSec: 0, respFloatTok: 0, respTokens: 0, chatTokens: 0, userMsgCount: 0, respCount: 0, lastResp: null, firstUserNorm: "", modelName: "", contextLabel: "" };
     }
   }
 
@@ -2632,9 +2703,24 @@ function createStudioPanel(options) {
     const wasActivated = state.hasActivatedChat;
     const tel = state.telemetry;
 
-    const isPromotion = wasActivated && prevKey === "__new__" && detected.key !== "__new__" && (state.newChatDraftPersona !== null || snap.isGenerating || tel.isGenerating || tel.prevUserCount === 0 && snap.userMsgCount <= 1);
+    const isPromotion = wasActivated && prevKey === "__new__" && detected.key !== "__new__" && (state.newChatDraftPersona !== null || snap.isGenerating || tel.isGenerating || state.pendingNewSendAt > 0);
+    state.pendingNewSendAt = 0;
 
-    if (wasActivated && prevKey !== "__new__" && tel.dirty) {
+    if (wasActivated && prevKey.startsWith("chat-")) {
+      state.lastTempKey = prevKey;
+      state.lastTempKeyAt = Date.now();
+      state.lastTempFirstUserNorm = tel.firstUserNorm || snap.firstUserNorm || "";
+    }
+
+    let migrateFromKey = "";
+    if (!isPromotion && !detected.isNew && UUID_RE.test(detected.key) && state.lastTempKey && (Date.now() - state.lastTempKeyAt < 15000)) {
+      if (!state.lastTempFirstUserNorm || !snap.firstUserNorm || state.lastTempFirstUserNorm === snap.firstUserNorm) {
+        migrateFromKey = state.lastTempKey;
+        state.lastTempKey = "";
+      }
+    }
+
+    if (wasActivated && prevKey !== "__new__" && tel.dirty && !migrateFromKey) {
       flushChatTelemetry(prevKey, prevTitle, tel);
     }
 
@@ -2653,8 +2739,9 @@ function createStudioPanel(options) {
         tel.turnStartFloatTok = snap.respFloatTok;
       }
       state.newChatDraftPersona = null;
-    } else {
+    } else if (!migrateFromKey) {
       state.newChatDraftPersona = null;
+      state.hydrationIgnoreUntil = nowHiRes() + 2000;
       const freshTel = createEmptyTelemetry();
       freshTel.respTokens = snap.respTokens;
       freshTel.chatTokens = snap.chatTokens;
@@ -2664,6 +2751,7 @@ function createStudioPanel(options) {
       freshTel.activeRespEl = snap.lastResp;
       freshTel.prevRespCount = snap.respCount;
       freshTel.prevUserCount = snap.userMsgCount;
+      freshTel.firstUserNorm = snap.firstUserNorm;
       freshTel.modelName = snap.modelName;
       freshTel.contextLabel = snap.contextLabel;
       state.telemetry = freshTel;
@@ -2684,6 +2772,7 @@ function createStudioPanel(options) {
       chatKey: detected.key,
       title: detected.title,
       promoteFromNew: promoPayload,
+      migrateFromKey,
       draftPersona: detected.isNew ? state.newChatDraftPersona : null,
     }).then((res) => {
       if (state.destroyed || seq !== state.activeChatSwitchSeq || !res || !res.chat) return;
@@ -2829,13 +2918,51 @@ function createStudioPanel(options) {
 
       const rawDeltaFloat = snap.respFloatTok - tel.prevFloatTok;
       const deltaFloat = sameConvGrowth && rawDeltaFloat > 0 ? rawDeltaFloat : 0;
-      let seedMs = 120;
+      if (snap.firstUserNorm) tel.firstUserNorm = snap.firstUserNorm;
 
+      // Guard against React startup hydration, chat switch, or <details> dumps
+      if (!snap.isGenerating && !tel.wasGenerating && deltaFloat > 0) {
+        const isHydrationWindow = hiNow < state.hydrationIgnoreUntil;
+        const isSuddenDump = (tel.prevRespCount === 0 && snap.respFloatTok > 15) || deltaFloat > 90;
+        if (isHydrationWindow || isSuddenDump) {
+          tel.prevFloatTok = snap.respFloatTok;
+          tel.turnStartFloatTok = snap.respFloatTok;
+          tel.preTokenAt = hiNow;
+          tel.activeRespEl = snap.lastResp;
+          tel.unconfirmedGrowthTicks = 0;
+          tel.phase = "idle";
+          tel.prevRespCount = snap.respCount;
+          tel.prevUserCount = snap.userMsgCount;
+          tel.respTokens = snap.respTokens;
+          return;
+        }
+      }
+
+      if (!snap.isGenerating && !tel.wasGenerating) {
+        if (deltaFloat > 0) {
+          tel.unconfirmedGrowthTicks = (tel.unconfirmedGrowthTicks || 0) + 1;
+          if (tel.unconfirmedGrowthTicks < 2) {
+            tel.turnStartFloatTok = tel.prevFloatTok;
+            tel.preTokenAt = hiNow;
+            tel.phase = "idle";
+            tel.prevRespCount = snap.respCount;
+            tel.prevUserCount = snap.userMsgCount;
+            tel.respTokens = snap.respTokens;
+            return;
+          }
+        } else {
+          tel.unconfirmedGrowthTicks = 0;
+        }
+      } else {
+        tel.unconfirmedGrowthTicks = 0;
+      }
+
+      let seedMs = 180;
       if (deltaFloat > 0) {
         if (!tel.firstGrowthAt) {
           tel.firstGrowthAt = hiNow;
           tel.activeStreamMs = 0;
-          seedMs = tel.preTokenAt > 0 ? Math.min(260, Math.max(40, hiNow - tel.preTokenAt)) : 120;
+          seedMs = tel.preTokenAt > 0 ? Math.min(300, Math.max(85, hiNow - tel.preTokenAt)) : 180;
         } else if (tel.lastGrowthAt > 0) {
           const gap = hiNow - tel.lastGrowthAt;
           if (gap > 0 && gap <= 650) {
@@ -2850,7 +2977,8 @@ function createStudioPanel(options) {
       const idleSinceGrowth = tel.lastGrowthAt > 0 ? (hiNow - tel.lastGrowthAt) : Infinity;
       const graceMs = snap.isGenerating ? 900 : 240;
       const recentlyGrew = tel.lastGrowthAt > 0 && idleSinceGrowth <= graceMs;
-      const effectiveGenerating = Boolean(snap.isGenerating || recentlyGrew);
+      const stalledHeuristic = !snap.hasCancelBtn && tel.lastGrowthAt > 0 && idleSinceGrowth > 2500 && snap.respFloatTok > 0;
+      const effectiveGenerating = stalledHeuristic ? false : Boolean(snap.isGenerating || recentlyGrew);
 
       if (effectiveGenerating && !tel.wasGenerating) {
         tel.turnStartMs = hiNow;
@@ -2868,8 +2996,8 @@ function createStudioPanel(options) {
           for (let i = 0; i < tel.tpsBuckets.length; i += 1) sumD += tel.tpsBuckets[i].d;
           const winSpanMs = tel.tpsBuckets.length >= 2 ? (hiNow - tel.tpsBuckets[0].t) : 0;
           const rawTps = winSpanMs >= 60
-            ? (sumD / Math.max(0.08, winSpanMs / 1000))
-            : (deltaFloat / Math.max(0.08, seedMs / 1000));
+            ? (sumD / Math.max(0.20, winSpanMs / 1000))
+            : Math.min(450, deltaFloat / Math.max(0.18, seedMs / 1000));
           const clampedRaw = Math.min(999, Math.max(0, rawTps));
           const smoothed = tel.currentTps > 0
             ? Math.round(tel.currentTps * 0.30 + clampedRaw * 0.70)
@@ -3137,11 +3265,11 @@ function createStudioPanel(options) {
             <span class="num" style="color:var(--st-fg)" data-live="quotaMed">${escHtml(getActiveChatQuotaDisplay().miniText)}</span>
           </div>
           <div class="med-footer">
+            <span class="med-model-tag" data-live="model" title="${escAttr(tel.modelName || tr.modelUnknown)}">${escHtml(tel.modelName || "—")}</span>
             <button type="button" class="med-persona-pill" data-action="open-persona-tab" data-no-drag="1">
               <span class="status-dot" style="background:${state.chatPersona.enabled ? "var(--st-success)" : "var(--st-muted)"}"></span>
               <span>${escHtml(personaLabel)}</span>
             </button>
-            <span class="med-model-tag" data-live="model" title="${escAttr(tel.modelName || tr.modelUnknown)}">${escHtml(tel.modelName || "—")}</span>
           </div>
         </div>
       </div>
@@ -3349,6 +3477,7 @@ function createStudioPanel(options) {
     const estTok = estimateTokens(state.draftPersonaText);
     const overWarn = bytes >= 20000;
     const customs = s.customPresets || [];
+    const hasUnsaved = Boolean(state.draftDirty && state.draftPersonaText.trim() !== (cp.text || "").trim());
 
     return `
       <div class="persona-stack">
@@ -3365,7 +3494,8 @@ function createStudioPanel(options) {
             <span class="row-title">${escHtml(tr.personaMasterTitle)}</span>
             <span class="row-desc">${escHtml(tr.personaMasterDesc)}</span>
           </div>
-          <div style="display:flex;align-items:center;gap:10px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+            ${hasUnsaved ? `<span class="nav-badge" style="color:var(--st-warning);border-color:var(--st-warning)">${escHtml(tr.personaUnsavedTag)}</span>` : ""}
             <span class="${cp.enabled ? "badge-active" : "nav-badge"}">${escHtml(cp.enabled ? tr.personaActiveTag : tr.personaOffTag)}</span>
             <button type="button" class="switch${cp.enabled ? " is-on" : ""}" role="switch" aria-checked="${cp.enabled ? "true" : "false"}" data-action="toggle-persona-enabled">
               <span class="switch-thumb"></span>
@@ -3424,7 +3554,7 @@ function createStudioPanel(options) {
   function renderLanguageTab() {
     const tr = t();
     const isRu = state.locale !== "en";
-    const ver = pluginMeta.version || "3.0.0";
+    const ver = pluginMeta.version || "3.0.1";
     const dictCount = pluginMeta.dictEntries || 4017;
     const dynCount = pluginMeta.dynamicRulesCount || 471;
 
@@ -3851,7 +3981,7 @@ function createStudioPanel(options) {
           <aside class="modal-sidebar">
             <div class="sidebar-brand">
               <span class="brand-title">${escHtml(tr.brandTitle)}</span>
-              <span class="brand-ver num">v${escHtml(pluginMeta.version || "3.0.0")}</span>
+              <span class="brand-ver num">v${escHtml(pluginMeta.version || "3.0.1")}</span>
             </div>
             <span class="sidebar-section-label">${escHtml(tr.sidebarSectionStudio)}</span>
             <nav class="nav-list">
@@ -4037,8 +4167,12 @@ function createStudioPanel(options) {
     if (body === null) return;
     state.chatPersona.activePreset = id;
     state.draftPersonaText = body;
-    state.draftDirty = true;
-    renderStructure();
+    if (state.chatPersona.enabled && body.trim()) {
+      persistPersona(true);
+    } else {
+      state.draftDirty = true;
+      renderStructure();
+    }
   }
 
   function persistPersona(enabledOverride) {
@@ -4048,6 +4182,7 @@ function createStudioPanel(options) {
     const targetChatKey = state.activeChatKey || "__new__";
     const targetChatTitle = state.activeChatTitle || "";
     const tr = t();
+    const saveSeq = ++state.activeChatSwitchSeq;
 
     if (targetChatKey === "__new__") {
       state.newChatDraftPersona = nextEnabled && textVal.trim()
@@ -4063,9 +4198,10 @@ function createStudioPanel(options) {
       personaActivePreset: presetId,
       customPresets: state.settings.customPresets || [],
     }).then((res) => {
+      if (state.destroyed) return res;
       state.draftDirty = false;
       if (res && res.state) applyRemoteState(res.state, true);
-      if (res && res.chat && targetChatKey === state.activeChatKey) {
+      if (res && res.chat && targetChatKey === state.activeChatKey && saveSeq === state.activeChatSwitchSeq) {
         state.chatPersona = {
           enabled: Boolean(res.chat.personaEnabled),
           activePreset: res.chat.personaActivePreset || presetId,
@@ -4656,6 +4792,18 @@ function createStudioPanel(options) {
       win.addEventListener("mouseup", handlePointerUp);
       resizeHandler = () => clampWidgetToViewport();
       win.addEventListener("resize", resizeHandler);
+      focusSyncHandler = () => {
+        if (state.destroyed || !state.hasActivatedChat || state.draftDirty) return;
+        const now = Date.now();
+        if (now - state.lastFocusSyncAt < 500) return;
+        state.lastFocusSyncAt = now;
+        invokeIpc("agy-studio:activate-chat", {
+          chatKey: state.activeChatKey || "__new__",
+          title: state.activeChatTitle || "",
+          draftPersona: state.activeChatKey === "__new__" ? state.newChatDraftPersona : null,
+        });
+      };
+      win.addEventListener("focus", focusSyncHandler);
     }
     if (doc && typeof doc.addEventListener === "function") {
       keydownHandler = (e) => {
@@ -4704,6 +4852,7 @@ function createStudioPanel(options) {
 
     attachDomEvents();
     state.mounted = true;
+    state.hydrationIgnoreUntil = nowHiRes() + 2500;
     renderStructure();
     pollStream();
 
@@ -4878,6 +5027,7 @@ function createStudioPanel(options) {
       win.removeEventListener("mousemove", handlePointerMove);
       win.removeEventListener("mouseup", handlePointerUp);
       if (resizeHandler) win.removeEventListener("resize", resizeHandler);
+      if (focusSyncHandler) win.removeEventListener("focus", focusSyncHandler);
     }
     if (doc && typeof doc.removeEventListener === "function" && keydownHandler) {
       doc.removeEventListener("keydown", keydownHandler, true);
