@@ -1505,6 +1505,90 @@ function buildStudioStyles() {
     }
     .repo-link:hover { text-decoration: underline; }
 
+    /* === Dynamic Skill Update Notification === */
+    @keyframes rxUpdateBar {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(260%); }
+    }
+    .update-toast-mount {
+      position: fixed;
+      right: 16px;
+      top: 52px;
+      z-index: 2147483500;
+      pointer-events: none;
+    }
+    .update-toast-mount.is-bottom {
+      top: auto;
+      bottom: 16px;
+    }
+    .update-toast {
+      pointer-events: auto;
+      width: min(356px, calc(100vw - 24px));
+      padding: 13px 14px;
+      border-radius: 13px;
+      background: var(--rx-glass-strong);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--rx-border-strong);
+      box-shadow: var(--rx-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      animation: rxModalIn 0.16s ease-out;
+    }
+    .update-toast-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .update-toast-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .update-toast-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      font-weight: 650;
+      color: var(--rx-fg-strong);
+    }
+    .update-toast-ver {
+      font-size: 11px;
+      color: var(--rx-accent);
+      font-weight: 600;
+    }
+    .update-toast-msg {
+      font-size: 11.5px;
+      color: var(--rx-muted);
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .update-toast-progress {
+      width: 100%;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--rx-surface-2);
+      overflow: hidden;
+    }
+    .update-toast-bar {
+      width: 42%;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--rx-accent);
+      animation: rxUpdateBar 1.2s ease-in-out infinite;
+    }
+    .update-toast-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 7px;
+      margin-top: 2px;
+    }
+
     @media (max-width: 700px) {
       .modal-shell { flex-direction: column; height: min(640px, calc(100vh - 24px)); }
       .modal-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--rx-border); padding: 10px; }

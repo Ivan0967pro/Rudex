@@ -4,6 +4,7 @@ const { app, ipcMain, webContents, dialog, shell, protocol, BrowserWindow } = re
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { spawn } = require("child_process");
 
 let cachedLocale = null;
 let ipcRegistered = false;
@@ -23,6 +24,20 @@ let queueWatcher = null;
 let deliveredWatcher = null;
 let liveEditDebounceTimer = null;
 let liveEditLastBroadcastSig = "";
+let updateBootTimer = null;
+let updateIntervalTimer = null;
+let updateCheckInflight = null;
+let updateInstallInflight = null;
+let updateStatusState = {
+  status: "idle",
+  available: false,
+  reason: "",
+  updateKey: "",
+  lastCheckedAt: 0,
+  error: "",
+  installed: null,
+  remote: null,
+};
 
 const allowedLiveEditSourcePaths = new Set();
 const listeners = new Set();
@@ -378,6 +393,7 @@ function sanitizeStudioSettings(raw) {
     personaText: typeof src.personaText === "string" ? src.personaText : "",
     personaStrictMode: src.personaStrictMode !== false,
     thinkingInRussian: Boolean(src.thinkingInRussian),
+    autoCheckUpdates: src.autoCheckUpdates !== false,
     customPresets: presets,
     appearance: sanitizeAppearance(src.appearance),
     appearanceProfiles: sanitizeAppearanceProfiles(src.appearanceProfiles),
@@ -428,6 +444,11 @@ function saveStudioSettings(patch) {
   if (Object.prototype.hasOwnProperty.call(pObj, "thinkingInRussian")) {
     syncThinkingRuFlag(Boolean(next.thinkingInRussian), { wasEnabled: Boolean(current.thinkingInRussian) });
     resyncActiveChatRuleFile();
+  }
+  if (pObj.autoCheckUpdates === true && current.autoCheckUpdates === false) {
+    if (Date.now() - (updateStatusState.lastCheckedAt || 0) > 30 * 60 * 1000) {
+      try { runUpdateCheck({ force: false }); } catch {}
+    }
   }
   return next;
 }
@@ -1684,6 +1705,228 @@ function loadZipBuilderModule() {
   throw new Error("zip-builder.js module not found");
 }
 
+function loadUpdaterCore() {
+  const candidates = [
+    path.join(__dirname, "i18nData", "updater-core.js"),
+    path.join(__dirname, "updater-core.js"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      return require(p);
+    }
+  }
+  throw new Error("updater-core.js module not found");
+}
+
+function getUpdateStateCachePath() {
+  return path.join(app.getPath("userData"), "agy_studio_update_state.json");
+}
+
+function loadUpdateCache() {
+  try {
+    const p = getUpdateStateCachePath();
+    if (fs.existsSync(p)) {
+      const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+      if (parsed && typeof parsed === "object") {
+        return {
+          etag: typeof parsed.etag === "string" ? parsed.etag : "",
+          lastCheckedAt: toNonNegInt(parsed.lastCheckedAt),
+          dismissedKey: typeof parsed.dismissedKey === "string" ? parsed.dismissedKey : "",
+          dismissedUntil: toNonNegInt(parsed.dismissedUntil),
+          lastKnownRemote: parsed.lastKnownRemote && typeof parsed.lastKnownRemote === "object" ? parsed.lastKnownRemote : null,
+        };
+      }
+    }
+  } catch {}
+  return { etag: "", lastCheckedAt: 0, dismissedKey: "", dismissedUntil: 0, lastKnownRemote: null };
+}
+
+function saveUpdateCache(cache) {
+  try {
+    writeJsonAtomic(getUpdateStateCachePath(), cache);
+  } catch (err) {
+    console.warn("[Rudex] Failed to persist update cache:", err && err.message ? err.message : err);
+  }
+}
+
+function getInstalledRudexMeta() {
+  const patchMeta = getPatchMeta() || {};
+  let installMeta = {};
+  let pluginJson = {};
+  const rudexDir = path.join(getPluginsBaseDir(), "rudex");
+  try {
+    const mp = path.join(rudexDir, ".rudex-install-meta.json");
+    if (fs.existsSync(mp)) installMeta = JSON.parse(fs.readFileSync(mp, "utf8")) || {};
+  } catch {}
+  try {
+    const pp = path.join(rudexDir, "plugin.json");
+    if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
+  } catch {}
+
+  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.1.0");
+  const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
+  const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
+  const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
+  const patchedAt = String(installMeta.installedAt || patchMeta.patchedAt || "");
+  return { version, commitSha, commitShort, commitDate, patchedAt };
+}
+
+function seedUpdateStateFromCacheIfNeeded() {
+  if (updateStatusState.installed && (updateStatusState.lastCheckedAt > 0 || updateStatusState.remote)) return;
+  const installed = getInstalledRudexMeta();
+  updateStatusState.installed = installed;
+  const cache = loadUpdateCache();
+  if (cache.lastKnownRemote && updateStatusState.status === "idle") {
+    try {
+      const updaterCore = loadUpdaterCore();
+      const avail = updaterCore.evaluateUpdateAvailability(installed, cache.lastKnownRemote);
+      updateStatusState.lastCheckedAt = cache.lastCheckedAt || 0;
+      updateStatusState.remote = cache.lastKnownRemote;
+      updateStatusState.updateKey = avail.updateKey || "";
+      updateStatusState.reason = avail.reason || "";
+      updateStatusState.available = Boolean(avail.available);
+      updateStatusState.status = avail.available ? "available" : "up-to-date";
+    } catch {}
+  }
+}
+
+function getPublicUpdateState() {
+  seedUpdateStateFromCacheIfNeeded();
+  const cache = loadUpdateCache();
+  const busy = ["downloading", "extracting", "installing", "restarting"].includes(updateStatusState.status);
+  const dismissed =
+    !busy &&
+    Boolean(cache.dismissedKey && cache.dismissedKey === updateStatusState.updateKey && Date.now() < (cache.dismissedUntil || 0));
+  return {
+    status: updateStatusState.status,
+    available: Boolean(updateStatusState.available),
+    dismissed,
+    reason: updateStatusState.reason || "",
+    updateKey: updateStatusState.updateKey || "",
+    lastCheckedAt: updateStatusState.lastCheckedAt || 0,
+    error: updateStatusState.error || "",
+    installed: updateStatusState.installed || getInstalledRudexMeta(),
+    remote: updateStatusState.remote || null,
+  };
+}
+
+function broadcastUpdateStatus() {
+  const snapshot = getPublicUpdateState();
+  try {
+    for (const wc of webContents.getAllWebContents()) {
+      if (wc && !wc.isDestroyed()) {
+        wc.send("agy-studio:update-status", snapshot);
+      }
+    }
+  } catch {}
+}
+
+function runUpdateCheck(opts = {}) {
+  const force = Boolean(opts && opts.force);
+  if (updateInstallInflight) return Promise.resolve(getPublicUpdateState());
+  if (updateCheckInflight) return updateCheckInflight;
+
+  const installed = getInstalledRudexMeta();
+  updateStatusState.installed = installed;
+  if (force) {
+    updateStatusState.status = "checking";
+    updateStatusState.error = "";
+    broadcastUpdateStatus();
+  }
+
+  updateCheckInflight = (async () => {
+    try {
+      const updaterCore = loadUpdaterCore();
+      const cache = loadUpdateCache();
+      const res = await updaterCore.checkRemoteRelease({
+        prevEtag: cache.etag,
+        prevRemote: cache.lastKnownRemote,
+      });
+      if (!res || !res.ok || !res.remote) {
+        const errMsg = (res && res.error) || "Update check failed";
+        if (force) {
+          updateStatusState.status = "error";
+          updateStatusState.error = errMsg;
+          broadcastUpdateStatus();
+        }
+        return getPublicUpdateState();
+      }
+
+      const avail = updaterCore.evaluateUpdateAvailability(installed, res.remote);
+      const now = Date.now();
+      cache.etag = res.etag || cache.etag || "";
+      cache.lastCheckedAt = now;
+      cache.lastKnownRemote = res.remote;
+      if (force && avail.available) {
+        cache.dismissedKey = "";
+        cache.dismissedUntil = 0;
+      }
+      saveUpdateCache(cache);
+
+      updateStatusState = {
+        status: avail.available ? "available" : "up-to-date",
+        available: Boolean(avail.available),
+        reason: avail.reason || "",
+        updateKey: avail.updateKey || "",
+        lastCheckedAt: now,
+        error: "",
+        installed,
+        remote: res.remote,
+      };
+      broadcastUpdateStatus();
+      return getPublicUpdateState();
+    } catch (err) {
+      if (force) {
+        updateStatusState.status = "error";
+        updateStatusState.error = err && err.message ? err.message : "Update check failed";
+        broadcastUpdateStatus();
+      }
+      return getPublicUpdateState();
+    } finally {
+      updateCheckInflight = null;
+    }
+  })();
+
+  return updateCheckInflight;
+}
+
+function startPeriodicUpdateChecks() {
+  if (updateBootTimer) {
+    try { clearTimeout(updateBootTimer); } catch {}
+    updateBootTimer = null;
+  }
+  if (updateIntervalTimer) {
+    try { clearInterval(updateIntervalTimer); } catch {}
+    updateIntervalTimer = null;
+  }
+  let intervalMs = 30 * 60 * 1000;
+  try {
+    const core = loadUpdaterCore();
+    if (core && typeof core.DEFAULT_CHECK_INTERVAL_MS === "number") {
+      intervalMs = core.DEFAULT_CHECK_INTERVAL_MS;
+    }
+  } catch {}
+
+  updateBootTimer = setTimeout(() => {
+    updateBootTimer = null;
+    try {
+      if (loadStudioSettings().autoCheckUpdates !== false) {
+        runUpdateCheck({ force: false });
+      }
+    } catch {}
+  }, 20000);
+  if (updateBootTimer && typeof updateBootTimer.unref === "function") updateBootTimer.unref();
+
+  updateIntervalTimer = setInterval(() => {
+    try {
+      if (loadStudioSettings().autoCheckUpdates !== false) {
+        runUpdateCheck({ force: false });
+      }
+    } catch {}
+  }, intervalMs);
+  if (updateIntervalTimer && typeof updateIntervalTimer.unref === "function") updateIntervalTimer.unref();
+}
+
 function makeSafeExportFilename(title, chatKey) {
   const raw = (title || chatKey || "chat").trim();
   const clean = raw
@@ -2219,6 +2462,7 @@ function registerI18nIpc() {
   }
   const bootLe = loadAllLiveEdits();
   if (bootLe.hasPending) ensureLiveEditWatcher();
+  startPeriodicUpdateChecks();
 
   ipcMain.on("agy-i18n:get-locale-sync", (event) => {
     event.returnValue = getLocale();
@@ -2575,7 +2819,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && meta.pluginVersion) || "4.0.0",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.1.0",
         outPath,
       });
       return res;
@@ -2864,6 +3108,98 @@ function registerI18nIpc() {
     pruneUnreferencedLiveEditMedia(items);
     broadcastLiveEditsChanged(items);
     return { ok: true, items: filterLiveEditsForChat(items, key), allItems: items.slice(-30) };
+  });
+  ipcMain.handle("agy-studio:get-update-state", () => getPublicUpdateState());
+  ipcMain.handle("agy-studio:check-updates", async (_event, payload) => {
+    const manual = !payload || payload.manual !== false;
+    return runUpdateCheck({ force: manual });
+  });
+  ipcMain.handle("agy-studio:dismiss-update", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const cur = getPublicUpdateState();
+    const key = typeof p.key === "string" && p.key ? p.key : (cur.updateKey || "");
+    const cache = loadUpdateCache();
+    let snoozeMs = 6 * 60 * 60 * 1000;
+    try {
+      const core = loadUpdaterCore();
+      if (core && typeof core.DEFAULT_SNOOZE_MS === "number") snoozeMs = core.DEFAULT_SNOOZE_MS;
+    } catch {}
+    if (typeof p.snoozeMs === "number" && Number.isFinite(p.snoozeMs) && p.snoozeMs > 0) {
+      snoozeMs = p.snoozeMs;
+    }
+    cache.dismissedKey = key;
+    cache.dismissedUntil = Date.now() + snoozeMs;
+    saveUpdateCache(cache);
+    broadcastUpdateStatus();
+    return getPublicUpdateState();
+  });
+  ipcMain.handle("agy-studio:install-update", async () => {
+    if (updateInstallInflight) return updateInstallInflight;
+    updateInstallInflight = (async () => {
+      try {
+        const updaterCore = loadUpdaterCore();
+        const remote = updateStatusState.remote || (loadUpdateCache().lastKnownRemote) || null;
+        const res = await updaterCore.installUpdateFromZip({
+          remote,
+          onProgress: (stage) => {
+            updateStatusState.status = stage;
+            updateStatusState.error = "";
+            broadcastUpdateStatus();
+          },
+        });
+        const cache = loadUpdateCache();
+        cache.dismissedKey = "";
+        cache.dismissedUntil = 0;
+        if (remote) cache.lastKnownRemote = remote;
+        saveUpdateCache(cache);
+
+        updateStatusState.status = "restarting";
+        updateStatusState.error = "";
+        broadcastUpdateStatus();
+
+        if (process.platform === "win32") {
+          let cmdPath = "";
+          if (res.status === "LOCKED_NEEDS_ACTIVATOR" && res.activatorPath && fs.existsSync(res.activatorPath)) {
+            cmdPath = res.activatorPath;
+          } else {
+            const exePath = res.exePath || process.execPath;
+            cmdPath = updaterCore.writeUpdaterRestartScript(exePath);
+          }
+          if (cmdPath && fs.existsSync(cmdPath)) {
+            try {
+              const child = spawn("cmd.exe", ["/c", `"${cmdPath}"`], {
+                detached: true,
+                stdio: "ignore",
+                windowsHide: true,
+                windowsVerbatimArguments: true,
+              });
+              if (child && typeof child.unref === "function") child.unref();
+            } catch {}
+          }
+          setTimeout(() => {
+            try { app.quit(); } catch { try { app.exit(0); } catch {} }
+          }, 350);
+        } else {
+          setTimeout(() => {
+            try {
+              app.relaunch();
+              app.exit(0);
+            } catch {}
+          }, 350);
+        }
+
+        return { ok: true, state: getPublicUpdateState(), result: res };
+      } catch (err) {
+        const msg = err && err.message ? err.message : "Failed to install update";
+        updateStatusState.status = "error";
+        updateStatusState.error = msg;
+        broadcastUpdateStatus();
+        return { ok: false, error: msg, state: getPublicUpdateState() };
+      } finally {
+        updateInstallInflight = null;
+      }
+    })();
+    return updateInstallInflight;
   });
 }
 

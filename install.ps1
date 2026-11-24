@@ -142,7 +142,7 @@ function Restart-AntigravityDetached([string]$ExePath) {
   }
 }
 
-Write-Host "Rudex v4.0.0 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
+Write-Host "Rudex v4.1.0 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
 
 if ($IsLocalRepo) {
   $InstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"
@@ -250,7 +250,9 @@ try {
     return
   }
 
+  $env:RUDEX_ZIP_PATH = $zipPath
   $outLines = Invoke-RudexNode $sourceInstallJs @("--sync-plugin")
+  Remove-Item Env:RUDEX_ZIP_PATH -ErrorAction SilentlyContinue
   $installStatus = $null
   $activatorPath = $null
   $agyExeOut = $null
@@ -276,6 +278,7 @@ try {
   $pluginTarget = Join-Path $env:USERPROFILE ".gemini\config\plugins\rudex"
   Write-Host "[Rudex] Done! Rudex skill is installed in: $pluginTarget" -ForegroundColor Green
 } finally {
+  Remove-Item Env:RUDEX_ZIP_PATH -ErrorAction SilentlyContinue
   if (Test-Path $tempRoot) {
     Remove-Item -Path $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
   }

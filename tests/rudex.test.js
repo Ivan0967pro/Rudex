@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 const vm = require("node:vm");
@@ -47,6 +48,13 @@ const {
   buildPreloadSnippet,
 } = require(path.join(SCRIPTS_DIR, "install.js"));
 const { patchMainJs } = require(path.join(SCRIPTS_DIR, "electron-shell.js"));
+const {
+  evaluateUpdateAvailability,
+  readZipEocdComment,
+  extractCommitShaFromText,
+  checkRemoteRelease,
+  readGitHeadMeta,
+} = require(path.join(SCRIPTS_DIR, "updater-core.js"));
 const {
   crc32,
   createZipBuffer,
@@ -377,11 +385,12 @@ function createMockDom() {
 // =============================================================================
 // 1. Metadata, Hooks Schema & Installer Helpers
 // =============================================================================
-test("Manifest & hooks.json follow Rudex v4.0.0 architecture without PostInvocation", () => {
+test("Manifest & hooks.json follow Rudex v4.1.0 architecture without PostInvocation", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.0.0");
+  assert.equal(pkg.version, "4.1.0");
+  assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.equal(typeof dictionary, "object");
   assert.ok(Object.keys(dictionary).length >= 4000);
   assert.equal(DYNAMIC_RULES.length, 474);
@@ -420,6 +429,7 @@ test("Installer semver comparison, EOF module stripping, and preload bundle synt
   assert.ok(bundle.includes("// === RUDEX_I18N_START ==="));
   assert.ok(bundle.includes("// === RUDEX_I18N_END ==="));
   assert.ok(bundle.includes("DOMContentLoaded"));
+  assert.ok(bundle.includes("agy-studio:update-status"));
   assert.doesNotThrow(() => new vm.Script(bundle, { filename: "test-bundle.js" }));
 });
 
@@ -868,10 +878,15 @@ test("Studio styles and panel UI render without layout/CSS regressions and sync 
   });
   assert.equal(translator.getGreetingConfig().title, "Привет от панели!");
 
-  // Verify System subtab renders Russian thinking toggle and reflects ON/OFF state
-  panel.setOpen(true, { tab: "settings", subTab: "system" });
+  // Verify both Persona tab and default Settings tab (Language & System) render Russian thinking toggle
+  panel.setOpen(true, { tab: "persona" });
+  const personaHtml = modalMount ? modalMount.innerHTML : "";
+  assert.ok(personaHtml.includes('data-action="toggle-thinking-ru"'), "Persona tab must prominently expose thinkingInRussian toggle");
+
+  panel.setOpen(true, { tab: "settings" });
   const sysHtmlOff = modalMount ? modalMount.innerHTML : "";
-  assert.ok(sysHtmlOff.includes('data-action="toggle-thinking-ru"'), "Settings -> System must render thinkingInRussian toggle");
+  assert.ok(sysHtmlOff.includes('data-action="toggle-thinking-ru"'), "Settings default subtab (Language & System) must render thinkingInRussian toggle");
+  assert.ok(sysHtmlOff.includes('data-action="toggle-auto-updates"'), "Settings -> Language & System must render autoCheckUpdates toggle");
   assert.ok(sysHtmlOff.includes("По умолчанию"), "Disabled thinkingInRussian must show default badge");
 
   panel.applyRemoteState({
@@ -1701,6 +1716,246 @@ test("View Usage localization, GPT/Anthropic quota parsing, and live overlay scr
   } finally {
     panel.destroy();
     te.destroy();
+    translator.destroy();
+  }
+});
+
+// =============================================================================
+// 11. Dynamic Skill Auto-Updater Core & UI Tests
+// =============================================================================
+test("Updater core evaluates semver/commit updates, reads ZIP EOCD SHA comments, and checks releases with ETag 304 + fallback", async () => {
+  // 1) Version & commit comparisons
+  const rSemver = evaluateUpdateAvailability(
+    { version: "4.0.0", commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    { version: "4.1.0", commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+  );
+  assert.equal(rSemver.available, true);
+  assert.equal(rSemver.reason, "version");
+
+  const rCommitNewer = evaluateUpdateAvailability(
+    { version: "4.1.0", commitSha: "1111111111111111111111111111111111111111", commitDate: "2026-11-24T17:00:00Z" },
+    { version: "4.1.0", commitSha: "2222222222222222222222222222222222222222", commitDate: "2026-11-24T18:00:00Z" }
+  );
+  assert.equal(rCommitNewer.available, true);
+  assert.equal(rCommitNewer.reason, "commit");
+
+  const rSame = evaluateUpdateAvailability(
+    { version: "4.1.0", commitSha: "2222222222222222222222222222222222222222" },
+    { version: "4.1.0", commitSha: "2222222222222222222222222222222222222222" }
+  );
+  assert.equal(rSame.available, false);
+  assert.equal(rSame.reason, "up-to-date");
+
+  const rLocalAhead = evaluateUpdateAvailability(
+    { version: "4.1.0", commitSha: "3333333333333333333333333333333333333333", commitDate: "2026-11-24T20:00:00Z" },
+    { version: "4.1.0", commitSha: "2222222222222222222222222222222222222222", commitDate: "2026-11-24T18:00:00Z" }
+  );
+  assert.equal(rLocalAhead.available, false);
+  assert.equal(rLocalAhead.reason, "local-newer");
+
+  // 2) Git HEAD metadata helper reads real repo HEAD
+  const gitMeta = readGitHeadMeta(REPO_ROOT);
+  assert.match(gitMeta.commitSha, /^[0-9a-f]{40}$/);
+
+  // 3) ZIP EOCD comment SHA extraction
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-zip-comment-"));
+  try {
+    const zipPath = path.join(tmpDir, "archive.zip");
+    const baseZip = createZipBuffer([{ name: "README.md", data: Buffer.from("# Rudex\n", "utf8") }]);
+    const commentSha = "46e3eae414b1caa07842250fc9fb207a358a569e";
+    const commentBuf = Buffer.from(commentSha, "utf8");
+    const eocdIdx = baseZip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+    assert.ok(eocdIdx >= 0);
+    const outZip = Buffer.concat([baseZip.subarray(0, eocdIdx + 20), Buffer.alloc(2), commentBuf]);
+    outZip.writeUInt16LE(commentBuf.length, eocdIdx + 20);
+    fs.writeFileSync(zipPath, outZip);
+
+    const extracted = readZipEocdComment(zipPath);
+    assert.equal(extracted, commentSha);
+    assert.equal(extractCommitShaFromText(extracted), commentSha);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  // 4) HTTP mock server: 200 -> 304 ETag reuse -> 403 commit API fallback to manifest
+  let mode = "ok";
+  const srv = http.createServer((req, res) => {
+    if (req.url === "/plugin.json") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ name: "rudex", version: mode === "fallback" ? "4.2.0" : "4.1.0" }));
+      return;
+    }
+    if (req.url === "/commit") {
+      if (mode === "fallback") {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ message: "API rate limit exceeded" }));
+        return;
+      }
+      if (req.headers["if-none-match"] === '"etag-v1"') {
+        res.writeHead(304, { ETag: '"etag-v1"' });
+        res.end();
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json", ETag: '"etag-v1"' });
+      res.end(JSON.stringify({
+        sha: "abcdef0123456789abcdef0123456789abcdef01",
+        html_url: "https://github.com/Ivan0967pro/Rudex/commit/abcdef0",
+        commit: {
+          message: "feat: dynamic updater\n\nbody line",
+          committer: { date: "2026-11-24T20:00:00Z" },
+        },
+      }));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => srv.listen(0, "127.0.0.1", resolve));
+  try {
+    const port = srv.address().port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const r1 = await checkRemoteRelease({ manifestUrl: `${baseUrl}/plugin.json`, commitApiUrl: `${baseUrl}/commit` });
+    assert.equal(r1.ok, true);
+    assert.equal(r1.etag, '"etag-v1"');
+    assert.equal(r1.remote.version, "4.1.0");
+    assert.equal(r1.remote.commitShort, "abcdef0");
+    assert.equal(r1.remote.commitMessage, "feat: dynamic updater");
+
+    const r2 = await checkRemoteRelease({
+      manifestUrl: `${baseUrl}/plugin.json`,
+      commitApiUrl: `${baseUrl}/commit`,
+      prevEtag: r1.etag,
+      prevRemote: r1.remote,
+    });
+    assert.equal(r2.ok, true);
+    assert.equal(r2.remote.commitSha, r1.remote.commitSha);
+
+    mode = "fallback";
+    const r3 = await checkRemoteRelease({
+      manifestUrl: `${baseUrl}/plugin.json`,
+      commitApiUrl: `${baseUrl}/commit`,
+      prevEtag: r1.etag,
+      prevRemote: r1.remote,
+    });
+    assert.equal(r3.ok, true);
+    assert.equal(r3.remote.version, "4.2.0");
+  } finally {
+    await new Promise((resolve) => srv.close(resolve));
+  }
+});
+
+test("Studio update popup and Settings -> Language & System update controls handle available, dismiss, progress, and install flows", async () => {
+  const { doc, win } = createMockDom();
+  const translator = createDomTranslator({
+    document: doc,
+    window: win,
+    dictionary,
+    applyDynamicRules,
+    initialLocale: "ru",
+  });
+  translator.init();
+
+  const ipcCalls = [];
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      invoke: async (ch, payload) => {
+        ipcCalls.push({ ch, payload });
+        if (ch === "agy-studio:get-state") {
+          return { locale: "ru", settings: { autoCheckUpdates: true, thinkingInRussian: false } };
+        }
+        if (ch === "agy-studio:get-update-state") {
+          return {
+            status: "idle",
+            available: false,
+            dismissed: false,
+            installed: { version: "4.0.0", commitSha: "1111111", commitShort: "1111111" },
+            remote: null,
+          };
+        }
+        if (ch === "agy-studio:install-update") {
+          return { ok: true };
+        }
+        if (ch === "agy-studio:dismiss-update") {
+          return {
+            status: "available",
+            available: true,
+            dismissed: true,
+            updateKey: "4.1.0:2222222",
+            installed: { version: "4.0.0", commitShort: "1111111" },
+            remote: { version: "4.1.0", commitShort: "2222222", commitMessage: "Новый автообновлятор" },
+          };
+        }
+        return { ok: true };
+      },
+    },
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine: createThemeEngine({ document: doc, window: win }),
+  });
+
+  try {
+    panel.init();
+    await new Promise((r) => setTimeout(r, 20));
+
+    const host = doc.getElementById("rudex-studio-host");
+    const rootEl = host.shadowRoot.querySelector(".studio-root");
+    const toastMount = host.shadowRoot.querySelector(".update-toast-mount");
+    assert.ok(toastMount, "Update toast mount must exist inside Studio shadowRoot");
+    assert.equal(toastMount.innerHTML, "", "Toast must remain hidden when no update is available");
+
+    panel.applyUpdateStatus({
+      status: "available",
+      available: true,
+      dismissed: false,
+      updateKey: "4.1.0:2222222",
+      installed: { version: "4.0.0", commitShort: "1111111" },
+      remote: { version: "4.1.0", commitShort: "2222222", commitMessage: "Новый автообновлятор" },
+    });
+
+    assert.ok(toastMount.innerHTML.includes("update-toast"));
+    assert.ok(toastMount.innerHTML.includes("v4.0.0 → v4.1.0"));
+    assert.ok(toastMount.innerHTML.includes("Обновить"));
+    assert.ok(toastMount.innerHTML.includes("Позже"));
+    assert.ok(toastMount.innerHTML.includes("Новый автообновлятор"));
+
+    // Open Settings -> Language & System -> verify update card & install button exist
+    panel.setOpen(true, { tab: "settings" });
+    const modalMount = host.shadowRoot.querySelector(".modal-mount");
+    assert.ok(modalMount.innerHTML.includes("Обновления Rudex"));
+    assert.ok(modalMount.innerHTML.includes("Обновить и перезапустить"));
+
+    // Click "Позже" -> dismisses toast while Settings still retains update button
+    const dismissBtn = doc.createElement("button");
+    dismissBtn.setAttribute("data-action", "dismiss-update");
+    toastMount.appendChild(dismissBtn);
+    rootEl.dispatchEvent({ type: "click", target: dismissBtn });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.ok(ipcCalls.some((c) => c.ch === "agy-studio:dismiss-update"));
+    assert.equal(toastMount.innerHTML, "", "Dismissed toast must hide floating notification");
+    assert.ok(modalMount.innerHTML.includes("Обновить и перезапустить"), "Settings still allows installing dismissed update");
+
+    // Re-surface update & click "Обновить"
+    panel.applyUpdateStatus({
+      status: "available",
+      available: true,
+      dismissed: false,
+      updateKey: "4.1.0:2222222",
+      installed: { version: "4.0.0", commitShort: "1111111" },
+      remote: { version: "4.1.0", commitShort: "2222222", commitMessage: "Новый автообновлятор" },
+    });
+    const installBtn = doc.createElement("button");
+    installBtn.setAttribute("data-action", "install-update");
+    toastMount.appendChild(installBtn);
+    rootEl.dispatchEvent({ type: "click", target: installBtn });
+    assert.ok(toastMount.innerHTML.includes("update-toast-progress"), "Clicking Update must immediately display download progress");
+    assert.ok(ipcCalls.some((c) => c.ch === "agy-studio:install-update"));
+  } finally {
+    panel.destroy();
     translator.destroy();
   }
 });

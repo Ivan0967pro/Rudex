@@ -90,7 +90,7 @@ const TEXT = {
     appSubText: "Текст",
     setSubWidget: "Виджет",
     setSubExport: "Экспорт и лимиты",
-    setSubSystem: "Система",
+    setSubSystem: "Язык и система",
     appThemesTitle: "Палитра",
     appAccentQuick: "Независимый акцент",
     appAccentReset: "Как в теме",
@@ -312,8 +312,31 @@ const TEXT = {
     langActiveBadge: "Активен",
     thinkingRuTitle: "Мысли агента на русском",
     thinkingRuDesc: "Переключает внутренние размышления (thinking) агента на русский язык. При отключении возвращается режим по умолчанию.",
+    thinkingRuGlobalDesc: "Действует глобально для всех чатов. При отключении возвращается режим по умолчанию.",
     thinkingRuOn: "Русский",
     thinkingRuDefault: "По умолчанию",
+    updateSectionTitle: "Обновления Rudex",
+    updateBadgeNew: "Есть обновление",
+    updateAutoTitle: "Автопроверка обновлений",
+    updateAutoDesc: "Фоновая проверка новых версий на GitHub с уведомлением «Обновить»",
+    updateStatusLabel: "Статус",
+    updateStatusIdle: "Автопроверка включена",
+    updateStatusChecking: "Проверяем GitHub…",
+    updateStatusUpToDate: "Установлена последняя версия",
+    updateStatusAvailable: "Доступна новая версия",
+    updateStatusDownloading: "Скачивание архива…",
+    updateStatusExtracting: "Распаковка архива…",
+    updateStatusInstalling: "Установка обновления…",
+    updateStatusRestarting: "Перезапуск Antigravity…",
+    updateStatusError: "Ошибка обновления",
+    updateBtnCheck: "Проверить",
+    updateBtnNow: "Обновить",
+    updateBtnInstallRestart: "Обновить и перезапустить",
+    updateBtnLater: "Позже",
+    updateBtnRetry: "Повторить",
+    updateToastTitle: "Доступно обновление Rudex",
+    updateToastBusyTitle: "Обновление Rudex",
+    updateToastDesc: "Нажмите «Обновить» — Antigravity перезапустится с новой версией скилла.",
     hotkeysTitle: "Горячие клавиши",
     hkToggleLang: "Переключить язык RU / EN",
     hkToggleModal: "Открыть / закрыть Rudex",
@@ -371,7 +394,7 @@ const TEXT = {
     appSubText: "Text",
     setSubWidget: "Widget",
     setSubExport: "Export & Limits",
-    setSubSystem: "System",
+    setSubSystem: "Language & System",
     appThemesTitle: "Palette",
     appAccentQuick: "Independent Accent",
     appAccentReset: "Use theme default",
@@ -593,8 +616,31 @@ const TEXT = {
     langActiveBadge: "Active",
     thinkingRuTitle: "Agent thinking in Russian",
     thinkingRuDesc: "Switches agent internal reasoning (thinking) to Russian. Turn off to restore default behavior.",
+    thinkingRuGlobalDesc: "Applies globally across all chats. Turn off to restore default behavior.",
     thinkingRuOn: "Russian",
     thinkingRuDefault: "Default",
+    updateSectionTitle: "Rudex Updates",
+    updateBadgeNew: "Update available",
+    updateAutoTitle: "Auto-check updates",
+    updateAutoDesc: "Periodically checks GitHub for updates and prompts to restart",
+    updateStatusLabel: "Status",
+    updateStatusIdle: "Auto-check enabled",
+    updateStatusChecking: "Checking GitHub…",
+    updateStatusUpToDate: "Up to date",
+    updateStatusAvailable: "New version available",
+    updateStatusDownloading: "Downloading archive…",
+    updateStatusExtracting: "Extracting package…",
+    updateStatusInstalling: "Installing update…",
+    updateStatusRestarting: "Restarting Antigravity…",
+    updateStatusError: "Update failed",
+    updateBtnCheck: "Check now",
+    updateBtnNow: "Update",
+    updateBtnInstallRestart: "Update & Restart",
+    updateBtnLater: "Later",
+    updateBtnRetry: "Retry",
+    updateToastTitle: "Rudex Update Available",
+    updateToastBusyTitle: "Updating Rudex",
+    updateToastDesc: "Click Update to install the latest skill release and restart Antigravity.",
     hotkeysTitle: "Shortcuts",
     hkToggleLang: "Toggle RU / EN localization",
     hkToggleModal: "Toggle Rudex Studio",
@@ -1166,7 +1212,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.0.0", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "4.1.0", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1243,7 +1289,7 @@ function createStudioPanel(options) {
     isOpen: false,
     activeTab: "monitor",
     appearanceSubTab: "theme",
-    settingsSubTab: "widget",
+    settingsSubTab: "system",
     openDisclosures: {},
     theme: "dark",
     activeChatKey: "__new__",
@@ -1287,6 +1333,7 @@ function createStudioPanel(options) {
       trackHistory: true,
       personaStrictMode: true,
       thinkingInRussian: false,
+      autoCheckUpdates: true,
       customPresets: [],
       appearance: spCloneAppearance(spDefaultAppearance()),
       appearanceProfiles: [],
@@ -1324,6 +1371,17 @@ function createStudioPanel(options) {
     liveEditBusy: false,
     liveEditError: "",
     liveEdits: [],
+    update: {
+      status: "idle",
+      available: false,
+      dismissed: false,
+      reason: "",
+      updateKey: "",
+      lastCheckedAt: 0,
+      error: "",
+      installed: null,
+      remote: null,
+    },
     telemetry: spEmptyTelemetry(),
   };
 
@@ -1333,6 +1391,7 @@ function createStudioPanel(options) {
   let rootEl = null;
   let widgetMountEl = null;
   let popoverMountEl = null;
+  let updateToastMountEl = null;
   let modalMountEl = null;
   let pollTimer = null;
   let repaintTimer = null;
@@ -1564,6 +1623,7 @@ function createStudioPanel(options) {
       if (typeof rawSettings.trackHistory === "boolean") state.settings.trackHistory = rawSettings.trackHistory;
       if (typeof rawSettings.personaStrictMode === "boolean") state.settings.personaStrictMode = rawSettings.personaStrictMode;
       if (typeof rawSettings.thinkingInRussian === "boolean") state.settings.thinkingInRussian = rawSettings.thinkingInRussian;
+      if (typeof rawSettings.autoCheckUpdates === "boolean") state.settings.autoCheckUpdates = rawSettings.autoCheckUpdates;
       if (Array.isArray(rawSettings.customPresets)) state.settings.customPresets = normalizeCustomPresets(rawSettings.customPresets);
       if (rawSettings.greeting && typeof rawSettings.greeting === "object") {
         state.settings.greeting = spCloneGreeting(rawSettings.greeting);
@@ -2509,6 +2569,98 @@ function createStudioPanel(options) {
     }
     popoverMountEl.innerHTML = renderLiveEditPopoverMarkup();
     positionPopover();
+  }
+
+  function formatUpdateVersionBadge(u) {
+    const inst = u && u.installed ? u.installed : null;
+    const rem = u && u.remote ? u.remote : null;
+    const instVer = (inst && inst.version) || pluginMeta.version || "4.1.0";
+    const remVer = (rem && rem.version) || "";
+    const remShort = (rem && rem.commitShort) || "";
+    if (remVer && remVer !== instVer) {
+      return `v${instVer} → v${remVer}`;
+    }
+    if (remVer && remShort) {
+      return `v${remVer} · #${remShort}`;
+    }
+    return remVer ? `v${remVer}` : `v${instVer}`;
+  }
+
+  function formatUpdateStatusLabel(u, tr) {
+    const st = u && u.status ? u.status : "idle";
+    if (st === "checking") return tr.updateStatusChecking;
+    if (st === "downloading") return tr.updateStatusDownloading;
+    if (st === "extracting") return tr.updateStatusExtracting;
+    if (st === "installing") return tr.updateStatusInstalling;
+    if (st === "restarting") return tr.updateStatusRestarting;
+    if (st === "error") return `${tr.updateStatusError}${u.error ? ": " + u.error : ""}`;
+    if (u && u.available) return tr.updateStatusAvailable;
+    if (st === "up-to-date") return tr.updateStatusUpToDate;
+    return tr.updateStatusIdle;
+  }
+
+  function renderUpdateToast() {
+    if (!updateToastMountEl || state.destroyed) return;
+    const u = state.update || {};
+    const st = u.status || "idle";
+    const isBusyStage = st === "downloading" || st === "extracting" || st === "installing" || st === "restarting";
+    const hasErrOnToast = st === "error" && Boolean(u.available) && !u.dismissed;
+    const shouldShow = isBusyStage || hasErrOnToast || (Boolean(u.available) && !u.dismissed);
+
+    if (!shouldShow) {
+      updateToastMountEl.innerHTML = "";
+      return;
+    }
+
+    const tr = t();
+    const isTopRightDocked = state.settings.layoutMode === "docked" && state.settings.dockPosition === "top-right";
+    updateToastMountEl.className = "update-toast-mount" + (isTopRightDocked ? " is-bottom" : "");
+
+    const verLabel = formatUpdateVersionBadge(u);
+    const stageText = formatUpdateStatusLabel(u, tr);
+    const commitMsg = u.remote && u.remote.commitMessage ? u.remote.commitMessage : "";
+    const title = isBusyStage ? tr.updateToastBusyTitle : tr.updateToastTitle;
+    const bodyMsg = isBusyStage ? stageText : (st === "error" ? stageText : (commitMsg ? `${commitMsg} — ${tr.updateToastDesc}` : tr.updateToastDesc));
+
+    updateToastMountEl.innerHTML = `
+      <div class="update-toast" role="status" aria-live="polite">
+        <div class="update-toast-head">
+          <div class="update-toast-title-wrap">
+            <span class="update-toast-title">${iconSvg("download", 13)}<span>${escHtml(title)}</span></span>
+            <span class="update-toast-ver num">${escHtml(verLabel)}</span>
+          </div>
+          ${isBusyStage ? "" : `<button type="button" class="icon-btn" data-action="dismiss-update" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 13)}</button>`}
+        </div>
+        <div class="update-toast-msg">${escHtml(bodyMsg)}</div>
+        ${isBusyStage ? `<div class="update-toast-progress"><div class="update-toast-bar"></div></div>` : ""}
+        ${isBusyStage ? "" : `
+          <div class="update-toast-actions">
+            <button type="button" class="btn btn-sm" data-action="dismiss-update">${escHtml(tr.updateBtnLater)}</button>
+            <button type="button" class="btn btn-sm btn-primary" data-action="install-update">${iconSvg("download", 12)}${escHtml(st === "error" ? tr.updateBtnRetry : tr.updateBtnNow)}</button>
+          </div>
+        `}
+      </div>
+    `;
+  }
+
+  function applyUpdateStatus(payload) {
+    if (!payload || typeof payload !== "object" || state.destroyed) return;
+    const prevAvailable = Boolean(state.update && state.update.available);
+    state.update = {
+      status: typeof payload.status === "string" ? payload.status : "idle",
+      available: Boolean(payload.available),
+      dismissed: Boolean(payload.dismissed),
+      reason: typeof payload.reason === "string" ? payload.reason : "",
+      updateKey: typeof payload.updateKey === "string" ? payload.updateKey : "",
+      lastCheckedAt: typeof payload.lastCheckedAt === "number" ? payload.lastCheckedAt : 0,
+      error: typeof payload.error === "string" ? payload.error : "",
+      installed: payload.installed && typeof payload.installed === "object" ? payload.installed : state.update.installed,
+      remote: payload.remote && typeof payload.remote === "object" ? payload.remote : state.update.remote,
+    };
+    renderUpdateToast();
+    if (state.isOpen && ((state.activeTab === "settings" && state.settingsSubTab === "system") || prevAvailable !== state.update.available)) {
+      renderStructure();
+    }
   }
 
   function extractClipboardImages(clipboardData, onComplete) {
@@ -3499,6 +3651,16 @@ function createStudioPanel(options) {
             </div>
             <button type="button" class="switch${strictOn ? " is-on" : ""}" role="switch" aria-checked="${strictOn ? "true" : "false"}" data-action="toggle-persona-strict"><span class="switch-thumb"></span></button>
           </div>
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${escHtml(tr.thinkingRuTitle)}</span>
+              <span class="row-desc">${escHtml(tr.thinkingRuGlobalDesc)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+              <span class="${state.settings.thinkingInRussian ? "badge-active" : "nav-badge"}">${escHtml(state.settings.thinkingInRussian ? tr.thinkingRuOn : tr.thinkingRuDefault)}</span>
+              <button type="button" class="switch${state.settings.thinkingInRussian ? " is-on" : ""}" role="switch" aria-checked="${state.settings.thinkingInRussian ? "true" : "false"}" data-action="toggle-thinking-ru" aria-label="${escAttr(tr.thinkingRuTitle)}"><span class="switch-thumb"></span></button>
+            </div>
+          </div>
         </div>
 
         <div class="section-group">
@@ -3612,11 +3774,11 @@ function createStudioPanel(options) {
 
   function renderSettingsTab() {
     const tr = t();
-    const sub = state.settingsSubTab || "widget";
+    const sub = state.settingsSubTab || "system";
     const subTabs = [
+      { id: "system", label: tr.setSubSystem },
       { id: "widget", label: tr.setSubWidget },
       { id: "export", label: tr.setSubExport },
-      { id: "system", label: tr.setSubSystem },
     ];
     let body = "";
     if (sub === "widget") body = renderWidgetSub(tr);
@@ -3815,7 +3977,13 @@ function createStudioPanel(options) {
   function renderSystemSub(tr) {
     const isRu = state.locale !== "en";
     const thinkingRu = Boolean(state.settings.thinkingInRussian);
-    const ver = pluginMeta.version || "4.0.0";
+    const autoUpdates = state.settings.autoCheckUpdates !== false;
+    const u = state.update || {};
+    const uStatus = u.status || "idle";
+    const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
+    const inst = u.installed || {};
+    const ver = inst.version || pluginMeta.version || "4.1.0";
+    const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
 
@@ -3847,6 +4015,30 @@ function createStudioPanel(options) {
       </div>
 
       <div class="section-group">
+        <span class="section-label">${escHtml(tr.updateSectionTitle)}</span>
+        <div class="card">
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${escHtml(tr.updateAutoTitle)}</span>
+              <span class="row-desc">${escHtml(tr.updateAutoDesc)}</span>
+            </div>
+            <button type="button" class="switch${autoUpdates ? " is-on" : ""}" role="switch" aria-checked="${autoUpdates ? "true" : "false"}" data-action="toggle-auto-updates" aria-label="${escAttr(tr.updateAutoTitle)}"><span class="switch-thumb"></span></button>
+          </div>
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${escHtml(tr.updateStatusLabel)}</span>
+              <span class="row-desc num">${escHtml(formatUpdateStatusLabel(u, tr))}${u.available && u.remote ? ` (${escHtml(formatUpdateVersionBadge(u))})` : ""}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+              ${u.available ? `<span class="badge-active">${escHtml(tr.updateBadgeNew)}</span>` : ""}
+              <button type="button" class="btn btn-sm" ${uBusy ? "disabled" : ""} data-action="check-updates">${iconSvg("reset", 12)}${escHtml(tr.updateBtnCheck)}</button>
+              ${u.available ? `<button type="button" class="btn btn-sm btn-primary" ${uBusy ? "disabled" : ""} data-action="install-update">${iconSvg("download", 12)}${escHtml(tr.updateBtnInstallRestart)}</button>` : ""}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-group">
         <span class="section-label">${escHtml(tr.hotkeysTitle)}</span>
         <div class="card">
           <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleLang)}</span><span class="kbd">Ctrl + Alt + L</span></div>
@@ -3860,7 +4052,7 @@ function createStudioPanel(options) {
       <div class="section-group">
         <span class="section-label">${escHtml(tr.pluginInfoTitle)}</span>
         <div class="card">
-          <div class="row-item"><span class="row-title">${escHtml(tr.pluginVersion)}</span><span class="kbd num">v${escHtml(ver)}</span></div>
+          <div class="row-item"><span class="row-title">${escHtml(tr.pluginVersion)}</span><span class="kbd num">${escHtml(verDisplay)}</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.pluginDict)}</span><span class="row-title num">${Number(dictCount).toLocaleString()}</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.pluginRules)}</span><span class="row-title num">${Number(dynCount).toLocaleString()}</span></div>
           <div class="row-item">
@@ -3881,7 +4073,7 @@ function createStudioPanel(options) {
       { id: "appearance", label: tr.navAppearance, ic: "palette", title: tr.modalTitleAppearance, sub: tr.modalSubAppearance },
       { id: "persona", label: tr.navPersona, ic: "sparkles", title: tr.modalTitlePersona, sub: tr.modalSubPersona, dot: state.chatPersona.enabled },
       { id: "live-edits", label: tr.navSupplements, ic: "bolt", title: tr.modalTitleSupplements, sub: tr.modalSubSupplements, dot: pendingLe > 0, badge: pendingLe > 0 ? String(pendingLe) : "" },
-      { id: "settings", label: tr.navSettings, ic: "gear", title: tr.modalTitleSettings, sub: tr.modalSubSettings },
+      { id: "settings", label: tr.navSettings, ic: "gear", title: tr.modalTitleSettings, sub: tr.modalSubSettings, dot: Boolean(state.update && state.update.available) },
     ];
     const current = tabs.find((x) => x.id === state.activeTab) || tabs[0];
     const isAppearanceTab = current.id === "appearance";
@@ -3900,7 +4092,7 @@ function createStudioPanel(options) {
             <aside class="modal-sidebar">
               <div class="sidebar-brand">
                 <span class="brand-title">${escHtml(tr.brandTitle)}</span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.0.0")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.1.0")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
@@ -4161,6 +4353,9 @@ function createStudioPanel(options) {
     if (popoverMountEl) {
       renderPopoverStructure();
     }
+    if (updateToastMountEl) {
+      renderUpdateToast();
+    }
   }
 
   function selectPreset(id) {
@@ -4351,6 +4546,48 @@ function createStudioPanel(options) {
     }
     if (action === "toggle-thinking-ru") {
       saveSettingsPatch({ thinkingInRussian: !state.settings.thinkingInRussian });
+      return;
+    }
+    if (action === "toggle-auto-updates") {
+      saveSettingsPatch({ autoCheckUpdates: state.settings.autoCheckUpdates === false });
+      return;
+    }
+    if (action === "check-updates") {
+      const curSt = state.update && state.update.status;
+      if (curSt === "checking" || curSt === "downloading" || curSt === "extracting" || curSt === "installing" || curSt === "restarting") return;
+      state.update.status = "checking";
+      state.update.error = "";
+      renderStructure();
+      invokeIpc("agy-studio:check-updates", { manual: true }).then((res) => {
+        if (!state.destroyed && res) applyUpdateStatus(res);
+      });
+      return;
+    }
+    if (action === "dismiss-update") {
+      state.update.dismissed = true;
+      renderUpdateToast();
+      invokeIpc("agy-studio:dismiss-update", { key: state.update.updateKey || "" }).then((res) => {
+        if (!state.destroyed && res) applyUpdateStatus(res);
+      });
+      return;
+    }
+    if (action === "install-update") {
+      const curSt = state.update && state.update.status;
+      if (curSt === "downloading" || curSt === "extracting" || curSt === "installing" || curSt === "restarting") return;
+      state.update.status = "downloading";
+      state.update.error = "";
+      state.update.dismissed = false;
+      renderUpdateToast();
+      if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "system") {
+        renderStructure();
+      }
+      invokeIpc("agy-studio:install-update", {}).then((res) => {
+        if (state.destroyed || !res) return;
+        if (res.state) applyUpdateStatus(res.state);
+        else if (res.ok === false) {
+          applyUpdateStatus(Object.assign({}, state.update, { status: "error", error: res.error || tr.updateStatusError }));
+        }
+      });
       return;
     }
     if (action === "toggle-mini-field") {
@@ -5172,11 +5409,14 @@ function createStudioPanel(options) {
     widgetMountEl.className = "widget-wrap";
     popoverMountEl = doc.createElement("div");
     popoverMountEl.className = "le-popover-mount";
+    updateToastMountEl = doc.createElement("div");
+    updateToastMountEl.className = "update-toast-mount";
     modalMountEl = doc.createElement("div");
     modalMountEl.className = "modal-mount";
 
     rootEl.appendChild(widgetMountEl);
     rootEl.appendChild(popoverMountEl);
+    rootEl.appendChild(updateToastMountEl);
     rootEl.appendChild(modalMountEl);
     shadowRoot.appendChild(styleEl);
     shadowRoot.appendChild(rootEl);
@@ -5226,6 +5466,9 @@ function createStudioPanel(options) {
 
     invokeIpc("agy-studio:get-state", { chatKey: state.activeChatKey || "__new__" }).then((remote) => {
       if (remote) applyRemoteState(remote, true);
+    });
+    invokeIpc("agy-studio:get-update-state").then((upd) => {
+      if (!state.destroyed && upd) applyUpdateStatus(upd);
     });
   }
 
@@ -5414,7 +5657,7 @@ function createStudioPanel(options) {
     if (themeEngine && typeof themeEngine.destroy === "function") {
       try { themeEngine.destroy(); } catch (_e) {}
     }
-    hostEl = shadowRoot = rootEl = widgetMountEl = popoverMountEl = modalMountEl = null;
+    hostEl = shadowRoot = rootEl = widgetMountEl = popoverMountEl = updateToastMountEl = modalMountEl = null;
   }
 
   return {
@@ -5424,6 +5667,7 @@ function createStudioPanel(options) {
     toggleOpen,
     toggleLiveEditPopover,
     applyLiveEditsUpdate,
+    applyUpdateStatus,
     setViewMode,
     setLocale,
     applyRemoteState,

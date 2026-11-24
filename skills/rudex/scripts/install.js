@@ -7,6 +7,7 @@ const os = require("os");
 const vm = require("vm");
 const { spawnSync } = require("child_process");
 const { patchElectronShell } = require("./electron-shell.js");
+const { readZipEocdComment, extractCommitShaFromText, readGitHeadMeta } = require("./updater-core.js");
 
 const PLUGIN_ROOT = path.resolve(__dirname, "..", "..", "..");
 const RESOURCES_SRC_DIR = path.resolve(__dirname, "..", "resources");
@@ -351,6 +352,32 @@ function stripCjsPrologueEpilogue(source) {
   return text.trimEnd();
 }
 
+function resolveSourceCommitMeta(repoRoot = PLUGIN_ROOT) {
+  let commitSha = extractCommitShaFromText(process.env.RUDEX_COMMIT_SHA || "");
+  if (!commitSha && Array.isArray(process.argv)) {
+    for (let i = 0; i < process.argv.length; i += 1) {
+      const arg = String(process.argv[i] || "");
+      if (arg.startsWith("--commit-sha=")) {
+        commitSha = extractCommitShaFromText(arg.slice("--commit-sha=".length));
+        if (commitSha) break;
+      }
+    }
+  }
+  if (!commitSha && process.env.RUDEX_ZIP_PATH) {
+    commitSha = extractCommitShaFromText(readZipEocdComment(process.env.RUDEX_ZIP_PATH));
+  }
+  const gitMeta = readGitHeadMeta(repoRoot);
+  if (!commitSha && gitMeta.commitSha) {
+    commitSha = gitMeta.commitSha;
+  }
+  const commitDate = String(process.env.RUDEX_COMMIT_DATE || gitMeta.commitDate || "").trim();
+  return {
+    commitSha,
+    commitShort: commitSha ? commitSha.slice(0, 7) : "",
+    commitDate,
+  };
+}
+
 function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGIN_JSON_PATH) {
   let pkg = {};
   try {
@@ -369,12 +396,17 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
     if (Array.isArray(dyn.DYNAMIC_RULES)) dynamicRulesCount = dyn.DYNAMIC_RULES.length;
   } catch (_e) {}
 
+  const commitMeta = resolveSourceCommitMeta(path.dirname(pluginJsonPath));
+
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "4.0.0",
+    version: pkg.version || "4.1.0",
     dictEntries,
     dynamicRulesCount,
+    commitSha: commitMeta.commitSha,
+    commitShort: commitMeta.commitShort,
+    commitDate: commitMeta.commitDate,
   };
 }
 
@@ -421,6 +453,7 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     `_ipc.on("agy-studio:toggle-live-edit", () => { try { _studioPanel.toggleLiveEditPopover(); } catch (_e) {} });`,
     `_ipc.on("agy-studio:live-edits-changed", (_event, payload) => { try { _studioPanel.applyLiveEditsUpdate(payload); } catch (_e) {} });`,
     `_ipc.on("agy-studio:settings-changed", (_event, nextState) => { try { _studioPanel.applyRemoteState(nextState); } catch (_e) {} });`,
+    `_ipc.on("agy-studio:update-status", (_event, payload) => { try { _studioPanel.applyUpdateStatus(payload); } catch (_e) {} });`,
     `const _bootRudex = () => { try { _translator.init(); _translator.translateDocument(); } catch (_e) {} try { _studioPanel.init(); } catch (_e) {} };`,
     `if (document.readyState === "loading") { if (document.documentElement) { try { _translator.init(); } catch (_e) {} } document.addEventListener("DOMContentLoaded", _bootRudex, { once: true }); } else { _bootRudex(); }`,
     `} catch (err) { console.error("[Rudex] Preload initialization failed:", err); }`,
@@ -439,6 +472,7 @@ function copyI18nDataFiles(distDir, resourcesDir = RESOURCES_SRC_DIR, scriptsDir
   fs.copyFileSync(path.join(resourcesDir, "dictionary-ru.json"), path.join(dataDir, "dictionary-ru.json"));
   fs.copyFileSync(path.join(resourcesDir, "dynamic-rules-ru.js"), path.join(dataDir, "dynamic-rules-ru.js"));
   fs.copyFileSync(path.join(scriptsDir, "zip-builder.js"), path.join(dataDir, "zip-builder.js"));
+  fs.copyFileSync(path.join(scriptsDir, "updater-core.js"), path.join(dataDir, "updater-core.js"));
 }
 
 function hasSystemNode() {
@@ -549,6 +583,33 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
     }
   }
 
+  // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
+  try {
+    let pkgVer = "4.1.0";
+    try {
+      const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
+      if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {
+        pkgVer = repoPkg.version.trim();
+      }
+    } catch (_e) {}
+    const commitMeta = resolveSourceCommitMeta(repoRoot);
+    fs.writeFileSync(
+      path.join(targetDir, ".rudex-install-meta.json"),
+      JSON.stringify(
+        {
+          version: pkgVer,
+          commitSha: commitMeta.commitSha || "",
+          commitShort: commitMeta.commitShort || "",
+          commitDate: commitMeta.commitDate || "",
+          installedAt: new Date().toISOString(),
+        },
+        null,
+        2
+      ) + "\n",
+      "utf8"
+    );
+  } catch (_e) {}
+
   console.log(`PLUGIN_SYNCED=${targetDir}`);
   return targetDir;
 }
@@ -658,6 +719,7 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
     path.join(distDir, "preload.js"),
     path.join(distDir, "i18nData", "dynamic-rules-ru.js"),
     path.join(distDir, "i18nData", "zip-builder.js"),
+    path.join(distDir, "i18nData", "updater-core.js"),
   ]);
 
   return { unpackedCount, patchResult, cleanAsarPath, stampVersion, asarLocked };
@@ -756,6 +818,9 @@ function runInstall(options = {}) {
       name: "rudex",
       displayName: pluginMeta.displayName,
       version: pluginMeta.version,
+      commitSha: pluginMeta.commitSha || "",
+      commitShort: pluginMeta.commitShort || "",
+      commitDate: pluginMeta.commitDate || "",
       managedByPlugin: true,
       appVersion: info.appVersion,
       shellVersion: info.shellVersion,
