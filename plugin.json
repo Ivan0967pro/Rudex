@@ -2,8 +2,8 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "antigravity-ru",
   "displayName": "Antigravity RU",
-  "version": "2.2.0",
-  "description": "Полная русификация Antigravity 2.0 + боковая панель Studio (живой TPS и токены, переключатель RU/EN, редактор характера агента).",
+  "version": "2.2.1",
+  "description": "Полная русификация Antigravity 2.0 + перетаскиваемый виджет Studio (режимы Мини/Средний/Большой, TPS и токены, RU/EN, характер агента).",
   "logo": "assets/logo.svg",
   "author": {
     "name": "Ivan0967pro",

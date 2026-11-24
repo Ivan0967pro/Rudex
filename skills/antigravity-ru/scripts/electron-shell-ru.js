@@ -48,9 +48,22 @@ const listeners = new Set();
 let uiMaps = null;
 
 const MAX_PERSONA_BODY_BYTES = 23500;
+const DEFAULT_MINI_FIELDS = {
+  status: true,
+  lang: true,
+  tps: true,
+  respTokens: false,
+  chatTokens: false,
+  model: false,
+};
 const DEFAULT_STUDIO_SETTINGS = {
   panelEnabled: true,
-  dockPosition: "middle",
+  viewMode: "mini",
+  layoutMode: "docked",
+  dockPosition: "bottom",
+  floatX: null,
+  floatY: null,
+  miniFields: DEFAULT_MINI_FIELDS,
   showMiniTps: true,
   trackHistory: true,
   personaEnabled: false,
@@ -70,7 +83,20 @@ function getPersonaRulePath() {
 function sanitizeStudioSettings(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const dock = src.dockPosition;
-  const validDock = dock === "top" || dock === "middle" || dock === "bottom" || dock === "hidden" ? dock : "middle";
+  const validDock = dock === "top" || dock === "middle" || dock === "bottom" || dock === "hidden" ? dock : "bottom";
+  const viewMode = src.viewMode === "mini" || src.viewMode === "medium" || src.viewMode === "large" ? src.viewMode : "mini";
+  const layoutMode = src.layoutMode === "docked" || src.layoutMode === "floating" ? src.layoutMode : "docked";
+  const floatX = typeof src.floatX === "number" && Number.isFinite(src.floatX) ? Math.round(src.floatX) : null;
+  const floatY = typeof src.floatY === "number" && Number.isFinite(src.floatY) ? Math.round(src.floatY) : null;
+  const rawMini = src.miniFields && typeof src.miniFields === "object" ? src.miniFields : {};
+  const miniFields = {
+    status: rawMini.status !== false,
+    lang: rawMini.lang !== false,
+    tps: rawMini.tps !== false,
+    respTokens: Boolean(rawMini.respTokens),
+    chatTokens: Boolean(rawMini.chatTokens),
+    model: Boolean(rawMini.model),
+  };
   const presets = Array.isArray(src.customPresets)
     ? src.customPresets
         .filter((item) => item && typeof item === "object" && typeof item.name === "string" && typeof item.text === "string")
@@ -83,8 +109,13 @@ function sanitizeStudioSettings(raw) {
     : [];
   return {
     panelEnabled: src.panelEnabled !== false,
+    viewMode,
+    layoutMode,
     dockPosition: validDock,
-    showMiniTps: src.showMiniTps !== false,
+    floatX,
+    floatY,
+    miniFields,
+    showMiniTps: miniFields.tps,
     trackHistory: src.trackHistory !== false,
     personaEnabled: Boolean(src.personaEnabled),
     personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
@@ -106,7 +137,11 @@ function loadStudioSettings() {
 
 function saveStudioSettings(patch) {
   const current = loadStudioSettings();
-  const next = sanitizeStudioSettings(Object.assign({}, current, patch && typeof patch === "object" ? patch : {}));
+  const pObj = patch && typeof patch === "object" ? Object.assign({}, patch) : {};
+  if (pObj.miniFields && typeof pObj.miniFields === "object") {
+    pObj.miniFields = Object.assign({}, current.miniFields, pObj.miniFields);
+  }
+  const next = sanitizeStudioSettings(Object.assign({}, current, pObj));
   try {
     const p = getStudioSettingsPath();
     fs.mkdirSync(path.dirname(p), { recursive: true });
