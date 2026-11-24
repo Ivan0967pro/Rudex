@@ -486,8 +486,79 @@ function hasSystemNode() {
   }
 }
 
+const RETRYABLE_FS_CODES = new Set(["EPERM", "EBUSY", "EACCES", "ENOTEMPTY"]);
+
+function sleepSync(ms) {
+  const delay = Math.max(10, Math.min(2000, Math.round(Number(ms) || 50)));
+  try {
+    const buf = new Int32Array(new SharedArrayBuffer(4));
+    Atomics.wait(buf, 0, 0, delay);
+    return;
+  } catch (_e) {}
+  const end = Date.now() + delay;
+  while (Date.now() < end) {}
+}
+
+function ensureDirSafe(dirPath) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      if (fs.existsSync(dirPath)) {
+        const st = fs.statSync(dirPath);
+        if (st.isDirectory()) return;
+      }
+    } catch (_e) {}
+    try {
+      fs.mkdirSync(dirPath, { recursive: true });
+      return;
+    } catch (err) {
+      if (err && err.code === "EEXIST") {
+        try {
+          if (fs.statSync(dirPath).isDirectory()) return;
+        } catch (_e2) {}
+      }
+      if (!err || !RETRYABLE_FS_CODES.has(err.code) || attempt === 7) {
+        if (err && RETRYABLE_FS_CODES.has(err.code) && process.platform === "win32") {
+          err.message =
+            `${err.message} (Windows NTFS lock / DELETE_PENDING on "${dirPath}". ` +
+            `Close Antigravity and any Explorer or terminal windows opened inside plugins\\rudex, then re-run the installer.)`;
+        }
+        throw err;
+      }
+      sleepSync(120 * (attempt + 1));
+    }
+  }
+}
+
+function copyFileSafe(srcPath, destPath) {
+  ensureDirSafe(path.dirname(destPath));
+  let lastErr = null;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      fs.copyFileSync(srcPath, destPath);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (!err || !RETRYABLE_FS_CODES.has(err.code)) throw err;
+      try {
+        if (fs.existsSync(destPath)) {
+          try { fs.chmodSync(destPath, 0o666); } catch (_c) {}
+          const srcBuf = fs.readFileSync(srcPath);
+          try {
+            const dstBuf = fs.readFileSync(destPath);
+            if (Buffer.compare(srcBuf, dstBuf) === 0) return;
+          } catch (_r) {}
+          fs.writeFileSync(destPath, srcBuf);
+          return;
+        }
+      } catch (_w) {}
+      if (attempt < 5) sleepSync(100 * (attempt + 1));
+    }
+  }
+  throw lastErr;
+}
+
 function copyDirRecursiveSync(src, dest) {
-  fs.mkdirSync(dest, { recursive: true });
+  ensureDirSafe(dest);
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
@@ -499,12 +570,33 @@ function copyDirRecursiveSync(src, dest) {
         if (fs.existsSync(destPath)) fs.rmSync(destPath, { force: true });
         fs.symlinkSync(link, destPath);
       } catch (_e) {
-        fs.copyFileSync(srcPath, destPath);
+        copyFileSafe(srcPath, destPath);
       }
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      copyFileSafe(srcPath, destPath);
     }
   }
+}
+
+function pruneObsoleteEntries(destDir, srcDir) {
+  try {
+    if (!fs.existsSync(destDir)) return;
+    const entries = fs.readdirSync(destDir, { withFileTypes: true });
+    for (let i = 0; i < entries.length; i += 1) {
+      const ent = entries[i];
+      const destChild = path.join(destDir, ent.name);
+      const srcChild = srcDir ? path.join(srcDir, ent.name) : "";
+      if (ent.isDirectory()) {
+        if (!srcChild || !fs.existsSync(srcChild)) {
+          try { fs.rmSync(destChild, { recursive: true, force: true }); } catch (_e) {}
+        } else {
+          pruneObsoleteEntries(destChild, srcChild);
+        }
+      } else if (!srcChild || !fs.existsSync(srcChild)) {
+        try { fs.unlinkSync(destChild); } catch (_e) {}
+      }
+    }
+  } catch (_e) {}
 }
 
 function verifyJsFilesSyntax(files) {
@@ -517,6 +609,7 @@ function verifyJsFilesSyntax(files) {
 
 /**
  * Sync Rudex plugin files to ~/.gemini/config/plugins/rudex and migrate/remove legacy antigravity-ru plugin.
+ * Copies in-place without deleting target directories first to avoid Windows 10 NTFS DELETE_PENDING (EPERM) locks.
  */
 function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
   const pluginsBase = path.join(os.homedir(), ".gemini", "config", "plugins");
@@ -534,55 +627,27 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
       preservedRuleContent = fs.readFileSync(legacyRulePath, "utf8");
     }
 
-    fs.mkdirSync(targetDir, { recursive: true });
+    ensureDirSafe(targetDir);
 
-    // Clean obsolete skill files inside target/skills while keeping rules/ (tolerate Windows directory watcher EPERM/EBUSY)
-    const targetSkillsDir = path.join(targetDir, "skills");
-    if (fs.existsSync(targetSkillsDir)) {
-      let rmFailed = false;
-      try {
-        fs.rmSync(targetSkillsDir, { recursive: true, force: true });
-      } catch (_e) {
-        rmFailed = true;
-      }
-      if (rmFailed) {
-        const expectedRoot = path.join(targetDir, "skills", "rudex");
-        const pruneWalk = (curDest, curSrc) => {
-          try {
-            const ents = fs.readdirSync(curDest, { withFileTypes: true });
-            for (let i = 0; i < ents.length; i += 1) {
-              const ent = ents[i];
-              const destChild = path.join(curDest, ent.name);
-              const srcChild = curSrc ? path.join(curSrc, ent.name) : "";
-              if (ent.isDirectory()) {
-                if (!srcChild || !fs.existsSync(srcChild)) {
-                  try { fs.rmSync(destChild, { recursive: true, force: true }); } catch (_e2) {}
-                } else {
-                  pruneWalk(destChild, srcChild);
-                }
-              } else if (!srcChild || !fs.existsSync(srcChild)) {
-                try { fs.unlinkSync(destChild); } catch (_e3) {}
-              }
-            }
-          } catch (_e4) {}
-        };
-        if (fs.existsSync(expectedRoot)) {
-          pruneWalk(expectedRoot, path.join(repoRoot, "skills", "rudex"));
-        }
-      }
-    }
-
-    fs.copyFileSync(path.join(repoRoot, "plugin.json"), path.join(targetDir, "plugin.json"));
+    copyFileSafe(path.join(repoRoot, "plugin.json"), path.join(targetDir, "plugin.json"));
 
     const assetsSrc = path.join(repoRoot, "assets");
     if (fs.existsSync(assetsSrc)) {
-      copyDirRecursiveSync(assetsSrc, path.join(targetDir, "assets"));
+      const assetsDest = path.join(targetDir, "assets");
+      copyDirRecursiveSync(assetsSrc, assetsDest);
+      pruneObsoleteEntries(assetsDest, assetsSrc);
     }
+
     const skillSrc = path.join(repoRoot, "skills", "rudex");
-    copyDirRecursiveSync(skillSrc, path.join(targetDir, "skills", "rudex"));
+    const targetSkillsDir = path.join(targetDir, "skills");
+    const skillDest = path.join(targetSkillsDir, "rudex");
+    copyDirRecursiveSync(skillSrc, skillDest);
+    // Prune obsolete files/subdirs after in-place update without removing active directories first
+    pruneObsoleteEntries(skillDest, skillSrc);
+    pruneObsoleteEntries(targetSkillsDir, path.join(repoRoot, "skills"));
 
     if (preservedRuleContent !== null) {
-      fs.mkdirSync(path.dirname(targetRulePath), { recursive: true });
+      ensureDirSafe(path.dirname(targetRulePath));
       fs.writeFileSync(targetRulePath, preservedRuleContent, "utf8");
     }
   }
@@ -616,7 +681,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "4.4.0";
+    let pkgVer = "4.4.1";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {

@@ -231,14 +231,14 @@ const TEXT = {
     studioRadiusLabel: "Скругление углов Studio",
     studioBlurLabel: "Размытие стекла Studio",
     studioScaleTitle: "Масштаб окна Rudex Studio",
-    studioScaleHint: "Можно также зажать и потянуть правый нижний уголок окна Studio (двойной клик — 100%).",
-    studioResizeGripTip: "Потяните, чтобы изменить масштаб окна (двойной клик — 100%)",
+    studioScaleHint: "Можно также долго удерживать (~0.5 с) правый нижний уголок окна и потянуть (двойной клик — 100%).",
+    studioResizeGripTip: "Удерживайте ~0.5 с и потяните для масштаба окна (двойной клик — 100%)",
     studioResetBtn: "Сбросить дизайн окна",
     studioThemeCycleTip: "Сменить стиль окна Rudex",
     studioDesignQuickBtn: "Окно",
     widgetThemeTitle: "Дизайн мини-окна",
     widgetScaleTitle: "Масштаб виджета",
-    widgetScaleHint: "В закреплённом положении зажмите виджет мышкой и потяните, чтобы плавно изменить его масштаб.",
+    widgetScaleHint: "В закреплённом положении удерживайте виджет (~0.5 с) и потяните, чтобы плавно изменить его масштаб в пределах экрана.",
     widgetScaleSm: "Компактный (S)",
     widgetScaleMd: "Обычный (M)",
     widgetScaleLg: "Крупный (L)",
@@ -431,7 +431,7 @@ const TEXT = {
     fieldQuota: "Лимиты (5ч / Нед.)",
     dockTitle: "Позиция на экране",
     pinLockLabel: "Закрепить виджет",
-    pinLockDesc: "Фиксирует позицию; в закреплённом виде зажмите и потяните виджет, чтобы изменить масштаб (клик открывает Rudex)",
+    pinLockDesc: "Фиксирует позицию; в закреплённом виде долго удерживайте (~0.5 с) и потяните, чтобы изменить масштаб (клик открывает Rudex)",
     dockResetBtn: "К якорю",
     dockBottomRight: "Правый низ",
     dockTopRight: "Правый верх",
@@ -635,14 +635,14 @@ const TEXT = {
     studioRadiusLabel: "Studio corner radius",
     studioBlurLabel: "Studio backdrop blur",
     studioScaleTitle: "Rudex Studio Window Scale",
-    studioScaleHint: "You can also hold and drag the bottom-right corner grip of Studio (double-click resets to 100%).",
-    studioResizeGripTip: "Drag to scale Studio window (double-click resets to 100%)",
+    studioScaleHint: "You can also long-press (~0.5s) and drag the bottom-right corner grip of Studio (double-click resets to 100%).",
+    studioResizeGripTip: "Hold ~0.5s and drag to scale Studio window (double-click resets to 100%)",
     studioResetBtn: "Reset window design",
     studioThemeCycleTip: "Cycle Rudex window theme",
     studioDesignQuickBtn: "Window",
     widgetThemeTitle: "Mini Window Design",
     widgetScaleTitle: "Widget scale",
-    widgetScaleHint: "When pinned, hold and drag the widget with your mouse to smoothly resize it.",
+    widgetScaleHint: "When pinned, long-press (~0.5s) and drag the widget to smoothly resize it within screen bounds.",
     widgetScaleSm: "Compact (S)",
     widgetScaleMd: "Regular (M)",
     widgetScaleLg: "Large (L)",
@@ -1602,7 +1602,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.4.0", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "4.4.1", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1925,6 +1925,54 @@ function createStudioPanel(options) {
     return "dark";
   }
 
+  const RESIZE_HOLD_MS = 450;
+  const RESIZE_CANCEL_MOVE_PX = 10;
+
+  function getEffectiveAppFactor() {
+    const sui = spNormalizeStudioUi(state.settings.studioUi);
+    return state.appZoomSupported ? Math.max(0.5, sui.appScale / 100) : 1;
+  }
+
+  function getMaxSafeStudioScale() {
+    const vw = (win && Number(win.innerWidth)) || 1280;
+    const vh = (win && Number(win.innerHeight)) || 800;
+    const isDrawer = Boolean(state.isOpen && state.activeTab === "appearance" && state.appearanceDockedRight);
+    const baseW = isDrawer ? 478 : 920;
+    const baseH = isDrawer ? 600 : 648;
+    const padX = isDrawer ? 28 : 40;
+    const padY = isDrawer ? 32 : 44;
+    const maxEffZoom = Math.min((vw - padX) / baseW, (vh - padY) / baseH);
+    const appFactor = getEffectiveAppFactor();
+    if (!Number.isFinite(maxEffZoom) || maxEffZoom <= 0) return 100;
+    return Math.max(75, Math.min(140, Math.floor(maxEffZoom * appFactor * 100)));
+  }
+
+  function getMaxSafeWidgetZoom() {
+    const vw = (win && Number(win.innerWidth)) || 1280;
+    const vh = (win && Number(win.innerHeight)) || 800;
+    const appFactor = getEffectiveAppFactor();
+    const isMed = state.settings.viewMode === "medium";
+    let baseW = isMed ? 318 : 280;
+    let baseH = isMed ? 310 : 36;
+    if (widgetMountEl && typeof widgetMountEl.getBoundingClientRect === "function") {
+      try {
+        const curZoom = parseFloat(rootEl && rootEl.style && rootEl.style.getPropertyValue("--rx-widget-zoom")) || 1;
+        const r = widgetMountEl.getBoundingClientRect();
+        if (r && r.width > 24 && r.height > 20 && curZoom > 0.2) {
+          baseW = Math.max(120, r.width / curZoom);
+          baseH = Math.max(30, r.height / curZoom);
+        }
+      } catch (_e) {}
+    }
+    const dock = normalizeDockPosition(state.settings.dockPosition);
+    const topReserve = state.settings.layoutMode === "docked" && dock === "top-right" ? 68 : 28;
+    const availW = Math.max(120, vw - 28);
+    const availH = Math.max(48, vh - topReserve);
+    const maxEffZoom = Math.min(availW / baseW, availH / baseH);
+    if (!Number.isFinite(maxEffZoom) || maxEffZoom <= 0) return 100;
+    return Math.max(70, Math.min(160, Math.floor(maxEffZoom * appFactor * 100)));
+  }
+
   function syncTheme() {
     const next = detectTheme();
     state.theme = next;
@@ -1937,12 +1985,26 @@ function createStudioPanel(options) {
       rootEl.style.setProperty("--rx-widget-opacity", (sui.widgetOpacity / 100).toFixed(2));
       rootEl.style.setProperty("--rx-widget-radius", sui.widgetRadius >= 999 ? "999px" : `${sui.widgetRadius}px`);
       const appFactor = state.appZoomSupported ? (sui.appScale / 100) : 1;
-      const studioZoom = Math.max(0.55, Math.min(2.0, (sui.studioScale / 100) / appFactor));
-      const widgetZoom = Math.max(0.55, Math.min(2.2, (sui.widgetZoom / 100) / appFactor));
+      const vw = (win && Number(win.innerWidth)) || 1280;
+      const vh = (win && Number(win.innerHeight)) || 800;
+      const isDrawer = Boolean(state.isOpen && state.activeTab === "appearance" && state.appearanceDockedRight);
+      const maxStudioEffZoom = Math.max(0.55, Math.min(2.0, (vw - (isDrawer ? 28 : 40)) / (isDrawer ? 478 : 920), (vh - (isDrawer ? 32 : 44)) / (isDrawer ? 600 : 648)));
+      const rawStudioZoom = (sui.studioScale / 100) / appFactor;
+      const studioZoom = Math.max(0.55, Math.min(maxStudioEffZoom, rawStudioZoom));
+
+      const isMed = state.settings.viewMode === "medium";
+      const minWidgetW = isMed ? 318 : 260;
+      const minWidgetH = isMed ? 310 : 36;
+      const dock = normalizeDockPosition(state.settings.dockPosition);
+      const topRes = state.settings.layoutMode === "docked" && dock === "top-right" ? 68 : 28;
+      const maxWidgetEffZoom = Math.max(0.55, Math.min(2.2, (vw - 28) / minWidgetW, (vh - topRes) / minWidgetH));
+      const rawWidgetZoom = (sui.widgetZoom / 100) / appFactor;
+      const widgetZoom = Math.max(0.55, Math.min(maxWidgetEffZoom, rawWidgetZoom));
       const previewZoom = Math.max(0.7, Math.min(1.25, sui.widgetZoom / 100));
       rootEl.style.setProperty("--rx-studio-zoom", studioZoom.toFixed(4));
       rootEl.style.setProperty("--rx-widget-zoom", widgetZoom.toFixed(4));
       rootEl.style.setProperty("--rx-widget-preview-zoom", previewZoom.toFixed(4));
+      clampWidgetToViewport();
 
       const activeApp = spNormalizeAppearance(state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance);
       const preset = spFindThemePreset(activeApp && activeApp.presetId);
@@ -3090,7 +3152,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "4.4.0";
+    const instVer = (inst && inst.version) || pluginMeta.version || "4.4.1";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -3136,9 +3198,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "4.4.0" },
+          installed: realU.installed || { version: pluginMeta.version || "4.4.1" },
           remote: {
-            version: pluginMeta.version || "4.4.0",
+            version: pluginMeta.version || "4.4.1",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -5452,7 +5514,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "4.4.0";
+    const ver = inst.version || pluginMeta.version || "4.4.1";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -5587,7 +5649,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.4.0")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.4.1")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
@@ -7036,6 +7098,18 @@ function createStudioPanel(options) {
     return true;
   }
 
+  function cancelPendingResizeHold(st, el) {
+    if (!st) return;
+    if (st.holdTimer && win && typeof win.clearTimeout === "function") {
+      try { win.clearTimeout(st.holdTimer); } catch (_e) {}
+      st.holdTimer = null;
+    }
+    if (el && el.classList && typeof el.classList.remove === "function") {
+      el.classList.remove("is-resize-holding");
+      el.classList.remove("is-resizing");
+    }
+  }
+
   function handlePointerDown(e) {
     if (!widgetMountEl || !e || (typeof e.button === "number" && e.button !== 0)) return;
     const tEl = e.target;
@@ -7045,6 +7119,10 @@ function createStudioPanel(options) {
     if (state.settings.pinned) {
       const body = tEl.closest('[data-widget-body="1"]');
       if (!body) return;
+      if (widgetResizeState) {
+        cancelPendingResizeHold(widgetResizeState, widgetMountEl);
+        widgetResizeState = null;
+      }
       if (typeof widgetMountEl.setPointerCapture === "function" && e.pointerId !== undefined) {
         try { widgetMountEl.setPointerCapture(e.pointerId); } catch (_e) {}
       }
@@ -7054,16 +7132,44 @@ function createStudioPanel(options) {
       const vw = win && win.innerWidth ? win.innerWidth : 1280;
       const vh = win && win.innerHeight ? win.innerHeight : 800;
       const sui = spNormalizeStudioUi(state.settings.studioUi);
-      widgetResizeState = {
+      const st = {
         pointerId: e.pointerId,
+        downX: e.clientX,
+        downY: e.clientY,
+        lastX: e.clientX,
+        lastY: e.clientY,
         startX: e.clientX,
         startY: e.clientY,
         startZoom: sui.widgetZoom,
         currentZoom: sui.widgetZoom,
         signX: (rect.left + rect.width / 2) > vw / 2 ? -1 : 1,
         signY: (rect.top + rect.height / 2) > vh / 2 ? -1 : 1,
+        armed: false,
         moved: false,
+        holdTimer: null,
       };
+      widgetResizeState = st;
+      if (widgetMountEl.classList && typeof widgetMountEl.classList.add === "function") {
+        widgetMountEl.classList.add("is-resize-holding");
+      }
+      const armWidgetResize = () => {
+        if (widgetResizeState !== st || state.destroyed || !widgetMountEl) return;
+        st.holdTimer = null;
+        st.armed = true;
+        st.startX = st.lastX;
+        st.startY = st.lastY;
+        if (widgetMountEl.classList) {
+          if (typeof widgetMountEl.classList.remove === "function") widgetMountEl.classList.remove("is-resize-holding");
+          if (typeof widgetMountEl.classList.add === "function") widgetMountEl.classList.add("is-resizing");
+        }
+        const hud = typeof widgetMountEl.querySelector === "function" ? widgetMountEl.querySelector('[data-role="widgetResizeHud"]') : null;
+        if (hud) hud.textContent = `${st.currentZoom}%`;
+      };
+      if (win && typeof win.setTimeout === "function") {
+        st.holdTimer = win.setTimeout(armWidgetResize, RESIZE_HOLD_MS);
+      } else {
+        st.holdTimer = setTimeout(armWidgetResize, RESIZE_HOLD_MS);
+      }
       return;
     }
 
@@ -7093,12 +7199,24 @@ function createStudioPanel(options) {
 
   function handlePointerMove(e) {
     if (studioResizeState) {
-      const dx = e.clientX - studioResizeState.startX;
-      const dy = e.clientY - studioResizeState.startY;
-      if (!studioResizeState.moved && Math.hypot(dx, dy) < 4) return;
-      studioResizeState.moved = true;
-      const nextScale = Math.max(75, Math.min(140, Math.round(studioResizeState.startScale + (dx + dy) * 0.25)));
-      studioResizeState.currentScale = nextScale;
+      const st = studioResizeState;
+      st.lastX = e.clientX;
+      st.lastY = e.clientY;
+      if (!st.armed) {
+        if (Math.hypot(e.clientX - st.downX, e.clientY - st.downY) > RESIZE_CANCEL_MOVE_PX) {
+          const sh = modalMountEl ? modalMountEl.querySelector(".modal-shell") : null;
+          cancelPendingResizeHold(st, sh);
+          studioResizeState = null;
+        }
+        return;
+      }
+      const dx = e.clientX - st.startX;
+      const dy = e.clientY - st.startY;
+      if (!st.moved && Math.hypot(dx, dy) < 4) return;
+      st.moved = true;
+      const maxScale = getMaxSafeStudioScale();
+      const nextScale = Math.max(75, Math.min(maxScale, Math.round(st.startScale + (dx + dy) * 0.25)));
+      st.currentScale = nextScale;
       state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, { studioScale: nextScale }));
       syncTheme();
       if (modalMountEl) {
@@ -7113,17 +7231,29 @@ function createStudioPanel(options) {
       return;
     }
     if (widgetResizeState && widgetMountEl) {
-      const dx = e.clientX - widgetResizeState.startX;
-      const dy = e.clientY - widgetResizeState.startY;
-      if (!widgetResizeState.moved && Math.hypot(dx, dy) < 5) return;
-      widgetResizeState.moved = true;
+      const st = widgetResizeState;
+      st.lastX = e.clientX;
+      st.lastY = e.clientY;
+      if (!st.armed) {
+        if (Math.hypot(e.clientX - st.downX, e.clientY - st.downY) > RESIZE_CANCEL_MOVE_PX) {
+          cancelPendingResizeHold(st, widgetMountEl);
+          widgetResizeState = null;
+        }
+        return;
+      }
+      const dx = e.clientX - st.startX;
+      const dy = e.clientY - st.startY;
+      if (!st.moved && Math.hypot(dx, dy) < 4) return;
+      st.moved = true;
       if (widgetMountEl.classList && typeof widgetMountEl.classList.add === "function") widgetMountEl.classList.add("is-resizing");
-      const delta = dx * widgetResizeState.signX * 0.75 + dy * widgetResizeState.signY * 0.75;
-      const nextZoom = Math.max(70, Math.min(160, Math.round(widgetResizeState.startZoom + delta * 0.45)));
+      const delta = dx * st.signX * 0.75 + dy * st.signY * 0.75;
+      const maxZoom = getMaxSafeWidgetZoom();
+      const nextZoom = Math.max(70, Math.min(maxZoom, Math.round(st.startZoom + delta * 0.45)));
       const nextBucket = widgetZoomToBucket(nextZoom);
-      widgetResizeState.currentZoom = nextZoom;
+      st.currentZoom = nextZoom;
       state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, { widgetZoom: nextZoom, widgetScale: nextBucket }));
       syncTheme();
+      clampWidgetToViewport();
       const hud = typeof widgetMountEl.querySelector === "function" ? widgetMountEl.querySelector('[data-role="widgetResizeHud"]') : null;
       if (hud) hud.textContent = `${nextZoom}%`;
       if (modalMountEl) {
@@ -7188,14 +7318,12 @@ function createStudioPanel(options) {
     if (studioResizeState) {
       const st = studioResizeState;
       studioResizeState = null;
-      if (modalMountEl) {
-        const sh = modalMountEl.querySelector(".modal-shell");
-        if (sh && sh.classList && typeof sh.classList.remove === "function") sh.classList.remove("is-resizing");
-      }
+      const sh = modalMountEl ? modalMountEl.querySelector(".modal-shell") : null;
+      cancelPendingResizeHold(st, sh);
       if (st.gripEl && typeof st.gripEl.releasePointerCapture === "function" && st.pointerId !== undefined) {
         try { st.gripEl.releasePointerCapture(st.pointerId); } catch (_e) {}
       }
-      if (st.moved) {
+      if (st.armed && (st.moved || st.currentScale !== st.startScale)) {
         saveSettingsPatch({ studioUi: { studioScale: st.currentScale } });
       }
       return;
@@ -7203,15 +7331,15 @@ function createStudioPanel(options) {
     if (widgetResizeState) {
       const st = widgetResizeState;
       widgetResizeState = null;
-      if (widgetMountEl) {
-        if (widgetMountEl.classList && typeof widgetMountEl.classList.remove === "function") widgetMountEl.classList.remove("is-resizing");
-        if (typeof widgetMountEl.releasePointerCapture === "function" && st.pointerId !== undefined) {
-          try { widgetMountEl.releasePointerCapture(st.pointerId); } catch (_e) {}
-        }
+      cancelPendingResizeHold(st, widgetMountEl);
+      if (widgetMountEl && typeof widgetMountEl.releasePointerCapture === "function" && st.pointerId !== undefined) {
+        try { widgetMountEl.releasePointerCapture(st.pointerId); } catch (_e) {}
       }
-      if (st.moved) {
+      if (st.armed) {
         lastDragEndedAt = Date.now();
-        saveSettingsPatch({ studioUi: { widgetZoom: st.currentZoom, widgetScale: widgetZoomToBucket(st.currentZoom) } });
+        if (st.moved || st.currentZoom !== st.startZoom) {
+          saveSettingsPatch({ studioUi: { widgetZoom: st.currentZoom, widgetScale: widgetZoomToBucket(st.currentZoom) } });
+        }
       }
       return;
     }
@@ -7346,16 +7474,50 @@ function createStudioPanel(options) {
       if (!target || typeof target.closest !== "function" || (typeof e.button === "number" && e.button !== 0)) return;
       const grip = target.closest('[data-studio-resize="1"]');
       if (grip) {
+        const sh = modalMountEl ? modalMountEl.querySelector(".modal-shell") : null;
+        if (studioResizeState) {
+          cancelPendingResizeHold(studioResizeState, sh);
+          studioResizeState = null;
+        }
         const sui = spNormalizeStudioUi(state.settings.studioUi);
-        studioResizeState = {
+        const st = {
           gripEl: grip,
           pointerId: e.pointerId,
+          downX: e.clientX,
+          downY: e.clientY,
+          lastX: e.clientX,
+          lastY: e.clientY,
           startX: e.clientX,
           startY: e.clientY,
           startScale: sui.studioScale,
           currentScale: sui.studioScale,
+          armed: false,
           moved: false,
+          holdTimer: null,
         };
+        studioResizeState = st;
+        if (sh && sh.classList && typeof sh.classList.add === "function") {
+          sh.classList.add("is-resize-holding");
+        }
+        const armStudioResize = () => {
+          if (studioResizeState !== st || state.destroyed) return;
+          st.holdTimer = null;
+          st.armed = true;
+          st.startX = st.lastX;
+          st.startY = st.lastY;
+          const curShell = modalMountEl ? modalMountEl.querySelector(".modal-shell") : null;
+          if (curShell && curShell.classList) {
+            if (typeof curShell.classList.remove === "function") curShell.classList.remove("is-resize-holding");
+            if (typeof curShell.classList.add === "function") curShell.classList.add("is-resizing");
+          }
+          const hud = modalMountEl ? modalMountEl.querySelector('[data-role="studioResizeHud"]') : null;
+          if (hud) hud.textContent = `${st.currentScale}%`;
+        };
+        if (win && typeof win.setTimeout === "function") {
+          st.holdTimer = win.setTimeout(armStudioResize, RESIZE_HOLD_MS);
+        } else {
+          st.holdTimer = setTimeout(armStudioResize, RESIZE_HOLD_MS);
+        }
         if (typeof grip.setPointerCapture === "function" && e.pointerId !== undefined) {
           try { grip.setPointerCapture(e.pointerId); } catch (_e) {}
         }
@@ -7469,6 +7631,7 @@ function createStudioPanel(options) {
       win.addEventListener("blur", blurDragHandler);
 
       resizeHandler = () => {
+        syncTheme();
         clampWidgetToViewport();
         positionPopover();
       };
@@ -7769,6 +7932,15 @@ function createStudioPanel(options) {
   function destroy() {
     state.destroyed = true;
     clearReadinessWatchers();
+    if (widgetResizeState) {
+      cancelPendingResizeHold(widgetResizeState, widgetMountEl);
+      widgetResizeState = null;
+    }
+    if (studioResizeState) {
+      const sh = modalMountEl ? modalMountEl.querySelector(".modal-shell") : null;
+      cancelPendingResizeHold(studioResizeState, sh);
+      studioResizeState = null;
+    }
     for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer]) {
       if (timer && win && typeof win.clearTimeout === "function") win.clearTimeout(timer);
     }

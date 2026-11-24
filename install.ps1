@@ -142,7 +142,21 @@ function Restart-AntigravityDetached([string]$ExePath) {
   }
 }
 
-Write-Host "Rudex v4.1.2 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
+function Test-InsideAntigravityProcess {
+  try {
+    $curPid = $PID
+    for ($depth = 0; $depth -lt 12; $depth++) {
+      $p = Get-CimInstance Win32_Process -Filter "ProcessId=$curPid" -ErrorAction SilentlyContinue
+      if (-not $p -or -not $p.ParentProcessId -or $p.ParentProcessId -eq $curPid) { break }
+      $parentProc = Get-Process -Id $p.ParentProcessId -ErrorAction SilentlyContinue
+      if ($parentProc -and $parentProc.ProcessName -ieq "Antigravity") { return $true }
+      $curPid = $p.ParentProcessId
+    }
+  } catch {}
+  return $false
+}
+
+Write-Host "Rudex v4.4.1 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
 
 if ($IsLocalRepo) {
   $InstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"
@@ -248,6 +262,16 @@ try {
     $null = Invoke-RudexNode $sourceInstallJs @("--plugin-only")
     Write-Host "[Rudex] Skill installed into Antigravity (%USERPROFILE%\.gemini\config\plugins\rudex)." -ForegroundColor Green
     return
+  }
+
+  # Close running Antigravity before syncing plugin & app files when invoked from an external PowerShell
+  # (prevents Windows 10 NTFS DELETE_PENDING / EPERM directory watcher locks on plugins\rudex & app.asar)
+  $wasRunningRemote = [bool](Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue)
+  if ((-not $NoRestart) -and $wasRunningRemote -and (-not (Test-InsideAntigravityProcess))) {
+    Write-Host "[Rudex] Closing Antigravity briefly so Windows releases file locks..." -ForegroundColor Yellow
+    Stop-Process -Name "Antigravity" -Force -ErrorAction SilentlyContinue
+    [void](Wait-AntigravityExit)
+    Start-Sleep -Milliseconds 500
   }
 
   $env:RUDEX_ZIP_PATH = $zipPath

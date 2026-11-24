@@ -439,6 +439,48 @@ function applyAppScaleToWindows(scalePct, targetWc) {
   }
 }
 
+const PRESET_CURTAIN_BG = {
+  "claude-code-dark": "#1f1e1d",
+  "claude-code-light": "#faf9f5",
+  "claude-terminal": "#141413",
+  "liquid-glass": "#080c16",
+  "obsidian-glass": "#090a0f",
+  "midnight-neon": "#070913",
+  "warm-contrast": "#110f0d",
+  "light-paper": "#f5f6f9",
+  "emerald-void": "#060e0c",
+  "crimson-noir": "#0f070a",
+  "tokyo-night": "#131521",
+  "sakura-dusk": "#140c14",
+  "nordic-frost": "#0c1118",
+};
+
+function applyThemeCurtainToWindows(appearanceCfg) {
+  try {
+    const appCfg = sanitizeAppearance(appearanceCfg);
+    let bgColor = "";
+    if (appCfg.presetId === "custom") {
+      bgColor = appCfg.canvasBg;
+    } else if (appCfg.presetId && appCfg.presetId !== "native") {
+      bgColor = PRESET_CURTAIN_BG[appCfg.presetId] || "";
+    }
+    if (!bgColor) return;
+    const utils = require("./utils");
+    const wins = utils && typeof utils.getHubWindows === "function"
+      ? utils.getHubWindows()
+      : (BrowserWindow && typeof BrowserWindow.getAllWindows === "function" ? BrowserWindow.getAllWindows() : []);
+    for (const w of wins) {
+      if (!w || w.__isWebviewPopupWindow || (typeof w.isDestroyed === "function" && w.isDestroyed())) continue;
+      try {
+        if (utils && typeof utils.setHubCurtainColor === "function") utils.setHubCurtainColor(w, bgColor);
+      } catch {}
+      try {
+        if (typeof w.setBackgroundColor === "function") w.setBackgroundColor(bgColor);
+      } catch {}
+    }
+  } catch {}
+}
+
 function sanitizeAppearanceProfiles(raw) {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -625,6 +667,9 @@ function saveStudioSettings(patch) {
   }
   if (pObj.studioUi && Object.prototype.hasOwnProperty.call(pObj.studioUi, "appScale")) {
     applyAppScaleToWindows(next.studioUi.appScale);
+  }
+  if (pObj.appearance) {
+    applyThemeCurtainToWindows(next.appearance);
   }
   if (pObj.appearance || pObj.appearanceProfiles) {
     schedulePruneOrphanedMedia(next);
@@ -2758,7 +2803,11 @@ function registerI18nIpc() {
   if (bootThinkingRu && !fs.existsSync(getPersonaRulePath())) {
     resyncActiveChatRuleFile();
   }
-  const bootAppScale = loadStudioSettings().studioUi.appScale;
+  const bootSettings = loadStudioSettings();
+  const bootAppScale = bootSettings.studioUi.appScale;
+  if (bootSettings.appearance && bootSettings.appearance.presetId !== "native") {
+    applyThemeCurtainToWindows(bootSettings.appearance);
+  }
   if (bootAppScale !== 100) {
     applyAppScaleToWindows(bootAppScale);
     setTimeout(() => {
@@ -2776,8 +2825,9 @@ function registerI18nIpc() {
         const applyCur = () => {
           try {
             if (win.__isWebviewPopupWindow) return;
-            const cur = loadStudioSettings().studioUi.appScale;
-            if (cur !== 100) applyAppScaleToWindows(cur, win.webContents);
+            const curS = loadStudioSettings();
+            if (curS.studioUi.appScale !== 100) applyAppScaleToWindows(curS.studioUi.appScale, win.webContents);
+            if (curS.appearance && curS.appearance.presetId !== "native") applyThemeCurtainToWindows(curS.appearance);
           } catch {}
         };
         win.webContents.on("dom-ready", applyCur);
@@ -3144,7 +3194,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.0",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.1",
         outPath,
       });
       return res;

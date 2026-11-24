@@ -248,6 +248,8 @@ function buildStudioStyles() {
       -webkit-user-select: none;
       touch-action: none;
       font-family: var(--rx-font-ui);
+      max-width: calc(100vw - 16px);
+      max-height: calc(100vh - 16px);
     }
     .widget-wrap.is-hidden { display: none; }
     .widget-wrap.dock-bottom-right { right: 16px; bottom: 16px; }
@@ -261,7 +263,7 @@ function buildStudioStyles() {
       align-items: center;
       gap: 7px;
       height: 34px;
-      max-width: min(580px, calc(100vw - 24px));
+      max-width: min(580px, calc((100vw - 24px) / var(--rx-widget-zoom)));
       padding: 0 6px 0 11px;
       border-radius: var(--rx-widget-radius);
       background: color-mix(in srgb, var(--rx-surface) calc(var(--rx-widget-opacity) * 100%), transparent);
@@ -287,18 +289,23 @@ function buildStudioStyles() {
       zoom: var(--rx-widget-zoom);
     }
     .widget-wrap.is-locked .mini-pill,
-    .widget-wrap.is-locked .med-card { cursor: nwse-resize; }
-    .widget-wrap.is-locked.dock-bottom-left .mini-pill,
-    .widget-wrap.is-locked.dock-bottom-left .med-card,
-    .widget-wrap.is-locked.dock-top-right .mini-pill,
-    .widget-wrap.is-locked.dock-top-right .med-card { cursor: nesw-resize; }
+    .widget-wrap.is-locked .med-card { cursor: pointer; }
     .widget-wrap.is-dragging .mini-pill,
     .widget-wrap.is-dragging .med-card { cursor: grabbing; }
+    .widget-wrap.is-resize-holding .mini-pill,
+    .widget-wrap.is-resize-holding .med-card {
+      border-color: color-mix(in srgb, var(--rx-accent) 62%, var(--rx-border-strong));
+    }
     .widget-wrap.is-resizing .mini-pill,
     .widget-wrap.is-resizing .med-card {
+      cursor: nwse-resize;
       border-color: var(--rx-accent) !important;
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--rx-accent) 36%, transparent), var(--rx-widget-shadow) !important;
     }
+    .widget-wrap.is-resizing.dock-bottom-left .mini-pill,
+    .widget-wrap.is-resizing.dock-bottom-left .med-card,
+    .widget-wrap.is-resizing.dock-top-right .mini-pill,
+    .widget-wrap.is-resizing.dock-top-right .med-card { cursor: nesw-resize; }
     .mini-pill:hover { border-color: color-mix(in srgb, var(--rx-fg) 26%, transparent); }
 
     .resize-hud-badge {
@@ -548,6 +555,8 @@ function buildStudioStyles() {
     /* === Medium Card (M) — Clean Hairline Architecture === */
     .med-card {
       width: 318px;
+      max-width: calc((100vw - 24px) / var(--rx-widget-zoom));
+      max-height: calc((100vh - 24px) / var(--rx-widget-zoom));
       border-radius: min(var(--rx-widget-radius), 14px);
       background: color-mix(in srgb, var(--rx-surface) calc(var(--rx-widget-opacity) * 100%), transparent);
       backdrop-filter: blur(18px) saturate(145%);
@@ -729,6 +738,7 @@ function buildStudioStyles() {
       align-items: center;
       justify-content: center;
       padding: 20px;
+      overflow: hidden;
     }
     .modal-backdrop.is-appearance-live {
       background: rgba(0, 0, 0, 0.03);
@@ -742,8 +752,10 @@ function buildStudioStyles() {
     .modal-shell {
       position: relative;
       zoom: var(--rx-studio-zoom);
-      width: min(920px, calc((100vw - 32px) / var(--rx-studio-zoom)));
-      height: min(648px, calc((100vh - 36px) / var(--rx-studio-zoom)));
+      width: min(920px, calc((100vw - 40px) / var(--rx-studio-zoom)));
+      height: min(648px, calc((100vh - 44px) / var(--rx-studio-zoom)));
+      max-width: calc((100vw - 40px) / var(--rx-studio-zoom));
+      max-height: calc((100vh - 44px) / var(--rx-studio-zoom));
       border-radius: var(--rx-studio-radius);
       background: var(--rx-shell-bg);
       background-image: var(--rx-shell-glow);
@@ -754,8 +766,10 @@ function buildStudioStyles() {
       animation: rxModalIn 0.15s ease-out;
     }
     .modal-shell.is-appearance-live {
-      width: min(478px, calc((100vw - 24px) / var(--rx-studio-zoom)));
-      height: calc((100vh - 28px) / var(--rx-studio-zoom));
+      width: min(478px, calc((100vw - 28px) / var(--rx-studio-zoom)));
+      height: calc((100vh - 32px) / var(--rx-studio-zoom));
+      max-width: calc((100vw - 28px) / var(--rx-studio-zoom));
+      max-height: calc((100vh - 32px) / var(--rx-studio-zoom));
       border-radius: var(--rx-studio-radius);
       background: var(--rx-glass-strong);
       background-image: var(--rx-shell-glow);
@@ -763,9 +777,13 @@ function buildStudioStyles() {
       -webkit-backdrop-filter: blur(var(--rx-studio-blur));
       animation: rxDrawerIn 0.15s ease-out;
     }
+    .modal-shell.is-resize-holding {
+      border-color: color-mix(in srgb, var(--rx-accent) 62%, var(--rx-border-strong));
+    }
     .modal-shell.is-resizing {
       border-color: var(--rx-accent) !important;
       animation: none;
+      cursor: nwse-resize;
     }
     .modal-resize-grip {
       position: absolute;
@@ -777,14 +795,15 @@ function buildStudioStyles() {
       align-items: flex-end;
       justify-content: flex-end;
       padding: 3px;
-      cursor: nwse-resize;
+      cursor: pointer;
       color: var(--rx-muted);
       opacity: 0.4;
       z-index: 25;
       user-select: none;
       -webkit-user-select: none;
     }
-    .modal-resize-grip:hover { opacity: 0.95; color: var(--rx-accent); }
+    .modal-resize-grip:hover { opacity: 0.85; color: var(--rx-accent); }
+    .modal-shell.is-resizing .modal-resize-grip { cursor: nwse-resize; opacity: 1; color: var(--rx-accent); }
 
     /* === Sidebar (Calm Editorial Chrome) === */
     .modal-sidebar {

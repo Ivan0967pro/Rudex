@@ -403,7 +403,7 @@ test("Manifest & hooks.json follow Rudex v4.2.1 architecture without PostInvocat
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.4.0");
+  assert.equal(pkg.version, "4.4.1");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -2794,7 +2794,7 @@ test("Independent app/studio/widget scaling, pinned hold-to-resize, zoom compens
     root.dispatchEvent({ type: "click", target: stepApp });
     assert.ok(savedPatches.some((p) => p.studioUi && p.studioUi.appScale === 100));
 
-    // Close modal to test pinned hold-resize vs unpinned move
+    // Close modal to test long-press-only pinned resize vs quick drag vs viewport bounds
     panel.setOpen(false);
     panel.applyRemoteState({
       locale: "ru",
@@ -2802,34 +2802,66 @@ test("Independent app/studio/widget scaling, pinned hold-to-resize, zoom compens
       settings: { pinned: true, viewMode: "mini", studioUi: { appScale: 100, studioScale: 100, widgetZoom: 100 } },
     }, true);
 
-    widgetMount.getBoundingClientRect = () => ({ left: 1100, top: 800, right: 1340, bottom: 840, width: 240, height: 40 });
+    // Idle hover cursor on pinned widget & Studio grip must NOT be nwse-resize (only when .is-resizing is active)
+    const stCss = buildStudioStyles();
+    assert.ok(stCss.includes(".widget-wrap.is-locked .mini-pill,\n    .widget-wrap.is-locked .med-card { cursor: pointer; }"));
+    assert.ok(stCss.includes(".widget-wrap.is-resizing .mini-pill,\n    .widget-wrap.is-resizing .med-card {\n      cursor: nwse-resize;"));
+    assert.ok(stCss.includes(".modal-shell.is-resizing .modal-resize-grip { cursor: nwse-resize;"));
+
+    widgetMount.getBoundingClientRect = () => ({ left: 1100, top: 740, right: 1260, bottom: 780, width: 160, height: 40 });
     const pinnedBody = doc.createElement("div");
     pinnedBody.setAttribute("data-widget-body", "1");
     widgetMount.appendChild(pinnedBody);
 
+    // Quick drag WITHOUT long-press must NOT resize the pinned widget
     savedPatches.length = 0;
-    widgetMount.dispatchEvent({ type: "mousedown", button: 0, clientX: 1200, clientY: 820, target: pinnedBody });
-    win.dispatchEvent({ type: "mousemove", clientX: 1120, clientY: 760 });
+    widgetMount.dispatchEvent({ type: "mousedown", button: 0, clientX: 1200, clientY: 760, target: pinnedBody });
+    win.dispatchEvent({ type: "mousemove", clientX: 1120, clientY: 700 });
+    win.dispatchEvent({ type: "mouseup" });
+    assert.equal(savedPatches.some((p) => p.studioUi && p.studioUi.widgetZoom !== undefined), false, "Quick drag without long-press must NOT resize pinned widget");
+
+    // Sustained long-press (>= 450ms) arms resize and scales widget smoothly without overflowing viewport
+    savedPatches.length = 0;
+    widgetMount.dispatchEvent({ type: "mousedown", button: 0, clientX: 1200, clientY: 760, target: pinnedBody });
+    await new Promise((r) => setTimeout(r, 490));
+    assert.ok(widgetMount.classList.contains("is-resizing"), "Long-press >= 450ms must arm .is-resizing on pinned widget");
+    win.dispatchEvent({ type: "mousemove", clientX: 1120, clientY: 700 });
     win.dispatchEvent({ type: "mouseup" });
 
-    assert.ok(savedPatches.some((p) => p.studioUi && p.studioUi.widgetZoom > 100), "Holding & dragging pinned widget inward must increase widgetZoom");
-    assert.equal(modalMount.innerHTML, "", "Resizing pinned widget by hold-drag must NOT open the Studio modal");
+    assert.ok(savedPatches.some((p) => p.studioUi && p.studioUi.widgetZoom > 100), "Long-press & drag on pinned widget inward must increase widgetZoom");
+    assert.equal(modalMount.innerHTML, "", "Releasing long-press resize on pinned widget must NOT open the Studio modal");
 
-    // Unpinned drag still moves floating position
-    panel.applyRemoteState({ locale: "ru", settings: { pinned: false } }, true);
+    // Viewport clamping: shrink viewport to 720x500 and verify Studio & widget zoom clamp strictly inside screen bounds
+    win.innerWidth = 720;
+    win.innerHeight = 500;
+    panel.applyRemoteState({
+      locale: "ru",
+      appZoomSupported: true,
+      settings: { pinned: true, viewMode: "medium", studioUi: { appScale: 100, studioScale: 140, widgetZoom: 160 } },
+    }, true);
+    const effStudioZoom = parseFloat(root.style.getPropertyValue("--rx-studio-zoom"));
+    const effWidgetZoom = parseFloat(root.style.getPropertyValue("--rx-widget-zoom"));
+    assert.ok(effStudioZoom * 920 <= 720 - 30 && effStudioZoom * 648 <= 500 - 30, `Studio zoom (${effStudioZoom}) must clamp inside 720x500 viewport`);
+    assert.ok(effWidgetZoom * 318 <= 720 - 20 && effWidgetZoom * 310 <= 500 - 20, `Widget zoom (${effWidgetZoom}) must clamp inside 720x500 viewport`);
+
+    // Restore viewport and verify unpinned drag still moves floating position
+    win.innerWidth = 1280;
+    win.innerHeight = 800;
+    panel.applyRemoteState({ locale: "ru", settings: { pinned: false, viewMode: "mini" } }, true);
     const dragBody = doc.createElement("div");
     dragBody.setAttribute("data-widget-body", "1");
     dragBody.setAttribute("data-drag-handle", "1");
     widgetMount.appendChild(dragBody);
     savedPatches.length = 0;
-    widgetMount.dispatchEvent({ type: "mousedown", button: 0, clientX: 1200, clientY: 820, target: dragBody });
-    win.dispatchEvent({ type: "mousemove", clientX: 1000, clientY: 700 });
+    widgetMount.dispatchEvent({ type: "mousedown", button: 0, clientX: 1200, clientY: 760, target: dragBody });
+    win.dispatchEvent({ type: "mousemove", clientX: 1000, clientY: 660 });
     win.dispatchEvent({ type: "mouseup" });
     assert.ok(savedPatches.some((p) => p.layoutMode === "floating" && typeof p.floatX === "number"), "Unpinned drag must move floating position");
 
     // Verify backend scaling & sanitization in i18n-main.js
     const i18nMainText = fs.readFileSync(path.join(SCRIPTS_DIR, "i18n-main.js"), "utf8");
     assert.ok(i18nMainText.includes("applyAppScaleToWindows"), "i18n-main.js must implement applyAppScaleToWindows");
+    assert.ok(i18nMainText.includes("applyThemeCurtainToWindows"), "i18n-main.js must implement applyThemeCurtainToWindows");
     assert.ok(i18nMainText.includes("appZoomSupported: true"), "i18n-main.js must report appZoomSupported: true");
   } finally {
     panel.destroy();
@@ -2839,9 +2871,9 @@ test("Independent app/studio/widget scaling, pinned hold-to-resize, zoom compens
 });
 
 // =============================================================================
-// 17. Claude Code Palettes, Fonts, WebFont Injection & Editorial Studio Redesign (v4.4.0)
+// 17. Claude Code Palettes, Fonts, WebFont Injection & Full UI Theme Coverage (v4.4.1)
 // =============================================================================
-test("Claude Code themes, fonts, Google Fonts loader, one-click suite, and full Studio palette/font sync work cleanly", async () => {
+test("Claude Code themes, fonts, Google Fonts loader, one-click suite, full UI coverage, and Studio sync work cleanly", async () => {
   // 1) Theme presets & gradients
   const ccDark = THEME_PRESETS.find((p) => p.id === "claude-code-dark");
   const ccLight = THEME_PRESETS.find((p) => p.id === "claude-code-light");
@@ -2869,12 +2901,74 @@ test("Claude Code themes, fonts, Google Fonts loader, one-click suite, and full 
     presetId: "claude-code-dark",
     typography: { uiFont: "claude-serif", monoFont: "claude-mono" },
   }, { hostIsLight: false });
-  assert.ok(ccCss.includes("--background: #1f1e1d;"));
-  assert.ok(ccCss.includes("--primary: #d97757;"));
-  assert.ok(ccCss.includes("--card: #262624;"));
+  assert.ok(ccCss.includes("--background: #1f1e1d !important;"));
+  assert.ok(ccCss.includes("--primary: #d97757 !important;"));
+  assert.ok(ccCss.includes("--card: #262624 !important;"));
+  assert.ok(ccCss.includes("--sidebar-background: #1a1918 !important;"));
+  assert.ok(ccCss.includes('[data-rudex-bg-sidebar="1"]'));
+  assert.ok(ccCss.includes('[data-rudex-bg-header="1"]'));
+  assert.ok(ccCss.includes('[data-rudex-theme-composer="1"]'));
+  assert.ok(ccCss.includes('[data-rudex-theme-accent-dot="1"]'));
   assert.ok(ccCss.includes("Anthropic Serif"));
   assert.ok(ccCss.includes("JetBrains Mono"));
   assert.ok(ccCss.includes("optimizeLegibility"));
+
+  // 2b) Non-wallpaper theme DOM scanner marks sidebar, header, composer, and blue unread dots, then clears on native
+  {
+    const { doc: tDoc, win: tWin } = createMockDom();
+    tWin.innerWidth = 1440;
+    tWin.innerHeight = 900;
+    const appRoot = tDoc.createElement("div");
+    appRoot.id = "root";
+    appRoot.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1440, height: 900 });
+    tDoc.body.appendChild(appRoot);
+
+    const sidebarWrap = tDoc.createElement("div");
+    sidebarWrap.getBoundingClientRect = () => ({ left: 0, top: 32, width: 240, height: 868 });
+    sidebarWrap.style.backgroundColor = "rgb(13, 13, 17)";
+    const unreadDot = tDoc.createElement("span");
+    unreadDot.getBoundingClientRect = () => ({ left: 210, top: 180, width: 8, height: 8 });
+    unreadDot.style.backgroundColor = "rgb(59, 130, 246)";
+    sidebarWrap.appendChild(unreadDot);
+    appRoot.appendChild(sidebarWrap);
+
+    const topBar = tDoc.createElement("div");
+    topBar.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1440, height: 32 });
+    topBar.style.backgroundColor = "rgb(13, 13, 17)";
+    appRoot.appendChild(topBar);
+
+    const composerBox = tDoc.createElement("div");
+    composerBox.getBoundingClientRect = () => ({ left: 420, top: 760, width: 640, height: 92 });
+    composerBox.style.backgroundColor = "rgb(21, 21, 26)";
+    const composerInput = tDoc.createElement("textarea");
+    composerBox.appendChild(composerInput);
+    appRoot.appendChild(composerBox);
+
+    tWin.getComputedStyle = (el) => ({
+      backgroundColor: (el && el.style && el.style.backgroundColor) || "rgba(0, 0, 0, 0)",
+      backgroundImage: "none",
+      borderTopWidth: "0px",
+      borderTopColor: "transparent",
+      getPropertyValue: () => "",
+    });
+
+    const scanEngine = createThemeEngine({ document: tDoc, window: tWin });
+    try {
+      scanEngine.apply({ presetId: "claude-code-dark", wallpaper: { type: "none" } });
+      assert.equal(sidebarWrap.getAttribute("data-rudex-bg-sidebar"), "1", "Theme scanner must mark opaque sidebar without wallpaper");
+      assert.equal(topBar.getAttribute("data-rudex-bg-header"), "1", "Theme scanner must mark top titlebar without wallpaper");
+      assert.equal(composerBox.getAttribute("data-rudex-theme-composer"), "1", "Theme scanner must mark composer container");
+      assert.equal(unreadDot.getAttribute("data-rudex-theme-accent-dot"), "1", "Theme scanner must mark blue unread dots in sidebar");
+
+      scanEngine.apply({ presetId: "native", wallpaper: { type: "none" } });
+      assert.equal(sidebarWrap.getAttribute("data-rudex-bg-sidebar"), null);
+      assert.equal(topBar.getAttribute("data-rudex-bg-header"), null);
+      assert.equal(composerBox.getAttribute("data-rudex-theme-composer"), null);
+      assert.equal(unreadDot.getAttribute("data-rudex-theme-accent-dot"), null);
+    } finally {
+      scanEngine.destroy();
+    }
+  }
 
   // 3) Studio CSS exposes Claude Code window/widget themes and editorial redesign tokens
   const studioCss = buildStudioStyles();
@@ -2976,4 +3070,24 @@ test("Claude Code themes, fonts, Google Fonts loader, one-click suite, and full 
     te.destroy();
     translator.destroy();
   }
+});
+
+// =============================================================================
+// 18. Windows 10 EPERM-Safe In-Place Plugin Sync & PS1 Lock Handling (v4.4.1)
+// =============================================================================
+test("Installer syncs plugin in-place without deleting targetSkillsDir first (prevents Win10 NTFS EPERM) and closes Antigravity safely in remote PS1 mode", () => {
+  const installJsText = fs.readFileSync(path.join(SCRIPTS_DIR, "install.js"), "utf8");
+  assert.equal(
+    installJsText.includes("fs.rmSync(targetSkillsDir"),
+    false,
+    "syncPluginToGlobalConfig must NEVER rmSync targetSkillsDir before copying (causes Win10 DELETE_PENDING EPERM)"
+  );
+  assert.ok(installJsText.includes("function ensureDirSafe("), "install.js must define retry-safe ensureDirSafe");
+  assert.ok(installJsText.includes("function copyFileSafe("), "install.js must define retry-safe copyFileSafe");
+  assert.ok(installJsText.includes("function pruneObsoleteEntries("), "install.js must prune obsolete files after in-place copy");
+
+  const ps1Text = fs.readFileSync(path.join(REPO_ROOT, "install.ps1"), "utf8");
+  assert.ok(ps1Text.includes("Rudex v4.4.1"), "install.ps1 banner must show v4.4.1");
+  assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
+  assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 });
