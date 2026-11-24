@@ -35,19 +35,21 @@ function applySecondaryFile(src, requireTarget, requireReplacement, desc, fn, wa
 
 const I18N_MAIN_SOURCE = `"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const { app, ipcMain, webContents } = require("electron");
+const { app, ipcMain, webContents, dialog, shell, protocol, BrowserWindow } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
 let cachedLocale = null;
 let ipcRegistered = false;
+let mediaProtocolRegistered = false;
 let lastHotkeyAt = 0;
 let lastPanelHotkeyAt = 0;
 const listeners = new Set();
 let uiMaps = null;
 
 const MAX_PERSONA_BODY_BYTES = 23000;
+const FIVE_HOUR_MS = 5 * 60 * 60 * 1000;
 const DEFAULT_MINI_FIELDS = {
   status: true,
   lang: true,
@@ -55,7 +57,62 @@ const DEFAULT_MINI_FIELDS = {
   respTokens: false,
   chatTokens: false,
   model: false,
+  quota: false,
 };
+const VALID_APPEARANCE_PRESETS = new Set(["native", "obsidian-glass", "midnight-neon", "warm-contrast", "light-paper", "custom"]);
+const VALID_WALLPAPER_TYPES = new Set(["none", "gradient", "image", "video"]);
+const VALID_GRADIENT_PRESETS = new Set(["aurora", "cosmic", "sunset", "emerald", "cyber", "silk"]);
+const VALID_UI_FONTS = new Set(["system", "segoe", "inter", "rubik", "ibm-plex", "georgia"]);
+const VALID_MONO_FONTS = new Set(["system", "cascadia", "jetbrains", "consolas", "fira"]);
+const VALID_DENSITIES = new Set(["compact", "comfortable", "spacious"]);
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+const SAFE_MEDIA_FILE_RE = /^[a-zA-Z0-9._-]{1,120}$/;
+const STUDIO_MEDIA_MIMES = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".avif": "image/avif",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+};
+
+const DEFAULT_APPEARANCE = {
+  presetId: "native",
+  uiPolish: true,
+  accentColor: "#3b82f6",
+  canvasBg: "#09090b",
+  cardBg: "#131316",
+  glassOpacity: 78,
+  glassBlur: 12,
+  radius: 12,
+  wallpaper: {
+    type: "none",
+    gradientPreset: "aurora",
+    gradColors: ["#0f172a", "#1e1b4b", "#09090b"],
+    gradAngle: 135,
+    gradAnimated: true,
+    gradSpeed: 18,
+    mediaFile: "",
+    mediaUrl: "",
+    mediaMime: "",
+    dim: 45,
+    blur: 0,
+    opacity: 85,
+    scale: 100,
+    pauseWhenHidden: true,
+  },
+  typography: {
+    uiFont: "system",
+    monoFont: "system",
+    fontSize: 14,
+    lineHeight: 1.55,
+    chatMaxWidth: 0,
+    density: "comfortable",
+  },
+};
+
 const DEFAULT_STUDIO_SETTINGS = {
   panelEnabled: true,
   pinned: false,
@@ -71,10 +128,107 @@ const DEFAULT_STUDIO_SETTINGS = {
   personaActivePreset: "custom",
   personaText: "",
   customPresets: [],
+  appearance: DEFAULT_APPEARANCE,
+  appearanceProfiles: [],
 };
+
+function clampNum(val, min, max, fallback) {
+  const n = Number(val);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+function sanitizeHexColor(val, fallback) {
+  return typeof val === "string" && HEX_COLOR_RE.test(val.trim()) ? val.trim().toLowerCase() : fallback;
+}
+
+function sanitizeMediaUrl(val) {
+  if (typeof val !== "string") return "";
+  const s = val.trim();
+  if (!s || !s.startsWith("agy-media://local/")) return "";
+  return s.slice(0, 240);
+}
+
+function sanitizeAppearance(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const presetId = VALID_APPEARANCE_PRESETS.has(src.presetId) ? src.presetId : "native";
+  const wpSrc = src.wallpaper && typeof src.wallpaper === "object" ? src.wallpaper : {};
+  const wpType = VALID_WALLPAPER_TYPES.has(wpSrc.type) ? wpSrc.type : "none";
+  const gradientPreset = VALID_GRADIENT_PRESETS.has(wpSrc.gradientPreset) ? wpSrc.gradientPreset : "aurora";
+  const rawGc = Array.isArray(wpSrc.gradColors) ? wpSrc.gradColors : DEFAULT_APPEARANCE.wallpaper.gradColors;
+  const gradColors = [
+    sanitizeHexColor(rawGc[0], "#0f172a"),
+    sanitizeHexColor(rawGc[1], "#1e1b4b"),
+    sanitizeHexColor(rawGc[2], "#09090b"),
+  ];
+  const mediaUrl = sanitizeMediaUrl(wpSrc.mediaUrl);
+  const mediaFile = mediaUrl && typeof wpSrc.mediaFile === "string" && SAFE_MEDIA_FILE_RE.test(wpSrc.mediaFile.trim())
+    ? wpSrc.mediaFile.trim()
+    : "";
+  const tySrc = src.typography && typeof src.typography === "object" ? src.typography : {};
+  const rawW = Math.round(clampNum(tySrc.chatMaxWidth, 0, 1200, 0));
+  const chatMaxWidth = rawW > 0 && rawW < 680 ? 680 : rawW;
+  const lineHeight = Math.round(clampNum(tySrc.lineHeight, 1.25, 1.9, 1.55) * 100) / 100;
+  return {
+    presetId,
+    uiPolish: src.uiPolish !== false,
+    accentColor: sanitizeHexColor(src.accentColor, DEFAULT_APPEARANCE.accentColor),
+    canvasBg: sanitizeHexColor(src.canvasBg, DEFAULT_APPEARANCE.canvasBg),
+    cardBg: sanitizeHexColor(src.cardBg, DEFAULT_APPEARANCE.cardBg),
+    glassOpacity: Math.round(clampNum(src.glassOpacity, 25, 100, DEFAULT_APPEARANCE.glassOpacity)),
+    glassBlur: Math.round(clampNum(src.glassBlur, 0, 24, DEFAULT_APPEARANCE.glassBlur)),
+    radius: Math.round(clampNum(src.radius, 4, 20, DEFAULT_APPEARANCE.radius)),
+    wallpaper: {
+      type: wpType,
+      gradientPreset,
+      gradColors,
+      gradAngle: Math.round(clampNum(wpSrc.gradAngle, 0, 360, 135)),
+      gradAnimated: wpSrc.gradAnimated !== false,
+      gradSpeed: Math.round(clampNum(wpSrc.gradSpeed, 6, 40, 18)),
+      mediaFile,
+      mediaUrl,
+      mediaMime: typeof wpSrc.mediaMime === "string" ? wpSrc.mediaMime.slice(0, 60) : "",
+      dim: Math.round(clampNum(wpSrc.dim, 0, 85, 45)),
+      blur: Math.round(clampNum(wpSrc.blur, 0, 24, 0)),
+      opacity: Math.round(clampNum(wpSrc.opacity, 15, 100, 85)),
+      scale: Math.round(clampNum(wpSrc.scale, 100, 130, 100)),
+      pauseWhenHidden: wpSrc.pauseWhenHidden !== false,
+    },
+    typography: {
+      uiFont: VALID_UI_FONTS.has(tySrc.uiFont) ? tySrc.uiFont : "system",
+      monoFont: VALID_MONO_FONTS.has(tySrc.monoFont) ? tySrc.monoFont : "system",
+      fontSize: Math.round(clampNum(tySrc.fontSize, 12, 18, 14)),
+      lineHeight,
+      chatMaxWidth,
+      density: VALID_DENSITIES.has(tySrc.density) ? tySrc.density : "comfortable",
+    },
+  };
+}
+
+function sanitizeAppearanceProfiles(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item, idx) => {
+      if (!item || typeof item !== "object") return null;
+      const name = typeof item.name === "string" ? item.name.trim().slice(0, 48) : "";
+      if (!name) return null;
+      return {
+        id: typeof item.id === "string" && item.id ? item.id.slice(0, 48) : "prof-" + idx,
+        name,
+        appearance: sanitizeAppearance(item.appearance),
+        createdAt: typeof item.createdAt === "number" && Number.isFinite(item.createdAt) ? Math.round(item.createdAt) : 0,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+}
 
 function getStudioSettingsPath() {
   return path.join(app.getPath("userData"), "agy_studio_settings.json");
+}
+
+function getStudioMediaDir() {
+  return path.join(app.getPath("userData"), "studio_media");
 }
 
 function getPluginPersonaRulePath() {
@@ -115,6 +269,7 @@ function sanitizeStudioSettings(raw) {
     respTokens: Boolean(rawMini.respTokens),
     chatTokens: Boolean(rawMini.chatTokens),
     model: Boolean(rawMini.model),
+    quota: Boolean(rawMini.quota),
   };
   const presets = Array.isArray(src.customPresets)
     ? src.customPresets
@@ -148,6 +303,8 @@ function sanitizeStudioSettings(raw) {
     personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
     personaText: typeof src.personaText === "string" ? src.personaText : "",
     customPresets: presets,
+    appearance: sanitizeAppearance(src.appearance),
+    appearanceProfiles: sanitizeAppearanceProfiles(src.appearanceProfiles),
   };
 }
 
@@ -167,6 +324,13 @@ function saveStudioSettings(patch) {
   const pObj = patch && typeof patch === "object" ? Object.assign({}, patch) : {};
   if (pObj.miniFields && typeof pObj.miniFields === "object") {
     pObj.miniFields = Object.assign({}, current.miniFields, pObj.miniFields);
+  }
+  if (pObj.appearance && typeof pObj.appearance === "object") {
+    const curApp = current.appearance || DEFAULT_APPEARANCE;
+    pObj.appearance = Object.assign({}, curApp, pObj.appearance, {
+      wallpaper: Object.assign({}, curApp.wallpaper, pObj.appearance.wallpaper || {}),
+      typography: Object.assign({}, curApp.typography, pObj.appearance.typography || {}),
+    });
   }
   const next = sanitizeStudioSettings(Object.assign({}, current, pObj));
   try {
@@ -205,6 +369,27 @@ function defaultChatTelemetry() {
   };
 }
 
+function defaultFamilyQuota() {
+  return {
+    turns: 0,
+    weightedTokens: 0,
+    estFiveHourPct: 0,
+    estWeeklyPct: 0,
+    observedFiveHourPct: 0,
+    observedWeeklyPct: 0,
+    lastModel: "",
+    lastTurnAt: 0,
+    recentTurns: [],
+  };
+}
+
+function defaultChatQuota() {
+  return {
+    gemini: defaultFamilyQuota(),
+    claudeGpt: defaultFamilyQuota(),
+  };
+}
+
 function defaultChatRecord(title) {
   return {
     title: typeof title === "string" ? title.trim().slice(0, 80) : "",
@@ -213,6 +398,7 @@ function defaultChatRecord(title) {
     personaActivePreset: "custom",
     personaText: "",
     telemetry: defaultChatTelemetry(),
+    quota: defaultChatQuota(),
   };
 }
 
@@ -222,6 +408,44 @@ function toNonNegInt(val) {
 
 function toNonNegFloat(val) {
   return typeof val === "number" && Number.isFinite(val) && val > 0 ? Math.round(val * 100) / 100 : 0;
+}
+
+function toQuotaPct(val) {
+  return typeof val === "number" && Number.isFinite(val) && val > 0 ? Math.round(val * 1000) / 1000 : 0;
+}
+
+function sanitizeFamilyQuota(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const recent = Array.isArray(src.recentTurns)
+    ? src.recentTurns
+        .filter((x) => x && typeof x === "object")
+        .slice(-40)
+        .map((x) => ({
+          ts: toNonNegInt(x.ts),
+          wt: toNonNegInt(x.wt),
+          est5h: toQuotaPct(x.est5h),
+        }))
+        .filter((x) => x.ts > 0)
+    : [];
+  return {
+    turns: toNonNegInt(src.turns),
+    weightedTokens: toNonNegInt(src.weightedTokens),
+    estFiveHourPct: toQuotaPct(src.estFiveHourPct),
+    estWeeklyPct: toQuotaPct(src.estWeeklyPct),
+    observedFiveHourPct: toQuotaPct(src.observedFiveHourPct),
+    observedWeeklyPct: toQuotaPct(src.observedWeeklyPct),
+    lastModel: typeof src.lastModel === "string" ? src.lastModel.slice(0, 60) : "",
+    lastTurnAt: toNonNegInt(src.lastTurnAt),
+    recentTurns: recent,
+  };
+}
+
+function sanitizeChatQuota(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  return {
+    gemini: sanitizeFamilyQuota(src.gemini),
+    claudeGpt: sanitizeFamilyQuota(src.claudeGpt),
+  };
 }
 
 function sanitizeChatTelemetry(raw) {
@@ -264,6 +488,7 @@ function sanitizeChatRecord(raw) {
     personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
     personaText: typeof src.personaText === "string" ? src.personaText : "",
     telemetry: sanitizeChatTelemetry(src.telemetry),
+    quota: sanitizeChatQuota(src.quota),
   };
 }
 
@@ -364,6 +589,255 @@ function syncPersonaRuleFile(enabled, text) {
   }
 }
 
+function getStudioQuotaPath() {
+  return path.join(app.getPath("userData"), "agy_studio_quota.json");
+}
+
+function classifyModelFamily(modelName) {
+  const s = String(modelName || "");
+  return /claude|sonnet|opus|haiku|gpt|openai|\\bo[134]\\b/i.test(s) ? "claudeGpt" : "gemini";
+}
+
+function getModelQuotaWeight(modelName) {
+  const s = String(modelName || "").toLowerCase();
+  if (/flash[_\\s-]?lite|\\bmini\\b/.test(s)) return 0.35;
+  if (/flash/.test(s)) return 0.6;
+  if (/opus/.test(s)) return 1.8;
+  if (/\\b(pro|neon|ultra)\\b|high|высок|сверхвысок/.test(s)) return 1.35;
+  return 1.0;
+}
+
+function defaultQuotaFamilyState(famId) {
+  const isClaude = famId === "claudeGpt";
+  return {
+    weeklyRem: null,
+    fiveHourRem: null,
+    weeklyReset: "",
+    fiveHourReset: "",
+    updatedAt: 0,
+    calibrated: false,
+    tokensPer1Pct5h: isClaude ? 12000 : 18000,
+    tokensPer1PctWeekly: isClaude ? 75000 : 110000,
+    pending5hByChat: {},
+    pendingWeeklyByChat: {},
+  };
+}
+
+function sanitizePendingMap(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const out = {};
+  for (const k of Object.keys(src)) {
+    const nk = normalizeChatKey(k);
+    if (nk === "__new__") continue;
+    const v = toNonNegInt(src[k]);
+    if (v > 0) out[nk] = v;
+  }
+  return out;
+}
+
+function toNullableRemPct(val) {
+  if (val === null || val === undefined || val === "") return null;
+  const n = Number(val);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(Math.min(100, Math.max(0, n)) * 100) / 100;
+}
+
+function sanitizeQuotaFamilyState(famId, raw) {
+  const def = defaultQuotaFamilyState(famId);
+  const src = raw && typeof raw === "object" ? raw : {};
+  const t5 = Number(src.tokensPer1Pct5h);
+  const tw = Number(src.tokensPer1PctWeekly);
+  return {
+    weeklyRem: toNullableRemPct(src.weeklyRem),
+    fiveHourRem: toNullableRemPct(src.fiveHourRem),
+    weeklyReset: typeof src.weeklyReset === "string" ? src.weeklyReset.slice(0, 80) : "",
+    fiveHourReset: typeof src.fiveHourReset === "string" ? src.fiveHourReset.slice(0, 80) : "",
+    updatedAt: toNonNegInt(src.updatedAt),
+    calibrated: Boolean(src.calibrated),
+    tokensPer1Pct5h: Number.isFinite(t5) && t5 >= 2000 && t5 <= 500000 ? Math.round(t5) : def.tokensPer1Pct5h,
+    tokensPer1PctWeekly: Number.isFinite(tw) && tw >= 10000 && tw <= 2500000 ? Math.round(tw) : def.tokensPer1PctWeekly,
+    pending5hByChat: sanitizePendingMap(src.pending5hByChat),
+    pendingWeeklyByChat: sanitizePendingMap(src.pendingWeeklyByChat),
+  };
+}
+
+function loadQuotaStore() {
+  try {
+    const p = getStudioQuotaPath();
+    if (fs.existsSync(p)) {
+      const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+      const fams = parsed && typeof parsed === "object" && parsed.families ? parsed.families : {};
+      return {
+        version: 1,
+        families: {
+          gemini: sanitizeQuotaFamilyState("gemini", fams.gemini),
+          claudeGpt: sanitizeQuotaFamilyState("claudeGpt", fams.claudeGpt),
+        },
+      };
+    }
+  } catch {}
+  return {
+    version: 1,
+    families: {
+      gemini: defaultQuotaFamilyState("gemini"),
+      claudeGpt: defaultQuotaFamilyState("claudeGpt"),
+    },
+  };
+}
+
+function saveQuotaStore(store) {
+  const normalized = {
+    version: 1,
+    families: {
+      gemini: sanitizeQuotaFamilyState("gemini", store && store.families ? store.families.gemini : null),
+      claudeGpt: sanitizeQuotaFamilyState("claudeGpt", store && store.families ? store.families.claudeGpt : null),
+    },
+  };
+  try {
+    const p = getStudioQuotaPath();
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify(normalized, null, 2) + "\\n", "utf8");
+  } catch (err) {
+    console.warn("[i18nMain] Failed to persist studio quota:", err && err.message ? err.message : err);
+  }
+  return normalized;
+}
+
+function computeChatFamilyMetrics(chatKey, famId, fq, famState, nowMs) {
+  const pending5hWt = (famState.pending5hByChat && famState.pending5hByChat[chatKey]) || 0;
+  const pendingWeeklyWt = (famState.pendingWeeklyByChat && famState.pendingWeeklyByChat[chatKey]) || 0;
+  const estInc5h = pending5hWt / Math.max(2000, famState.tokensPer1Pct5h);
+  const estIncWeek = pendingWeeklyWt / Math.max(10000, famState.tokensPer1PctWeekly);
+  const fiveHourPct = fq.observedFiveHourPct > 0
+    ? toQuotaPct(fq.observedFiveHourPct + estInc5h)
+    : toQuotaPct(fq.estFiveHourPct);
+  const weeklyPct = fq.observedWeeklyPct > 0
+    ? toQuotaPct(fq.observedWeeklyPct + estIncWeek)
+    : toQuotaPct(fq.estWeeklyPct);
+  let windowEst = 0;
+  const recent = Array.isArray(fq.recentTurns) ? fq.recentTurns : [];
+  for (let i = 0; i < recent.length; i += 1) {
+    if (nowMs - recent[i].ts <= FIVE_HOUR_MS) {
+      windowEst += Number(recent[i].est5h) || 0;
+    }
+  }
+  const fiveHourWindowPct = fq.observedFiveHourPct > 0
+    ? Math.max(toQuotaPct(windowEst), toQuotaPct(estInc5h))
+    : toQuotaPct(windowEst);
+  return {
+    family: famId,
+    turns: fq.turns,
+    weightedTokens: fq.weightedTokens,
+    fiveHourPct,
+    fiveHourWindowPct: Math.min(fiveHourPct, fiveHourWindowPct || fiveHourPct),
+    weeklyPct,
+    calibrated: fq.observedFiveHourPct > 0 || fq.observedWeeklyPct > 0 || famState.calibrated,
+    lastModel: fq.lastModel || "",
+    lastTurnAt: fq.lastTurnAt || 0,
+  };
+}
+
+function buildQuotaSummary(activeChatKey) {
+  const store = loadQuotaStore();
+  const chats = loadStudioChats();
+  const normActive = normalizeChatKey(activeChatKey);
+  const nowMs = Date.now();
+  const rows = [];
+  let activeChatSummary = null;
+
+  for (const key of Object.keys(chats)) {
+    const rec = sanitizeChatRecord(chats[key]);
+    const gMet = computeChatFamilyMetrics(key, "gemini", rec.quota.gemini, store.families.gemini, nowMs);
+    const cMet = computeChatFamilyMetrics(key, "claudeGpt", rec.quota.claudeGpt, store.families.claudeGpt, nowMs);
+    const totalTurns = gMet.turns + cMet.turns;
+    const hasActivity = totalTurns > 0 || gMet.fiveHourPct > 0 || gMet.weeklyPct > 0 || cMet.fiveHourPct > 0 || cMet.weeklyPct > 0;
+    const dominant = cMet.lastTurnAt > gMet.lastTurnAt || (cMet.turns > 0 && gMet.turns === 0) ? cMet : gMet;
+    const combinedFiveHour = toQuotaPct(gMet.fiveHourPct + cMet.fiveHourPct);
+    const combinedWeekly = toQuotaPct(gMet.weeklyPct + cMet.weeklyPct);
+    const combinedWindow5h = toQuotaPct(gMet.fiveHourWindowPct + cMet.fiveHourWindowPct);
+    const item = {
+      chatKey: key,
+      title: rec.title || (rec.telemetry && rec.telemetry.modelName) || key.slice(0, 12),
+      modelName: (rec.telemetry && rec.telemetry.modelName) || dominant.lastModel || "",
+      primaryFamily: dominant.family,
+      turns: totalTurns,
+      weightedTokens: gMet.weightedTokens + cMet.weightedTokens,
+      fiveHourPct: combinedFiveHour,
+      fiveHourWindowPct: combinedWindow5h,
+      weeklyPct: combinedWeekly,
+      calibrated: gMet.calibrated || cMet.calibrated,
+      updatedAt: Math.max(rec.updatedAt || 0, gMet.lastTurnAt || 0, cMet.lastTurnAt || 0),
+      gemini: gMet,
+      claudeGpt: cMet,
+    };
+    if (key === normActive) {
+      activeChatSummary = item;
+    }
+    if (hasActivity || key === normActive) {
+      rows.push(item);
+    }
+  }
+
+  rows.sort((a, b) => {
+    const scoreA = a.fiveHourPct * 3 + a.weeklyPct + (a.chatKey === normActive ? 0.0001 : 0);
+    const scoreB = b.fiveHourPct * 3 + b.weeklyPct + (b.chatKey === normActive ? 0.0001 : 0);
+    if (Math.abs(scoreB - scoreA) > 0.0005) return scoreB - scoreA;
+    return (b.updatedAt || 0) - (a.updatedAt || 0);
+  });
+
+  return {
+    families: {
+      gemini: {
+        weeklyRem: store.families.gemini.weeklyRem,
+        fiveHourRem: store.families.gemini.fiveHourRem,
+        weeklyReset: store.families.gemini.weeklyReset,
+        fiveHourReset: store.families.gemini.fiveHourReset,
+        updatedAt: store.families.gemini.updatedAt,
+        calibrated: store.families.gemini.calibrated,
+        tokensPer1Pct5h: store.families.gemini.tokensPer1Pct5h,
+        tokensPer1PctWeekly: store.families.gemini.tokensPer1PctWeekly,
+      },
+      claudeGpt: {
+        weeklyRem: store.families.claudeGpt.weeklyRem,
+        fiveHourRem: store.families.claudeGpt.fiveHourRem,
+        weeklyReset: store.families.claudeGpt.weeklyReset,
+        fiveHourReset: store.families.claudeGpt.fiveHourReset,
+        updatedAt: store.families.claudeGpt.updatedAt,
+        calibrated: store.families.claudeGpt.calibrated,
+        tokensPer1Pct5h: store.families.claudeGpt.tokensPer1Pct5h,
+        tokensPer1PctWeekly: store.families.claudeGpt.tokensPer1PctWeekly,
+      },
+    },
+    activeChat: activeChatSummary,
+    chats: rows.slice(0, 40),
+  };
+}
+
+function applyQuotaDropForWindow(famId, dropPct, pendingMap, chats, activeChatKey, isWeekly) {
+  let totalPending = 0;
+  for (const k of Object.keys(pendingMap)) {
+    totalPending += Number(pendingMap[k]) || 0;
+  }
+  const obsKey = isWeekly ? "observedWeeklyPct" : "observedFiveHourPct";
+  if (totalPending > 0) {
+    for (const k of Object.keys(pendingMap)) {
+      const wt = Number(pendingMap[k]) || 0;
+      if (wt <= 0) continue;
+      if (!chats[k]) chats[k] = defaultChatRecord("");
+      chats[k] = sanitizeChatRecord(chats[k]);
+      const share = dropPct * (wt / totalPending);
+      chats[k].quota[famId][obsKey] = toQuotaPct(chats[k].quota[famId][obsKey] + share);
+    }
+    return { distributed: true, totalPending };
+  }
+  if (activeChatKey && activeChatKey !== "__new__") {
+    if (!chats[activeChatKey]) chats[activeChatKey] = defaultChatRecord("");
+    chats[activeChatKey] = sanitizeChatRecord(chats[activeChatKey]);
+    chats[activeChatKey].quota[famId][obsKey] = toQuotaPct(chats[activeChatKey].quota[famId][obsKey] + dropPct);
+  }
+  return { distributed: false, totalPending: 0 };
+}
+
 function getPatchMeta() {
   try {
     const p = path.join(__dirname, "..", "ru-patch-meta.json");
@@ -387,7 +861,164 @@ function getStudioState() {
     personaFileExists,
     personaFilePath: rulePath,
     patchMeta: getPatchMeta(),
+    quotaSummary: buildQuotaSummary("__new__"),
   };
+}
+
+function resolveSafeMediaFile(rawUrl) {
+  if (typeof rawUrl !== "string") return null;
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "agy-media:" || parsed.hostname !== "local") return null;
+  let decoded = "";
+  try {
+    decoded = decodeURIComponent(parsed.pathname.replace(/^\\/+/, ""));
+  } catch {
+    return null;
+  }
+  if (!decoded || decoded.includes("/") || decoded.includes("\\\\") || decoded.includes("..")) return null;
+  if (!SAFE_MEDIA_FILE_RE.test(decoded)) return null;
+  const ext = path.extname(decoded).toLowerCase();
+  const mime = STUDIO_MEDIA_MIMES[ext];
+  if (!mime) return null;
+  const mediaDir = path.resolve(getStudioMediaDir());
+  const fullPath = path.resolve(mediaDir, decoded);
+  if (!fullPath.startsWith(mediaDir + path.sep)) return null;
+  try {
+    const st = fs.statSync(fullPath);
+    if (!st.isFile()) return null;
+    return { fileName: decoded, fullPath, mime, size: st.size };
+  } catch {
+    return null;
+  }
+}
+
+function fileSliceToWebStream(fullPath, start, end) {
+  let rs = null;
+  return new ReadableStream({
+    start(controller) {
+      rs = fs.createReadStream(fullPath, { start, end });
+      rs.on("data", (chunk) => {
+        try { controller.enqueue(new Uint8Array(chunk)); } catch {}
+      });
+      rs.on("end", () => {
+        try { controller.close(); } catch {}
+      });
+      rs.on("error", (err) => {
+        try { controller.error(err); } catch {}
+      });
+    },
+    cancel() {
+      try { if (rs) rs.destroy(); } catch {}
+    },
+  });
+}
+
+function handleStudioMediaProtocolRequest(request) {
+  const method = request && request.method ? String(request.method).toUpperCase() : "GET";
+  if (method !== "GET" && method !== "HEAD") {
+    return new Response(null, { status: 405 });
+  }
+  const resolved = resolveSafeMediaFile(request ? request.url : "");
+  if (!resolved) {
+    return new Response(null, { status: 404 });
+  }
+  const { fullPath, mime, size } = resolved;
+  const baseHeaders = {
+    "Content-Type": mime,
+    "Accept-Ranges": "bytes",
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "no-cache",
+  };
+  const rangeHeader = request.headers && typeof request.headers.get === "function" ? request.headers.get("range") : null;
+  if (rangeHeader && size > 0) {
+    const m = /^bytes=(\\d*)-(\\d*)$/i.exec(String(rangeHeader).trim());
+    if (m) {
+      let start = m[1] ? parseInt(m[1], 10) : 0;
+      let end = m[2] ? parseInt(m[2], 10) : size - 1;
+      if (!m[1] && m[2]) {
+        const suffix = parseInt(m[2], 10);
+        start = Math.max(0, size - suffix);
+        end = size - 1;
+      }
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start >= size || start > end) {
+        return new Response(null, { status: 416, headers: Object.assign({}, baseHeaders, { "Content-Range": "bytes */" + size }) });
+      }
+      end = Math.min(size - 1, end);
+      const len = end - start + 1;
+      const rangeHeaders = Object.assign({}, baseHeaders, {
+        "Content-Range": "bytes " + start + "-" + end + "/" + size,
+        "Content-Length": String(len),
+      });
+      return new Response(method === "HEAD" ? null : fileSliceToWebStream(fullPath, start, end), {
+        status: 206,
+        headers: rangeHeaders,
+      });
+    }
+  }
+  const fullHeaders = Object.assign({}, baseHeaders, { "Content-Length": String(size) });
+  if (method === "HEAD") {
+    return new Response(null, { status: 200, headers: fullHeaders });
+  }
+  if (size === 0) {
+    return new Response(Buffer.alloc(0), { status: 200, headers: fullHeaders });
+  }
+  return new Response(fileSliceToWebStream(fullPath, 0, size - 1), {
+    status: 200,
+    headers: fullHeaders,
+  });
+}
+
+function registerStudioMediaProtocol() {
+  if (mediaProtocolRegistered) return;
+  if (!protocol || typeof protocol.handle !== "function") return;
+  mediaProtocolRegistered = true;
+  protocol.handle("agy-media", handleStudioMediaProtocolRequest);
+}
+
+function getFocusedOrFirstWindow() {
+  try {
+    if (BrowserWindow && typeof BrowserWindow.getFocusedWindow === "function") {
+      const fw = BrowserWindow.getFocusedWindow();
+      if (fw) return fw;
+    }
+    if (BrowserWindow && typeof BrowserWindow.getAllWindows === "function") {
+      const list = BrowserWindow.getAllWindows();
+      if (list && list.length > 0) return list[0];
+    }
+  } catch {}
+  return undefined;
+}
+
+function loadZipBuilderModule() {
+  const candidates = [
+    path.join(__dirname, "i18nData", "zip-builder.js"),
+    path.join(__dirname, "zip-builder.js"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      return require(p);
+    }
+  }
+  throw new Error("zip-builder.js module not found");
+}
+
+function makeSafeExportFilename(title, chatKey) {
+  const raw = (title || chatKey || "chat").trim();
+  const clean = raw
+    .replace(/[<>:"/\\\\|?*\\x00-\\x1f]/g, " ")
+    .replace(/\\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 48);
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = "" + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + "-" + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
+  return "Antigravity-" + (clean || "chat") + "-" + stamp + ".zip";
 }
 
 function broadcastStudioSettings(state) {
@@ -581,6 +1212,11 @@ function registerI18nIpc() {
   if (!fs.existsSync(getStorePath())) {
     saveLocale(getLocale());
   }
+  try {
+    registerStudioMediaProtocol();
+  } catch (err) {
+    console.warn("[antigravity-ru] Failed to register agy-media protocol:", err && err.message ? err.message : err);
+  }
   console.log("[antigravity-ru] Active Russian localization loaded (locale=" + getLocale() + ", store=" + getStorePath() + ")");
   ipcMain.on("agy-i18n:get-locale-sync", (event) => {
     event.returnValue = getLocale();
@@ -609,7 +1245,7 @@ function registerI18nIpc() {
           })
         : defaultChatRecord("");
       const syncRes = syncPersonaRuleFile(Boolean(rec.personaEnabled), rec.personaText || "");
-      return { ok: true, chatKey: "__new__", chat: rec, personaFileExists: syncRes.exists, personaFilePath: syncRes.rulePath };
+      return { ok: true, chatKey: "__new__", chat: rec, personaFileExists: syncRes.exists, personaFilePath: syncRes.rulePath, quotaSummary: buildQuotaSummary("__new__") };
     }
     const chats = loadStudioChats();
     let changed = false;
@@ -627,7 +1263,7 @@ function registerI18nIpc() {
     if (changed) saveStudioChats(chats);
     const rec = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(titleStr);
     const syncRes = syncPersonaRuleFile(Boolean(rec.personaEnabled), rec.personaText || "");
-    return { ok: true, chatKey: key, chat: rec, personaFileExists: syncRes.exists, personaFilePath: syncRes.rulePath };
+    return { ok: true, chatKey: key, chat: rec, personaFileExists: syncRes.exists, personaFilePath: syncRes.rulePath, quotaSummary: buildQuotaSummary(key) };
   });
   ipcMain.handle("agy-studio:save-persona", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
@@ -698,6 +1334,288 @@ function registerI18nIpc() {
     }
     return { ok: true, chatKey: key };
   });
+  ipcMain.handle("agy-studio:pick-media", async (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const kind = p.kind === "video" ? "video" : "image";
+    const allowedExts = kind === "video" ? [".mp4", ".webm"] : [".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif"];
+    const maxBytes = kind === "video" ? 250 * 1024 * 1024 : 35 * 1024 * 1024;
+    if (!dialog || typeof dialog.showOpenDialog !== "function") {
+      return { ok: false, error: "DIALOG_UNAVAILABLE" };
+    }
+    const parentWin = getFocusedOrFirstWindow();
+    const res = await dialog.showOpenDialog(parentWin, {
+      title: kind === "video" ? tr("Выберите видео-обои (MP4 / WebM)", "Select video wallpaper (MP4 / WebM)") : tr("Выберите изображение для обоев", "Select wallpaper image"),
+      properties: ["openFile"],
+      filters: [
+        kind === "video"
+          ? { name: "Video (MP4, WebM)", extensions: ["mp4", "webm"] }
+          : { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif", "avif"] },
+      ],
+    });
+    if (!res || res.canceled || !Array.isArray(res.filePaths) || !res.filePaths[0]) {
+      return { ok: false, canceled: true };
+    }
+    const srcPath = res.filePaths[0];
+    const ext = path.extname(srcPath).toLowerCase();
+    if (allowedExts.indexOf(ext) === -1) {
+      return { ok: false, error: "UNSUPPORTED_FORMAT" };
+    }
+    let st;
+    try {
+      st = fs.statSync(srcPath);
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "STAT_FAILED" };
+    }
+    if (!st.isFile() || st.size <= 0 || st.size > maxBytes) {
+      return { ok: false, error: "FILE_TOO_LARGE" };
+    }
+    const mediaDir = getStudioMediaDir();
+    fs.mkdirSync(mediaDir, { recursive: true });
+    const rawStem = path.basename(srcPath, ext).replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^_+|_+$/g, "").slice(0, 36) || "media";
+    const destName = kind + "-" + Date.now() + "-" + rawStem + ext;
+    const destPath = path.join(mediaDir, destName);
+    fs.copyFileSync(srcPath, destPath);
+    return {
+      ok: true,
+      kind,
+      fileName: destName,
+      mediaUrl: "agy-media://local/" + encodeURIComponent(destName),
+      mime: STUDIO_MEDIA_MIMES[ext] || "application/octet-stream",
+      sizeBytes: st.size,
+    };
+  });
+  ipcMain.handle("agy-studio:list-media", () => {
+    const mediaDir = getStudioMediaDir();
+    if (!fs.existsSync(mediaDir)) return { ok: true, items: [] };
+    const items = [];
+    try {
+      for (const ent of fs.readdirSync(mediaDir, { withFileTypes: true })) {
+        if (!ent.isFile() || !SAFE_MEDIA_FILE_RE.test(ent.name)) continue;
+        const ext = path.extname(ent.name).toLowerCase();
+        const mime = STUDIO_MEDIA_MIMES[ext];
+        if (!mime) continue;
+        const st = fs.statSync(path.join(mediaDir, ent.name));
+        items.push({
+          fileName: ent.name,
+          mediaUrl: "agy-media://local/" + encodeURIComponent(ent.name),
+          mime,
+          kind: mime.startsWith("video/") ? "video" : "image",
+          sizeBytes: st.size,
+        });
+      }
+    } catch {}
+    return { ok: true, items };
+  });
+  ipcMain.handle("agy-studio:delete-media", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const name = typeof p.fileName === "string" ? path.basename(p.fileName.trim()) : "";
+    if (!name || !SAFE_MEDIA_FILE_RE.test(name)) {
+      return { ok: false, error: "INVALID_FILENAME" };
+    }
+    const mediaDir = path.resolve(getStudioMediaDir());
+    const target = path.resolve(mediaDir, name);
+    if (!target.startsWith(mediaDir + path.sep)) {
+      return { ok: false, error: "INVALID_PATH" };
+    }
+    try {
+      if (fs.existsSync(target)) fs.unlinkSync(target);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "DELETE_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:export-chat-zip", async (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey);
+    const chats = loadStudioChats();
+    const rec = key !== "__new__" && chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(p.title || "");
+    const titleStr = typeof p.title === "string" && p.title.trim() ? p.title.trim().slice(0, 80) : rec.title;
+    const downloadsDir = app.getPath("downloads") || path.join(os.homedir(), "Downloads");
+    const defaultName = makeSafeExportFilename(titleStr, key);
+    let outPath = path.join(downloadsDir, defaultName);
+
+    if (p.choosePath && dialog && typeof dialog.showSaveDialog === "function") {
+      const parentWin = getFocusedOrFirstWindow();
+      const saveRes = await dialog.showSaveDialog(parentWin, {
+        title: tr("Сохранить контекст чата (ZIP)", "Export chat context (ZIP)"),
+        defaultPath: outPath,
+        filters: [{ name: "ZIP Archive", extensions: ["zip"] }],
+      });
+      if (!saveRes || saveRes.canceled || !saveRes.filePath) {
+        return { ok: false, canceled: true };
+      }
+      outPath = saveRes.filePath.toLowerCase().endsWith(".zip") ? saveRes.filePath : saveRes.filePath + ".zip";
+    }
+
+    try {
+      const zipBuilder = loadZipBuilderModule();
+      const meta = getPatchMeta();
+      const brainBaseDir = path.join(os.homedir(), ".gemini", "antigravity", "brain");
+      const res = zipBuilder.buildChatExportArchive({
+        chatKey: key === "__new__" ? "" : key,
+        title: titleStr,
+        modelName: typeof p.modelName === "string" ? p.modelName : "",
+        brainBaseDir,
+        chatRecord: rec,
+        quotaSummary: buildQuotaSummary(key),
+        domMessages: Array.isArray(p.domMessages) ? p.domMessages : [],
+        includeAttachments: p.includeAttachments !== false,
+        includeArtifacts: p.includeArtifacts !== false,
+        includePersona: p.includePersona !== false,
+        includeFullLog: Boolean(p.includeFullLog),
+        pluginVersion: (meta && meta.pluginVersion) || "3.0.0",
+        outPath,
+      });
+      return res;
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "EXPORT_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:reveal-file", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const fp = typeof p.filePath === "string" ? p.filePath.trim() : "";
+    if (!fp || !fp.toLowerCase().endsWith(".zip") || !fs.existsSync(fp)) {
+      return { ok: false, error: "FILE_NOT_FOUND" };
+    }
+    try {
+      if (shell && typeof shell.showItemInFolder === "function") {
+        shell.showItemInFolder(fp);
+        return { ok: true };
+      }
+      return { ok: false, error: "SHELL_UNAVAILABLE" };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "REVEAL_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:record-quota-turn", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey);
+    if (key === "__new__") {
+      return { ok: true, skipped: true, summary: buildQuotaSummary("__new__") };
+    }
+    const modelName = typeof p.modelName === "string" ? p.modelName.trim().slice(0, 60) : "";
+    const titleStr = typeof p.title === "string" ? p.title.trim().slice(0, 80) : "";
+    const outputTok = toNonNegInt(p.outputTokens);
+    const contextTok = toNonNegInt(p.contextTokens);
+    const famId = classifyModelFamily(modelName);
+    const weight = getModelQuotaWeight(modelName);
+    const wt = Math.max(1, Math.round((Math.max(1, outputTok) + contextTok * 0.25) * weight));
+    const now = Date.now();
+
+    const store = loadQuotaStore();
+    const famState = store.families[famId];
+    const inc5h = wt / Math.max(2000, famState.tokensPer1Pct5h);
+    const incWeek = wt / Math.max(10000, famState.tokensPer1PctWeekly);
+
+    const chats = loadStudioChats();
+    const prev = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(titleStr);
+    const fq = Object.assign({}, prev.quota[famId]);
+    fq.turns = (fq.turns || 0) + 1;
+    fq.weightedTokens = (fq.weightedTokens || 0) + wt;
+    fq.estFiveHourPct = toQuotaPct((fq.estFiveHourPct || 0) + inc5h);
+    fq.estWeeklyPct = toQuotaPct((fq.estWeeklyPct || 0) + incWeek);
+    if (modelName) fq.lastModel = modelName;
+    fq.lastTurnAt = now;
+    const recent = Array.isArray(fq.recentTurns)
+      ? fq.recentTurns.filter((r) => r && now - r.ts <= FIVE_HOUR_MS)
+      : [];
+    recent.push({ ts: now, wt, est5h: toQuotaPct(inc5h) });
+    fq.recentTurns = recent.slice(-40);
+
+    prev.quota[famId] = fq;
+    chats[key] = sanitizeChatRecord(Object.assign({}, prev, {
+      title: titleStr || prev.title || "",
+      updatedAt: now,
+    }));
+    saveStudioChats(chats);
+
+    famState.pending5hByChat[key] = (famState.pending5hByChat[key] || 0) + wt;
+    famState.pendingWeeklyByChat[key] = (famState.pendingWeeklyByChat[key] || 0) + wt;
+    saveQuotaStore(store);
+
+    return { ok: true, chatKey: key, chatQuota: chats[key].quota, summary: buildQuotaSummary(key) };
+  });
+  ipcMain.handle("agy-studio:sync-quota-snapshot", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const activeKey = normalizeChatKey(p.activeChatKey);
+    const store = loadQuotaStore();
+    const chats = loadStudioChats();
+    let chatsDirty = false;
+    const now = Date.now();
+
+    for (const famId of ["gemini", "claudeGpt"]) {
+      const snapFam = p[famId];
+      if (!snapFam || typeof snapFam !== "object") continue;
+      const famState = store.families[famId];
+      const next5h = toNullableRemPct(snapFam.fiveHourRem);
+      const nextWeek = toNullableRemPct(snapFam.weeklyRem);
+
+      if (next5h !== null) {
+        if (famState.fiveHourRem !== null && next5h < famState.fiveHourRem) {
+          const drop5h = Math.round((famState.fiveHourRem - next5h) * 100) / 100;
+          const res5h = applyQuotaDropForWindow(famId, drop5h, famState.pending5hByChat, chats, activeKey, false);
+          if (res5h.distributed && res5h.totalPending > 0 && drop5h >= 0.5) {
+            const observedRate = res5h.totalPending / Math.max(0.2, drop5h);
+            famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * 0.65 + observedRate * 0.35, 2000, 500000, famState.tokensPer1Pct5h));
+            famState.calibrated = true;
+          }
+          famState.pending5hByChat = {};
+          chatsDirty = true;
+        } else if (famState.fiveHourRem !== null && next5h > famState.fiveHourRem + 1) {
+          famState.pending5hByChat = {};
+        }
+        famState.fiveHourRem = next5h;
+      }
+
+      if (nextWeek !== null) {
+        if (famState.weeklyRem !== null && nextWeek < famState.weeklyRem) {
+          const dropWeek = Math.round((famState.weeklyRem - nextWeek) * 100) / 100;
+          const resW = applyQuotaDropForWindow(famId, dropWeek, famState.pendingWeeklyByChat, chats, activeKey, true);
+          if (resW.distributed && resW.totalPending > 0 && dropWeek >= 0.5) {
+            const observedRateW = resW.totalPending / Math.max(0.2, dropWeek);
+            famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * 0.65 + observedRateW * 0.35, 10000, 2500000, famState.tokensPer1PctWeekly));
+            famState.calibrated = true;
+          }
+          famState.pendingWeeklyByChat = {};
+          chatsDirty = true;
+        } else if (famState.weeklyRem !== null && nextWeek > famState.weeklyRem + 1) {
+          famState.pendingWeeklyByChat = {};
+        }
+        famState.weeklyRem = nextWeek;
+      }
+
+      if (typeof snapFam.fiveHourReset === "string" && snapFam.fiveHourReset.trim()) {
+        famState.fiveHourReset = snapFam.fiveHourReset.trim().slice(0, 80);
+      }
+      if (typeof snapFam.weeklyReset === "string" && snapFam.weeklyReset.trim()) {
+        famState.weeklyReset = snapFam.weeklyReset.trim().slice(0, 80);
+      }
+      famState.updatedAt = now;
+    }
+
+    if (chatsDirty) saveStudioChats(chats);
+    saveQuotaStore(store);
+    return { ok: true, summary: buildQuotaSummary(activeKey) };
+  });
+  ipcMain.handle("agy-studio:get-quota-summary", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    return buildQuotaSummary(p.chatKey);
+  });
+  ipcMain.handle("agy-studio:reset-quota-stats", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const store = loadQuotaStore();
+    store.families.gemini.pending5hByChat = {};
+    store.families.gemini.pendingWeeklyByChat = {};
+    store.families.claudeGpt.pending5hByChat = {};
+    store.families.claudeGpt.pendingWeeklyByChat = {};
+    saveQuotaStore(store);
+    const chats = loadStudioChats();
+    for (const k of Object.keys(chats)) {
+      chats[k] = sanitizeChatRecord(Object.assign({}, chats[k], { quota: defaultChatQuota() }));
+    }
+    saveStudioChats(chats);
+    return { ok: true, summary: buildQuotaSummary(p.chatKey) };
+  });
 }
 
 exports.getLocale = getLocale;
@@ -710,6 +1628,8 @@ exports.tr = tr;
 exports.ruPlural = ruPlural;
 exports.onLocaleChange = onLocaleChange;
 exports.registerI18nIpc = registerI18nIpc;
+exports.registerStudioMediaProtocol = registerStudioMediaProtocol;
+exports.handleStudioMediaProtocolRequest = handleStudioMediaProtocolRequest;
 exports.translateUiString = translateUiString;
 `;
 
@@ -2169,6 +3089,38 @@ function patchRemoteManagerJs(src, warnings) {
   );
 }
 
+function patchCustomSchemeJs(src, warnings) {
+  return tryReplaceExact(
+    src,
+    `        {
+            // Serves the isolated capture page and script in its own partition only;
+            // never bound on defaultSession and granted no fetch, CORS, or SW.
+            scheme: exports.BROWSER_STREAM_SCHEME,
+            privileges: { standard: true, secure: true },
+        },
+    ]);`,
+    `        {
+            // Serves the isolated capture page and script in its own partition only;
+            // never bound on defaultSession and granted no fetch, CORS, or SW.
+            scheme: exports.BROWSER_STREAM_SCHEME,
+            privileges: { standard: true, secure: true },
+        },
+        {
+            scheme: 'agy-media',
+            privileges: {
+                standard: true,
+                secure: true,
+                supportFetchAPI: true,
+                stream: true,
+                corsEnabled: true,
+            },
+        },
+    ]);`,
+    "customScheme.js register agy-media",
+    warnings
+  ).text;
+}
+
 function patchPreloadJs(src, preloadSnippet) {
   const marker = "\n// === ANTIGRAVITY_RU_I18N_START ===";
   const idx = src.indexOf(marker);
@@ -2202,6 +3154,7 @@ function patchElectronShell(appDir, preloadSnippet, options = {}) {
   patchedFiles.push("preload.js");
 
   const secondaryPatches = [
+    ["customScheme.js", patchCustomSchemeJs],
     ["tray.js", patchTrayJs],
     ["updater.js", patchUpdaterJs],
     ["menu.js", patchMenuJs],

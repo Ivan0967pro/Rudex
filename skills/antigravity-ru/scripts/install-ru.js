@@ -14,7 +14,9 @@ const RESOURCES_SRC_DIR = path.join(SKILL_DIR, "resources");
 const DICT_PATH = path.join(RESOURCES_SRC_DIR, "dictionary-ru.json");
 const DYNAMIC_RULES_PATH = path.join(RESOURCES_SRC_DIR, "dynamic-rules-ru.js");
 const DOM_TRANSLATOR_PATH = path.join(RESOURCES_SRC_DIR, "dom-translator.js");
+const THEME_ENGINE_PATH = path.join(RESOURCES_SRC_DIR, "theme-engine.js");
 const STUDIO_PANEL_PATH = path.join(RESOURCES_SRC_DIR, "studio-panel.js");
+const ZIP_BUILDER_PATH = path.join(SCRIPT_DIR, "zip-builder.js");
 
 function getUserDataDir() {
   if (process.platform === "win32") {
@@ -222,11 +224,12 @@ function stripCjsPrologueEpilogue(source) {
 function buildPreloadSnippet(dictObj, pluginMeta) {
   const dynSrc = stripCjsPrologueEpilogue(fs.readFileSync(DYNAMIC_RULES_PATH, "utf8"));
   const domSrc = stripCjsPrologueEpilogue(fs.readFileSync(DOM_TRANSLATOR_PATH, "utf8"));
+  const themeSrc = stripCjsPrologueEpilogue(fs.readFileSync(THEME_ENGINE_PATH, "utf8"));
   const studioSrc = stripCjsPrologueEpilogue(fs.readFileSync(STUDIO_PANEL_PATH, "utf8"));
   const dictJson = JSON.stringify(dictObj)
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
-  const metaJson = JSON.stringify(pluginMeta || { version: "2.2.0", dictEntries: Object.keys(dictObj).length, dynamicRulesCount: 0 });
+  const metaJson = JSON.stringify(pluginMeta || { version: "3.0.0", dictEntries: Object.keys(dictObj).length, dynamicRulesCount: 0 });
 
   return [
     "// === ANTIGRAVITY_RU_I18N_START ===",
@@ -240,6 +243,7 @@ function buildPreloadSnippet(dictObj, pluginMeta) {
     `    const DICT = ${dictJson};`,
     domSrc,
     `    const STUDIO_META = ${metaJson};`,
+    themeSrc,
     studioSrc,
     `    let initialLocale = "ru";`,
     `    try {`,
@@ -252,12 +256,17 @@ function buildPreloadSnippet(dictObj, pluginMeta) {
     `      applyDynamicRules,`,
     `      initialLocale,`,
     `    });`,
+    `    const themeEngine = createThemeEngine({`,
+    `      document: g.document,`,
+    `      window: g.window || g,`,
+    `    });`,
     `    const studioPanel = createStudioPanel({`,
     `      document: g.document,`,
     `      window: g.window || g,`,
     `      ipcRenderer: electron_1.ipcRenderer,`,
     `      initialLocale,`,
     `      pluginMeta: STUDIO_META,`,
+    `      themeEngine,`,
     `    });`,
     `    const start = () => {`,
     `      try { translator.init(); } catch {}`,
@@ -438,10 +447,11 @@ function runInstall(targetAppDir, sourceAsar, stampVersion, dictObj, dynRuleCoun
   fs.mkdirSync(i18nDataDir, { recursive: true });
   fs.copyFileSync(DICT_PATH, path.join(i18nDataDir, "dictionary-ru.json"));
   fs.copyFileSync(DYNAMIC_RULES_PATH, path.join(i18nDataDir, "dynamic-rules-ru.js"));
+  fs.copyFileSync(ZIP_BUILDER_PATH, path.join(i18nDataDir, "zip-builder.js"));
 
   const pkg = JSON.parse(fs.readFileSync(path.join(targetAppDir, "package.json"), "utf8"));
   const resolvedStamp = stampVersion || pkg.version || "custom";
-  let pluginVersion = "2.2.0";
+  let pluginVersion = "3.0.0";
   try {
     const pluginJsonPath = path.join(PLUGIN_ROOT, "plugin.json");
     if (fs.existsSync(pluginJsonPath)) {
@@ -458,7 +468,10 @@ function runInstall(targetAppDir, sourceAsar, stampVersion, dictObj, dynRuleCoun
     stampVersion: resolvedStamp,
   });
 
-  const filesToCheck = patchedFiles.concat([path.join("i18nData", "dynamic-rules-ru.js")]);
+  const filesToCheck = patchedFiles.concat([
+    path.join("i18nData", "dynamic-rules-ru.js"),
+    path.join("i18nData", "zip-builder.js"),
+  ]);
   for (const rel of filesToCheck) {
     checkJsSyntaxInProcess(path.join(targetAppDir, "dist", rel));
   }
@@ -467,6 +480,7 @@ function runInstall(targetAppDir, sourceAsar, stampVersion, dictObj, dynRuleCoun
     path.join(targetAppDir, "ru-patch-meta.json"),
     JSON.stringify(
       {
+        pluginVersion,
         appVersion: pkg.version,
         installStamp: resolvedStamp,
         installedAt: new Date().toISOString(),
@@ -498,7 +512,14 @@ function main() {
     return;
   }
 
-  if (!fs.existsSync(DICT_PATH) || !fs.existsSync(DYNAMIC_RULES_PATH) || !fs.existsSync(DOM_TRANSLATOR_PATH) || !fs.existsSync(STUDIO_PANEL_PATH)) {
+  if (
+    !fs.existsSync(DICT_PATH) ||
+    !fs.existsSync(DYNAMIC_RULES_PATH) ||
+    !fs.existsSync(DOM_TRANSLATOR_PATH) ||
+    !fs.existsSync(THEME_ENGINE_PATH) ||
+    !fs.existsSync(STUDIO_PANEL_PATH) ||
+    !fs.existsSync(ZIP_BUILDER_PATH)
+  ) {
     throw new Error(`Missing localization resources in ${RESOURCES_SRC_DIR}`);
   }
 
