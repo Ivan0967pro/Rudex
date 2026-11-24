@@ -403,7 +403,7 @@ test("Manifest & hooks.json follow Rudex v4.2.1 architecture without PostInvocat
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.4.6");
+  assert.equal(pkg.version, "4.4.7");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -3073,7 +3073,7 @@ test("Claude Code themes, fonts, Google Fonts loader, one-click suite, full UI c
 });
 
 // =============================================================================
-// 18. Windows 10 EPERM-Safe Sync & Bulletproof Post-Update Survival (v4.4.6)
+// 18. Windows 10 EPERM-Safe Sync & Bulletproof Post-Update Survival (v4.4.7)
 // =============================================================================
 test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t in detached cmd scripts, and recovers shadowed app.asar", async () => {
   const installJsText = fs.readFileSync(path.join(SCRIPTS_DIR, "install.js"), "utf8");
@@ -3105,7 +3105,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v4.4.6"), "install.ps1 banner must show v4.4.6");
+  assert.ok(ps1Text.includes("Rudex v4.4.7"), "install.ps1 banner must show v4.4.7");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -3151,8 +3151,8 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
 
     fs.writeFileSync(path.join(mockAppRoot, "version"), "44.9.1\n", "utf8");
     fs.writeFileSync(path.join(mockResDir, "app.asar"), "SHADOWING_ASAR_BYTES", "utf8");
-    fs.writeFileSync(path.join(mockAppDir, "rudex-patch-meta.json"), JSON.stringify({ stampVersion: "44.9.1", version: "4.4.6" }), "utf8");
-    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.4.6"}', "utf8");
+    fs.writeFileSync(path.join(mockAppDir, "rudex-patch-meta.json"), JSON.stringify({ stampVersion: "44.9.1", version: "4.4.7" }), "utf8");
+    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.4.7"}', "utf8");
     fs.writeFileSync(
       path.join(mockPluginDir, "skills", "rudex", "scripts", "install.js"),
       `"use strict";\nconst fs = require("fs");\nfs.writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify(process.argv.slice(2)), "utf8");\n`,
@@ -3180,7 +3180,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
 });
 
 // =============================================================================
-// 19. Wallpaper Persistence, Header/Fade/Composer UI Integrity & Broken Media Fallback (v4.4.6)
+// 19. Wallpaper Persistence, Header/Fade/Composer UI Integrity & Broken Media Fallback (v4.4.7)
 // =============================================================================
 test("Wallpaper persistence: apply-appearance never deletes the newly applied mediaFile and backend guards active wallpaper", () => {
   const studioPanelText = fs.readFileSync(path.join(RES_DIR, "studio-panel.js"), "utf8");
@@ -3206,7 +3206,7 @@ test("Wallpaper persistence: apply-appearance never deletes the newly applied me
   );
 });
 
-test("Theme engine v4.4.6: wallpaper + Claude Code preserves terracotta accents, clears black fade bars, elevates header, styles composer, and recovers from 404 media", () => {
+test("Theme engine v4.4.7: wallpaper + Claude Code preserves terracotta accents, clears black fade bars, elevates header, styles composer, and recovers from 404 media", () => {
   const te = require(path.join(RES_DIR, "theme-engine.js"));
   const cfg = te.normalizeAppearance({
     presetId: "claude-terminal",
@@ -3423,9 +3423,9 @@ test("Theme engine v4.4.6: wallpaper + Claude Code preserves terracotta accents,
 });
 
 // =============================================================================
-// 20. Single-Frame User Bubble, Single-Ring Composer, and Transparent Sidebar Borders (v4.4.6)
+// 20. Single-Frame User Bubble, Single-Ring Composer, and Transparent Sidebar Borders (v4.4.7)
 // =============================================================================
-test("Theme engine v4.4.6: no double border on nested user-message-content, no double composer focus ring, and border-transparent stays transparent", () => {
+test("Theme engine v4.4.7: no double border on nested user-message-content, no double composer focus ring, and border-transparent stays transparent", () => {
   const te = require(path.join(RES_DIR, "theme-engine.js"));
 
   const wpCss = te.buildThemeCss(
@@ -3463,8 +3463,26 @@ test("Theme engine v4.4.6: no double border on nested user-message-content, no d
     "Border recoloring must never use broad [class*='border'] that turns Tailwind border-transparent into visible sidebar borders"
   );
   assert.ok(
-    solidCss.includes(':not([class*="border-transparent"]):not([class*="border-none"]):not([class*="border-0"])'),
+    solidCss.includes(':not([class~="border-transparent"]):not([class~="border-none"]):not([class~="border-0"])'),
     "Border recoloring must explicitly spare border-transparent, border-none, and border-0"
+  );
+  for (const forbiddenSubstr of [
+    '[class*="bg-muted"]',
+    '[class*="bg-secondary"]',
+    '[class*="bg-card"]',
+    '[class*="bg-zinc-900"]',
+    '[class*="bg-neutral-900"]',
+    '[class*="bg-zinc-800"]',
+  ]) {
+    assert.equal(
+      solidCss.includes(forbiddenSubstr),
+      false,
+      `Theme CSS must never use substring selector ${forbiddenSubstr} (matches Tailwind modifiers like hover:bg-muted and prose-code:bg-muted at rest)`
+    );
+  }
+  assert.ok(
+    solidCss.includes('[data-testid="agent-response"],\n[data-testid="agent-response"] :where([data-markdown-root], div:has(> [data-markdown-root])),\n[data-markdown-root] {\n  background-color: transparent !important;'),
+    "Agent response markdown root must stay transparent on canvas when wallpaper is off and style is not solid"
   );
   assert.equal(
     solidCss.includes('[data-slot="card"], [data-slot="collapsible"]'),

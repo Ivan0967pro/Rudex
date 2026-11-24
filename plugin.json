@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "rudex",
   "displayName": "Rudex",
-  "version": "4.4.6",
+  "version": "4.4.7",
   "description": "Русификатор Google Antigravity 2.0: русский интерфейс и мысли агента, цвета и шрифты Claude Code, обновлённая панель Rudex Studio, обои, монитор скорости и квот, характер чата и экспорт в ZIP.",
   "logo": "assets/logo.svg",
   "author": {

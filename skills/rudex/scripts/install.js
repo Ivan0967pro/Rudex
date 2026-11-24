@@ -406,7 +406,7 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "4.4.6",
+    version: pkg.version || "4.4.7",
     dictEntries,
     dynamicRulesCount,
     commitSha: commitMeta.commitSha,
@@ -686,7 +686,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "4.4.6";
+    let pkgVer = "4.4.7";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {

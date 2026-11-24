@@ -1295,30 +1295,25 @@ function buildThemeCss(rawAppearance, options) {
 `);
     }
     // Unify blue/link/accent utility classes & unread dots across Antigravity with active theme accent
+    // NOTE: Always use exact class-token matching [class~="..."] (never substring [class*="..."])
+    // so Tailwind modifiers like hover:bg-muted, prose-code:bg-muted, [&_pre]:bg-zinc-900 never fire at rest!
     chunks.push(`
 [data-testid="agent-response"] a,
 [data-markdown-root] a,
 main a:not(#rudex-studio-host *):not([role="button"]),
-:where(a, span, button, svg)[class*="text-blue-"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(a, span, button, svg)[class*="text-sky-"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(a, span, button, svg)[class*="text-indigo-"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(a, span, button, svg)[class*="text-cyan-"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where(a, span, button, svg):where([class~="text-blue-400"], [class~="text-blue-500"], [class~="text-blue-600"], [class~="dark:text-blue-400"], [class~="text-sky-400"], [class~="text-sky-500"], [class~="text-indigo-400"], [class~="text-indigo-500"], [class~="text-cyan-400"], [class~="text-cyan-500"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   color: ${vars.accentColor} !important;
   text-decoration-color: color-mix(in srgb, ${vars.accentColor} 45%, transparent);
 }
 [data-rudex-theme-accent-dot="1"],
-:where(div, span, button)[class*="bg-blue-"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(div, span, button)[class*="bg-sky-"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(div, span, button)[class*="bg-indigo-"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(div, span, button)[class*="bg-cyan-5"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(button, [role="button"])[class*="bg-primary"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where(div, span, button):where([class~="bg-blue-500"], [class~="bg-blue-600"], [class~="dark:bg-blue-500"], [class~="dark:bg-blue-600"], [class~="bg-sky-500"], [class~="bg-indigo-500"], [class~="bg-cyan-500"]):not(#rudex-studio-host):not(#rudex-studio-host *),
+:where(button, [role="button"]):where([class~="bg-primary"], [class~="dark:bg-primary"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   background-color: ${vars.accentColor} !important;
 }
-:where(button, [role="button"]):where([class*="bg-primary"], [class*="bg-blue-"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where(button, [role="button"]):where([class~="bg-primary"], [class~="dark:bg-primary"], [class~="bg-blue-500"], [class~="bg-blue-600"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   color: ${primaryFg} !important;
 }
-:where(div, button, input, textarea)[class*="border-blue-"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(div, button, input, textarea)[class*="border-sky-"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where(div, button, input, textarea):where([class~="border-blue-500"], [class~="border-blue-600"], [class~="border-sky-500"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   border-color: ${vars.accentColor} !important;
 }
 `);
@@ -1335,12 +1330,20 @@ html, body {
       } else {
         const lightTextFixCss = isLight
           ? `
-:where(div, span, p, h1, h2, h3, h4, li, button, a, label)[class*="text-white"]:not([class*="bg-primary"]):not([class*="bg-blue-"]):not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(div, span, p, h1, h2, h3, h4, li, button, a, label):where([class*="text-zinc-1"], [class*="text-zinc-2"], [class*="text-zinc-3"], [class*="text-neutral-1"], [class*="text-neutral-2"], [class*="text-neutral-3"], [class*="text-gray-1"], [class*="text-gray-2"], [class*="text-gray-3"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where(div, span, p, h1, h2, h3, h4, li, button, a, label):where([class~="text-white"], [class~="dark:text-white"], [class~="text-zinc-100"], [class~="text-zinc-200"], [class~="text-zinc-300"], [class~="text-neutral-100"], [class~="text-neutral-200"], [class~="text-neutral-300"], [class~="text-gray-100"], [class~="text-gray-200"], [class~="text-gray-300"]):not([class~="bg-primary"]):not([class~="bg-blue-500"]):not([class~="bg-blue-600"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   color: ${vars.fgColor} !important;
 }
-:where(div, span, p, li, button, label):where([class*="text-zinc-4"], [class*="text-zinc-5"], [class*="text-neutral-4"], [class*="text-neutral-5"], [class*="text-gray-4"], [class*="text-gray-5"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where(div, span, p, li, button, label):where([class~="text-zinc-400"], [class~="text-zinc-500"], [class~="text-neutral-400"], [class~="text-neutral-500"], [class~="text-gray-400"], [class~="text-gray-500"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   color: ${vars.mutedColor} !important;
+}`
+          : "";
+        const cleanAgentCanvasCss = (!isGlassTheme && cfg.messageStyle !== "solid")
+          ? `
+[data-testid="agent-response"],
+[data-testid="agent-response"] :where([data-markdown-root], div:has(> [data-markdown-root])),
+[data-markdown-root] {
+  background-color: transparent !important;
+  background-image: none !important;
 }`
           : "";
         chunks.push(`
@@ -1352,7 +1355,7 @@ html, body, #root, #app {
 main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
 [data-testid="chat-container"]:not([role="dialog"]),
 [data-testid="conversation-view"]:not([role="dialog"]),
-:where(div, section)[class*="bg-background"]:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="switch"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-slot="badge"], [data-slot="button"], [data-rudex-ignore="1"])) {
+:where(div, section):where([class~="bg-background"], [class~="dark:bg-background"]):where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="switch"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-slot="badge"], [data-slot="button"], [data-rudex-ignore="1"])) {
   background-color: ${vars.canvasBg} !important;
   color: ${vars.fgColor};
 }
@@ -1369,7 +1372,7 @@ main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="to
 aside,
 nav[aria-label],
 [data-testid="sidebar"],
-:where(div, aside, nav)[class*="bg-sidebar"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where(div, aside, nav):where([class~="bg-sidebar"], [class~="dark:bg-sidebar"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   background-color: ${vars.sidebarBg} !important;
   border-color: ${effectiveBorder} !important;
   color: ${vars.fgColor};
@@ -1433,42 +1436,27 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:
 [role="tooltip"],
 [data-radix-popper-content-wrapper] > *,
 .agy-overlay,
-:where([data-slot="card"], [class*="bg-card"], [class*="bg-popover"]):not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where([data-slot="card"], [class~="bg-card"], [class~="dark:bg-card"], [class~="bg-popover"], [class~="dark:bg-popover"]):not([data-testid="agent-response"]):not([data-markdown-root]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   background-color: ${vars.cardBg} !important;
   border-color: ${effectiveBorder} !important;
   color: ${vars.fgColor};
 }
-[data-testid="agent-response"] [data-slot="collapsible"]:not([class*="border"]):not([class*="bg-"]) {
-  background-color: transparent !important;
-}
-:where(div, section, aside, header, nav)[class*="bg-zinc-950"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre),
-:where(div, section, aside, header, nav)[class*="bg-neutral-950"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre),
-:where(div, section, aside, header, nav)[class*="bg-gray-950"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre),
-:where(div, section, aside, header, nav)[class*="bg-slate-950"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre),
-:where(div, section, aside, header, nav)[class*="bg-stone-950"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre) {
+:where(div, section, aside, header, nav):where([class~="bg-zinc-950"], [class~="dark:bg-zinc-950"], [class~="bg-neutral-950"], [class~="dark:bg-neutral-950"], [class~="bg-gray-950"], [class~="dark:bg-gray-950"], [class~="bg-slate-950"], [class~="dark:bg-slate-950"], [class~="bg-stone-950"], [class~="dark:bg-stone-950"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre) {
   background-color: ${vars.sidebarBg} !important;
 }
-:where(div, section, form, article)[class*="bg-zinc-900"]:not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
-:where(div, section, form, article)[class*="bg-neutral-900"]:not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
-:where(div, section, form, article)[class*="bg-gray-900"]:not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
-:where(div, section, form, article)[class*="bg-slate-900"]:not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
-:where(div, section, form, article)[class*="bg-stone-900"]:not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code) {
+:where(div, section, form, article):where([class~="bg-zinc-900"], [class~="dark:bg-zinc-900"], [class~="bg-neutral-900"], [class~="dark:bg-neutral-900"], [class~="bg-gray-900"], [class~="dark:bg-gray-900"], [class~="bg-slate-900"], [class~="dark:bg-slate-900"], [class~="bg-stone-900"], [class~="dark:bg-stone-900"]):not([data-testid="agent-response"]):not([data-markdown-root]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code) {
   background-color: ${vars.cardBg} !important;
 }
-:where(div, section, button, span)[class*="bg-secondary"]:not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]),
-:where(div, section, button, span)[class*="bg-muted"]:not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]),
-:where(div, section, button)[class*="bg-zinc-800"]:not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not(pre):not(code),
-:where(div, section, button)[class*="bg-neutral-800"]:not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not(pre):not(code),
-:where(div, section, button)[class*="bg-gray-800"]:not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not(pre):not(code) {
+:where(div, section, button, span):where([class~="bg-secondary"], [class~="dark:bg-secondary"], [class~="bg-muted"], [class~="dark:bg-muted"], [class~="bg-zinc-800"], [class~="dark:bg-zinc-800"], [class~="bg-neutral-800"], [class~="dark:bg-neutral-800"], [class~="bg-gray-800"], [class~="dark:bg-gray-800"]):not([data-testid="agent-response"]):not([data-markdown-root]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not(pre):not(code) {
   background-color: ${secondaryHex} !important;
 }
-:where(div, section, aside, header, main, form, button, input, textarea):where([class*="border-zinc-"], [class*="border-neutral-"], [class*="border-gray-"], [class*="border-slate-"], [class*="border-stone-"], [class*="border-white/"], [class*="border-black/"], [class*="border-border"], [class*="border-input"], [class*="border-sidebar-border"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([class*="border-transparent"]):not([class*="border-none"]):not([class*="border-0"]):not([class*="border-blue-"]):not([class*="border-primary"]) {
+:where(div, section, aside, header, main, form, button, input, textarea):where([class~="border-zinc-800"], [class~="border-zinc-700"], [class~="dark:border-zinc-800"], [class~="border-neutral-800"], [class~="border-neutral-700"], [class~="dark:border-neutral-800"], [class~="border-gray-800"], [class~="border-slate-800"], [class~="border-stone-800"], [class~="border-white/10"], [class~="border-white/15"], [class~="border-white/20"], [class~="border-black/10"], [class~="border-border"], [class~="border-input"], [class~="border-sidebar-border"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([class~="border-transparent"]):not([class~="border-none"]):not([class~="border-0"]):not([class~="border-blue-500"]):not([class~="border-primary"]) {
   border-color: ${effectiveBorder};
 }
 :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea):not(#rudex-studio-host):not(#rudex-studio-host *) {
   color: ${vars.fgColor} !important;
   caret-color: ${vars.accentColor} !important;
-}${lightTextFixCss}
+}${cleanAgentCanvasCss}${lightTextFixCss}
 `);
       }
       if (isGlassTheme && cfg.messageStyle === "glass") {
@@ -1742,7 +1730,7 @@ body {
 main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
 [data-testid="chat-container"]:not([role="dialog"]),
 [data-testid="conversation-view"]:not([role="dialog"]),
-:where(div, section)[class*="bg-background"]:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="switch"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-slot="badge"], [data-slot="button"], [data-rudex-ignore="1"])),
+:where(div, section):where([class~="bg-background"], [class~="dark:bg-background"]):where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="switch"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-slot="badge"], [data-slot="button"], [data-rudex-ignore="1"])),
 :where(div, section).bg-black:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-rudex-ignore="1"])) {
   background-color: transparent !important;
 }
