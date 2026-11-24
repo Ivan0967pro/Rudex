@@ -886,7 +886,7 @@ function getStudioQuotaPath() {
 
 function classifyModelFamily(modelName) {
   const s = String(modelName || "");
-  return /claude|sonnet|opus|haiku|gpt|openai|\bo[134]\b/i.test(s) ? "claudeGpt" : "gemini";
+  return /claude|sonnet|opus|haiku|anthropic|gpt|openai|chatgpt|\bo[134](?:[-_\s]|$)/i.test(s) ? "claudeGpt" : "gemini";
 }
 
 function getModelQuotaWeight(modelName) {
@@ -1263,47 +1263,68 @@ function buildQuotaSummary(activeChatKey, forceFresh) {
     const hasCla = rec.quota.claudeGpt.turns > 0 || (modelName && classifyModelFamily(modelName) === "claudeGpt") || diskLastFam === "claudeGpt";
     const primaryFamily = hasCla && (rec.quota.claudeGpt.lastTurnAt >= rec.quota.gemini.lastTurnAt || diskLastFam === "claudeGpt") ? "claudeGpt" : "gemini";
     const famWeight = Math.max(0.4, getModelQuotaWeight(modelName));
-    const famBounds = bounds[primaryFamily];
 
-    let unitsWeekly = 0;
-    let units5h = 0;
-    let turns = (rec.quota.gemini.turns || 0) + (rec.quota.claudeGpt.turns || 0);
+    const unitsWeeklyByFam = { gemini: 0, claudeGpt: 0 };
+    const units5hByFam = { gemini: 0, claudeGpt: 0 };
+    const turnsByFam = { gemini: 0, claudeGpt: 0 };
     let lastStepTs = 0;
+
     if (disk) {
-      let rawW = 0;
-      let raw5 = 0;
-      let stepsW = 0;
-      let steps5 = 0;
+      const rawWByFam = { gemini: 0, claudeGpt: 0 };
+      const raw5ByFam = { gemini: 0, claudeGpt: 0 };
+      const stepsWByFam = { gemini: 0, claudeGpt: 0 };
+      const steps5ByFam = { gemini: 0, claudeGpt: 0 };
       for (let i = 0; i < disk.steps.length; i += 1) {
         const stp = disk.steps[i];
         if (stp.ts < resetWm) continue;
+        const fam = stp.family === "claudeGpt" ? "claudeGpt" : "gemini";
+        const famBounds = bounds[fam];
         if (stp.ts >= famBounds.weeklyStartMs) {
-          rawW += stp.units;
-          stepsW += 1;
+          rawWByFam[fam] += stp.units;
+          stepsWByFam[fam] += 1;
           if (stp.ts > lastStepTs) lastStepTs = stp.ts;
         }
         if (stp.ts >= famBounds.fiveHourStartMs) {
-          raw5 += stp.units;
-          steps5 += 1;
+          raw5ByFam[fam] += stp.units;
+          steps5ByFam[fam] += 1;
           if (stp.ts > lastStepTs) lastStepTs = stp.ts;
         }
       }
-      unitsWeekly = Math.round(rawW * famWeight);
-      units5h = Math.round(raw5 * famWeight);
-      turns = Math.max(turns, stepsW, steps5);
+      for (const fam of ["gemini", "claudeGpt"]) {
+        unitsWeeklyByFam[fam] = Math.round(rawWByFam[fam] * famWeight);
+        units5hByFam[fam] = Math.round(raw5ByFam[fam] * famWeight);
+        turnsByFam[fam] = Math.max(rec.quota[fam].turns || 0, stepsWByFam[fam], steps5ByFam[fam]);
+      }
     } else {
-      const fqPrimary = rec.quota[primaryFamily];
-      unitsWeekly = fqPrimary.weightedTokens || 0;
-      const recent = Array.isArray(fqPrimary.recentTurns) ? fqPrimary.recentTurns : [];
-      for (let i = 0; i < recent.length; i += 1) {
-        if (recent[i].ts >= famBounds.fiveHourStartMs && recent[i].ts >= resetWm) {
-          units5h += recent[i].wt || 0;
+      for (const fam of ["gemini", "claudeGpt"]) {
+        const fqFam = rec.quota[fam];
+        const famBounds = bounds[fam];
+        unitsWeeklyByFam[fam] = fqFam.weightedTokens || 0;
+        const recent = Array.isArray(fqFam.recentTurns) ? fqFam.recentTurns : [];
+        for (let i = 0; i < recent.length; i += 1) {
+          if (recent[i].ts >= famBounds.fiveHourStartMs && recent[i].ts >= resetWm) {
+            units5hByFam[fam] += recent[i].wt || 0;
+          }
         }
+        turnsByFam[fam] = fqFam.turns || 0;
       }
     }
-    familyTotals[primaryFamily].unitsWeekly += unitsWeekly;
-    familyTotals[primaryFamily].units5h += units5h;
-    chatMeta.set(key, { rec, disk, lastStepTs, modelName, primaryFamily, unitsWeekly, units5h, turns });
+
+    for (const fam of ["gemini", "claudeGpt"]) {
+      familyTotals[fam].unitsWeekly += unitsWeeklyByFam[fam];
+      familyTotals[fam].units5h += units5hByFam[fam];
+    }
+    const turns = turnsByFam.gemini + turnsByFam.claudeGpt;
+    const resolvedPrimaryFamily =
+      unitsWeeklyByFam.claudeGpt > unitsWeeklyByFam.gemini ||
+      units5hByFam.claudeGpt > units5hByFam.gemini ||
+      (unitsWeeklyByFam.claudeGpt === unitsWeeklyByFam.gemini &&
+        units5hByFam.claudeGpt === units5hByFam.gemini &&
+        hasCla &&
+        (rec.quota.claudeGpt.lastTurnAt >= rec.quota.gemini.lastTurnAt || diskLastFam === "claudeGpt"))
+        ? "claudeGpt"
+        : "gemini";
+    chatMeta.set(key, { rec, disk, lastStepTs, modelName, primaryFamily: resolvedPrimaryFamily, unitsWeeklyByFam, units5hByFam, turnsByFam, turns });
   }
 
   const rates = {};
@@ -1333,44 +1354,65 @@ function buildQuotaSummary(activeChatKey, forceFresh) {
   const rows = [];
   let activeChatSummary = null;
   for (const [key, info] of chatMeta.entries()) {
-    const { rec, disk, lastStepTs, modelName, primaryFamily, unitsWeekly, units5h, turns } = info;
+    const { rec, disk, lastStepTs, modelName, primaryFamily, unitsWeeklyByFam, units5hByFam, turnsByFam, turns } = info;
+    const computeFamStats = (famId) => {
+      const rateInfo = rates[famId];
+      const fq = rec.quota[famId];
+      const uW = unitsWeeklyByFam[famId] || 0;
+      const u5 = units5hByFam[famId] || 0;
+      let wPct = 0;
+      if (rateInfo.usedWeeklyReal !== null && rateInfo.totW > 0 && uW > 0) {
+        wPct = toQuotaPct(rateInfo.usedWeeklyReal * (uW / rateInfo.totW));
+      } else if (uW > 0) {
+        wPct = toQuotaPct(uW / Math.max(20000, rateInfo.unitsPer1PctWeekly));
+      }
+      if (fq.observedWeeklyPct > wPct) wPct = fq.observedWeeklyPct;
+
+      let f5wPct = 0;
+      if (rateInfo.used5hReal !== null && rateInfo.tot5 > 0 && u5 > 0) {
+        f5wPct = toQuotaPct(rateInfo.used5hReal * (u5 / rateInfo.tot5));
+      } else if (u5 > 0) {
+        f5wPct = toQuotaPct(u5 / Math.max(8000, rateInfo.unitsPer1Pct5h));
+      }
+      const f5Pct = Math.max(f5wPct, fq.observedFiveHourPct || 0);
+      return {
+        fiveHourPct: toQuotaPct(f5Pct),
+        fiveHourWindowPct: toQuotaPct(Math.min(100, f5wPct)),
+        weeklyPct: toQuotaPct(Math.min(100, wPct)),
+        turns: turnsByFam[famId] || 0,
+      };
+    };
+
+    const gemStats = computeFamStats("gemini");
+    const claStats = computeFamStats("claudeGpt");
+    const primaryStats = primaryFamily === "claudeGpt" ? claStats : gemStats;
     const rateInfo = rates[primaryFamily];
     const famState = store.families[primaryFamily];
     const fq = rec.quota[primaryFamily];
 
-    let weeklyPct = 0;
-    if (rateInfo.usedWeeklyReal !== null && rateInfo.totW > 0 && unitsWeekly > 0) {
-      weeklyPct = toQuotaPct(rateInfo.usedWeeklyReal * (unitsWeekly / rateInfo.totW));
-    } else if (unitsWeekly > 0) {
-      weeklyPct = toQuotaPct(unitsWeekly / Math.max(20000, rateInfo.unitsPer1PctWeekly));
-    }
-    if (fq.observedWeeklyPct > weeklyPct) weeklyPct = fq.observedWeeklyPct;
+    const weeklyPct = primaryStats.weeklyPct;
+    const fiveHourWindowPct = primaryStats.fiveHourWindowPct;
+    const fiveHourPct = primaryStats.fiveHourPct;
+    const unitsWeeklyTotal = (unitsWeeklyByFam.gemini || 0) + (unitsWeeklyByFam.claudeGpt || 0);
+    const units5hTotal = (units5hByFam.gemini || 0) + (units5hByFam.claudeGpt || 0);
 
-    let fiveHourWindowPct = 0;
-    if (rateInfo.used5hReal !== null && rateInfo.tot5 > 0 && units5h > 0) {
-      fiveHourWindowPct = toQuotaPct(rateInfo.used5hReal * (units5h / rateInfo.tot5));
-    } else if (units5h > 0) {
-      fiveHourWindowPct = toQuotaPct(units5h / Math.max(8000, rateInfo.unitsPer1Pct5h));
-    }
-    const fiveHourPct = Math.max(fiveHourWindowPct, fq.observedFiveHourPct || 0);
-
-    const hasActivity = turns > 0 || unitsWeekly > 0 || units5h > 0 || fiveHourPct > 0 || weeklyPct > 0;
+    const hasActivity = turns > 0 || unitsWeeklyTotal > 0 || units5hTotal > 0 || gemStats.fiveHourPct > 0 || gemStats.weeklyPct > 0 || claStats.fiveHourPct > 0 || claStats.weeklyPct > 0;
     const displayTitle = rec.title || (disk && disk.titleGuess) || modelName || key.slice(0, 12);
-    const updatedAt = Math.max(rec.updatedAt || 0, lastStepTs || (disk && disk.lastTs) || 0, fq.lastTurnAt || 0);
+    const updatedAt = Math.max(rec.updatedAt || 0, lastStepTs || (disk && disk.lastTs) || 0, fq.lastTurnAt || 0, rec.quota.gemini.lastTurnAt || 0, rec.quota.claudeGpt.lastTurnAt || 0);
     const item = {
       chatKey: key,
       title: displayTitle,
       modelName,
       primaryFamily,
       turns,
-      weightedTokens: Math.max(unitsWeekly, fq.weightedTokens || 0),
-      fiveHourPct: toQuotaPct(fiveHourPct),
-      fiveHourWindowPct: toQuotaPct(Math.min(100, fiveHourWindowPct)),
-      weeklyPct: toQuotaPct(Math.min(100, weeklyPct)),
+      weightedTokens: Math.max(unitsWeeklyTotal, (rec.quota.gemini.weightedTokens || 0) + (rec.quota.claudeGpt.weightedTokens || 0)),
+      fiveHourPct,
+      fiveHourWindowPct,
+      weeklyPct,
       calibrated: rateInfo.calibrated || Boolean(famState.calibrated),
       updatedAt,
-      gemini: primaryFamily === "gemini" ? { fiveHourPct, weeklyPct, turns } : { fiveHourPct: 0, weeklyPct: 0, turns: 0 },
-      claudeGpt: primaryFamily === "claudeGpt" ? { fiveHourPct, weeklyPct, turns } : { fiveHourPct: 0, weeklyPct: 0, turns: 0 },
+      gemini: { fiveHourPct: gemStats.fiveHourPct, weeklyPct: gemStats.weeklyPct, turns: gemStats.turns },
+      claudeGpt: { fiveHourPct: claStats.fiveHourPct, weeklyPct: claStats.weeklyPct, turns: claStats.turns },
     };
     if (key === normActive) {
       activeChatSummary = item;
@@ -2669,9 +2711,13 @@ function registerI18nIpc() {
 
       if (typeof snapFam.fiveHourReset === "string" && snapFam.fiveHourReset.trim()) {
         famState.fiveHourReset = snapFam.fiveHourReset.trim().slice(0, 80);
+      } else if (next5h === 100) {
+        famState.fiveHourReset = "";
       }
       if (typeof snapFam.weeklyReset === "string" && snapFam.weeklyReset.trim()) {
         famState.weeklyReset = snapFam.weeklyReset.trim().slice(0, 80);
+      } else if (nextWeek === 100) {
+        famState.weeklyReset = "";
       }
       famState.updatedAt = now;
     }

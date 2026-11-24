@@ -463,7 +463,7 @@ function createDomTranslator(options) {
       textOriginals.set(node, val);
       return val;
     }
-    if (last !== undefined && val !== last && val !== textOriginals.get(node)) {
+    if ((last === undefined || val !== last) && val !== textOriginals.get(node)) {
       textOriginals.set(node, val);
       return val;
     }
@@ -492,6 +492,9 @@ function createDomTranslator(options) {
     }
 
     const originals = textNodes.map((n) => getOriginalText(n));
+    if (textNodes.length === 2 && /^\d+(?:[.,]\d+)?$/.test(originals[0].trim()) && /^%\s*left$/i.test(originals[1].trim())) {
+      return false;
+    }
     const joined = originals.join("");
     const core = joined.trim();
     const gMatch = core ? matchHeroGreeting(core, el) : { matched: false, name: "" };
@@ -583,7 +586,7 @@ function createDomTranslator(options) {
       }
 
       const prevLast = lastMap.get(attr);
-      if (!origMap.has(attr) || (prevLast !== undefined && cur !== prevLast && cur !== origMap.get(attr))) {
+      if (!origMap.has(attr) || ((prevLast === undefined || cur !== prevLast) && cur !== origMap.get(attr))) {
         origMap.set(attr, cur);
       }
       const orig = origMap.get(attr);

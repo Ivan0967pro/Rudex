@@ -900,7 +900,8 @@ form:has(textarea[placeholder]), [data-testid="composer"], .composer-container {
 [role="menu"],
 [role="listbox"],
 [role="tooltip"],
-[data-radix-popper-content-wrapper] > * {
+[data-radix-popper-content-wrapper] > *,
+.agy-overlay {
   background-color: ${popoverBg} !important;
 }
 `);
@@ -1044,7 +1045,7 @@ function createThemeEngine(options = {}) {
   const SHELL_SKIP_ROLES = new Set(["dialog", "alertdialog", "menu", "listbox", "tooltip"]);
   const SHELL_SKIP_TESTIDS = new Set(["user-message-content", "agent-response"]);
   const MUTATION_IGNORE_SELECTOR = '[data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"], #rudex-studio-host, #rudex-bg';
-  const PROTECTED_OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper], [data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root], #rudex-studio-host, #rudex-bg';
+  const PROTECTED_OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper], .agy-overlay, [data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root], #rudex-studio-host, #rudex-bg';
 
   let currentConfig = normalizeAppearance(DEFAULT_APPEARANCE);
   let styleNode = null;
@@ -1159,6 +1160,7 @@ function createThemeEngine(options = {}) {
     if (id === HOST_ID || id === BG_ID || id === STYLE_ID) return true;
     const tag = String(el.tagName || "").toUpperCase();
     if (SHELL_SKIP_TAGS.has(tag)) return true;
+    if (teHasClass(el, "agy-overlay")) return true;
     if (typeof el.getAttribute === "function") {
       if (el.getAttribute(IGNORE_ATTR) === "1") return true;
       const role = el.getAttribute("role");

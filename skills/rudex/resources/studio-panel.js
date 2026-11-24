@@ -195,7 +195,7 @@ const TEXT = {
     quotaClaudeLabel: "Модели Claude и GPT",
     quotaCalibratedBadge: "Откалибровано",
     quotaEstimatedBadge: "Оценка",
-    quotaCalibrateTip: "Откройте Настройки → Модели в Antigravity раз в сессию для точной калибровки %.",
+    quotaCalibrateTip: "Откройте «Посмотреть использование» или Настройки → Модели и использование в Antigravity для точной калибровки %.",
     quotaRemShort: "Осталось:",
     quotaOpenLimitsLink: "Детали лимитов →",
     quotaTableTitle: "Расход по чатам (5ч / Неделя)",
@@ -476,7 +476,7 @@ const TEXT = {
     quotaClaudeLabel: "Claude & GPT Models",
     quotaCalibratedBadge: "Calibrated",
     quotaEstimatedBadge: "Estimated",
-    quotaCalibrateTip: "Open Settings → Models in Antigravity once per session to calibrate exact %.",
+    quotaCalibrateTip: "Open View Usage or Settings → Models & Usage in Antigravity to calibrate exact %.",
     quotaRemShort: "Remaining:",
     quotaOpenLimitsLink: "Quota details →",
     quotaTableTitle: "Per-Chat Quota Breakdown (5h / Weekly)",
@@ -878,15 +878,38 @@ function formatBytesCompact(bytes) {
   return b + " B";
 }
 
+const QUOTA_RESET_RE = /(?:refresh(?:ed|ing|es)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·,;]{2,48})/i;
+
+function cleanQuotaResetText(raw) {
+  return String(raw || "")
+    .replace(/[.,;\s]+$/, "")
+    .replace(/^\s+/, "")
+    .trim()
+    .slice(0, 80);
+}
+
+function extractBoundedReset(textSlice, crossBoundaryRe) {
+  if (!textSlice) return "";
+  let chunk = String(textSlice);
+  if (crossBoundaryRe) {
+    const boundM = crossBoundaryRe.exec(chunk);
+    if (boundM) chunk = chunk.slice(0, boundM.index);
+  }
+  const rM = QUOTA_RESET_RE.exec(chunk);
+  return rM ? cleanQuotaResetText(rM[1]) : "";
+}
+
 function extractPctForLabel(slice, labelRe, crossBoundaryRe) {
   let m;
   const globalLabel = new RegExp(labelRe.source, "gi");
   while ((m = globalLabel.exec(slice)) !== null) {
     const startIdx = m.index;
-    const afterLabel = slice.slice(m.index + m[0].length, m.index + m[0].length + 240);
+    const afterLabel = slice.slice(m.index + m[0].length, m.index + m[0].length + 260);
     const beforeSlice = slice.slice(Math.max(0, startIdx - 140), startIdx);
     const pctM = /(\d{1,3}(?:[.,]\d+)?)\s*%/.exec(afterLabel);
-    const sameLineAfter = pctM && !/[\r\n]/.test(afterLabel.slice(0, pctM.index)) && !crossBoundaryRe.test(afterLabel.slice(0, pctM.index));
+    const betweenAfter = pctM ? afterLabel.slice(0, pctM.index) : "";
+    const afterHasPct = Boolean(pctM && !crossBoundaryRe.test(betweenAfter));
+    const sameLineAfter = Boolean(afterHasPct && !/[\r\n]/.test(betweenAfter));
 
     const revMatches = [];
     const pctGlobal = /(\d{1,3}(?:[.,]\d+)?)\s*%/g;
@@ -894,39 +917,42 @@ function extractPctForLabel(slice, labelRe, crossBoundaryRe) {
     while ((pm = pctGlobal.exec(beforeSlice)) !== null) revMatches.push(pm);
     const lastPm = revMatches.length > 0 ? revMatches[revMatches.length - 1] : null;
     const gapBefore = lastPm ? beforeSlice.slice(lastPm.index + lastPm[0].length) : "";
-    const sameLineBefore = lastPm && !/[\r\n]/.test(gapBefore) && !crossBoundaryRe.test(gapBefore);
+    const beforeHasPct = Boolean(lastPm && !crossBoundaryRe.test(gapBefore));
+    const sameLineBefore = Boolean(beforeHasPct && !/[\r\n]/.test(gapBefore));
+
+    const readAfterMatch = () => {
+      const val = parseFloat(pctM[1].replace(",", "."));
+      if (!Number.isFinite(val) || val < 0 || val > 100) return null;
+      const resetFromBetween = extractBoundedReset(betweenAfter, crossBoundaryRe);
+      const resetFromAfterPct = extractBoundedReset(
+        afterLabel.slice(pctM.index + pctM[0].length, pctM.index + pctM[0].length + 140),
+        crossBoundaryRe
+      );
+      return { val, reset: resetFromBetween || resetFromAfterPct };
+    };
+
+    const readBeforeMatch = () => {
+      const val = parseFloat(lastPm[1].replace(",", "."));
+      if (!Number.isFinite(val) || val < 0 || val > 100) return null;
+      const reset = extractBoundedReset(afterLabel.slice(0, 140), crossBoundaryRe);
+      return { val, reset };
+    };
 
     if (sameLineAfter) {
-      const val = parseFloat(pctM[1].replace(",", "."));
-      if (Number.isFinite(val) && val >= 0 && val <= 100) {
-        const resetSlice = afterLabel.slice(pctM.index, pctM.index + pctM[0].length + 120);
-        const rM = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(resetSlice);
-        return { val, reset: rM ? rM[1].trim() : "" };
-      }
+      const hit = readAfterMatch();
+      if (hit) return hit;
     }
     if (sameLineBefore) {
-      const val = parseFloat(lastPm[1].replace(",", "."));
-      if (Number.isFinite(val) && val >= 0 && val <= 100) {
-        const resetAfter = afterLabel.slice(0, 120);
-        const rM2 = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(resetAfter);
-        return { val, reset: rM2 ? rM2[1].trim() : "" };
-      }
+      const hit = readBeforeMatch();
+      if (hit) return hit;
     }
-    if (pctM && !crossBoundaryRe.test(afterLabel.slice(0, pctM.index))) {
-      const val = parseFloat(pctM[1].replace(",", "."));
-      if (Number.isFinite(val) && val >= 0 && val <= 100) {
-        const resetSlice = afterLabel.slice(pctM.index, pctM.index + pctM[0].length + 120);
-        const rM = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(resetSlice);
-        return { val, reset: rM ? rM[1].trim() : "" };
-      }
+    if (afterHasPct) {
+      const hit = readAfterMatch();
+      if (hit) return hit;
     }
-    if (lastPm && !crossBoundaryRe.test(gapBefore)) {
-      const val = parseFloat(lastPm[1].replace(",", "."));
-      if (Number.isFinite(val) && val >= 0 && val <= 100) {
-        const resetAfter = afterLabel.slice(0, 120);
-        const rM2 = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(resetAfter);
-        return { val, reset: rM2 ? rM2[1].trim() : "" };
-      }
+    if (beforeHasPct) {
+      const hit = readBeforeMatch();
+      if (hit) return hit;
     }
   }
   return null;
@@ -939,37 +965,41 @@ function parseQuotaSectionFromSlice(slice) {
   let weeklyReset = "";
   let fiveHourReset = "";
 
+  const headerCrossPattern =
+    "(?:gemini(?:\\s+(?:pro|flash))?\\s+models?|модели\\s+gemini|(?:claude|anthropic|gpt|openai)(?:\\s*(?:and|&|и|\\/|,)\\s*(?:claude|anthropic|gpt|openai|other))*\\s+models?|(?:claude|anthropic)\\s*(?:and|&|и|\\/)\\s*(?:gpt|openai)|(?:gpt|openai)\\s*(?:and|&|и|\\/)\\s*(?:claude|anthropic)|модели\\s+(?:claude|anthropic|gpt|openai))";
   const wkLabelRe = /(?:weekly\s+limit(?:\s+remaining)?|остаток\s+недельн[а-яё]*\s+лимит[а-яё]*|недельн[а-яё]*\s+лимит(?:\s+осталось|\s+исчерпан)?|осталось\s+за\s+недел[а-яё]*)/i;
-  const wkCrossRe = /(?:five\s*hour|5[-\s]*hour|5[-\s]*часов|пяти[-\s]*часов|gemini\s+models|claude\s*(?:and|и)\s*gpt)/i;
-  const wkUnusedM = /(?:not\s+used\s+any\s+of\s+your\s+weekly\s+limit|ещё\s+не\s+расходовали\s+недельн[а-яё]*\s+лимит)[\s\S]{0,120}/i.exec(slice);
+  const fhLabelPart = "(?:(?:five[- ]?hour|5[-\\s]*hour|5\\s*h)\\s+limit(?:\\s+remaining)?|лимит\\s*\\(\\s*5\\s*ч\\s*\\)|остаток\\s+(?:5|пяти)[-\\s]*часов[а-яё]*\\s+лимит[а-яё]*|(?:5|пяти)[-\\s]*часов[а-яё]*\\s+лимит(?:\\s+осталось|\\s+исчерпан)?|осталось\\s+за\\s+5\\s*ч[а-яё]*|\\b5\\s*ч\\s+лимит)";
+  const wkCrossRe = new RegExp(`(?:${fhLabelPart}|daily\\s+limit|дневн[а-яё]*\\s+лимит|${headerCrossPattern})`, "i");
+  const fhLabelRe = new RegExp(fhLabelPart, "i");
+  const fhCrossRe = new RegExp(`(?:weekly\\s+limit|остаток\\s+недельн[а-яё]*\\s+лимит|недельн[а-яё]*\\s+лимит|daily\\s+limit|дневн[а-яё]*\\s+лимит|${headerCrossPattern})`, "i");
+
+  const wkUnusedM = /(?:not\s+used\s+any\s+of\s+your\s+weekly\s+limit|ещё\s+не\s+расходовали\s+недельн[а-яё]*\s+лимит)[\s\S]{0,140}/i.exec(slice);
   if (wkUnusedM) {
     weeklyRem = 100;
-    const rM = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(wkUnusedM[0]);
-    if (rM) weeklyReset = rM[1].trim();
+    weeklyReset = extractBoundedReset(wkUnusedM[0], wkCrossRe);
   } else {
     const wkHit = extractPctForLabel(slice, wkLabelRe, wkCrossRe);
     if (wkHit) {
       weeklyRem = wkHit.val;
       weeklyReset = wkHit.reset;
-    } else if (/(?:used\s+all\s+of|reached|exhausted)\s+your\s+weekly\s+limit|исчерпали\s+недельн[а-яё]*\s+лимит/i.test(slice)) {
+    } else if (/(?:used\s+all\s+of|reached|exhausted)\s+your\s+weekly\s+limit|исчерпали\s+недельн[а-яё]*\s+лимит|недельн[а-яё]*\s+лимит\s+исчерпан/i.test(slice)) {
       weeklyRem = 0;
+      weeklyReset = extractBoundedReset(slice, wkCrossRe);
     }
   }
 
-  const fhLabelRe = /(?:(?:five\s*hour|5[-\s]*hour)\s+limit(?:\s+remaining)?|остаток\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит[а-яё]*|(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит(?:\s+осталось|\s+исчерпан)?|осталось\s+за\s+5\s*ч[а-яё]*|\b5ч\s+лимит)/i;
-  const fhCrossRe = /(?:weekly\s+limit|недельн[а-яё]*\s+лимит|gemini\s+models|claude\s*(?:and|и)\s*gpt)/i;
-  const fhUnusedM = /(?:not\s+used\s+any\s+of\s+your\s+(?:5-hour|five[- ]hour)\s+limit|ещё\s+не\s+расходовали\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит)[\s\S]{0,120}/i.exec(slice);
+  const fhUnusedM = /(?:not\s+used\s+any\s+of\s+your\s+(?:5-hour|five[- ]hour)\s+limit|ещё\s+не\s+расходовали\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит)[\s\S]{0,140}/i.exec(slice);
   if (fhUnusedM) {
     fiveHourRem = 100;
-    const rM2 = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(fhUnusedM[0]);
-    if (rM2) fiveHourReset = rM2[1].trim();
+    fiveHourReset = extractBoundedReset(fhUnusedM[0], fhCrossRe);
   } else {
     const fhHit = extractPctForLabel(slice, fhLabelRe, fhCrossRe);
     if (fhHit) {
       fiveHourRem = fhHit.val;
       fiveHourReset = fhHit.reset;
-    } else if (/(?:used\s+all\s+of|reached|exhausted)\s+your\s+(?:5-hour|five[- ]hour)\s+limit|исчерпали\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит/i.test(slice)) {
+    } else if (/(?:used\s+all\s+of|reached|exhausted)\s+your\s+(?:5-hour|five[- ]hour)\s+limit|исчерпали\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит|лимит\s*\(\s*5\s*ч\s*\)\s+исчерпан/i.test(slice)) {
       fiveHourRem = 0;
+      fiveHourReset = extractBoundedReset(slice, fhCrossRe);
     }
   }
 
@@ -977,53 +1007,60 @@ function parseQuotaSectionFromSlice(slice) {
   return { weeklyRem, fiveHourRem, weeklyReset, fiveHourReset };
 }
 
+function mergeParsedQuotaFamily(prev, next) {
+  if (!next) return prev;
+  if (!prev) return next;
+  return {
+    weeklyRem: next.weeklyRem !== null ? next.weeklyRem : prev.weeklyRem,
+    fiveHourRem: next.fiveHourRem !== null ? next.fiveHourRem : prev.fiveHourRem,
+    weeklyReset: next.weeklyReset || prev.weeklyReset || "",
+    fiveHourReset: next.fiveHourReset || prev.fiveHourReset || "",
+  };
+}
+
 function parseQuotaFromDocumentText(fullText, activeModelName) {
   const txt = String(fullText || "");
   if (!txt || txt.length < 20) return null;
-  if (!/limit\s+remaining|weekly\s+limit|five\s*hour|5[-\s]*hour|остаток\s+(?:недельн|5|пяти)|недельн[а-яё]*\s+лимит|пятичас|5[-\s]*часов/i.test(txt)) {
+  if (!/limit\s+remaining|weekly\s+limit|five\s*hour|5[-\s]*hour|5h\s+limit|лимит\s*\(\s*5\s*ч\s*\)|остаток\s+(?:недельн|5|пяти)|недельн[а-яё]*\s+лимит|пятичас|5[-\s]*часов/i.test(txt)) {
     return null;
   }
-  const gemHeadRe = /(?:gemini\s+models|модели\s+gemini)/gi;
-  const claHeadRe = /(?:claude\s*(?:and|и|&)\s*gpt\s*models|модели\s+claude(?:\s*(?:и|and|&)\s*gpt)?)/gi;
+  const gemHeadRe = /(?:gemini(?:\s+(?:pro|flash))?\s+models?|модели\s+gemini(?:\s+(?:pro|flash))?)/gi;
+  const claHeadRe = /(?:(?:claude|anthropic|gpt|openai)(?:\s*(?:and|&|и|\/|,)\s*(?:claude|anthropic|gpt|openai|other))*\s+models?|(?:claude|anthropic)\s*(?:and|&|и|\/)\s*(?:gpt|openai)|(?:gpt|openai)\s*(?:and|&|и|\/)\s*(?:claude|anthropic)|модели\s+(?:claude|anthropic|gpt|openai)(?:\s*(?:и|and|&|\/|,)\s*(?:claude|anthropic|gpt|openai))*)/gi;
 
-  const findAllIndices = (re) => {
+  const findAllIndices = (re, fam) => {
     const res = [];
     let m;
-    while ((m = re.exec(txt)) !== null) res.push(m.index);
+    while ((m = re.exec(txt)) !== null) res.push({ fam, index: m.index, end: m.index + m[0].length });
     return res;
   };
 
-  const gemIdxs = findAllIndices(gemHeadRe);
-  const claIdxs = findAllIndices(claHeadRe);
-
-  let gemini = null;
-  for (let i = gemIdxs.length - 1; i >= 0; i -= 1) {
-    const start = gemIdxs[i];
-    const nextCla = claIdxs.find((c) => c > start && c - start < 2400);
-    const end = nextCla ? nextCla : start + 2400;
-    const parsed = parseQuotaSectionFromSlice(txt.slice(start, end));
-    if (parsed) {
-      gemini = parsed;
-      break;
-    }
+  const gemIdxs = findAllIndices(gemHeadRe, "gemini");
+  const claIdxs = findAllIndices(claHeadRe, "claudeGpt");
+  const rawHeaders = gemIdxs.concat(claIdxs).sort((a, b) => a.index - b.index || b.end - a.end);
+  const allHeaders = [];
+  for (let i = 0; i < rawHeaders.length; i += 1) {
+    const cur = rawHeaders[i];
+    const prev = allHeaders.length > 0 ? allHeaders[allHeaders.length - 1] : null;
+    if (prev && cur.index < prev.end) continue;
+    allHeaders.push(cur);
   }
 
+  let gemini = null;
   let claudeGpt = null;
-  for (let i = claIdxs.length - 1; i >= 0; i -= 1) {
-    const start = claIdxs[i];
-    const nextGem = gemIdxs.find((g) => g > start && g - start < 2400);
-    const end = nextGem ? nextGem : start + 2400;
-    const parsed = parseQuotaSectionFromSlice(txt.slice(start, end));
-    if (parsed) {
-      claudeGpt = parsed;
-      break;
-    }
+  for (let i = 0; i < allHeaders.length; i += 1) {
+    const cur = allHeaders[i];
+    const next = allHeaders[i + 1];
+    const sliceEnd = next ? Math.min(cur.index + 2400, next.index) : cur.index + 2400;
+    const parsed = parseQuotaSectionFromSlice(txt.slice(cur.index, sliceEnd));
+    if (!parsed) continue;
+    if (cur.fam === "gemini") gemini = mergeParsedQuotaFamily(gemini, parsed);
+    else claudeGpt = mergeParsedQuotaFamily(claudeGpt, parsed);
   }
 
   if (!gemini && !claudeGpt) {
     const fallbackParsed = parseQuotaSectionFromSlice(txt.slice(-3000));
     if (fallbackParsed) {
-      const isCla = /claude|sonnet|opus|haiku|gpt|openai/i.test(String(activeModelName || ""));
+      const isCla = /claude|sonnet|opus|haiku|anthropic|gpt|openai|chatgpt|\bo[134](?:[-_\s]|$)/i.test(String(activeModelName || ""));
       if (isCla) claudeGpt = fallbackParsed;
       else gemini = fallbackParsed;
     }
@@ -1102,6 +1139,7 @@ function spEmptyTelemetry() {
     lastSparkAt: 0,
     turnStartFloatTok: 0,
     prevFloatTok: 0,
+    prevRawFloatTok: 0,
     highWaterBubbleTok: 0,
     bankedTurnTokens: 0,
     activeRespEl: null,
@@ -1128,7 +1166,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.0.0", dictEntries: 4017, dynamicRulesCount: 471 };
+    : { version: "4.0.0", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1760,6 +1798,18 @@ function createStudioPanel(options) {
       }
     }
 
+    if (state.hasActivatedChat && state.activeChatKey && state.activeChatKey !== "__new__" && (snap.userMsgCount > 0 || snap.respCount > 0)) {
+      if (snap.isGenerating || state.telemetry.isGenerating) {
+        return { key: state.activeChatKey, isNew: false, title: title || state.activeChatTitle || "" };
+      }
+      if (
+        UUID_RE.test(state.activeChatKey) &&
+        (!title || !state.activeChatTitle || cleanTitleStr(title) === cleanTitleStr(state.activeChatTitle))
+      ) {
+        return { key: state.activeChatKey, isNew: false, title: title || state.activeChatTitle || "" };
+      }
+    }
+
     const cleanPath = cleanUrl.split(/[?#]/)[0] || "/";
     const fpSource = `${cleanPath}||${domParts.stable}||${snap.firstUserNorm}`;
     return { key: "chat-" + hashDjb2(fpSource), isNew: false, title };
@@ -1791,51 +1841,74 @@ function createStudioPanel(options) {
       return { isGenerating: false, hasCancelBtn: false, isThinking: false, thinkingSec: 0, respFloatTok: 0, respTokens: 0, chatTokens: 0, userMsgCount: 0, respCount: 0, lastResp: null, firstUserNorm: "", modelName: "", contextLabel: "" };
     }
     try {
-      const responses = doc.querySelectorAll('[data-testid="agent-response"]');
-      const userMsgs = doc.querySelectorAll('[data-testid="user-message-content"]');
-      const respCount = responses ? responses.length : 0;
-      const userMsgCount = userMsgs ? userMsgs.length : 0;
+      const rawResponses = doc.querySelectorAll('[data-testid="agent-response"]');
+      const rawUserMsgs = doc.querySelectorAll('[data-testid="user-message-content"]');
+      const responses = [];
+      for (let i = 0; rawResponses && i < rawResponses.length; i += 1) {
+        const r = rawResponses[i];
+        if (!r || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(r))) continue;
+        if (isHiddenAncestor(r, doc.body)) continue;
+        responses.push(r);
+      }
+      const userMsgs = [];
+      for (let i = 0; rawUserMsgs && i < rawUserMsgs.length; i += 1) {
+        const u = rawUserMsgs[i];
+        if (!u || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(u))) continue;
+        if (isHiddenAncestor(u, doc.body)) continue;
+        userMsgs.push(u);
+      }
+      const respCount = responses.length;
+      const userMsgCount = userMsgs.length;
       const lastResp = respCount > 0 ? responses[respCount - 1] : null;
 
-      const hasCancelBtn = Boolean(typeof doc.querySelector === "function" && doc.querySelector('[data-testid="cancel-invocation-button"]'));
-      let isGenerating = hasCancelBtn;
-      let isThinking = false;
-      if (lastResp) {
-        let hasCompletedActions = false;
-        if (typeof lastResp.querySelectorAll === "function") {
-          const actBtns = lastResp.querySelectorAll("button[aria-label]");
-          for (let i = 0; actBtns && i < actBtns.length; i += 1) {
-            const al = typeof actBtns[i].getAttribute === "function" ? (actBtns[i].getAttribute("aria-label") || "") : "";
-            if (/copy|копир|good|bad|like|dislike|thumb|upvote|downvote|нрав|полез|retry|повтор|regenerate/i.test(al)) {
-              hasCompletedActions = true;
-              break;
-            }
+      let hasCancelBtn = false;
+      if (typeof doc.querySelectorAll === "function") {
+        const cancelEls = doc.querySelectorAll('[data-testid="input-cancel-button"], [data-testid="cancel-invocation-button"]');
+        for (let i = 0; cancelEls && i < cancelEls.length; i += 1) {
+          const cb = cancelEls[i];
+          if (!cb || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(cb))) continue;
+          if (!isHiddenAncestor(cb, doc.body)) {
+            hasCancelBtn = true;
+            break;
           }
         }
-        if (hasCancelBtn || !hasCompletedActions) {
-          const h6List = typeof lastResp.querySelectorAll === "function"
-            ? lastResp.querySelectorAll("h6")
-            : (typeof lastResp.querySelector === "function" && lastResp.querySelector("h6") ? [lastResp.querySelector("h6")] : []);
-          for (let i = 0; h6List && i < h6List.length; i += 1) {
-            if (!h6List[i] || hasMarkdownRootAncestor(h6List[i], lastResp)) continue;
-            const txt = (h6List[i].textContent || "").replace(/\s+/g, " ").trim();
-            if (!txt || txt.length > 48) continue;
-            if (/working|generating|thinking|streaming|работает|думает|генерац|выполня|пишет/i.test(txt)) {
-              isGenerating = true;
-              if (/thinking|думает/i.test(txt)) isThinking = true;
-              break;
-            }
+      }
+      let isGenerating = hasCancelBtn;
+      if (!isGenerating && typeof doc.querySelectorAll === "function") {
+        const pendingBtns = doc.querySelectorAll('[data-testid="send-button-loading"], [data-testid="send-button-pending"]');
+        for (let i = 0; pendingBtns && i < pendingBtns.length; i += 1) {
+          const pb = pendingBtns[i];
+          if (!pb || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(pb))) continue;
+          if (!isHiddenAncestor(pb, doc.body)) {
+            isGenerating = true;
+            break;
+          }
+        }
+      }
+      let isThinking = false;
+      if (lastResp) {
+        const h6List = typeof lastResp.querySelectorAll === "function"
+          ? lastResp.querySelectorAll("h6")
+          : (typeof lastResp.querySelector === "function" && lastResp.querySelector("h6") ? [lastResp.querySelector("h6")] : []);
+        for (let i = 0; h6List && i < h6List.length; i += 1) {
+          if (!h6List[i] || hasMarkdownRootAncestor(h6List[i], lastResp)) continue;
+          const txt = (h6List[i].textContent || "").replace(/\s+/g, " ").trim();
+          if (!txt || txt.length > 48) continue;
+          if (/agent\s+working|агент\s+работает|\bworking\b|\bgenerating\b|\bthinking\b|\bstreaming\b|работает|думает|генерац|выполня|пишет/i.test(txt)) {
+            isGenerating = true;
+            if (/thinking|думает/i.test(txt)) isThinking = true;
+            break;
           }
         }
       }
       if (!isGenerating) {
-        const composerBtns = doc.querySelectorAll('form button[aria-label], [data-testid="composer"] button[aria-label], .composer-container button[aria-label]');
+        const composerBtns = doc.querySelectorAll('form button[aria-label], [data-testid="composer"] button[aria-label], .composer-container button[aria-label], button[data-testid="input-cancel-button"]');
         for (let i = 0; composerBtns && i < composerBtns.length; i += 1) {
           const b = composerBtns[i];
           if (!b || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(b))) continue;
           if (isHiddenAncestor(b, doc.body)) continue;
           const lbl = typeof b.getAttribute === "function" ? (b.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim() : "";
-          if (/^(?:stop\s+(?:generat|respond|stream|agent)|cancel\s+(?:invoc|generat|request)|остановить\s+(?:генерац|ответ|агент)|прервать\s+(?:генерац|ответ)|отменить\s+(?:генерац|запрос))/i.test(lbl)) {
+          if (/^(?:stop\s+(?:generat|respond|stream|agent)|cancel(?:\s*\(|$|\s+(?:invoc|generat|request))|остановить\s+(?:генерац|ответ|агент)|прервать\s+(?:генерац|ответ)|отмен(?:а|ить)(?:\s*\(|$|\s+(?:генерац|запрос)))/i.test(lbl)) {
             isGenerating = true;
             break;
           }
@@ -1849,7 +1922,7 @@ function createStudioPanel(options) {
       const respTokens = respFloatTok > 0 ? Math.max(1, Math.round(respFloatTok)) : 0;
       const thinkingSec = lastResp && typeof extractThinkingSeconds === "function" ? extractThinkingSeconds(lastResp) : 0;
       const chatTokens = telemetryEngine && typeof telemetryEngine.countChatTokens === "function"
-        ? telemetryEngine.countChatTokens(userMsgs, responses, lastResp)
+        ? telemetryEngine.countChatTokens(userMsgs, responses, lastResp, respTokens)
         : respTokens;
       const firstUserNorm = userMsgCount > 0 ? (userMsgs[0].textContent || "").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 120) : "";
 
@@ -1995,6 +2068,7 @@ function createStudioPanel(options) {
       freshTel.respTokens = detected.isNew ? 0 : snap.respTokens;
       freshTel.chatTokens = detected.isNew ? 0 : snap.chatTokens;
       freshTel.prevFloatTok = snap.respFloatTok;
+      freshTel.prevRawFloatTok = snap.respFloatTok;
       freshTel.turnStartFloatTok = snap.respFloatTok;
       freshTel.highWaterBubbleTok = snap.respFloatTok;
       freshTel.preTokenAt = nowHiRes();
@@ -2004,6 +2078,10 @@ function createStudioPanel(options) {
       freshTel.firstUserNorm = snap.firstUserNorm;
       freshTel.modelName = snap.modelName;
       freshTel.contextLabel = detected.isNew ? "" : snap.contextLabel;
+      if (!detected.isNew && snap.isGenerating) {
+        freshTel.isGenerating = true;
+        freshTel.phase = "thinking";
+      }
       state.telemetry = freshTel;
       state.chatPersona = { enabled: false, activePreset: "custom", text: "", strict: state.settings.personaStrictMode !== false };
       state.draftPersonaText = "";
@@ -2468,20 +2546,136 @@ function createStudioPanel(options) {
     return true;
   }
 
+  function isQuotaHiddenEl(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) return true;
+    const tag = String(el.tagName || "").toUpperCase();
+    if (tag === "SCRIPT" || tag === "STYLE" || tag === "SVG" || tag === "NOSCRIPT") return true;
+    if (typeof el.hasAttribute === "function" && el.hasAttribute("hidden")) return true;
+    if (el.hidden === true) return true;
+    if (typeof el.getAttribute === "function" && el.getAttribute("aria-hidden") === "true") return true;
+    const cls = typeof el.getAttribute === "function"
+      ? (el.getAttribute("class") || "")
+      : (typeof el.className === "string" ? el.className : "");
+    if (cls && /\binvisible\b/.test(cls)) return true;
+    if (el.style && (el.style.display === "none" || el.style.visibility === "hidden" || el.style.opacity === "0")) {
+      return true;
+    }
+    return false;
+  }
+
+  function collectVisibleQuotaText(node, chunks) {
+    if (!node) return;
+    if (node.nodeType === 3) {
+      const val = node.nodeValue;
+      if (val) chunks.push(val);
+      return;
+    }
+    if (node.nodeType !== 1 && node.nodeType !== 11) return;
+    if (node.nodeType === 1 && isQuotaHiddenEl(node)) return;
+    const tag = node.nodeType === 1 ? String(node.tagName || "").toUpperCase() : "";
+    const cls = node.nodeType === 1
+      ? (typeof node.getAttribute === "function" ? (node.getAttribute("class") || "") : (typeof node.className === "string" ? node.className : ""))
+      : "";
+    const isBlock =
+      tag === "DIV" ||
+      tag === "P" ||
+      tag === "LI" ||
+      tag === "SECTION" ||
+      tag === "ARTICLE" ||
+      tag === "TR" ||
+      /^H[1-6]$/.test(tag) ||
+      /\b(?:col-span-|block)\b/.test(cls);
+    const children = node.childNodes;
+    if (children && typeof children.length === "number") {
+      for (let i = 0; i < children.length; i += 1) {
+        collectVisibleQuotaText(children[i], chunks);
+      }
+    } else if (typeof node.textContent === "string") {
+      chunks.push(node.textContent);
+    }
+    if (isBlock) {
+      chunks.push("\n");
+    } else if (tag === "SPAN") {
+      chunks.push(" ");
+    }
+  }
+
+  function findQuotaCirclesContainer(circles) {
+    if (!circles || circles.length === 0) return null;
+    const ancLists = [];
+    for (let i = 0; i < circles.length; i += 1) {
+      const c = circles[i];
+      if (!c || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(c))) continue;
+      if (typeof c.closest === "function") {
+        const directBox = c.closest('.agy-overlay, [role="dialog"], [role="menu"]');
+        if (directBox && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(directBox))) {
+          return directBox;
+        }
+      }
+      const chain = [];
+      let cur = c.parentNode;
+      while (cur && cur !== doc) {
+        chain.push(cur);
+        cur = cur.parentNode;
+      }
+      ancLists.push(chain);
+    }
+    if (ancLists.length === 0) return null;
+    if (ancLists.length === 1) {
+      let cur = ancLists[0][0] || null;
+      for (let step = 0; step < 5 && cur && cur.parentNode && cur.parentNode !== doc.body && cur.parentNode !== doc; step += 1) {
+        cur = cur.parentNode;
+      }
+      return cur;
+    }
+    const first = ancLists[0];
+    for (let i = 0; i < first.length; i += 1) {
+      const candidate = first[i];
+      if (!candidate || candidate === doc.body || candidate === doc.documentElement) continue;
+      if (ancLists.every((lst) => lst.indexOf(candidate) !== -1)) {
+        return candidate;
+      }
+    }
+    return doc.body;
+  }
+
   function scrapeDomQuotaSnapshot(force) {
     if (!doc || !doc.body) return;
     const now = Date.now();
-    if (!force && now - state.lastQuotaScrapeAt < 4000) return;
-    state.lastQuotaScrapeAt = now;
     try {
-      const rawCheap = doc.body.textContent || "";
-      if (!rawCheap || rawCheap.length < 30) return;
-      if (!/limit\s*remaining|weekly\s*limit|five\s*hour|5[-\s]*hour|остаток\s*(?:недельн|5|пяти)|недельн[а-яё]*\s*лимит|5[-\s]*часов/i.test(rawCheap)) {
-        return;
+      const circles = typeof doc.querySelectorAll === "function"
+        ? doc.querySelectorAll('[data-testid="quota-progress-circle"]')
+        : null;
+      const hasCircles = Boolean(circles && circles.length > 0);
+      const minInterval = hasCircles ? 600 : 4000;
+      if (!force && now - state.lastQuotaScrapeAt < minInterval) return;
+      state.lastQuotaScrapeAt = now;
+
+      let txt = "";
+      if (hasCircles) {
+        const box = findQuotaCirclesContainer(circles);
+        if (box) {
+          const chunks = [];
+          collectVisibleQuotaText(box, chunks);
+          txt = chunks.join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+        }
+      } else if (typeof doc.querySelectorAll === "function") {
+        const overlays = doc.querySelectorAll('[role="dialog"], .agy-overlay');
+        for (let i = 0; overlays && i < overlays.length; i += 1) {
+          const ov = overlays[i];
+          if (!ov || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(ov))) continue;
+          const chunks = [];
+          collectVisibleQuotaText(ov, chunks);
+          const candidateTxt = chunks.join("").replace(/[ \t]+\n/g, "\n").trim();
+          if (candidateTxt && /limit\s*remaining|weekly\s*limit|five\s*hour|5[-\s]*hour|5h\s+limit|лимит\s*\(\s*5\s*ч\s*\)|остаток\s*(?:недельн|5|пяти)|недельн[а-яё]*\s*лимит|5[-\s]*часов|%\s*(?:left|осталось)/i.test(candidateTxt)) {
+            txt = candidateTxt;
+            break;
+          }
+        }
       }
-      const container = (typeof doc.querySelector === "function" && (doc.querySelector('[role="dialog"]') || doc.querySelector("main"))) || doc.body;
-      const txt = container.innerText || container.textContent || "";
-      if (!txt || txt.length < 30) return;
+
+      if (!txt || txt.length < 20) return;
       const parsed = parseQuotaFromDocumentText(txt, state.telemetry.modelName);
       if (!parsed) return;
       const sig = JSON.stringify(parsed);
@@ -3514,6 +3708,9 @@ function createStudioPanel(options) {
     const renderFamCard = (title, famData) => {
       const rem5 = typeof famData.fiveHourRem === "number" ? famData.fiveHourRem : null;
       const remW = typeof famData.weeklyRem === "number" ? famData.weeklyRem : null;
+      const hasFamSnapshot = Boolean((famData.updatedAt && famData.updatedAt > 0) || rem5 !== null || remW !== null);
+      const missing5hLabel = hasFamSnapshot ? "—" : tr.quotaNoData;
+      const missingWkLabel = hasFamSnapshot ? "—" : tr.quotaNoData;
       const badge = famData.calibrated ? tr.quotaCalibratedBadge : tr.quotaEstimatedBadge;
       return `
         <div class="quota-fam-card">
@@ -3524,14 +3721,14 @@ function createStudioPanel(options) {
           <div class="quota-bar-row">
             <div class="quota-bar-labels">
               <span>${escHtml(tr.quota5hShort)} ${escHtml(tr.quotaRemShort)} ${famData.fiveHourReset ? "(" + escHtml(famData.fiveHourReset) + ")" : ""}</span>
-              <b class="num">${rem5 !== null ? rem5 + "%" : tr.quotaNoData}</b>
+              <b class="num">${rem5 !== null ? rem5 + "%" : escHtml(missing5hLabel)}</b>
             </div>
             <div class="quota-bar-track"><div class="quota-bar-fill" style="width:${rem5 !== null ? rem5 : 0}%"></div></div>
           </div>
           <div class="quota-bar-row">
             <div class="quota-bar-labels">
               <span>${escHtml(tr.quotaWeekShort)} ${escHtml(tr.quotaRemShort)} ${famData.weeklyReset ? "(" + escHtml(famData.weeklyReset) + ")" : ""}</span>
-              <b class="num">${remW !== null ? remW + "%" : tr.quotaNoData}</b>
+              <b class="num">${remW !== null ? remW + "%" : escHtml(missingWkLabel)}</b>
             </div>
             <div class="quota-bar-track"><div class="quota-bar-fill" style="width:${remW !== null ? remW : 0}%;background:var(--rx-success)"></div></div>
           </div>
@@ -3619,8 +3816,8 @@ function createStudioPanel(options) {
     const isRu = state.locale !== "en";
     const thinkingRu = Boolean(state.settings.thinkingInRussian);
     const ver = pluginMeta.version || "4.0.0";
-    const dictCount = pluginMeta.dictEntries || 4017;
-    const dynCount = pluginMeta.dynamicRulesCount || 471;
+    const dictCount = pluginMeta.dictEntries || 4048;
+    const dynCount = pluginMeta.dynamicRulesCount || 474;
 
     return `
       <div class="section-group">
@@ -4937,7 +5134,7 @@ function createStudioPanel(options) {
       cancelClickHandler = (e) => {
         const tEl = e && e.target;
         if (!tEl || typeof tEl.closest !== "function") return;
-        if (tEl.closest('[data-testid="cancel-invocation-button"]')) {
+        if (tEl.closest('[data-testid="input-cancel-button"], [data-testid="cancel-invocation-button"]')) {
           state.lastCancelClickAt = nowHiRes();
         }
       };

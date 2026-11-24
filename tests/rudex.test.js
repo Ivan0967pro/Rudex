@@ -40,7 +40,7 @@ const {
   createThemeEngine,
 } = require(path.join(RES_DIR, "theme-engine.js"));
 const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
-const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+const { createStudioPanel, parseQuotaFromDocumentText } = require(path.join(RES_DIR, "studio-panel.js"));
 const {
   compareSemver,
   stripCjsPrologueEpilogue,
@@ -384,7 +384,7 @@ test("Manifest & hooks.json follow Rudex v4.0.0 architecture without PostInvocat
   assert.equal(pkg.version, "4.0.0");
   assert.equal(typeof dictionary, "object");
   assert.ok(Object.keys(dictionary).length >= 4000);
-  assert.equal(DYNAMIC_RULES.length, 471);
+  assert.equal(DYNAMIC_RULES.length, 474);
 
   const hooks = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "hooks.json"), "utf8"));
   const group = hooks["rudex-studio"];
@@ -1367,4 +1367,340 @@ test("install.ps1 parses cleanly and never assigns to any [switch] parameter var
     windowsHide: true,
   });
   assert.ok(out.includes("AST_OK"), `Unexpected PowerShell AST check output: ${out}`);
+});
+
+// =============================================================================
+// 9. Long-Conversation Dynamic TPS & View Usage / GPT & Anthropic Quota Tests
+// =============================================================================
+test("Long-conversation live TPS stays dynamic across input-cancel-button, Copy buttons, virtualization, segment collapses, and Load Older", () => {
+  const engine = createTelemetryEngine();
+  const { doc, win } = createMockDom();
+
+  // Part A: Pure telemetry-engine resilience on long conversations
+  const tel = createEmptyTelemetry();
+  const oldB1 = doc.createElement("div");
+  const oldB2 = doc.createElement("div");
+  const activeBubble = doc.createElement("div");
+
+  // Warm start of turn 6 in a long chat (5 user msgs, 5 resp bubbles)
+  engine.processTick({
+    tel,
+    snap: { respFloatTok: 0, respCount: 5, userMsgCount: 5, isGenerating: true, hasCancelBtn: true, lastResp: activeBubble, modelName: "Gemini 4 Neon" },
+    hiNow: 1000,
+  });
+  for (let i = 1; i <= 4; i += 1) {
+    engine.processTick({
+      tel,
+      snap: { respFloatTok: i * 40, respCount: 5, userMsgCount: 5, isGenerating: true, hasCancelBtn: true, lastResp: activeBubble },
+      hiNow: 1000 + i * 250,
+    });
+  }
+  assert.equal(tel.isGenerating, true);
+  assert.ok(tel.currentTps > 15, `expected live TPS > 15, got ${tel.currentTps}`);
+
+  // 1) Virtualized DOM drops earlier bubbles mid-stream (respCount 5 -> 2, userMsgCount 5 -> 2)
+  const virtRes = engine.processTick({
+    tel,
+    snap: { respFloatTok: 190, respCount: 2, userMsgCount: 2, isGenerating: true, hasCancelBtn: true, lastResp: activeBubble },
+    hiNow: 2250,
+  });
+  assert.equal(virtRes.canceled, false, "Virtualized DOM shrink during active generation must NOT cancel turn");
+  assert.equal(tel.isGenerating, true);
+  assert.ok(tel.currentTps > 15, `expected live TPS > 15 after virtualization, got ${tel.currentTps}`);
+
+  // 2) Ephemeral/thinking segment collapses inside same bubble (190 -> 18) then new answer streams (18 -> 55 -> 95)
+  engine.processTick({
+    tel,
+    snap: { respFloatTok: 18, respCount: 2, userMsgCount: 2, isGenerating: true, hasCancelBtn: true, lastResp: activeBubble },
+    hiNow: 2500,
+  });
+  assert.ok(tel.bankedTurnTokens >= 185, `expected collapsed segment banked >= 185 tokens, got ${tel.bankedTurnTokens}`);
+  engine.processTick({
+    tel,
+    snap: { respFloatTok: 55, respCount: 2, userMsgCount: 2, isGenerating: true, hasCancelBtn: true, lastResp: activeBubble },
+    hiNow: 2750,
+  });
+  assert.ok(tel.currentTps > 15, `TPS must update immediately after segment collapse (not freeze at highWaterBubbleTok), got ${tel.currentTps}`);
+  engine.processTick({
+    tel,
+    snap: { respFloatTok: 95, respCount: 2, userMsgCount: 2, isGenerating: true, hasCancelBtn: true, lastResp: activeBubble },
+    hiNow: 3000,
+  });
+  assert.ok(tel.currentTps > 15);
+
+  // 3) User triggers "Load older messages" while streaming (userMsgCount jumps 2 -> 14 on same activeBubble)
+  engine.processTick({
+    tel,
+    snap: { respFloatTok: 135, respCount: 14, userMsgCount: 14, isGenerating: true, hasCancelBtn: true, lastResp: activeBubble },
+    hiNow: 3250,
+  });
+  assert.ok(tel.currentTps > 15, `Load older messages jump must NOT zero delta, got ${tel.currentTps}`);
+
+  // 4) Pause > 2.3s (e.g., long tool call) while hasCancelBtn stays true, then resume streaming
+  engine.processTick({
+    tel,
+    snap: { respFloatTok: 135, respCount: 14, userMsgCount: 14, isGenerating: true, hasCancelBtn: true, lastResp: activeBubble },
+    hiNow: 6000,
+  });
+  assert.equal(tel.isGenerating, true);
+  engine.processTick({
+    tel,
+    snap: { respFloatTok: 165, respCount: 14, userMsgCount: 14, isGenerating: true, hasCancelBtn: true, lastResp: activeBubble },
+    hiNow: 6250,
+  });
+  assert.ok(tel.currentTps > 15, `TPS must resume dynamically after long tool wait, got ${tel.currentTps}`);
+
+  // 5) Explicit cancel click cancels cleanly
+  const cancelRes = engine.processTick({
+    tel,
+    snap: { respFloatTok: 165, respCount: 14, userMsgCount: 14, isGenerating: false, hasCancelBtn: false, lastResp: activeBubble },
+    hiNow: 6500,
+    lastCancelClickAt: 6450,
+  });
+  assert.equal(cancelRes.canceled, true);
+  assert.equal(tel.currentTps, 0);
+
+  // Part B: Studio panel DOM integration with real Antigravity selectors (`input-cancel-button` + internal `Copy` button + `<h6>Агент работает</h6>`)
+  const main = doc.createElement("main");
+  const u1 = doc.createElement("div");
+  u1.setAttribute("data-testid", "user-message-content");
+  u1.textContent = "Напиши длинный код";
+  main.appendChild(u1);
+
+  const prevResp = doc.createElement("div");
+  prevResp.setAttribute("data-testid", "agent-response");
+  prevResp.textContent = "Первый шаг ответа.";
+  main.appendChild(prevResp);
+
+  const liveResp = doc.createElement("div");
+  liveResp.setAttribute("data-testid", "agent-response");
+  const h6 = doc.createElement("h6");
+  h6.textContent = "Агент работает";
+  const copyBtn = doc.createElement("button");
+  copyBtn.setAttribute("aria-label", "Copy");
+  copyBtn.textContent = "Copy";
+  const mdRoot = doc.createElement("div");
+  mdRoot.setAttribute("data-markdown-root", "");
+  mdRoot.textContent = "Начальный фрагмент ответа.";
+  liveResp.appendChild(h6);
+  liveResp.appendChild(copyBtn);
+  liveResp.appendChild(mdRoot);
+  main.appendChild(liveResp);
+
+  const cancelBtn = doc.createElement("button");
+  cancelBtn.setAttribute("data-testid", "input-cancel-button");
+  cancelBtn.setAttribute("aria-label", "Cancel (Ctrl+D)");
+  doc.body.appendChild(main);
+  doc.body.appendChild(cancelBtn);
+
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: { invoke: async () => ({ ok: true }) },
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+  });
+  panel.init();
+  panel.pollStream();
+
+  mdRoot.textContent = "Начальный фрагмент ответа. Продолжаем потоковую генерацию кода и объяснений для длинного диалога в Rudex Studio, проверяем живой TPS без зависаний и сбросов.";
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  return wait(160).then(() => {
+    panel.pollStream();
+    mdRoot.textContent += " Добавляем ещё один абзац текста, чтобы убедиться, что счетчик TPS в мини-виджете обновляется динамически в длинной переписке.";
+    return wait(160);
+  }).then(() => {
+    panel.pollStream();
+    panel.setOpen(true);
+    const host = doc.getElementById("rudex-studio-host");
+    const widgetWrap = host && host.shadowRoot ? host.shadowRoot.querySelector(".widget-wrap") : null;
+    const html = widgetWrap ? widgetWrap.innerHTML : "";
+    const m = /data-live="tps">(\d+)<\/b>/.exec(html);
+    assert.ok(m && Number(m[1]) > 0, `Expected dynamic live TPS > 0 in widget, got HTML: ${html.slice(0, 300)}`);
+    assert.ok(html.includes("Генерация"), `Expected live Генерация status in widget, got HTML: ${html.slice(0, 300)}`);
+  }).finally(() => {
+    panel.destroy();
+  });
+});
+
+test("View Usage localization, GPT/Anthropic quota parsing, and live overlay scraping work accurately", async () => {
+  const { doc, win } = createMockDom();
+
+  // 1) Translator & dynamic rules on split React % node + 1-bucket / 2-bucket View Usage + provider headers
+  assert.equal(applyDynamicRules("Weekly limit, resets in 6d 9h"), "Недельный лимит, сбросится через 6 д 9 ч");
+  assert.equal(applyDynamicRules("5h limit, resets in 2h 15m"), "Лимит (5 ч), сбросится через 2 ч 15 мин");
+  assert.equal(applyDynamicRules("Daily limit, resets in <1m"), "Дневной лимит, сбросится через <1 мин");
+  assert.equal(applyDynamicRules("resets in 4h 10m"), "Сбросится через 4 ч 10 мин");
+  assert.equal(applyDynamicRules("50% left"), "50% осталось");
+  assert.equal(applyDynamicRules("Cancel (Ctrl+D)"), "Отмена (Ctrl+D)");
+  assert.equal(dictionary["GPT and Anthropic Models"], "Модели GPT и Anthropic");
+  assert.equal(dictionary["Anthropic and GPT Models"], "Модели Anthropic и GPT");
+  assert.equal(dictionary["5-Hour Limit"], "5-часовой лимит");
+
+  const splitPctSpan = doc.createElement("span");
+  const numNode = doc.createTextNode("50");
+  const leftNode = doc.createTextNode("% left");
+  splitPctSpan.appendChild(numNode);
+  splitPctSpan.appendChild(leftNode);
+  const singleDetail = doc.createElement("span");
+  singleDetail.textContent = "Weekly limit, resets in 6d 9h";
+  const gptHeader = doc.createElement("div");
+  gptHeader.textContent = "GPT and Anthropic Models";
+  doc.body.appendChild(gptHeader);
+  doc.body.appendChild(splitPctSpan);
+  doc.body.appendChild(singleDetail);
+
+  const translator = createDomTranslator({ document: doc, window: win, dictionary, applyDynamicRules, initialLocale: "ru" });
+  translator.init();
+  assert.equal(gptHeader.textContent, "Модели GPT и Anthropic");
+  assert.equal(splitPctSpan.textContent, "50% осталось");
+  assert.equal(singleDetail.textContent, "Недельный лимит, сбросится через 6 д 9 ч");
+
+  // Simulate React updating live percentage node from 50 -> 42, then toggling EN -> RU
+  numNode.nodeValue = "42";
+  translator.translateDocument();
+  assert.equal(splitPctSpan.textContent, "42% осталось");
+  translator.setLocale("en");
+  assert.equal(splitPctSpan.textContent, "42% left", "Locale restore must keep live 42% instead of stale initial 50%");
+  translator.setLocale("ru");
+  assert.equal(splitPctSpan.textContent, "42% осталось");
+
+  // 2) parseQuotaFromDocumentText on View Usage & Settings layouts
+  const vuRu1Bucket = parseQuotaFromDocumentText([
+    "Использование",
+    "Модели Gemini",
+    "Лимит (5 ч) 80% осталось",
+    "Сбросится через 2 ч 15 мин",
+    "Недельный лимит 32% осталось",
+    "Сбросится через 6 д 5 ч",
+    "Модели Claude и GPT 50% осталось",
+    "Недельный лимит, сбросится через 6 д 9 ч",
+  ].join("\n"), "Gemini 4 Neon");
+  assert.deepEqual(vuRu1Bucket, {
+    gemini: { fiveHourRem: 80, weeklyRem: 32, fiveHourReset: "2 ч 15 мин", weeklyReset: "6 д 5 ч" },
+    claudeGpt: { fiveHourRem: null, weeklyRem: 50, fiveHourReset: "", weeklyReset: "6 д 9 ч" },
+  });
+
+  const vuRu2BucketGptAnthropic = parseQuotaFromDocumentText([
+    "Usage",
+    "Gemini Models",
+    "5h limit 90% left",
+    "Resets in 4h 30m",
+    "Weekly limit 60% left",
+    "Resets in 5d 2h",
+    "GPT and Anthropic Models",
+    "5h limit 75% left",
+    "Resets in 3h 10m",
+    "Weekly limit 48% left",
+    "Resets in 6d 1h",
+  ].join("\n"), "Claude Opus");
+  assert.deepEqual(vuRu2BucketGptAnthropic, {
+    gemini: { fiveHourRem: 90, weeklyRem: 60, fiveHourReset: "4h 30m", weeklyReset: "5d 2h" },
+    claudeGpt: { fiveHourRem: 75, weeklyRem: 48, fiveHourReset: "3h 10m", weeklyReset: "6d 1h" },
+  });
+
+  // Regression check: "через 6 дней 5 часов" inside weekly sentence must NOT trigger 5-hour boundary and steal 80%!
+  const settingsRu = parseQuotaFromDocumentText([
+    "Модели и использование",
+    "Модели Gemini",
+    "Остаток 5-часового лимита",
+    "Вы израсходовали часть 5-часового лимита — полное обновление через 2 часа 15 минут.",
+    "80%",
+    "Остаток недельного лимита",
+    "Вы израсходовали часть недельного лимита — полное обновление через 6 дней 5 часов.",
+    "32%",
+    "Модели Claude и GPT",
+    "Остаток недельного лимита",
+    "Вы израсходовали часть недельного лимита — полное обновление через 6 дней 9 часов.",
+    "50%",
+  ].join("\n"), "Gemini 4");
+  assert.deepEqual(settingsRu, {
+    gemini: { fiveHourRem: 80, weeklyRem: 32, fiveHourReset: "2 часа 15 минут", weeklyReset: "6 дней 5 часов" },
+    claudeGpt: { fiveHourRem: null, weeklyRem: 50, fiveHourReset: "", weeklyReset: "6 дней 9 часов" },
+  });
+
+  // 3) Live .agy-overlay DOM scraping in studio-panel + protection in theme-engine
+  const overlay = doc.createElement("div");
+  overlay.setAttribute("class", "agy-overlay surface-glass bg-card");
+  overlay.getBoundingClientRect = () => ({ left: 400, top: 120, right: 720, bottom: 420, width: 320, height: 300 });
+
+  const gHead = doc.createElement("div");
+  gHead.textContent = "Модели Gemini";
+  const gRow5 = doc.createElement("div");
+  const gLbl5 = doc.createElement("span");
+  gLbl5.textContent = "Лимит (5 ч)";
+  const gVal5 = doc.createElement("span");
+  gVal5.textContent = "85% осталось";
+  const gCircle5 = doc.createElement("div");
+  gCircle5.setAttribute("data-testid", "quota-progress-circle");
+  const gRes5 = doc.createElement("span");
+  gRes5.setAttribute("class", "col-span-2");
+  gRes5.textContent = "Сбросится через 1 ч 20 мин";
+  gRow5.appendChild(gLbl5);
+  gRow5.appendChild(gVal5);
+  gRow5.appendChild(gCircle5);
+  gRow5.appendChild(gRes5);
+
+  const cHead = doc.createElement("div");
+  cHead.textContent = "Модели Claude и GPT";
+  const cRow = doc.createElement("div");
+  const cVal = doc.createElement("span");
+  cVal.textContent = "44% осталось";
+  const cDisabledZero = doc.createElement("span");
+  cDisabledZero.setAttribute("class", "font-semibold invisible");
+  cDisabledZero.textContent = "0%";
+  const cCircle = doc.createElement("div");
+  cCircle.setAttribute("data-testid", "quota-progress-circle");
+  const cDet = doc.createElement("span");
+  cDet.setAttribute("class", "col-span-2");
+  cDet.textContent = "Недельный лимит, сбросится через 5 д 4 ч";
+  cRow.appendChild(cVal);
+  cRow.appendChild(cDisabledZero);
+  cRow.appendChild(cCircle);
+  cRow.appendChild(cDet);
+
+  overlay.appendChild(gHead);
+  overlay.appendChild(gRow5);
+  overlay.appendChild(cHead);
+  overlay.appendChild(cRow);
+  doc.body.appendChild(overlay);
+
+  const te = createThemeEngine({ document: doc, window: win });
+  te.apply({ presetId: "obsidian-glass", wallpaper: { type: "image", mediaUrl: "rudex-media://local/bg.jpg" } });
+  assert.equal(overlay.getAttribute("data-rudex-bg-shell"), null, "Theme engine must never strip .agy-overlay background");
+
+  let syncedPayload = null;
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      invoke: async (ch, payload) => {
+        if (ch === "agy-studio:sync-quota-snapshot") {
+          syncedPayload = payload;
+          return { ok: true, summary: { families: { gemini: payload.gemini, claudeGpt: payload.claudeGpt }, chats: [] } };
+        }
+        return { ok: true };
+      },
+    },
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine: te,
+  });
+  try {
+    panel.init();
+    panel.pollStream();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.ok(syncedPayload, "View Usage .agy-overlay must be scraped automatically on pollStream()");
+    assert.equal(syncedPayload.gemini.fiveHourRem, 85);
+    assert.equal(syncedPayload.gemini.fiveHourReset, "1 ч 20 мин");
+    assert.equal(syncedPayload.claudeGpt.weeklyRem, 44);
+    assert.equal(syncedPayload.claudeGpt.weeklyReset, "5 д 4 ч");
+  } finally {
+    panel.destroy();
+    te.destroy();
+    translator.destroy();
+  }
 });

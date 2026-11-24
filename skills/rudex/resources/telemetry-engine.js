@@ -285,6 +285,7 @@ function createEmptyTelemetry() {
     lastSparkAt: 0,
     turnStartFloatTok: 0,
     prevFloatTok: 0,
+    prevRawFloatTok: 0,
     highWaterBubbleTok: 0,
     bankedTurnTokens: 0,
     activeRespEl: null,
@@ -434,6 +435,7 @@ function telResetTurnAccumulators(tel, baselineTok, hiNow) {
   tel.unconfirmedFirstTok = 0;
   tel.preTokenAt = hiNow;
   tel.prevFloatTok = baselineTok;
+  tel.prevRawFloatTok = baselineTok;
   tel.turnStartFloatTok = baselineTok;
   tel.highWaterBubbleTok = baselineTok;
 }
@@ -462,9 +464,12 @@ function createTelemetryEngine(options = {}) {
     return 0;
   }
 
-  function countSingleResponse(r, activeLast) {
+  function countSingleResponse(r, activeLast, precomputedLastRespTok) {
     if (!r) return 0;
     if (r === activeLast) {
+      if (typeof precomputedLastRespTok === "number" && Number.isFinite(precomputedLastRespTok) && precomputedLastRespTok >= 0) {
+        return Math.round(precomputedLastRespTok);
+      }
       return estimateTokens(extractVisibleResponseText(r));
     }
     if (typeof r === "object") {
@@ -477,7 +482,7 @@ function createTelemetryEngine(options = {}) {
     return 0;
   }
 
-  function countChatTokens(userMsgs, responses, lastResp) {
+  function countChatTokens(userMsgs, responses, lastResp, precomputedLastRespTok) {
     let total = 0;
     if (userMsgs && typeof userMsgs.length === "number") {
       for (let i = 0; i < userMsgs.length; i += 1) {
@@ -489,7 +494,7 @@ function createTelemetryEngine(options = {}) {
         ? responses[responses.length - 1]
         : lastResp;
       for (let i = 0; i < responses.length; i += 1) {
-        total += countSingleResponse(responses[i], activeLast);
+        total += countSingleResponse(responses[i], activeLast, precomputedLastRespTok);
       }
     }
     return total;
@@ -549,7 +554,7 @@ function createTelemetryEngine(options = {}) {
     return entry;
   }
 
-  function updateStreamingMetrics(tel, effectiveTok, delta, idleSinceGrowth, hiNow) {
+  function updateStreamingMetrics(tel, effectiveTok, delta, idleSinceGrowth, hiNow, gapSinceLastGrowth) {
     const totalGained = (tel.bankedTurnTokens || 0) + Math.max(0, effectiveTok - (tel.turnStartFloatTok || 0));
 
     if (delta > 0) {
@@ -567,6 +572,9 @@ function createTelemetryEngine(options = {}) {
         const last = tel.tpsWindow[winLen - 1];
         const windowTps = Math.max(0, (last.tok - first.tok) / (spanMs / 1000));
         instTps = windowTps * 0.72 + cumTps * 0.28;
+      } else if (winLen === 1 && tel.growthTicks >= 2 && gapSinceLastGrowth > 1800) {
+        const resumeTps = Math.min(320, delta / 0.25);
+        instTps = resumeTps * 0.65 + cumTps * 0.35;
       } else {
         instTps = Math.min(320, cumTps);
       }
@@ -594,14 +602,17 @@ function createTelemetryEngine(options = {}) {
     tel.prevFloatTok = effectiveTok;
   }
 
-  function commitSnapCounters(tel, snap, snapRespCount, snapUserCount, snapRespTokens) {
+  function commitSnapCounters(tel, snap, snapRespCount, snapUserCount, snapRespTokens, snapRawFloatTok) {
     tel.activeRespEl = snap.lastResp || null;
     tel.prevRespCount = snapRespCount;
     tel.prevUserCount = snapUserCount;
     tel.respTokens = snapRespTokens;
+    if (typeof snapRawFloatTok === "number" && Number.isFinite(snapRawFloatTok)) {
+      tel.prevRawFloatTok = snapRawFloatTok;
+    }
   }
 
-  function handleIdleGrowthGuard(tel, snap, effectiveTok, hiNow, hydrationIgnoreUntil, counts) {
+  function handleIdleGrowthGuard(tel, snap, effectiveTok, snapFloatTok, hiNow, hydrationIgnoreUntil, counts) {
     if (snap.isGenerating || tel.wasGenerating) {
       tel.unconfirmedGrowthTicks = 0;
       tel.unconfirmedFirstTok = 0;
@@ -624,7 +635,7 @@ function createTelemetryEngine(options = {}) {
         tel.phase = "idle";
         tel.isGenerating = false;
         tel.wasGenerating = false;
-        commitSnapCounters(tel, snap, counts.resp, counts.user, counts.respTok);
+        commitSnapCounters(tel, snap, counts.resp, counts.user, counts.respTok, snapFloatTok);
         return true;
       }
 
@@ -634,7 +645,8 @@ function createTelemetryEngine(options = {}) {
         tel.prevFloatTok = effectiveTok;
         tel.preTokenAt = hiNow;
         tel.phase = "idle";
-        commitSnapCounters(tel, snap, counts.resp, counts.user, counts.respTok);
+        tel.isGenerating = false;
+        commitSnapCounters(tel, snap, counts.resp, counts.user, counts.respTok, snapFloatTok);
         return true;
       }
 
@@ -644,7 +656,8 @@ function createTelemetryEngine(options = {}) {
         tel.turnStartFloatTok = effectiveTok;
         tel.prevFloatTok = effectiveTok;
         tel.phase = "idle";
-        commitSnapCounters(tel, snap, counts.resp, counts.user, counts.respTok);
+        tel.isGenerating = false;
+        commitSnapCounters(tel, snap, counts.resp, counts.user, counts.respTok, snapFloatTok);
         return true;
       }
 
@@ -660,7 +673,8 @@ function createTelemetryEngine(options = {}) {
       tel.turnStartFloatTok = effectiveTok;
       tel.prevFloatTok = effectiveTok;
       tel.phase = "idle";
-      commitSnapCounters(tel, snap, counts.resp, counts.user, counts.respTok);
+      tel.isGenerating = false;
+      commitSnapCounters(tel, snap, counts.resp, counts.user, counts.respTok, snapFloatTok);
       return true;
     }
 
@@ -707,20 +721,24 @@ function createTelemetryEngine(options = {}) {
 
     telSyncMetadataFromSnap(tel, snap);
 
-    // 1. Cancel detection (explicit cancel click while generating, or DOM conversation shrink)
+    // 1. Cancel detection: explicit cancel click, full DOM reset, or non-streaming rewind (never on virtualized DOM shrink mid-stream)
     const cancelClicked =
       (tel.wasGenerating || tel.isGenerating) &&
       lastCancelClickAt > 0 &&
       hiNow >= lastCancelClickAt &&
       hiNow - lastCancelClickAt < 2500;
-    const wasCanceled =
-      cancelClicked ||
-      snapRespCount < (tel.prevRespCount || 0) ||
-      snapUserCount < (tel.prevUserCount || 0);
+    const domResetToEmpty = snapRespCount === 0 && (tel.prevRespCount || 0) > 0;
+    const domShrankWithoutActiveSameBubble = Boolean(
+      !snap.hasCancelBtn &&
+      !snap.isGenerating &&
+      (snapRespCount < (tel.prevRespCount || 0) || snapUserCount < (tel.prevUserCount || 0)) &&
+      (!snap.lastResp || snap.lastResp !== tel.activeRespEl)
+    );
+    const wasCanceled = Boolean(cancelClicked || domResetToEmpty || domShrankWithoutActiveSameBubble);
 
     if (wasCanceled) {
       telResetTurnAccumulators(tel, snapFloatTok, hiNow);
-      commitSnapCounters(tel, snap, snapRespCount, snapUserCount, snapRespTokens);
+      commitSnapCounters(tel, snap, snapRespCount, snapUserCount, snapRespTokens, snapFloatTok);
       return { canceled: true, finalizedTurn: null, flushNeeded: false };
     }
 
@@ -730,7 +748,10 @@ function createTelemetryEngine(options = {}) {
       snap.lastResp &&
       tel.activeRespEl &&
       snap.lastResp !== tel.activeRespEl &&
-      (snapRespCount !== (tel.prevRespCount || 0) || snapFloatTok + 2 < (tel.prevFloatTok || 0))
+      (snapRespCount !== (tel.prevRespCount || 0) ||
+        snapFloatTok + 2 < (tel.prevFloatTok || 0) ||
+        Boolean(snap.isGenerating) ||
+        Boolean(snap.hasCancelBtn))
     );
 
     if (newRespAppeared) {
@@ -751,6 +772,7 @@ function createTelemetryEngine(options = {}) {
           (tel.bankedTurnTokens || 0) +
           Math.max(0, (tel.highWaterBubbleTok || 0) - (tel.turnStartFloatTok || 0));
         tel.prevFloatTok = 0;
+        tel.prevRawFloatTok = 0;
         tel.turnStartFloatTok = 0;
         tel.highWaterBubbleTok = 0;
         tel.wasGenerating = true;
@@ -760,12 +782,39 @@ function createTelemetryEngine(options = {}) {
       tel.activeRespEl = snap.lastResp;
     }
 
-    // 3. High-water mark guards against minor markdown-collapse token dips
+    // 3. Segment-collapse rebase + high-water mark guard against minor markdown-collapse dips
+    const prevRaw = typeof tel.prevRawFloatTok === "number" ? tel.prevRawFloatTok : (tel.prevFloatTok || 0);
+    if (
+      !newRespAppeared &&
+      (snap.isGenerating || snap.hasCancelBtn || tel.wasGenerating) &&
+      snapFloatTok + 4 < (tel.highWaterBubbleTok || 0)
+    ) {
+      if (snapFloatTok < prevRaw - 4) {
+        if (tel.wasGenerating) {
+          tel.bankedTurnTokens =
+            (tel.bankedTurnTokens || 0) +
+            Math.max(0, (tel.highWaterBubbleTok || 0) - (tel.turnStartFloatTok || 0));
+        }
+        tel.highWaterBubbleTok = snapFloatTok;
+        tel.turnStartFloatTok = snapFloatTok;
+        tel.prevFloatTok = snapFloatTok;
+      } else if (snapFloatTok > prevRaw + 0.5) {
+        if (tel.wasGenerating) {
+          tel.bankedTurnTokens =
+            (tel.bankedTurnTokens || 0) +
+            Math.max(0, (tel.highWaterBubbleTok || 0) - (tel.turnStartFloatTok || 0));
+        }
+        tel.turnStartFloatTok = prevRaw;
+        tel.prevFloatTok = prevRaw;
+        tel.highWaterBubbleTok = snapFloatTok;
+      }
+    }
+
     const effectiveTok = Math.max(tel.highWaterBubbleTok || 0, snapFloatTok);
     tel.highWaterBubbleTok = effectiveTok;
 
     // 4. Hydration & unconfirmed 2-step growth guard when idle
-    if (handleIdleGrowthGuard(tel, snap, effectiveTok, hiNow, hydrationIgnoreUntil, counts)) {
+    if (handleIdleGrowthGuard(tel, snap, effectiveTok, snapFloatTok, hiNow, hydrationIgnoreUntil, counts)) {
       return {
         canceled: false,
         finalizedTurn: pendingFinalizedTurn,
@@ -774,10 +823,16 @@ function createTelemetryEngine(options = {}) {
     }
 
     // 5. Active timing & rolling window TPS
-    const delta = snapUserCount <= (tel.prevUserCount || 0) + 1
+    const sameActiveOrStreaming = Boolean(
+      snap.isGenerating ||
+      snap.hasCancelBtn ||
+      (snap.lastResp && tel.activeRespEl && snap.lastResp === tel.activeRespEl)
+    );
+    const delta = sameActiveOrStreaming || snapUserCount <= (tel.prevUserCount || 0) + 1
       ? Math.max(0, effectiveTok - (tel.prevFloatTok || 0))
       : 0;
 
+    let gapSinceLastGrowth = 0;
     if (delta > 0) {
       if (!tel.firstGrowthAt) {
         tel.firstGrowthAt = hiNow;
@@ -785,10 +840,10 @@ function createTelemetryEngine(options = {}) {
         tel.activeStreamMs = 0;
         tel.samples = [];
       } else if (tel.lastGrowthAt > 0) {
-        const gap = hiNow - tel.lastGrowthAt;
-        if (gap > 0 && gap <= 2200) {
-          tel.activeStreamMs += gap;
-        } else if (gap > 2200) {
+        gapSinceLastGrowth = hiNow - tel.lastGrowthAt;
+        if (gapSinceLastGrowth > 0 && gapSinceLastGrowth <= 2200) {
+          tel.activeStreamMs += gapSinceLastGrowth;
+        } else if (gapSinceLastGrowth > 2200) {
           tel.activeStreamMs += 120;
         }
       }
@@ -824,7 +879,7 @@ function createTelemetryEngine(options = {}) {
       if (typeof snap.thinkingSec === "number" && Number.isFinite(snap.thinkingSec) && snap.thinkingSec > 0) {
         tel.lastThinkingSec = snap.thinkingSec;
       }
-      updateStreamingMetrics(tel, effectiveTok, delta, idleSinceGrowth, hiNow);
+      updateStreamingMetrics(tel, effectiveTok, delta, idleSinceGrowth, hiNow, gapSinceLastGrowth);
     } else if (tel.wasGenerating) {
       finalizedTurn = finalizeTurn(
         tel,
@@ -843,7 +898,7 @@ function createTelemetryEngine(options = {}) {
 
     tel.isGenerating = effectiveGenerating;
     tel.wasGenerating = effectiveGenerating;
-    commitSnapCounters(tel, snap, snapRespCount, snapUserCount, snapRespTokens);
+    commitSnapCounters(tel, snap, snapRespCount, snapUserCount, snapRespTokens, snapFloatTok);
 
     return {
       canceled: false,

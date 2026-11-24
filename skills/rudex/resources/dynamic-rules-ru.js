@@ -84,6 +84,24 @@ function translateQuotaWindow(windowStr, caseForm) {
   return windowStr;
 }
 
+function translateLimitLabelRu(label) {
+  const s = String(label || "").trim().toLowerCase();
+  const isRem = /\bremaining\b/.test(s);
+  if (s.startsWith("weekly")) return isRem ? "Остаток недельного лимита" : "Недельный лимит";
+  if (s.startsWith("daily")) return isRem ? "Остаток дневного лимита" : "Дневной лимит";
+  if (s.startsWith("hourly")) return isRem ? "Остаток часового лимита" : "Часовой лимит";
+  if (s.startsWith("monthly")) return isRem ? "Остаток месячного лимита" : "Месячный лимит";
+  if (s.startsWith("5-hour") || s.startsWith("5 hour") || s.startsWith("five-hour") || s.startsWith("five hour")) {
+    return isRem ? "Остаток 5-часового лимита" : "5-часовой лимит";
+  }
+  const compactM = /^(\d+)([smhd])\s+limit$/i.exec(s);
+  if (compactM) {
+    const unitRu = { s: "с", m: "мин", h: "ч", d: "д" }[compactM[2]] || compactM[2];
+    return `Лимит (${compactM[1]} ${unitRu})`;
+  }
+  return label;
+}
+
 function translatePlanBenefit(str) {
   const s = String(str || "").trim().toLowerCase();
   if (s === "higher rate limits") return "более высокие лимиты";
@@ -249,7 +267,7 @@ const DYNAMIC_RULES = [
     fn: (_, s) => `Осталось ${s} с`,
   },
   {
-    re: /^Resets in (.+)$/,
+    re: /^Resets in (.+)$/i,
     fn: (_, dur) => `Сбросится через ${translateCompactDuration(dur)}`,
   },
   {
@@ -727,6 +745,10 @@ const DYNAMIC_RULES = [
   {
     re: /^Continue \((.+)\)$/,
     fn: (_, key) => `Продолжить (${key})`,
+  },
+  {
+    re: /^Cancel \((.+)\)$/,
+    fn: (_, key) => `Отмена (${key})`,
   },
   {
     re: /^Submit \((.+)\)$/,
@@ -1602,6 +1624,14 @@ const DYNAMIC_RULES = [
   {
     re: /^(?:It will )?(?:fully )?refresh(?:es)? in (.+?)\.?$/i,
     fn: (_, dur) => `Полное обновление через ${translateEnglishDurationList(dur, true)}.`,
+  },
+  {
+    re: /^((?:Daily|Weekly|Hourly|Monthly|5-?hour|Five[- ]hour|\d+[smhd])\s+limit(?:\s+remaining)?),\s*resets in (.+)$/i,
+    fn: (_, label, dur) => `${translateLimitLabelRu(label)}, сбросится через ${translateCompactDuration(dur)}`,
+  },
+  {
+    re: /^(\d+(?:[.,]\d+)?)%\s*left$/i,
+    fn: (_, pct) => `${pct}% осталось`,
   },
   {
     re: /^(\d+)([smhd]) limit$/i,
