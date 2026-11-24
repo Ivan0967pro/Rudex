@@ -179,6 +179,124 @@ function saveStudioSettings(patch) {
   return next;
 }
 
+const MAX_STORED_CHATS = 120;
+
+function getStudioChatsPath() {
+  return path.join(app.getPath("userData"), "agy_studio_chats.json");
+}
+
+function normalizeChatKey(raw) {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  if (!s || s === "__new__") return "__new__";
+  return s.slice(0, 160);
+}
+
+function defaultChatTelemetry() {
+  return {
+    lastAvgTps: 0,
+    peakTps: 0,
+    respTokens: 0,
+    chatTokens: 0,
+    modelName: "",
+    samples: [],
+    history: [],
+  };
+}
+
+function defaultChatRecord(title) {
+  return {
+    title: typeof title === "string" ? title.trim().slice(0, 80) : "",
+    updatedAt: 0,
+    personaEnabled: false,
+    personaActivePreset: "custom",
+    personaText: "",
+    telemetry: defaultChatTelemetry(),
+  };
+}
+
+function toNonNegInt(val) {
+  return typeof val === "number" && Number.isFinite(val) && val > 0 ? Math.round(val) : 0;
+}
+
+function sanitizeChatTelemetry(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const samples = Array.isArray(src.samples)
+    ? src.samples.slice(-24).map((n) => toNonNegInt(n))
+    : [];
+  const history = Array.isArray(src.history)
+    ? src.history
+        .filter((h) => h && typeof h === "object")
+        .slice(0, 8)
+        .map((h) => ({
+          model: typeof h.model === "string" ? h.model.slice(0, 60) : "",
+          tokens: toNonNegInt(h.tokens),
+          avgTps: toNonNegInt(h.avgTps),
+          peakTps: toNonNegInt(h.peakTps),
+          at: typeof h.at === "string" ? h.at.slice(0, 20) : "",
+        }))
+    : [];
+  return {
+    lastAvgTps: toNonNegInt(src.lastAvgTps),
+    peakTps: toNonNegInt(src.peakTps),
+    respTokens: toNonNegInt(src.respTokens),
+    chatTokens: toNonNegInt(src.chatTokens),
+    modelName: typeof src.modelName === "string" ? src.modelName.slice(0, 60) : "",
+    samples,
+    history,
+  };
+}
+
+function sanitizeChatRecord(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  return {
+    title: typeof src.title === "string" ? src.title.trim().slice(0, 80) : "",
+    updatedAt: toNonNegInt(src.updatedAt),
+    personaEnabled: Boolean(src.personaEnabled),
+    personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
+    personaText: typeof src.personaText === "string" ? src.personaText : "",
+    telemetry: sanitizeChatTelemetry(src.telemetry),
+  };
+}
+
+function loadStudioChats() {
+  try {
+    const p = getStudioChatsPath();
+    if (fs.existsSync(p)) {
+      const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+      const srcChats = parsed && typeof parsed === "object" && parsed.chats && typeof parsed.chats === "object" ? parsed.chats : {};
+      const out = {};
+      for (const k of Object.keys(srcChats)) {
+        const nk = normalizeChatKey(k);
+        if (nk === "__new__") continue;
+        out[nk] = sanitizeChatRecord(srcChats[k]);
+      }
+      return out;
+    }
+  } catch {}
+  return {};
+}
+
+function saveStudioChats(chatsMap) {
+  const src = chatsMap && typeof chatsMap === "object" ? chatsMap : {};
+  const entries = Object.keys(src)
+    .filter((k) => k && k !== "__new__")
+    .map((k) => [k, sanitizeChatRecord(src[k])])
+    .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0))
+    .slice(0, MAX_STORED_CHATS);
+  const pruned = {};
+  for (const pair of entries) {
+    pruned[pair[0]] = pair[1];
+  }
+  try {
+    const p = getStudioChatsPath();
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify({ version: 1, chats: pruned }, null, 2) + "\\n", "utf8");
+  } catch (err) {
+    console.warn("[i18nMain] Failed to persist studio chats:", err && err.message ? err.message : err);
+  }
+  return pruned;
+}
+
 function stripRuleFrontmatter(md) {
   return String(md || "").replace(/^---\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n*/, "");
 }
@@ -235,12 +353,6 @@ function getStudioState() {
   let personaFileExists = false;
   try {
     personaFileExists = fs.existsSync(rulePath);
-    if (personaFileExists) {
-      const diskBody = stripRuleFrontmatter(fs.readFileSync(rulePath, "utf8")).trim();
-      if (diskBody && (settings.personaEnabled || !settings.personaText)) {
-        settings.personaText = diskBody;
-      }
-    }
   } catch {}
   return {
     locale: getLocale(),
@@ -456,23 +568,108 @@ function registerI18nIpc() {
     broadcastStudioSettings(state);
     return state;
   });
+  ipcMain.handle("agy-studio:activate-chat", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey);
+    const titleStr = typeof p.title === "string" ? p.title.trim().slice(0, 80) : "";
+    if (key === "__new__") {
+      const dp = p.draftPersona && typeof p.draftPersona === "object" ? p.draftPersona : null;
+      const rec = dp && dp.personaEnabled && typeof dp.personaText === "string" && dp.personaText.trim()
+        ? sanitizeChatRecord({
+            personaEnabled: true,
+            personaActivePreset: typeof dp.personaActivePreset === "string" ? dp.personaActivePreset : "custom",
+            personaText: dp.personaText,
+          })
+        : defaultChatRecord("");
+      const syncRes = syncPersonaRuleFile(Boolean(rec.personaEnabled), rec.personaText || "");
+      return { ok: true, chatKey: "__new__", chat: rec, personaFileExists: syncRes.exists, personaFilePath: syncRes.rulePath };
+    }
+    const chats = loadStudioChats();
+    let changed = false;
+    if (!chats[key] && p.promoteFromNew && typeof p.promoteFromNew === "object") {
+      const promo = p.promoteFromNew;
+      chats[key] = sanitizeChatRecord(Object.assign({}, promo, {
+        title: titleStr || (typeof promo.title === "string" ? promo.title : ""),
+        updatedAt: Date.now(),
+      }));
+      changed = true;
+    } else if (chats[key] && titleStr && !chats[key].title) {
+      chats[key].title = titleStr;
+      changed = true;
+    }
+    if (changed) saveStudioChats(chats);
+    const rec = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(titleStr);
+    const syncRes = syncPersonaRuleFile(Boolean(rec.personaEnabled), rec.personaText || "");
+    return { ok: true, chatKey: key, chat: rec, personaFileExists: syncRes.exists, personaFilePath: syncRes.rulePath };
+  });
   ipcMain.handle("agy-studio:save-persona", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey);
+    const titleStr = typeof p.title === "string" ? p.title.trim().slice(0, 80) : "";
     const enabled = Boolean(p.personaEnabled);
     const text = typeof p.personaText === "string" ? p.personaText : "";
+    const presetId = typeof p.personaActivePreset === "string" && p.personaActivePreset ? p.personaActivePreset : "custom";
+    if (Array.isArray(p.customPresets)) {
+      saveStudioSettings({ customPresets: p.customPresets });
+    }
     const syncRes = syncPersonaRuleFile(enabled, text);
     if (!syncRes.ok) {
       return { ok: false, error: syncRes.error || "SAVE_FAILED", byteLength: syncRes.byteLength, exists: syncRes.exists, rulePath: syncRes.rulePath, state: getStudioState() };
     }
-    saveStudioSettings({
-      personaEnabled: enabled && syncRes.exists,
-      personaText: text,
-      personaActivePreset: typeof p.personaActivePreset === "string" ? p.personaActivePreset : "custom",
-      customPresets: Array.isArray(p.customPresets) ? p.customPresets : undefined,
-    });
+    const activeEnabled = enabled && syncRes.exists;
+    let chatRec = null;
+    if (key !== "__new__") {
+      const chats = loadStudioChats();
+      const prev = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(titleStr);
+      chats[key] = sanitizeChatRecord(Object.assign({}, prev, {
+        title: titleStr || prev.title || "",
+        updatedAt: Date.now(),
+        personaEnabled: activeEnabled,
+        personaActivePreset: presetId,
+        personaText: text,
+      }));
+      saveStudioChats(chats);
+      chatRec = chats[key];
+    } else {
+      chatRec = sanitizeChatRecord({
+        personaEnabled: activeEnabled,
+        personaActivePreset: presetId,
+        personaText: text,
+      });
+    }
     const state = getStudioState();
     broadcastStudioSettings(state);
-    return { ok: true, exists: syncRes.exists, byteLength: syncRes.byteLength, rulePath: syncRes.rulePath, state };
+    return { ok: true, exists: syncRes.exists, byteLength: syncRes.byteLength, rulePath: syncRes.rulePath, chatKey: key, chat: chatRec, state };
+  });
+  ipcMain.handle("agy-studio:save-chat-telemetry", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey);
+    if (key === "__new__") return { ok: true, skipped: true };
+    const titleStr = typeof p.title === "string" ? p.title.trim().slice(0, 80) : "";
+    const chats = loadStudioChats();
+    const prev = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(titleStr);
+    chats[key] = sanitizeChatRecord(Object.assign({}, prev, {
+      title: titleStr || prev.title || "",
+      updatedAt: Date.now(),
+      telemetry: sanitizeChatTelemetry(p.telemetry),
+    }));
+    saveStudioChats(chats);
+    return { ok: true, chatKey: key, chat: chats[key] };
+  });
+  ipcMain.handle("agy-studio:reset-chat-telemetry", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey);
+    if (key !== "__new__") {
+      const chats = loadStudioChats();
+      if (chats[key]) {
+        chats[key] = sanitizeChatRecord(Object.assign({}, chats[key], {
+          updatedAt: Date.now(),
+          telemetry: defaultChatTelemetry(),
+        }));
+        saveStudioChats(chats);
+      }
+    }
+    return { ok: true, chatKey: key };
   });
 }
 
