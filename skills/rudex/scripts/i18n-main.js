@@ -63,7 +63,7 @@ const DEFAULT_MINI_FIELDS = {
   model: false,
   quota: false,
 };
-const VALID_APPEARANCE_PRESETS = new Set(["native", "obsidian-glass", "midnight-neon", "warm-contrast", "light-paper", "emerald-void", "crimson-noir", "tokyo-night", "sakura-dusk", "nordic-frost", "custom"]);
+const VALID_APPEARANCE_PRESETS = new Set(["native", "liquid-glass", "obsidian-glass", "midnight-neon", "warm-contrast", "light-paper", "emerald-void", "crimson-noir", "tokyo-night", "sakura-dusk", "nordic-frost", "custom"]);
 const VALID_WALLPAPER_TYPES = new Set(["none", "gradient", "image", "video"]);
 const VALID_GRADIENT_PRESETS = new Set(["aurora", "cosmic", "sunset", "emerald", "cyber", "silk", "sakura", "ocean", "amber", "mist"]);
 const VALID_GRADIENT_STYLES = new Set(["linear", "radial", "mesh"]);
@@ -296,9 +296,9 @@ function sanitizeAppearance(raw) {
     accentColor: sanitizeHexColor(src.accentColor, DEFAULT_APPEARANCE.accentColor),
     canvasBg: sanitizeHexColor(src.canvasBg, DEFAULT_APPEARANCE.canvasBg),
     cardBg: sanitizeHexColor(src.cardBg, DEFAULT_APPEARANCE.cardBg),
-    glassOpacity: Math.round(clampNum(src.glassOpacity, 25, 100, DEFAULT_APPEARANCE.glassOpacity)),
-    sidebarOpacity: Math.round(clampNum(src.sidebarOpacity, 20, 100, DEFAULT_APPEARANCE.sidebarOpacity)),
-    glassBlur: Math.round(clampNum(src.glassBlur, 0, 24, DEFAULT_APPEARANCE.glassBlur)),
+    glassOpacity: Math.round(clampNum(src.glassOpacity, 15, 100, DEFAULT_APPEARANCE.glassOpacity)),
+    sidebarOpacity: Math.round(clampNum(src.sidebarOpacity, 15, 100, DEFAULT_APPEARANCE.sidebarOpacity)),
+    glassBlur: Math.round(clampNum(src.glassBlur, 0, 36, DEFAULT_APPEARANCE.glassBlur)),
     messageCardOpacity: Math.round(clampNum(src.messageCardOpacity, 0, 96, DEFAULT_APPEARANCE.messageCardOpacity)),
     messageStyle: VALID_MESSAGE_STYLES.has(src.messageStyle) ? src.messageStyle : "glass",
     borderStrength: Math.round(clampNum(src.borderStrength, 0, 100, DEFAULT_APPEARANCE.borderStrength)),
@@ -1893,7 +1893,7 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.1.2");
+  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.2.0");
   const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
   const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
   const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
@@ -1922,6 +1922,26 @@ function seedUpdateStateFromCacheIfNeeded() {
 
 function getPublicUpdateState() {
   seedUpdateStateFromCacheIfNeeded();
+  const freshInstalled = getInstalledRudexMeta();
+  const prevInst = updateStatusState.installed || {};
+  if (
+    freshInstalled.version !== prevInst.version ||
+    freshInstalled.commitSha !== prevInst.commitSha
+  ) {
+    updateStatusState.installed = freshInstalled;
+    if (updateStatusState.remote) {
+      try {
+        const updaterCore = loadUpdaterCore();
+        const avail = updaterCore.evaluateUpdateAvailability(freshInstalled, updateStatusState.remote);
+        updateStatusState.updateKey = avail.updateKey || "";
+        updateStatusState.reason = avail.reason || "";
+        updateStatusState.available = Boolean(avail.available);
+        if (!["checking", "downloading", "extracting", "installing", "restarting"].includes(updateStatusState.status)) {
+          updateStatusState.status = avail.available ? "available" : "up-to-date";
+        }
+      } catch {}
+    }
+  }
   const cache = loadUpdateCache();
   const busy = ["downloading", "extracting", "installing", "restarting"].includes(updateStatusState.status);
   const dismissed =
@@ -1971,6 +1991,7 @@ function runUpdateCheck(opts = {}) {
       const res = await updaterCore.checkRemoteRelease({
         prevEtag: cache.etag,
         prevRemote: cache.lastKnownRemote,
+        bypassCache: force,
       });
       if (!res || !res.ok || !res.remote) {
         const errMsg = (res && res.error) || "Update check failed";
@@ -3019,7 +3040,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.1.2",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.2.0",
         outPath,
       });
       return res;

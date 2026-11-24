@@ -53,6 +53,7 @@ const {
 const { patchMainJs, patchUpdaterJs } = require(path.join(SCRIPTS_DIR, "electron-shell.js"));
 const {
   evaluateUpdateAvailability,
+  parseGithubAtomFeed,
   readZipEocdComment,
   extractCommitShaFromText,
   checkRemoteRelease,
@@ -394,11 +395,11 @@ function createMockDom() {
 // =============================================================================
 // 1. Metadata, Hooks Schema & Installer Helpers
 // =============================================================================
-test("Manifest & hooks.json follow Rudex v4.1.2 architecture without PostInvocation", () => {
+test("Manifest & hooks.json follow Rudex v4.2.0 architecture without PostInvocation", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.1.2");
+  assert.equal(pkg.version, "4.2.0");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -2225,7 +2226,7 @@ test("Antigravity update survival: versionGuard auto-repatches, updater.js hooks
     // 4) rudex-hook.js auto-repatch recovers stripped resources/app even when all 3 feature flags are OFF
     fs.writeFileSync(path.join(mockAppRoot, "version"), "44.10.0\n", "utf8");
     fs.writeFileSync(path.join(mockResDir, "app.asar"), "STOCK_44_10_ASAR", "utf8");
-    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.1.2"}', "utf8");
+    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.2.0"}', "utf8");
     fs.writeFileSync(
       path.join(mockPluginDir, "skills", "rudex", "scripts", "install.js"),
       `"use strict";\nconst fs = require("fs");\nfs.writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify(process.argv.slice(2)), "utf8");\n`,
@@ -2511,11 +2512,164 @@ test("Redesigned Studio UI exposes window themes/layouts, mini widget designs, w
     const i18nMainText = fs.readFileSync(path.join(SCRIPTS_DIR, "i18n-main.js"), "utf8");
     assert.ok(i18nMainText.includes("VALID_STUDIO_THEMES"));
     assert.ok(i18nMainText.includes("sanitizeStudioUi"));
+    assert.ok(i18nMainText.includes("liquid-glass"));
     assert.ok(i18nMainText.includes("tokyo-night"));
     assert.ok(i18nMainText.includes("corners:"));
   } finally {
     panel.destroy();
     te.destroy();
     translator.destroy();
+  }
+});
+
+// =============================================================================
+// 14. Apple Liquid Glass & Resilient Updater Tests (v4.2.0)
+// =============================================================================
+test("Apple Liquid Glass preset, optical theme CSS, smooth sparkline, and Studio preview-update-toast work cleanly", async () => {
+  const lgPreset = THEME_PRESETS.find((p) => p.id === "liquid-glass");
+  assert.ok(lgPreset, "liquid-glass preset must exist in THEME_PRESETS");
+
+  const norm = normalizeAppearance({ presetId: "liquid-glass", glassOpacity: 15, sidebarOpacity: 15, glassBlur: 36 });
+  assert.equal(norm.glassOpacity, 15);
+  assert.equal(norm.sidebarOpacity, 15);
+  assert.equal(norm.glassBlur, 36);
+
+  const lgCss = buildThemeCss({ presetId: "liquid-glass", glassOpacity: 38, glassBlur: 28 }, { hostIsLight: false });
+  assert.ok(lgCss.includes("saturate(195%)"), "Liquid Glass theme CSS must emit high-saturation optical backdrop-filter");
+  assert.ok(lgCss.includes("linear-gradient(155deg,"), "Liquid Glass theme CSS must emit specular lens gradient");
+  assert.ok(lgCss.includes("radial-gradient("), "Liquid Glass theme without wallpaper must supply deep ambient backdrop");
+
+  const studioCss = buildStudioStyles();
+  for (const tok of [
+    ".mini-pill::before",
+    ".med-card::before",
+    ".med-telemetry-stage",
+    ".med-quota-card",
+    ".pill-actions",
+    "saturate(215%)",
+    ".preview-stage",
+  ]) {
+    assert.ok(studioCss.includes(tok), `Missing Liquid Glass CSS token: ${tok}`);
+  }
+
+  const { doc, win } = createMockDom();
+  const translator = createDomTranslator({ document: doc, window: win, dictionary, applyDynamicRules, initialLocale: "ru" });
+  translator.init();
+  const ipcCalls = [];
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      invoke: async (ch) => {
+        ipcCalls.push(ch);
+        if (ch === "agy-studio:get-state") return { locale: "ru", settings: { viewMode: "medium" } };
+        if (ch === "agy-studio:get-update-state") {
+          return { status: "up-to-date", available: false, dismissed: false, installed: { version: "4.2.0", commitShort: "abcdef1" }, remote: null };
+        }
+        return { ok: true };
+      },
+    },
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine: createThemeEngine({ document: doc, window: win }),
+  });
+
+  try {
+    panel.init();
+    await new Promise((r) => setTimeout(r, 20));
+    const host = doc.getElementById("rudex-studio-host");
+    const root = host.shadowRoot.querySelector(".studio-root");
+    const widgetWrap = host.shadowRoot.querySelector(".widget-wrap");
+    assert.ok(widgetWrap.innerHTML.includes("med-telemetry-stage"), "Medium card must render unified telemetry stage");
+    assert.ok(widgetWrap.innerHTML.includes("med-quota-card"), "Medium card must render glass quota card");
+    assert.ok(widgetWrap.innerHTML.includes(" C"), "Sparkline SVG must use smooth cubic Bezier curves");
+
+    panel.setOpen(true, { tab: "settings", subTab: "system" });
+    const modalMount = host.shadowRoot.querySelector(".modal-mount");
+    assert.ok(modalMount.innerHTML.includes('data-action="preview-update-toast"'), "System settings must expose update toast preview button");
+
+    const prevBtn = doc.createElement("button");
+    prevBtn.setAttribute("data-action", "preview-update-toast");
+    root.appendChild(prevBtn);
+    root.dispatchEvent({ type: "click", target: prevBtn });
+
+    const toastMount = host.shadowRoot.querySelector(".update-toast-mount");
+    assert.ok(toastMount.innerHTML.includes("update-toast"), "Test toast button must display Liquid Glass update toast preview");
+
+    const closeBtn = doc.createElement("button");
+    closeBtn.setAttribute("data-action", "dismiss-update");
+    toastMount.appendChild(closeBtn);
+    root.dispatchEvent({ type: "click", target: closeBtn });
+    assert.equal(toastMount.innerHTML, "", "Dismissing preview toast must hide it cleanly");
+    assert.equal(ipcCalls.includes("agy-studio:dismiss-update"), false, "Dismissing preview toast must NOT persist snooze to disk");
+  } finally {
+    panel.destroy();
+    translator.destroy();
+  }
+});
+
+test("Updater core parses GitHub Atom feed, bypasses cache on force check, and falls back to Atom on API 403", async () => {
+  const sampleXml = `<?xml version="1.0" encoding="UTF-8"?>
+  <feed xmlns="http://www.w3.org/2005/Atom">
+    <entry>
+      <id>tag:github.com,2008:Grit::Commit/99887766554433221100ffeeddccbbaa11223344</id>
+      <link type="text/html" rel="alternate" href="https://github.com/Ivan0967pro/Rudex/commit/99887766554433221100ffeeddccbbaa11223344"/>
+      <title>feat(ui): Liquid Glass &amp; Atom fallback</title>
+      <updated>2026-11-24T22:30:00Z</updated>
+    </entry>
+  </feed>`;
+  const parsed = parseGithubAtomFeed(sampleXml);
+  assert.ok(parsed);
+  assert.equal(parsed.commitSha, "99887766554433221100ffeeddccbbaa11223344");
+  assert.equal(parsed.commitShort, "9988776");
+  assert.equal(parsed.commitMessage, "feat(ui): Liquid Glass & Atom fallback");
+  assert.equal(parsed.commitDate, "2026-11-24T22:30:00Z");
+
+  let sawCacheBust = false;
+  let sawEtagHeaderOnBypass = false;
+  const srv = http.createServer((req, res) => {
+    const u = new URL(req.url, "http://127.0.0.1");
+    if (u.pathname === "/plugin.json") {
+      if (u.searchParams.has("t")) sawCacheBust = true;
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ name: "rudex", version: "4.2.0" }));
+      return;
+    }
+    if (u.pathname === "/commit") {
+      if (req.headers["if-none-match"]) sawEtagHeaderOnBypass = true;
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "API rate limit exceeded" }));
+      return;
+    }
+    if (u.pathname === "/commits.atom") {
+      res.writeHead(200, { "Content-Type": "application/atom+xml" });
+      res.end(sampleXml);
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => srv.listen(0, "127.0.0.1", resolve));
+  try {
+    const port = srv.address().port;
+    const base = `http://127.0.0.1:${port}`;
+    const res = await checkRemoteRelease({
+      manifestUrl: `${base}/plugin.json`,
+      commitApiUrl: `${base}/commit`,
+      atomFeedUrl: `${base}/commits.atom`,
+      prevEtag: '"old-etag"',
+      bypassCache: true,
+    });
+    assert.equal(res.ok, true);
+    assert.equal(sawCacheBust, true, "bypassCache must append cache-busting query param to manifestUrl");
+    assert.equal(sawEtagHeaderOnBypass, false, "bypassCache must not send stale If-None-Match");
+    assert.equal(res.remote.version, "4.2.0");
+    assert.equal(res.remote.commitSha, "99887766554433221100ffeeddccbbaa11223344");
+    assert.equal(res.remote.commitMessage, "feat(ui): Liquid Glass & Atom fallback");
+  } finally {
+    await new Promise((resolve) => srv.close(resolve));
   }
 });

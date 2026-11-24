@@ -27,11 +27,11 @@ const DEFAULT_STUDIO_UI = {
 };
 
 const STUDIO_WINDOW_THEMES = [
-  { id: "obsidian", nameRu: "Обсидиан", nameEn: "Obsidian", descRu: "Глубокий графит и мягкое акцентное свечение", descEn: "Deep graphite with subtle accent glow", bg: "#0c0c0f", side: "#131318" },
-  { id: "frosted", nameRu: "Матовое стекло", nameEn: "Frosted Glass", descRu: "Полупрозрачный акрил поверх обоев", descEn: "Translucent acrylic glass over wallpaper", bg: "rgba(18,20,28,0.7)", side: "rgba(24,26,36,0.78)" },
-  { id: "neon-cyber", nameRu: "Кибер-неон", nameEn: "Cyber Neon", descRu: "Светящаяся рамка и контрастный HUD", descEn: "Luminous accent border and cyber HUD", bg: "#080912", side: "#0b0e1a" },
+  { id: "obsidian", nameRu: "Обсидиан", nameEn: "Obsidian", descRu: "Глубокий графит с верхним оптическим бликом", descEn: "Deep graphite with subtle top optical sheen", bg: "#0c0c10", side: "#13131a" },
+  { id: "frosted", nameRu: "Жидкое стекло", nameEn: "Liquid Glass", descRu: "Кристальное стекло iOS 26 с бликом и преломлением", descEn: "iOS 26 crystal glass with refraction & specular rim", bg: "rgba(18,22,36,0.52)", side: "rgba(255,255,255,0.08)" },
+  { id: "neon-cyber", nameRu: "Кибер-неон", nameEn: "Cyber Neon", descRu: "Светящаяся рамка и контрастный HUD", descEn: "Luminous accent border and cyber HUD", bg: "#070811", side: "#0b0e1d" },
   { id: "minimal-mono", nameRu: "Минимализм", nameEn: "Minimal Mono", descRu: "Чистые линии без теней и лишнего шума", descEn: "Crisp hairline borders without visual noise", bg: "#0c0c0f", side: "#0c0c0f" },
-  { id: "aurora", nameRu: "Аврора", nameEn: "Aurora", descRu: "Бархатный градиент и мягкая аура", descEn: "Velvet gradient backdrop with soft aura", bg: "#0a0c14", side: "#12162b" },
+  { id: "aurora", nameRu: "Аврора", nameEn: "Aurora", descRu: "Бархатный градиент и мягкая стеклянная аура", descEn: "Velvet gradient backdrop with soft glass aura", bg: "#090b15", side: "#12162b" },
 ];
 
 const STUDIO_WINDOW_LAYOUTS = [
@@ -42,11 +42,11 @@ const STUDIO_WINDOW_LAYOUTS = [
 ];
 
 const WIDGET_DESIGN_THEMES = [
-  { id: "glass", nameRu: "Жидкое стекло", nameEn: "Liquid Glass", descRu: "Мягкий блюр и верхний стеклянный блик", descEn: "Frosted blur with crisp top sheen" },
-  { id: "island", nameRu: "Dynamic Island", nameEn: "Dynamic Island", descRu: "Глубокий чёрный остров с яркой телеметрией", descEn: "Deep dark capsule with bold metrics" },
-  { id: "neon", nameRu: "Неоновый HUD", nameEn: "Neon HUD", descRu: "Акцентная подсветка рамки и цифр TPS", descEn: "Luminous accent ring and glowing TPS" },
-  { id: "minimal", nameRu: "Невесомый", nameEn: "Minimal", descRu: "Ультра-лёгкая прозрачная рамка", descEn: "Featherweight ultra-clean frame" },
-  { id: "solid", nameRu: "Контрастный монолит", nameEn: "Solid Contrast", descRu: "Плотный фон для ярких обоев", descEn: "Solid surface for bright wallpapers" },
+  { id: "glass", nameRu: "Жидкое стекло", nameEn: "Liquid Glass", descRu: "Хрустальная линза iOS 26 с преломлением и световым ободком", descEn: "iOS 26 crystal lens with refraction & specular rim" },
+  { id: "island", nameRu: "Dynamic Island", nameEn: "Dynamic Island", descRu: "Глубокий глянцевый остров с контрастными плитками", descEn: "Deep glossy island capsule with vivid metrics" },
+  { id: "neon", nameRu: "Неоновый HUD", nameEn: "Neon HUD", descRu: "Призматическое стекло с неоновым контуром и свечением", descEn: "Prismatic glass with luminous ring & glowing TPS" },
+  { id: "minimal", nameRu: "Невесомый", nameEn: "Air Frost", descRu: "Воздушная прозрачная вуаль без визуального шума", descEn: "Featherweight frosted veil with hairline border" },
+  { id: "solid", nameRu: "Контрастный монолит", nameEn: "Ceramic Matte", descRu: "Матовый монолит с фаской для ярких обоев", descEn: "Matte ceramic monolith for bright wallpapers" },
 ];
 
 const WALLPAPER_ATMOS_PRESETS = [
@@ -456,6 +456,9 @@ const TEXT = {
     updateStatusRestarting: "Перезапуск Antigravity…",
     updateStatusError: "Ошибка обновления",
     updateBtnCheck: "Проверить",
+    updateBtnPreview: "Тест уведомления",
+    updateLastCheckLabel: "Проверка",
+    updatePreviewBadge: "Предпросмотр уведомления",
     updateBtnNow: "Обновить",
     updateBtnInstallRestart: "Обновить и перезапустить",
     updateBtnLater: "Позже",
@@ -835,6 +838,9 @@ const TEXT = {
     updateStatusRestarting: "Restarting Antigravity…",
     updateStatusError: "Update failed",
     updateBtnCheck: "Check now",
+    updateBtnPreview: "Test toast",
+    updateLastCheckLabel: "Checked",
+    updatePreviewBadge: "Notification preview",
     updateBtnNow: "Update",
     updateBtnInstallRestart: "Update & Restart",
     updateBtnLater: "Later",
@@ -1383,9 +1389,10 @@ function parseQuotaFromDocumentText(fullText, activeModelName) {
 function buildSparklineMarkup(samples, width, height, idPrefix) {
   const pts = Array.isArray(samples) && samples.length > 0 ? samples.slice(-24) : [0, 0];
   const padded = pts.length === 1 ? [pts[0], pts[0]] : pts;
-  const maxVal = Math.max(12, ...padded);
-  const padX = 4;
-  const padY = 5;
+  const peakVal = Math.max(0, ...padded);
+  const maxVal = Math.max(12, peakVal);
+  const padX = 5;
+  const padY = 6;
   const innerW = Math.max(10, width - padX * 2);
   const innerH = Math.max(10, height - padY * 2);
   const coords = padded.map((v, idx) => {
@@ -1393,23 +1400,40 @@ function buildSparklineMarkup(samples, width, height, idPrefix) {
     const y = padY + innerH - (Math.max(0, v) / maxVal) * innerH;
     return [Number(x.toFixed(1)), Number(y.toFixed(1))];
   });
-  const lineD = coords.map((c, idx) => `${idx === 0 ? "M" : "L"}${c[0]} ${c[1]}`).join(" ");
+  let lineD = `M${coords[0][0]} ${coords[0][1]}`;
+  for (let i = 0; i < coords.length - 1; i += 1) {
+    const p0 = coords[i > 0 ? i - 1 : i];
+    const p1 = coords[i];
+    const p2 = coords[i + 1];
+    const p3 = coords[i + 2 < coords.length ? i + 2 : i + 1];
+    const cp1x = Number((p1[0] + (p2[0] - p0[0]) / 6).toFixed(1));
+    const cp1y = Number(Math.max(padY, Math.min(height - padY, p1[1] + (p2[1] - p0[1]) / 6)).toFixed(1));
+    const cp2x = Number((p2[0] - (p3[0] - p1[0]) / 6).toFixed(1));
+    const cp2y = Number(Math.max(padY, Math.min(height - padY, p2[1] - (p3[1] - p1[1]) / 6)).toFixed(1));
+    lineD += ` C${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2[0]} ${p2[1]}`;
+  }
   const last = coords[coords.length - 1];
   const first = coords[0];
-  const areaD = `${lineD} L${last[0]} ${(height - padY).toFixed(1)} L${first[0]} ${(height - padY).toFixed(1)} Z`;
+  const baseY = (height - padY).toFixed(1);
+  const areaD = `${lineD} L${last[0]} ${baseY} L${first[0]} ${baseY} Z`;
   const gradId = `rxSparkGrad_${idPrefix}`;
-  const midY = (padY + innerH * 0.5).toFixed(1);
+  const guideTopY = (padY + innerH * 0.25).toFixed(1);
+  const guideBotY = (padY + innerH * 0.75).toFixed(1);
+  const isIdle = peakVal <= 0.05;
   return `<svg class="spark-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:100%;display:block">
     <defs>
       <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="var(--rx-accent)" stop-opacity="0.32"/>
-        <stop offset="100%" stop-color="var(--rx-accent)" stop-opacity="0.02"/>
+        <stop offset="0%" stop-color="var(--rx-accent)" stop-opacity="${isIdle ? "0.10" : "0.38"}"/>
+        <stop offset="55%" stop-color="var(--rx-accent)" stop-opacity="${isIdle ? "0.04" : "0.14"}"/>
+        <stop offset="100%" stop-color="var(--rx-accent)" stop-opacity="0"/>
       </linearGradient>
     </defs>
-    <line x1="${padX}" y1="${midY}" x2="${width - padX}" y2="${midY}" stroke="var(--rx-border-strong)" stroke-dasharray="2.5 3" stroke-width="1"/>
+    <line x1="${padX}" y1="${guideTopY}" x2="${width - padX}" y2="${guideTopY}" stroke="rgba(255,255,255,0.07)" stroke-dasharray="2 4" stroke-width="1"/>
+    <line x1="${padX}" y1="${guideBotY}" x2="${width - padX}" y2="${guideBotY}" stroke="rgba(255,255,255,0.07)" stroke-dasharray="2 4" stroke-width="1"/>
     <path d="${areaD}" fill="url(#${gradId})"/>
-    <path d="${lineD}" fill="none" stroke="var(--rx-accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${last[0]}" cy="${last[1]}" r="2.5" fill="var(--rx-accent)"/>
+    <path d="${lineD}" fill="none" stroke="var(--rx-accent)" stroke-opacity="${isIdle ? "0.42" : "1"}" stroke-width="${isIdle ? "1.35" : "2"}" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="${isIdle ? "3.8" : "5.2"}" fill="var(--rx-accent)" fill-opacity="${isIdle ? "0.18" : "0.28"}"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="2.3" fill="${isIdle ? "var(--rx-accent)" : "#ffffff"}" stroke="var(--rx-accent)" stroke-width="1.2"/>
   </svg>`;
 }
 
@@ -1476,7 +1500,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.1.2", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "4.2.0", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1643,6 +1667,7 @@ function createStudioPanel(options) {
     liveEditBusy: false,
     liveEditError: "",
     liveEdits: [],
+    updatePreviewActive: false,
     update: {
       status: "idle",
       available: false,
@@ -2875,7 +2900,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "4.1.2";
+    const instVer = (inst && inst.version) || pluginMeta.version || "4.2.0";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -2900,22 +2925,54 @@ function createStudioPanel(options) {
     return tr.updateStatusIdle;
   }
 
+  function formatLastCheckTime(ts) {
+    const n = Number(ts) || 0;
+    if (n <= 0) return "";
+    try {
+      const d = new Date(n);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    } catch (_e) {
+      return "";
+    }
+  }
+
   function renderUpdateToast() {
     if (!updateToastMountEl || state.destroyed) return;
-    const u = state.update || {};
+    const tr = t();
+    const realU = state.update || {};
+    const isPreview = Boolean(state.updatePreviewActive && !realU.available);
+    const u = isPreview
+      ? {
+          status: "available",
+          available: true,
+          dismissed: false,
+          installed: realU.installed || { version: pluginMeta.version || "4.2.0" },
+          remote: {
+            version: pluginMeta.version || "4.2.0",
+            commitShort: (realU.installed && realU.installed.commitShort) || "preview",
+            commitMessage: tr.updatePreviewBadge,
+          },
+        }
+      : realU;
     const st = u.status || "idle";
     const isBusyStage = st === "downloading" || st === "extracting" || st === "installing" || st === "restarting";
     const hasErrOnToast = st === "error" && Boolean(u.available) && !u.dismissed;
-    const shouldShow = isBusyStage || hasErrOnToast || (Boolean(u.available) && !u.dismissed);
+    const shouldShow = isPreview || isBusyStage || hasErrOnToast || (Boolean(u.available) && !u.dismissed);
 
     if (!shouldShow) {
       updateToastMountEl.innerHTML = "";
       return;
     }
 
-    const tr = t();
+    const vw = win && win.innerWidth ? Number(win.innerWidth) : 1280;
     const isTopRightDocked = state.settings.layoutMode === "docked" && state.settings.dockPosition === "top-right";
-    updateToastMountEl.className = "update-toast-mount" + (isTopRightDocked ? " is-bottom" : "");
+    const isTopRightFloating =
+      state.settings.layoutMode === "floating" &&
+      typeof state.settings.floatY === "number" &&
+      typeof state.settings.floatX === "number" &&
+      state.settings.floatY < 160 &&
+      state.settings.floatX > Math.max(0, vw - 460);
+    updateToastMountEl.className = "update-toast-mount" + ((isTopRightDocked || isTopRightFloating) ? " is-bottom" : "");
 
     const verLabel = formatUpdateVersionBadge(u);
     const stageText = formatUpdateStatusLabel(u, tr);
@@ -2937,7 +2994,7 @@ function createStudioPanel(options) {
         ${isBusyStage ? "" : `
           <div class="update-toast-actions">
             <button type="button" class="btn btn-sm" data-action="dismiss-update">${escHtml(tr.updateBtnLater)}</button>
-            <button type="button" class="btn btn-sm btn-primary" data-action="install-update">${iconSvg("download", 12)}${escHtml(st === "error" ? tr.updateBtnRetry : tr.updateBtnNow)}</button>
+            ${isPreview ? "" : `<button type="button" class="btn btn-sm btn-primary" data-action="install-update">${iconSvg("download", 12)}${escHtml(st === "error" ? tr.updateBtnRetry : tr.updateBtnNow)}</button>`}
           </div>
         `}
       </div>
@@ -3553,11 +3610,11 @@ function createStudioPanel(options) {
     const hasPendingLe = countPendingLiveEdits() > 0;
     const grip = `<span class="drag-grip">${iconSvg("grip", 12)}</span>`;
     const btns = isPreview
-      ? `<span class="icon-btn">${iconSvg("bolt", 12)}</span><span class="icon-btn">${iconSvg("expand", 12)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 12)}</span><span class="icon-btn is-primary">${iconSvg("gear", 12)}</span>`
-      : `<button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipSupplement)}">${iconSvg("bolt", 12)}<span class="le-dot-ind" data-live="liveEditDot"${hasPendingLe ? "" : ' style="display:none"'}></span></button><button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 12)}</button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button>`;
+      ? `<span class="pill-actions"><span class="icon-btn">${iconSvg("bolt", 12)}</span><span class="icon-btn">${iconSvg("expand", 12)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 12)}</span><span class="icon-btn is-primary">${iconSvg("gear", 12)}</span></span>`
+      : `<span class="pill-actions"><button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipSupplement)}">${iconSvg("bolt", 12)}<span class="le-dot-ind" data-live="liveEditDot"${hasPendingLe ? "" : ' style="display:none"'}></span></button><button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 12)}</button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button></span>`;
 
     const bodyAttrs = isPreview ? "" : ` data-widget-body="1"${isPinned ? "" : ' data-drag-handle="1"'}`;
-    return `<div class="mini-pill"${bodyAttrs}>${grip}${joined}<span class="pill-sep"></span>${btns}</div>`;
+    return `<div class="mini-pill"${bodyAttrs}>${grip}${joined}${btns}</div>`;
   }
 
   function renderMediumCardMarkup() {
@@ -3578,26 +3635,32 @@ function createStudioPanel(options) {
         <div class="med-header">
           <div class="med-head-left">
             <span class="drag-grip">${iconSvg("grip", 12)}</span>
-            <span class="status-dot${tel.isGenerating ? " is-live" : ""}" data-live="dot"></span>
-            <span class="med-phase" data-live="phase">${escHtml(phase)}</span>
+            <span class="med-status-badge">
+              <span class="status-dot${tel.isGenerating ? " is-live" : ""}" data-live="dot"></span>
+              <span class="med-phase" data-live="phase">${escHtml(phase)}</span>
+            </span>
           </div>
           <div class="med-head-actions">
             <button type="button" class="lang-pill-btn" data-action="toggle-locale" data-no-drag="1" title="${escAttr(tr.tooltipLang)}">${langText}</button>
-            <button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipSupplement)}">${iconSvg("bolt", 12)}<span class="le-dot-ind" data-live="liveEditDot"${countPendingLiveEdits() > 0 ? "" : ' style="display:none"'}></span></button>
-            <button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button>
-            <button type="button" class="icon-btn" data-action="to-mini" data-no-drag="1" title="${escAttr(tr.tooltipMini)}">${iconSvg("minimize", 12)}</button>
-            <button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button>
+            <span class="pill-actions">
+              <button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipSupplement)}">${iconSvg("bolt", 12)}<span class="le-dot-ind" data-live="liveEditDot"${countPendingLiveEdits() > 0 ? "" : ' style="display:none"'}></span></button>
+              <button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button>
+              <button type="button" class="icon-btn" data-action="to-mini" data-no-drag="1" title="${escAttr(tr.tooltipMini)}">${iconSvg("minimize", 12)}</button>
+              <button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button>
+            </span>
           </div>
         </div>
         <div class="med-body">
-          <div class="med-tps-row">
-            <div class="med-tps-hero">
-              <span class="med-tps-num num" data-live="tps">${shownTps}</span>
-              <span class="med-tps-unit" data-live="tpsUnit">${escHtml(shownUnit)}</span>
+          <div class="med-telemetry-stage">
+            <div class="med-tps-row">
+              <div class="med-tps-hero">
+                <span class="med-tps-num num" data-live="tps">${shownTps}</span>
+                <span class="med-tps-unit" data-live="tpsUnit">${escHtml(shownUnit)}</span>
+              </div>
+              <span class="med-peak-pill num">${escHtml(tr.peakLabel)} <b data-live="peak">${getDisplayedPeakTps(tel)}</b></span>
             </div>
-            <span class="med-peak num">${escHtml(tr.peakLabel)}: <b data-live="peak">${getDisplayedPeakTps(tel)}</b></span>
+            <div class="med-spark-box" data-live="sparkMed">${buildSparklineMarkup(tel.samples, 260, 40, "med")}</div>
           </div>
-          <div class="med-spark-box" data-live="sparkMed">${buildSparklineMarkup(tel.samples, 260, 38, "med")}</div>
           <div class="med-stats-grid">
             <div class="med-stat-tile">
               <span class="med-stat-label">${escHtml(tr.kpiResp)}</span>
@@ -3608,14 +3671,14 @@ function createStudioPanel(options) {
               <span class="med-stat-val num" data-live="chat">${escHtml(chatVal)}</span>
             </div>
           </div>
-          <div class="med-quota-row">
+          <div class="med-quota-card">
             <span>${escHtml(tr.quotaSectionTitle)}</span>
-            <span class="num" style="color:var(--rx-fg-strong)" data-live="quotaMed">${escHtml(getActiveChatQuotaDisplay().miniText)}</span>
+            <span class="num" style="color:var(--rx-fg-strong);font-weight:600" data-live="quotaMed">${escHtml(getActiveChatQuotaDisplay().miniText)}</span>
           </div>
           <div class="med-footer">
             <span class="med-model-tag" data-live="model" title="${escAttr(tel.modelName || tr.modelUnknown)}">${escHtml(tel.modelName || "—")}</span>
             <button type="button" class="med-persona-pill" data-action="open-persona-tab" data-no-drag="1">
-              <span class="status-dot" style="background:${state.chatPersona.enabled ? "var(--rx-success)" : "var(--rx-muted)"}"></span>
+              <span class="status-dot" style="background:${state.chatPersona.enabled ? "var(--rx-success)" : "var(--rx-muted)"};box-shadow:none"></span>
               <span>${escHtml(personaLabel)}</span>
             </button>
           </div>
@@ -4424,15 +4487,15 @@ function createStudioPanel(options) {
       <div class="control-grid-2">
         <div class="slider-box">
           <div class="slider-head"><span>${escHtml(tr.appGlassOpacity)}</span><b class="num" data-live-app-val="glassOpacity">${draft.glassOpacity}%</b></div>
-          <input type="range" class="range-input" min="25" max="100" step="1" data-app-field="glassOpacity" value="${draft.glassOpacity}"/>
+          <input type="range" class="range-input" min="15" max="100" step="1" data-app-field="glassOpacity" value="${draft.glassOpacity}"/>
         </div>
         <div class="slider-box">
           <div class="slider-head"><span>${escHtml(tr.appSidebarOpacity)}</span><b class="num" data-live-app-val="sidebarOpacity">${draft.sidebarOpacity}%</b></div>
-          <input type="range" class="range-input" min="20" max="100" step="1" data-app-field="sidebarOpacity" value="${draft.sidebarOpacity}"/>
+          <input type="range" class="range-input" min="15" max="100" step="1" data-app-field="sidebarOpacity" value="${draft.sidebarOpacity}"/>
         </div>
         <div class="slider-box">
           <div class="slider-head"><span>${escHtml(tr.appGlassBlur)}</span><b class="num" data-live-app-val="glassBlur">${draft.glassBlur}px</b></div>
-          <input type="range" class="range-input" min="0" max="24" step="1" data-app-field="glassBlur" value="${draft.glassBlur}"/>
+          <input type="range" class="range-input" min="0" max="36" step="1" data-app-field="glassBlur" value="${draft.glassBlur}"/>
         </div>
         <div class="slider-box">
           <div class="slider-head"><span>${escHtml(tr.appMessageCardOpacity)}</span><b class="num" data-live-app-val="messageCardOpacity">${draft.messageCardOpacity}%</b></div>
@@ -4900,15 +4963,25 @@ function createStudioPanel(options) {
         <div class="design-card-grid">
           ${WIDGET_DESIGN_THEMES.map((wt) => {
             const sel = sui.widgetTheme === wt.id;
-            const thumbStyle = wt.id === "island"
-              ? "background:#08090d;border-color:rgba(255,255,255,0.22)"
-              : (wt.id === "neon"
-                  ? "background:#0a0c16;border-color:var(--rx-accent);box-shadow:0 0 8px var(--rx-accent-soft)"
-                  : (wt.id === "solid" ? "background:var(--rx-surface-2)" : "background:var(--rx-glass)"));
+            let thumbStyle = "background:linear-gradient(135deg,#0f172a,#1e1b4b);border-color:rgba(255,255,255,0.28)";
+            let capsuleStyle = "width:28px;height:12px;border-radius:999px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.45);box-shadow:inset 0 1px 0 rgba(255,255,255,0.6)";
+            if (wt.id === "island") {
+              thumbStyle = "background:#040406;border-color:rgba(255,255,255,0.2)";
+              capsuleStyle = "width:28px;height:11px;border-radius:999px;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.22)";
+            } else if (wt.id === "neon") {
+              thumbStyle = "background:#080a16;border-color:var(--rx-accent);box-shadow:0 0 10px color-mix(in srgb,var(--rx-accent) 42%,transparent)";
+              capsuleStyle = "width:28px;height:11px;border-radius:999px;background:var(--rx-accent-soft);border:1px solid var(--rx-accent);box-shadow:0 0 8px color-mix(in srgb,var(--rx-accent) 55%,transparent)";
+            } else if (wt.id === "minimal") {
+              thumbStyle = "background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.14)";
+              capsuleStyle = "width:28px;height:10px;border-radius:999px;background:transparent;border:1px solid rgba(255,255,255,0.24)";
+            } else if (wt.id === "solid") {
+              thumbStyle = "background:linear-gradient(180deg,#1d1f29,#121319);border-color:rgba(255,255,255,0.16)";
+              capsuleStyle = "width:28px;height:11px;border-radius:999px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.14)";
+            }
             return `
               <button type="button" class="design-card${sel ? " is-selected" : ""}" data-action="set-widget-theme" data-val="${wt.id}">
                 <span class="design-thumb" style="align-items:center;justify-content:center;${thumbStyle}">
-                  <span style="width:26px;height:10px;border-radius:999px;background:var(--rx-accent-soft);border:1px solid var(--rx-accent-border)"></span>
+                  <span style="${capsuleStyle}"></span>
                 </span>
                 <span class="design-meta">
                   <span class="design-title">${escHtml(isRu ? wt.nameRu : wt.nameEn)}</span>
@@ -5113,10 +5186,14 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "4.1.2";
+    const ver = inst.version || pluginMeta.version || "4.2.0";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
+
+    const checkedTime = formatLastCheckTime(u.lastCheckedAt);
+    const instShaTag = inst.commitShort ? ` · #${inst.commitShort}` : "";
+    const remShaTag = u.remote && u.remote.commitShort ? ` → #${u.remote.commitShort}` : "";
 
     return `
       <div class="section-group">
@@ -5158,10 +5235,11 @@ function createStudioPanel(options) {
           <div class="row-item">
             <div class="row-info">
               <span class="row-title">${escHtml(tr.updateStatusLabel)}</span>
-              <span class="row-desc num">${escHtml(formatUpdateStatusLabel(u, tr))}${u.available && u.remote ? ` (${escHtml(formatUpdateVersionBadge(u))})` : ""}</span>
+              <span class="row-desc num">${escHtml(formatUpdateStatusLabel(u, tr))}${u.available && u.remote ? ` (${escHtml(formatUpdateVersionBadge(u))})` : escHtml(instShaTag)}${u.available && remShaTag ? escHtml(remShaTag) : ""}${checkedTime ? ` · ${escHtml(tr.updateLastCheckLabel)} ${escHtml(checkedTime)}` : ""}</span>
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end">
               ${u.available ? `<span class="badge-active">${escHtml(tr.updateBadgeNew)}</span>` : ""}
+              <button type="button" class="btn btn-sm btn-ghost" data-action="preview-update-toast">${escHtml(tr.updateBtnPreview)}</button>
               <button type="button" class="btn btn-sm" ${uBusy ? "disabled" : ""} data-action="check-updates">${iconSvg("reset", 12)}${escHtml(tr.updateBtnCheck)}</button>
               ${u.available ? `<button type="button" class="btn btn-sm btn-primary" ${uBusy ? "disabled" : ""} data-action="install-update">${iconSvg("download", 12)}${escHtml(tr.updateBtnInstallRestart)}</button>` : ""}
             </div>
@@ -5227,7 +5305,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("sparkles", 12)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.1.2")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.2.0")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
@@ -5772,7 +5850,18 @@ function createStudioPanel(options) {
       });
       return;
     }
+    if (action === "preview-update-toast") {
+      state.updatePreviewActive = !state.updatePreviewActive;
+      renderUpdateToast();
+      return;
+    }
     if (action === "dismiss-update") {
+      if (state.updatePreviewActive && !(state.update && state.update.available)) {
+        state.updatePreviewActive = false;
+        renderUpdateToast();
+        return;
+      }
+      state.updatePreviewActive = false;
       state.update.dismissed = true;
       renderUpdateToast();
       invokeIpc("agy-studio:dismiss-update", { key: state.update.updateKey || "" }).then((res) => {
@@ -6826,6 +6915,31 @@ function createStudioPanel(options) {
       if (!target || typeof target.getAttribute !== "function") return;
       if (target.tagName === "SELECT" && target.getAttribute("data-app-field")) {
         handleAppearanceFieldInput(target);
+      }
+    });
+
+    let sheenRaf = 0;
+    let pendingSheenEvt = null;
+    const applyPointerSheen = () => {
+      sheenRaf = 0;
+      const ev = pendingSheenEvt;
+      pendingSheenEvt = null;
+      if (!ev || !ev.target || typeof ev.target.closest !== "function") return;
+      const surface = ev.target.closest(".mini-pill, .med-card, .modal-shell");
+      if (!surface || typeof surface.getBoundingClientRect !== "function" || !surface.style) return;
+      const r = surface.getBoundingClientRect();
+      if (!r || r.width <= 0 || r.height <= 0) return;
+      const mx = Math.round(ev.clientX - r.left);
+      const my = Math.round(ev.clientY - r.top);
+      surface.style.setProperty("--rx-mx", `${mx}px`);
+      surface.style.setProperty("--rx-my", `${my}px`);
+    };
+    rootEl.addEventListener("pointermove", (e) => {
+      pendingSheenEvt = e;
+      if (win && typeof win.requestAnimationFrame === "function") {
+        if (!sheenRaf) sheenRaf = win.requestAnimationFrame(applyPointerSheen);
+      } else {
+        applyPointerSheen();
       }
     });
 

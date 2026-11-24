@@ -13,6 +13,7 @@ const REPO_NAME = "Rudex";
 const DEFAULT_BRANCH = "main";
 const RAW_MANIFEST_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${DEFAULT_BRANCH}/plugin.json`;
 const API_COMMIT_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits/${DEFAULT_BRANCH}`;
+const ATOM_FEED_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/commits/${DEFAULT_BRANCH}.atom`;
 const ARCHIVE_ZIP_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/archive/refs/heads/${DEFAULT_BRANCH}.zip`;
 const DEFAULT_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const DEFAULT_SNOOZE_MS = 6 * 60 * 60 * 1000;
@@ -376,10 +377,52 @@ function httpDownloadToFile(targetUrl, destPath, opts = {}, redirectCount = 0) {
   });
 }
 
+function decodeXmlEntities(str) {
+  return String(str || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
+function parseGithubAtomFeed(xmlText) {
+  const xml = String(xmlText || "");
+  const entryM = /<entry\b[^>]*>([\s\S]*?)<\/entry>/i.exec(xml);
+  if (!entryM) return null;
+  const entry = entryM[1];
+  const linkM = /<link\b[^>]*\bhref=["']([^"']+)["'][^>]*>/i.exec(entry);
+  const idM = /<id\b[^>]*>([\s\S]*?)<\/id>/i.exec(entry);
+  const updatedM = /<updated\b[^>]*>([\s\S]*?)<\/updated>/i.exec(entry);
+  const titleM = /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(entry);
+
+  const htmlUrl = linkM ? decodeXmlEntities(linkM[1].trim()) : "";
+  const commitSha = extractCommitShaFromText(htmlUrl) || extractCommitShaFromText(idM ? idM[1] : "");
+  if (!commitSha) return null;
+
+  const rawTitle = titleM ? decodeXmlEntities(titleM[1]) : "";
+  const commitMessage = rawTitle.split(/\r?\n/).map((s) => s.trim()).find(Boolean) || "";
+  return {
+    commitSha,
+    commitShort: commitSha.slice(0, 7),
+    commitDate: updatedM ? updatedM[1].trim() : "",
+    commitMessage: commitMessage.slice(0, 120),
+    htmlUrl,
+  };
+}
+
 async function checkRemoteRelease(opts = {}) {
-  const manifestUrl = opts.manifestUrl || RAW_MANIFEST_URL;
+  const bypassCache = Boolean(opts.bypassCache);
+  const rawManifestUrl = opts.manifestUrl || RAW_MANIFEST_URL;
+  const manifestUrl = bypassCache
+    ? `${rawManifestUrl}${rawManifestUrl.includes("?") ? "&" : "?"}t=${Date.now()}`
+    : rawManifestUrl;
   const commitApiUrl = opts.commitApiUrl || API_COMMIT_URL;
-  const prevEtag = typeof opts.prevEtag === "string" ? opts.prevEtag : "";
+  const atomFeedUrl = typeof opts.atomFeedUrl === "string"
+    ? opts.atomFeedUrl
+    : (commitApiUrl === API_COMMIT_URL ? ATOM_FEED_URL : "");
+  const prevEtag = !bypassCache && typeof opts.prevEtag === "string" ? opts.prevEtag : "";
   const prevRemote = opts.prevRemote && typeof opts.prevRemote === "object" ? opts.prevRemote : null;
   const timeoutMs = typeof opts.timeoutMs === "number" ? opts.timeoutMs : 15000;
 
@@ -458,6 +501,27 @@ async function checkRemoteRelease(opts = {}) {
     }
   } else {
     apiErr = apiSettled.reason && apiSettled.reason.message ? apiSettled.reason.message : String(apiSettled.reason);
+  }
+
+  if (!apiOk && atomFeedUrl) {
+    try {
+      const feedRes = await httpGetBuffer(atomFeedUrl, {
+        timeoutMs,
+        accept: "application/atom+xml, application/xml, text/xml",
+        maxBytes: 2 * 1024 * 1024,
+      });
+      if (feedRes && feedRes.status >= 200 && feedRes.status < 300) {
+        const parsedFeed = parseGithubAtomFeed(feedRes.body.toString("utf8"));
+        if (parsedFeed && parsedFeed.commitSha) {
+          apiOk = true;
+          nextEtag = "";
+          commitSha = parsedFeed.commitSha;
+          commitDate = parsedFeed.commitDate;
+          commitMessage = parsedFeed.commitMessage;
+          htmlUrl = parsedFeed.htmlUrl;
+        }
+      }
+    } catch (_e) {}
   }
 
   if (!manifestOk && !apiOk) {
@@ -694,12 +758,14 @@ module.exports = {
   DEFAULT_BRANCH,
   RAW_MANIFEST_URL,
   API_COMMIT_URL,
+  ATOM_FEED_URL,
   ARCHIVE_ZIP_URL,
   DEFAULT_CHECK_INTERVAL_MS,
   DEFAULT_SNOOZE_MS,
   MAX_ZIP_BYTES,
   compareSemver,
   extractCommitShaFromText,
+  parseGithubAtomFeed,
   readZipEocdComment,
   readGitHeadMeta,
   evaluateUpdateAvailability,

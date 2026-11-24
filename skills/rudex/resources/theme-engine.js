@@ -22,6 +22,26 @@ const THEME_PRESETS = [
     },
   },
   {
+    id: "liquid-glass",
+    nameRu: "Жидкое стекло (iOS 26)",
+    nameEn: "Liquid Glass (iOS 26)",
+    descRu: "Прозрачные хрустальные линзы с оптическим бликом и глубиной",
+    descEn: "Translucent crystal lenses with optical specular rim & depth",
+    mode: "dark",
+    vars: {
+      accentColor: "#0a84ff",
+      canvasBg: "#070910",
+      cardBg: "#121726",
+      sidebarBg: "#0d111d",
+      fgColor: "#f5f7ff",
+      mutedColor: "#9aa6c0",
+      borderColor: "rgba(255, 255, 255, 0.18)",
+      glassOpacity: 46,
+      glassBlur: 24,
+      radius: 18,
+    },
+  },
+  {
     id: "obsidian-glass",
     nameRu: "Обсидиановое стекло",
     nameEn: "Obsidian Glass",
@@ -36,8 +56,8 @@ const THEME_PRESETS = [
       fgColor: "#f1f2f6",
       mutedColor: "#9aa0b0",
       borderColor: "#262833",
-      glassOpacity: 74,
-      glassBlur: 14,
+      glassOpacity: 58,
+      glassBlur: 20,
       radius: 12,
     },
   },
@@ -681,9 +701,9 @@ function normalizeAppearance(raw) {
     accentColor: teValidHex(src.accentColor, DEFAULT_APPEARANCE.accentColor),
     canvasBg: teValidHex(src.canvasBg, DEFAULT_APPEARANCE.canvasBg),
     cardBg: teValidHex(src.cardBg, DEFAULT_APPEARANCE.cardBg),
-    glassOpacity: Math.round(teClamp(src.glassOpacity, 25, 100, DEFAULT_APPEARANCE.glassOpacity)),
-    sidebarOpacity: Math.round(teClamp(src.sidebarOpacity, 20, 100, DEFAULT_APPEARANCE.sidebarOpacity)),
-    glassBlur: Math.round(teClamp(src.glassBlur, 0, 24, DEFAULT_APPEARANCE.glassBlur)),
+    glassOpacity: Math.round(teClamp(src.glassOpacity, 15, 100, DEFAULT_APPEARANCE.glassOpacity)),
+    sidebarOpacity: Math.round(teClamp(src.sidebarOpacity, 15, 100, DEFAULT_APPEARANCE.sidebarOpacity)),
+    glassBlur: Math.round(teClamp(src.glassBlur, 0, 36, DEFAULT_APPEARANCE.glassBlur)),
     messageCardOpacity: Math.round(teClamp(src.messageCardOpacity, 0, 96, DEFAULT_APPEARANCE.messageCardOpacity)),
     messageStyle,
     borderStrength: Math.round(teClamp(src.borderStrength, 0, 100, DEFAULT_APPEARANCE.borderStrength)),
@@ -995,9 +1015,23 @@ function buildThemeCss(rawAppearance, options) {
   const primaryFg = teGetYiq(vars.accentColor) > 155 ? "#111216" : "#ffffff";
   const chunks = [];
 
+  const isGlassTheme = cfg.presetId === "liquid-glass" || cfg.presetId === "obsidian-glass" || cfg.presetId === "midnight-neon";
+  const effectiveBlurPx = Math.max(0, Math.round(teClamp(cfg.glassBlur, 0, 36, 12)));
+  const opticalGlassFilter = effectiveBlurPx > 0
+    ? `backdrop-filter: blur(${effectiveBlurPx}px) saturate(195%) brightness(${isLight ? "1.05" : "1.08"}) contrast(1.03); -webkit-backdrop-filter: blur(${effectiveBlurPx}px) saturate(195%) brightness(${isLight ? "1.05" : "1.08"}) contrast(1.03);`
+    : "";
+  const overlayGlassFilter = `backdrop-filter: blur(${Math.max(18, effectiveBlurPx)}px) saturate(195%) brightness(${isLight ? "1.04" : "1.06"}); -webkit-backdrop-filter: blur(${Math.max(18, effectiveBlurPx)}px) saturate(195%) brightness(${isLight ? "1.04" : "1.06"});`;
+  const glassSheenGrad = isLight
+    ? "linear-gradient(155deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.34) 50%, rgba(255, 255, 255, 0.52) 100%)"
+    : "linear-gradient(155deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.025) 45%, rgba(255, 255, 255, 0.06) 100%)";
+  const glassFresnelShadow = isLight
+    ? "0 12px 30px -8px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.92), inset 0 -1px 0 rgba(15, 23, 42, 0.05)"
+    : "0 14px 36px -8px rgba(0, 0, 0, 0.42), inset 0 1px 0.5px rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.07)";
+  const glassSpecBorder = isLight ? "rgba(255, 255, 255, 0.65)" : "rgba(255, 255, 255, 0.18)";
+
   if (hasThemeOverride) {
-    const cardAlpha = hasWallpaper ? Math.min(vars.glassOpacity, 88) : Math.max(vars.glassOpacity, 90);
-    const sidebarAlpha = hasWallpaper ? Math.min(vars.sidebarOpacity + 4, 94) : 96;
+    const cardAlpha = hasWallpaper ? Math.min(vars.glassOpacity, 88) : (isGlassTheme ? Math.min(vars.glassOpacity, 76) : Math.max(vars.glassOpacity, 90));
+    const sidebarAlpha = hasWallpaper ? Math.min(vars.sidebarOpacity + 4, 94) : (isGlassTheme ? Math.min(vars.sidebarOpacity, 78) : 96);
     const secondaryHex = teMixHex(vars.cardBg, isLight ? "#000000" : "#ffffff", 0.06);
     const cardRgba = teHexToRgba(vars.cardBg, cardAlpha);
     const sidebarRgba = teHexToRgba(vars.sidebarBg, sidebarAlpha);
@@ -1014,19 +1048,93 @@ function buildThemeCss(rawAppearance, options) {
   --muted: ${secondaryHex};
   --muted-foreground: ${vars.mutedColor};
   --border: ${effectiveBorder};
-  --card: ${hasWallpaper ? cardRgba : vars.cardBg};
+  --card: ${(hasWallpaper || isGlassTheme) ? cardRgba : vars.cardBg};
   --card-border: ${effectiveBorder};
-  --sidebar: ${hasWallpaper ? sidebarRgba : vars.sidebarBg};
+  --sidebar: ${(hasWallpaper || isGlassTheme) ? sidebarRgba : vars.sidebarBg};
   --sidebar-secondary: ${secondaryHex};
 }
 `);
     if (!hasWallpaper) {
-      chunks.push(`
+      if (cfg.presetId === "liquid-glass") {
+        chunks.push(`
+html, body {
+  background-color: ${vars.canvasBg} !important;
+  background-image: radial-gradient(62% 54% at 14% 12%, rgba(10, 132, 255, 0.24), transparent 72%), radial-gradient(56% 52% at 88% 18%, rgba(99, 102, 241, 0.20), transparent 74%), radial-gradient(60% 58% at 54% 92%, rgba(6, 182, 212, 0.16), transparent 76%) !important;
+  background-attachment: fixed !important;
+  color: ${vars.fgColor};
+}
+`);
+      } else {
+        chunks.push(`
 html, body {
   background-color: ${vars.canvasBg} !important;
   color: ${vars.fgColor};
 }
 `);
+      }
+      if (isGlassTheme && cfg.messageStyle === "glass") {
+        const glassSidebarNoWp = teHexToRgba(vars.sidebarBg, Math.round(teClamp(cfg.sidebarOpacity, 15, 100, 62)));
+        const glassCardNoWp = teHexToRgba(vars.cardBg, Math.round(teClamp(cfg.glassOpacity, 15, 100, 56)));
+        const glassMsgNoWp = teHexToRgba(vars.cardBg, Math.round(teClamp(cfg.messageCardOpacity, 0, 96, 58)));
+        const glassOverlayNoWp = isLight ? "rgba(255, 255, 255, 0.78)" : teHexToRgba(vars.cardBg, Math.min(88, Math.max(66, cfg.glassOpacity + 16)));
+        chunks.push(`
+[data-rudex-bg-sidebar="1"],
+aside,
+nav[aria-label],
+[data-testid="sidebar"] {
+  background-color: ${glassSidebarNoWp} !important;
+  background-image: ${glassSheenGrad};
+  border-right: 1px solid ${glassSpecBorder};
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06);
+  ${opticalGlassFilter}
+}
+[data-rudex-bg-header="1"],
+header {
+  background-color: ${glassSidebarNoWp} !important;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 100%);
+  ${opticalGlassFilter}
+}
+[data-testid="agent-response"] {
+  background-color: ${glassMsgNoWp} !important;
+  background-image: ${glassSheenGrad};
+  border: 1px solid ${glassSpecBorder} !important;
+  border-radius: ${cRadii.messages}px !important;
+  padding-inline: 18px !important;
+  box-shadow: ${glassFresnelShadow};
+  ${opticalGlassFilter}
+}
+[data-testid="user-message-content"],
+[data-testid="user-message-bubble"] {
+  background-color: ${glassCardNoWp} !important;
+  background-image: ${glassSheenGrad};
+  border: 1px solid ${glassSpecBorder} !important;
+  border-radius: ${cRadii.messages}px !important;
+  box-shadow: ${glassFresnelShadow};
+  ${opticalGlassFilter}
+}
+form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testid="composer"], .composer-container {
+  background-color: ${glassCardNoWp} !important;
+  background-image: ${glassSheenGrad};
+  border: 1px solid ${glassSpecBorder} !important;
+  border-radius: ${cRadii.composer}px !important;
+  box-shadow: ${glassFresnelShadow};
+  ${opticalGlassFilter}
+}
+[role="dialog"],
+[role="alertdialog"],
+[role="menu"],
+[role="listbox"],
+[role="tooltip"],
+[data-radix-popper-content-wrapper] > *,
+.agy-overlay {
+  background-color: ${glassOverlayNoWp} !important;
+  background-image: ${glassSheenGrad};
+  border: 1px solid ${glassSpecBorder};
+  box-shadow: ${glassFresnelShadow};
+  ${overlayGlassFilter}
+}
+`);
+      }
     }
   } else if (hasAccentOverride || cfg.borderStrength !== 50) {
     const nativeVars = [];
@@ -1054,12 +1162,10 @@ html, body {
       ? teHexToRgba(vars.sidebarBg, headerAlpha)
       : teHexToRgba(isLight ? "#f4f5f8" : "#0e0e12", headerAlpha);
     const popoverBg = hasThemeOverride
-      ? teHexToRgba(vars.cardBg, Math.min(98, Math.max(92, vars.glassOpacity + 14)))
-      : (isLight ? "rgba(255, 255, 255, 0.96)" : "rgba(22, 22, 28, 0.96)");
-    const blurPx = cfg.glassBlur;
-    const glassBlurCss = blurPx > 0
-      ? `backdrop-filter: blur(${blurPx}px); -webkit-backdrop-filter: blur(${blurPx}px);`
-      : "";
+      ? teHexToRgba(vars.cardBg, Math.min(96, Math.max(78, vars.glassOpacity + 14)))
+      : (isLight ? "rgba(255, 255, 255, 0.88)" : "rgba(18, 20, 28, 0.86)");
+    const blurPx = effectiveBlurPx;
+    const glassBlurCss = opticalGlassFilter;
     const msgStyle = cfg.messageStyle;
     const rawMsgAlpha = Math.round(teClamp(cfg.messageCardOpacity, 0, 96, 74));
     msgAlpha = msgStyle === "minimal" ? 0 : (msgStyle === "solid" ? Math.max(92, rawMsgAlpha) : rawMsgAlpha);
@@ -1086,8 +1192,11 @@ html, body {
     const msgBorderCol = isLight ? `rgba(15, 23, 42, ${solidBorderAlpha})` : `rgba(255, 255, 255, ${solidBorderAlpha})`;
     const msgBlurCss = msgAlpha > 0 && msgStyle !== "solid" && blurPx > 0 ? glassBlurCss : "";
     const msgShadowCss = msgAlpha > 0
-      ? (isLight ? "box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);" : "box-shadow: 0 4px 24px rgba(0, 0, 0, 0.34);")
+      ? (msgStyle === "glass"
+          ? `box-shadow: ${glassFresnelShadow};`
+          : (isLight ? "box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);" : "box-shadow: 0 4px 24px rgba(0, 0, 0, 0.34);"))
       : "";
+    const msgSheenCss = msgAlpha > 0 && msgStyle === "glass" ? `background-image: ${glassSheenGrad};` : "";
     const hasCardBorder = cfg.borderStrength > 0 && msgAlpha > 0 && msgStyle !== "minimal";
     const msgContrastCss = cfg.highContrastText !== false
       ? (isLight
@@ -1200,14 +1309,17 @@ aside,
 nav[aria-label],
 [data-testid="sidebar"] {
   background-color: ${sidebarGlassBg} !important;
+  ${msgStyle === "glass" ? `background-image: ${glassSheenGrad}; box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.07);` : ""}
   ${glassBlurCss}
 }
 [data-rudex-bg-header="1"] {
   background-color: ${headerGlassBg} !important;
+  ${msgStyle === "glass" ? "background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 100%);" : ""}
   ${glassBlurCss}
 }
 [data-testid="agent-response"] {
   background-color: ${agentSurfaceBg} !important;
+  ${msgSheenCss}
   border: ${hasCardBorder ? `1px solid ${msgBorderCol}` : "none"} !important;
   border-radius: ${cRadii.messages}px !important;
   ${msgAlpha > 0 ? "padding-inline: 18px !important;" : ""}
@@ -1218,6 +1330,7 @@ nav[aria-label],
 [data-testid="user-message-content"],
 [data-testid="user-message-bubble"] {
   background-color: ${userSurfaceBg} !important;
+  ${msgStyle === "glass" ? `background-image: ${glassSheenGrad};` : ""}
   border: ${cfg.borderStrength > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
   border-radius: ${cRadii.messages}px !important;
   ${msgShadowCss}
@@ -1226,6 +1339,7 @@ nav[aria-label],
 ${msgContrastCss}
 form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testid="composer"], .composer-container {
   background-color: ${userSurfaceBg} !important;
+  ${msgStyle === "glass" ? `background-image: ${glassSheenGrad}; box-shadow: ${glassFresnelShadow};` : ""}
   border: ${cfg.borderStrength > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
   border-radius: ${cRadii.composer}px !important;
   ${msgStyle !== "solid" ? glassBlurCss : ""}
@@ -1238,6 +1352,7 @@ form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testi
 [data-radix-popper-content-wrapper] > *,
 .agy-overlay {
   background-color: ${popoverBg} !important;
+  ${msgStyle === "glass" ? `background-image: ${glassSheenGrad}; border: 1px solid ${glassSpecBorder}; box-shadow: ${glassFresnelShadow}; ${overlayGlassFilter}` : ""}
 }
 `);
   } else if (hasSurfaceOverride) {
@@ -1365,6 +1480,7 @@ code, pre, kbd, samp {
 }
 textarea:focus, form:has(textarea[placeholder]:focus-within), [data-testid="composer"]:focus-within, .composer-container:focus-within {
   border-color: ${vars.accentColor} !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, ${vars.accentColor} 55%, transparent), 0 10px 28px -8px color-mix(in srgb, ${vars.accentColor} 28%, transparent) !important;
 }
 `);
   }
