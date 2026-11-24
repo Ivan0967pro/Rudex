@@ -315,8 +315,6 @@ function sanitizeStudioSettings(raw) {
     personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
     personaText: typeof src.personaText === "string" ? src.personaText : "",
     personaStrictMode: src.personaStrictMode !== false,
-    inChatLiveEditEnabled: src.inChatLiveEditEnabled !== false,
-    liveEditMode: src.liveEditMode === "live" || src.liveEditMode === "pivot" ? src.liveEditMode : "auto",
     customPresets: presets,
     appearance: sanitizeAppearance(src.appearance),
     appearanceProfiles: sanitizeAppearanceProfiles(src.appearanceProfiles),
@@ -2078,7 +2076,7 @@ function registerI18nIpc() {
         includeArtifacts: p.includeArtifacts !== false,
         includePersona: p.includePersona !== false,
         includeFullLog: Boolean(p.includeFullLog),
-        pluginVersion: (meta && meta.pluginVersion) || "3.2.0",
+        pluginVersion: (meta && meta.pluginVersion) || "3.2.1",
         outPath,
       });
       return res;

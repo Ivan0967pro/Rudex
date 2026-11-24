@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "antigravity-ru",
   "displayName": "Antigravity RU",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "Полная русификация Antigravity 2.0 + Studio v3.0: точный TPS, темы, видео-обои, экспорт контекста чата в ZIP и учёт лимитов 5ч / неделя.",
   "logo": "assets/logo.svg",
   "author": {
