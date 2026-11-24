@@ -536,10 +536,40 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
     fs.mkdirSync(targetDir, { recursive: true });
 
-    // Clean obsolete skill files inside target/skills while keeping rules/
+    // Clean obsolete skill files inside target/skills while keeping rules/ (tolerate Windows directory watcher EPERM/EBUSY)
     const targetSkillsDir = path.join(targetDir, "skills");
     if (fs.existsSync(targetSkillsDir)) {
-      fs.rmSync(targetSkillsDir, { recursive: true, force: true });
+      let rmFailed = false;
+      try {
+        fs.rmSync(targetSkillsDir, { recursive: true, force: true });
+      } catch (_e) {
+        rmFailed = true;
+      }
+      if (rmFailed) {
+        const expectedRoot = path.join(targetDir, "skills", "rudex");
+        const pruneWalk = (curDest, curSrc) => {
+          try {
+            const ents = fs.readdirSync(curDest, { withFileTypes: true });
+            for (let i = 0; i < ents.length; i += 1) {
+              const ent = ents[i];
+              const destChild = path.join(curDest, ent.name);
+              const srcChild = curSrc ? path.join(curSrc, ent.name) : "";
+              if (ent.isDirectory()) {
+                if (!srcChild || !fs.existsSync(srcChild)) {
+                  try { fs.rmSync(destChild, { recursive: true, force: true }); } catch (_e2) {}
+                } else {
+                  pruneWalk(destChild, srcChild);
+                }
+              } else if (!srcChild || !fs.existsSync(srcChild)) {
+                try { fs.unlinkSync(destChild); } catch (_e3) {}
+              }
+            }
+          } catch (_e4) {}
+        };
+        if (fs.existsSync(expectedRoot)) {
+          pruneWalk(expectedRoot, path.join(repoRoot, "skills", "rudex"));
+        }
+      }
     }
 
     fs.copyFileSync(path.join(repoRoot, "plugin.json"), path.join(targetDir, "plugin.json"));
