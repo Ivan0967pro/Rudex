@@ -114,8 +114,28 @@ function Restart-AntigravityDetached([string]$ExePath) {
   $running = Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue
   if ($running) {
     Write-Host "[Rudex] Restarting Antigravity to load updated skill and UI..." -ForegroundColor Green
-    $cmd = "timeout /t 1 /nobreak >nul & taskkill /IM Antigravity.exe >nul 2>&1 & timeout /t 2 /nobreak >nul & taskkill /F /IM Antigravity.exe >nul 2>&1 & start `"`" `"$ExePath`""
-    Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $cmd)
+    $restartScript = Join-Path $env:TEMP ("rudex-restart-" + [Guid]::NewGuid().ToString("N") + ".cmd")
+    $cmdLines = @(
+      "@echo off",
+      "chcp 65001 >nul",
+      "set `"AGY_EXE=$ExePath`"",
+      "setlocal EnableDelayedExpansion",
+      "taskkill /IM Antigravity.exe >nul 2>&1",
+      "timeout /t 2 /nobreak >nul",
+      "taskkill /F /T /IM Antigravity.exe >nul 2>&1",
+      "for /L %%I in (1,1,10) do (",
+      "  tasklist /FI `"IMAGENAME eq Antigravity.exe`" 2>nul | find /I `"Antigravity.exe`" >nul",
+      "  if errorlevel 1 goto launch",
+      "  timeout /t 1 /nobreak >nul",
+      ")",
+      ":launch",
+      "start `"`" `"!AGY_EXE!`"",
+      "del `"%~f0`" >nul 2>&1",
+      ""
+    )
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($restartScript, ($cmdLines -join "`r`n"), $utf8NoBom)
+    Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "`"$restartScript`"") -WindowStyle Hidden
   } else {
     Write-Host "[Rudex] Starting Antigravity..." -ForegroundColor Green
     Start-Process -FilePath $ExePath
@@ -168,20 +188,20 @@ if ($IsLocalRepo) {
   }
 
   $outLines = Invoke-RudexNode $InstallJs @("--sync-plugin")
-  $status = $null
+  $installStatus = $null
   $activatorPath = $null
   $agyExeOut = $null
   foreach ($line in $outLines) {
-    if ($line -match '^STATUS=(.+)$') { $status = $Matches[1].Trim() }
+    if ($line -match '^STATUS=(.+)$') { $installStatus = $Matches[1].Trim() }
     elseif ($line -match '^ACTIVATOR_PATH=(.+)$') { $activatorPath = $Matches[1].Trim() }
     elseif ($line -match '^AGY_EXE=(.+)$') { $agyExeOut = $Matches[1].Trim() }
   }
   $exeToUse = if ($agyExeOut) { $agyExeOut } else { $agyExe }
 
-  if ($status -eq "LOCKED_NEEDS_ACTIVATOR" -and $activatorPath -and (Test-Path $activatorPath)) {
+  if ($installStatus -eq "LOCKED_NEEDS_ACTIVATOR" -and $activatorPath -and (Test-Path $activatorPath)) {
     if ($RestartApp) {
       Write-Host "[Rudex] Activating Rudex UI and restarting Antigravity..." -ForegroundColor Green
-      Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "`"$activatorPath`"")
+      Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "`"$activatorPath`"") -WindowStyle Hidden
     } else {
       Write-Host "[Rudex] Skill synced and shell staged. Run `"$activatorPath`" (or restart Antigravity via Rudex) to unlock app.asar." -ForegroundColor Yellow
     }
@@ -231,24 +251,24 @@ try {
   }
 
   $outLines = Invoke-RudexNode $sourceInstallJs @("--sync-plugin")
-  $status = $null
+  $installStatus = $null
   $activatorPath = $null
   $agyExeOut = $null
   foreach ($line in $outLines) {
-    if ($line -match '^STATUS=(.+)$') { $status = $Matches[1].Trim() }
+    if ($line -match '^STATUS=(.+)$') { $installStatus = $Matches[1].Trim() }
     elseif ($line -match '^ACTIVATOR_PATH=(.+)$') { $activatorPath = $Matches[1].Trim() }
     elseif ($line -match '^AGY_EXE=(.+)$') { $agyExeOut = $Matches[1].Trim() }
   }
 
   $exeToUse = if ($agyExeOut) { $agyExeOut } else { Find-AntigravityExe }
 
-  if ($status -eq "LOCKED_NEEDS_ACTIVATOR" -and $activatorPath -and (Test-Path $activatorPath)) {
+  if ($installStatus -eq "LOCKED_NEEDS_ACTIVATOR" -and $activatorPath -and (Test-Path $activatorPath)) {
     if ($NoRestart) {
       Write-Host "[Rudex] Skill files installed, but app.asar is locked by running Antigravity. Close Antigravity and run `"$activatorPath`" (or re-run this command)." -ForegroundColor Yellow
       return
     }
     Write-Host "[Rudex] Activating Rudex UI and restarting Antigravity..." -ForegroundColor Green
-    Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "`"$activatorPath`"")
+    Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "`"$activatorPath`"") -WindowStyle Hidden
   } elseif ((-not $NoRestart) -and $exeToUse -and (Test-Path $exeToUse)) {
     Restart-AntigravityDetached $exeToUse
   }

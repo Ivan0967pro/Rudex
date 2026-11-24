@@ -696,12 +696,20 @@ function writeApplyRestartCmd(info, opts = {}) {
   const removeAsar = Boolean(opts.removeAsar);
   const lines = [
     "@echo off",
+    "chcp 65001 >nul",
     `set "AGY_EXE=${info.exePath}"`,
     `set "RES_DIR=${info.resourcesDir}"`,
     "setlocal EnableDelayedExpansion",
     "echo Restarting Antigravity to apply Rudex...",
-    "taskkill /F /IM Antigravity.exe >nul 2>&1",
+    "taskkill /IM Antigravity.exe >nul 2>&1",
     "timeout /t 2 /nobreak >nul",
+    "taskkill /F /T /IM Antigravity.exe >nul 2>&1",
+    "for /L %%I in (1,1,8) do (",
+    '  tasklist /FI "IMAGENAME eq Antigravity.exe" 2>nul | find /I "Antigravity.exe" >nul',
+    "  if errorlevel 1 goto after_exit",
+    "  timeout /t 1 /nobreak >nul",
+    ")",
+    ":after_exit",
   ];
   if (removeAsar && info.resourcesDir) {
     lines.push(

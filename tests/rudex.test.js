@@ -1260,3 +1260,40 @@ test("patchMainJs startup guard auto-restores stock app.asar when Rudex plugin/s
   assert.equal(dormant.personaFlagExists, false);
   assert.equal(dormant.thinkingFlagExists, false);
 });
+
+// =============================================================================
+// 8. PowerShell Installer AST Safety Check (Windows)
+// =============================================================================
+test("install.ps1 parses cleanly and never assigns to any [switch] parameter variable", { skip: process.platform !== "win32" }, () => {
+  const ps1Path = path.join(REPO_ROOT, "install.ps1");
+  const psScript = [
+    `$errs = $null`,
+    `$raw = Get-Content -LiteralPath '${ps1Path.replace(/'/g, "''")}' -Raw -Encoding UTF8`,
+    `$ast = [System.Management.Automation.Language.Parser]::ParseInput($raw, [ref]$null, [ref]$errs)`,
+    `if ($errs -and $errs.Count -gt 0) { throw ("PS1 parse errors: " + (($errs | ForEach-Object { $_.Message }) -join "; ")) }`,
+    `$switchNames = @()`,
+    `if ($ast.ParamBlock) {`,
+    `  foreach ($p in $ast.ParamBlock.Parameters) {`,
+    `    $isSwitch = $false`,
+    `    foreach ($attr in $p.Attributes) {`,
+    `      if ($attr -is [System.Management.Automation.Language.TypeConstraintAst] -and $attr.TypeName.Name -ieq 'switch') { $isSwitch = $true }`,
+    `    }`,
+    `    if ($isSwitch) { $switchNames += $p.Name.VariablePath.UserPath.ToLowerInvariant() }`,
+    `  }`,
+    `}`,
+    `$assigns = $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true)`,
+    `foreach ($a in $assigns) {`,
+    `  if ($a.Left -is [System.Management.Automation.Language.VariableExpressionAst]) {`,
+    `    $v = $a.Left.VariablePath.UserPath.ToLowerInvariant()`,
+    `    if ($switchNames -contains $v) { throw ("Collision with switch param: $" + $v) }`,
+    `  }`,
+    `}`,
+    `Write-Output "AST_OK"`,
+  ].join("\n");
+  const encoded = Buffer.from(psScript, "utf16le").toString("base64");
+  const out = execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], {
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  assert.ok(out.includes("AST_OK"), `Unexpected PowerShell AST check output: ${out}`);
+});
