@@ -395,11 +395,11 @@ function createMockDom() {
 // =============================================================================
 // 1. Metadata, Hooks Schema & Installer Helpers
 // =============================================================================
-test("Manifest & hooks.json follow Rudex v4.2.0 architecture without PostInvocation", () => {
+test("Manifest & hooks.json follow Rudex v4.2.1 architecture without PostInvocation", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.2.0");
+  assert.equal(pkg.version, "4.2.1");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -2226,7 +2226,7 @@ test("Antigravity update survival: versionGuard auto-repatches, updater.js hooks
     // 4) rudex-hook.js auto-repatch recovers stripped resources/app even when all 3 feature flags are OFF
     fs.writeFileSync(path.join(mockAppRoot, "version"), "44.10.0\n", "utf8");
     fs.writeFileSync(path.join(mockResDir, "app.asar"), "STOCK_44_10_ASAR", "utf8");
-    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.2.0"}', "utf8");
+    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.2.1"}', "utf8");
     fs.writeFileSync(
       path.join(mockPluginDir, "skills", "rudex", "scripts", "install.js"),
       `"use strict";\nconst fs = require("fs");\nfs.writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify(process.argv.slice(2)), "utf8");\n`,
@@ -2541,16 +2541,21 @@ test("Apple Liquid Glass preset, optical theme CSS, smooth sparkline, and Studio
 
   const studioCss = buildStudioStyles();
   for (const tok of [
-    ".mini-pill::before",
-    ".med-card::before",
+    "#0a0b0f",
     ".med-telemetry-stage",
     ".med-quota-card",
+    ".med-status-badge",
     ".pill-actions",
-    "saturate(215%)",
     ".preview-stage",
   ]) {
-    assert.ok(studioCss.includes(tok), `Missing Liquid Glass CSS token: ${tok}`);
+    assert.ok(studioCss.includes(tok), `Missing refined Studio CSS token: ${tok}`);
   }
+  assert.equal(studioCss.includes(".mini-pill::before"), false, "White pseudo-border on mini-pill must be removed");
+  assert.equal(studioCss.includes(".med-card::before"), false, "White pseudo-border on med-card must be removed");
+
+  const skillMdText = fs.readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8");
+  assert.ok(skillMdText.includes("Основные функции скилла"), "SKILL.md must include core features overview");
+  assert.equal(skillMdText.includes("live agent supplements"), false, "SKILL.md must not mention removed supplements feature");
 
   const { doc, win } = createMockDom();
   const translator = createDomTranslator({ document: doc, window: win, dictionary, applyDynamicRules, initialLocale: "ru" });
@@ -2564,7 +2569,7 @@ test("Apple Liquid Glass preset, optical theme CSS, smooth sparkline, and Studio
         ipcCalls.push(ch);
         if (ch === "agy-studio:get-state") return { locale: "ru", settings: { viewMode: "medium" } };
         if (ch === "agy-studio:get-update-state") {
-          return { status: "up-to-date", available: false, dismissed: false, installed: { version: "4.2.0", commitShort: "abcdef1" }, remote: null };
+          return { status: "up-to-date", available: false, dismissed: false, installed: { version: "4.2.1", commitShort: "abcdef1" }, remote: null };
         }
         return { ok: true };
       },
@@ -2584,10 +2589,14 @@ test("Apple Liquid Glass preset, optical theme CSS, smooth sparkline, and Studio
     const widgetWrap = host.shadowRoot.querySelector(".widget-wrap");
     assert.ok(widgetWrap.innerHTML.includes("med-telemetry-stage"), "Medium card must render unified telemetry stage");
     assert.ok(widgetWrap.innerHTML.includes("med-quota-card"), "Medium card must render glass quota card");
+    assert.ok(widgetWrap.innerHTML.includes("pill-actions"), "Widget must retain clean pill-actions separation");
+    assert.equal(widgetWrap.innerHTML.includes("toggle-live-edit"), false, "Supplements bolt button must be removed from widget");
     assert.ok(widgetWrap.innerHTML.includes(" C"), "Sparkline SVG must use smooth cubic Bezier curves");
 
     panel.setOpen(true, { tab: "settings", subTab: "system" });
     const modalMount = host.shadowRoot.querySelector(".modal-mount");
+    assert.equal(modalMount.innerHTML.includes('data-tab="live-edits"'), false, "Supplements tab must be removed from Studio sidebar");
+    assert.equal(modalMount.innerHTML.includes("Ctrl + Alt + E"), false, "Supplements hotkey must be removed from System settings");
     assert.ok(modalMount.innerHTML.includes('data-action="preview-update-toast"'), "System settings must expose update toast preview button");
 
     const prevBtn = doc.createElement("button");

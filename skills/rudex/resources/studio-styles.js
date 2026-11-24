@@ -11,17 +11,17 @@ function buildStudioStyles() {
     }
 
     .studio-root {
-      --rx-bg: #0c0c0f;
-      --rx-surface: #131318;
-      --rx-surface-2: #191920;
-      --rx-glass: rgba(14, 15, 20, 0.88);
-      --rx-glass-strong: rgba(14, 15, 20, 0.96);
-      --rx-fg: #d4d6de;
-      --rx-fg-strong: #f4f5f8;
-      --rx-muted: #808494;
+      --rx-bg: #0a0b0f;
+      --rx-surface: #11131a;
+      --rx-surface-2: #181b25;
+      --rx-glass: rgba(14, 16, 22, 0.88);
+      --rx-glass-strong: rgba(13, 15, 21, 0.95);
+      --rx-fg: #dcdfea;
+      --rx-fg-strong: #f6f7fb;
+      --rx-muted: #84899e;
       --rx-border: rgba(255, 255, 255, 0.08);
-      --rx-border-strong: rgba(255, 255, 255, 0.15);
-      --rx-hover: rgba(255, 255, 255, 0.055);
+      --rx-border-strong: rgba(255, 255, 255, 0.14);
+      --rx-hover: rgba(255, 255, 255, 0.06);
       --rx-accent: #3b82f6;
       --rx-accent-fg: #ffffff;
       --rx-accent-soft: color-mix(in srgb, var(--rx-accent) 16%, transparent);
@@ -33,17 +33,17 @@ function buildStudioStyles() {
       --rx-danger: #ef4444;
       --rx-danger-soft: rgba(239, 68, 68, 0.14);
       --rx-shadow: 0 22px 60px rgba(0, 0, 0, 0.56);
-      --rx-widget-shadow: 0 8px 26px rgba(0, 0, 0, 0.42);
+      --rx-widget-shadow: 0 10px 28px rgba(0, 0, 0, 0.44);
       --rx-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
       --rx-studio-radius: 16px;
       --rx-studio-blur: 20px;
       --rx-widget-opacity: 0.88;
       --rx-widget-radius: 999px;
-      --rx-card-sheen: rgba(255, 255, 255, 0.04);
+      --rx-card-sheen: rgba(255, 255, 255, 0.06);
       --rx-shell-bg: var(--rx-bg);
       --rx-sidebar-bg: var(--rx-surface);
       --rx-main-bg: var(--rx-bg);
-      --rx-shell-glow: radial-gradient(640px circle at 12% 0%, color-mix(in srgb, var(--rx-accent) 9%, transparent), transparent 62%);
+      --rx-shell-glow: radial-gradient(640px circle at 12% 0%, color-mix(in srgb, var(--rx-accent) 10%, transparent), transparent 62%);
       color: var(--rx-fg);
       font-size: 13px;
       line-height: 1.45;
@@ -51,111 +51,64 @@ function buildStudioStyles() {
     }
 
     .studio-root[data-theme="light"] {
-      --rx-bg: #ffffff;
-      --rx-surface: #f7f7f9;
-      --rx-surface-2: #efeff4;
-      --rx-glass: rgba(252, 252, 254, 0.90);
-      --rx-glass-strong: rgba(255, 255, 255, 0.97);
-      --rx-fg: #27272e;
-      --rx-fg-strong: #0e0e12;
-      --rx-muted: #686d7d;
+      --rx-bg: #f9fafc;
+      --rx-surface: #ffffff;
+      --rx-surface-2: #f1f3f8;
+      --rx-glass: rgba(252, 253, 255, 0.90);
+      --rx-glass-strong: rgba(255, 255, 255, 0.96);
+      --rx-fg: #262936;
+      --rx-fg-strong: #0e1017;
+      --rx-muted: #666c80;
       --rx-border: rgba(15, 23, 42, 0.09);
-      --rx-border-strong: rgba(15, 23, 42, 0.16);
+      --rx-border-strong: rgba(15, 23, 42, 0.15);
       --rx-hover: rgba(15, 23, 42, 0.045);
       --rx-shadow: 0 20px 52px rgba(15, 23, 42, 0.14);
       --rx-widget-shadow: 0 8px 24px rgba(15, 23, 42, 0.10);
-      --rx-card-sheen: rgba(255, 255, 255, 0.65);
+      --rx-card-sheen: rgba(255, 255, 255, 0.70);
     }
 
     /* === Studio Window Themes === */
     .studio-root[data-studio-theme="obsidian"] .modal-shell {
-      background: linear-gradient(168deg, rgba(255, 255, 255, 0.045) 0%, transparent 32%), #0c0c10;
-      background-image: linear-gradient(168deg, rgba(255, 255, 255, 0.045) 0%, transparent 32%), var(--rx-shell-glow);
-      box-shadow: 0 28px 72px -12px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      background: var(--rx-bg);
+      background-image: var(--rx-shell-glow);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     }
     .studio-root[data-studio-theme="obsidian"][data-theme="light"] .modal-shell {
-      background: linear-gradient(180deg, #ffffff 0%, #f5f6fa 100%);
-      box-shadow: 0 24px 60px -12px rgba(15, 23, 42, 0.16), inset 0 1px 0 #ffffff;
+      background: #ffffff;
+      box-shadow: 0 22px 56px rgba(15, 23, 42, 0.15);
     }
 
     .studio-root[data-studio-theme="frosted"] {
-      --rx-shell-bg: color-mix(in srgb, #0e111c 46%, transparent);
-      --rx-sidebar-bg: rgba(255, 255, 255, 0.05);
-      --rx-main-bg: transparent;
-      --rx-surface: rgba(255, 255, 255, 0.065);
-      --rx-surface-2: rgba(255, 255, 255, 0.105);
-      --rx-bg: rgba(8, 10, 16, 0.42);
-      --rx-border: rgba(255, 255, 255, 0.12);
-      --rx-border-strong: rgba(255, 255, 255, 0.22);
-      --rx-shell-glow: radial-gradient(560px circle at 85% 0%, color-mix(in srgb, var(--rx-accent) 16%, transparent), transparent 65%);
+      --rx-shell-bg: color-mix(in srgb, var(--rx-bg) 74%, transparent);
+      --rx-sidebar-bg: color-mix(in srgb, var(--rx-surface) 64%, transparent);
+      --rx-main-bg: color-mix(in srgb, var(--rx-bg) 56%, transparent);
+      --rx-surface: color-mix(in srgb, #141722 72%, transparent);
+      --rx-surface-2: color-mix(in srgb, #1d2130 78%, transparent);
+      --rx-shell-glow: radial-gradient(560px circle at 85% 0%, color-mix(in srgb, var(--rx-accent) 12%, transparent), transparent 65%);
     }
     .studio-root[data-studio-theme="frosted"][data-theme="light"] {
-      --rx-shell-bg: rgba(245, 248, 255, 0.56);
-      --rx-sidebar-bg: rgba(255, 255, 255, 0.42);
-      --rx-surface: rgba(255, 255, 255, 0.54);
-      --rx-surface-2: rgba(255, 255, 255, 0.74);
-      --rx-bg: rgba(255, 255, 255, 0.62);
-      --rx-border: rgba(15, 23, 42, 0.09);
-      --rx-border-strong: rgba(255, 255, 255, 0.78);
+      --rx-shell-bg: rgba(247, 249, 253, 0.76);
+      --rx-sidebar-bg: rgba(255, 255, 255, 0.64);
+      --rx-main-bg: rgba(250, 251, 255, 0.56);
+      --rx-surface: rgba(255, 255, 255, 0.72);
+      --rx-surface-2: rgba(241, 244, 250, 0.84);
     }
     .studio-root[data-studio-theme="frosted"] .modal-shell {
-      background:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(255, 255, 255, 0.07) 100%),
-        var(--rx-shell-bg);
-      backdrop-filter: blur(var(--rx-studio-blur)) saturate(210%) brightness(1.08);
-      -webkit-backdrop-filter: blur(var(--rx-studio-blur)) saturate(210%) brightness(1.08);
-      border-color: rgba(255, 255, 255, 0.22);
-      box-shadow:
-        0 28px 72px -12px rgba(0, 0, 0, 0.62),
-        0 8px 24px rgba(0, 0, 0, 0.28),
-        inset 0 1px 1px rgba(255, 255, 255, 0.34),
-        inset 0 -1px 1px rgba(255, 255, 255, 0.08);
-    }
-    .studio-root[data-studio-theme="frosted"][data-theme="light"] .modal-shell {
-      background:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.44) 52%, rgba(255, 255, 255, 0.64) 100%),
-        var(--rx-shell-bg);
-      border-color: rgba(255, 255, 255, 0.85);
-      box-shadow:
-        0 24px 60px -12px rgba(15, 23, 42, 0.18),
-        inset 0 1px 1px rgba(255, 255, 255, 0.92);
-    }
-    .studio-root[data-studio-theme="frosted"] .modal-shell::before,
-    .studio-root .modal-shell.is-appearance-live::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      padding: 1px;
-      pointer-events: none;
-      z-index: 4;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.54) 0%, rgba(255, 255, 255, 0.12) 32%, rgba(255, 255, 255, 0.04) 60%, rgba(255, 255, 255, 0.26) 100%);
-      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-    }
-    .studio-root[data-studio-theme="frosted"] .modal-shell::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      pointer-events: none;
-      z-index: 1;
-      background:
-        radial-gradient(380px circle at var(--rx-mx, 50%) var(--rx-my, -15%), rgba(255, 255, 255, 0.10), transparent 65%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, transparent 26%);
+      backdrop-filter: blur(var(--rx-studio-blur)) saturate(165%);
+      -webkit-backdrop-filter: blur(var(--rx-studio-blur)) saturate(165%);
+      box-shadow: var(--rx-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.10);
     }
 
     .studio-root[data-studio-theme="neon-cyber"] {
       --rx-bg: #070811;
-      --rx-surface: rgba(14, 17, 34, 0.84);
-      --rx-surface-2: rgba(23, 28, 54, 0.90);
+      --rx-surface: #0d101f;
+      --rx-surface-2: #141930;
       --rx-shell-bg: #070811;
-      --rx-sidebar-bg: linear-gradient(180deg, #0b0e1d 0%, #070914 100%);
-      --rx-main-bg: rgba(7, 9, 18, 0.85);
-      --rx-border: color-mix(in srgb, var(--rx-accent) 24%, rgba(255, 255, 255, 0.07));
-      --rx-border-strong: color-mix(in srgb, var(--rx-accent) 44%, rgba(255, 255, 255, 0.12));
-      --rx-shell-glow: radial-gradient(540px circle at 0% 0%, color-mix(in srgb, var(--rx-accent) 18%, transparent), transparent 60%), radial-gradient(420px circle at 100% 100%, rgba(168, 85, 247, 0.12), transparent 62%);
+      --rx-sidebar-bg: #0a0d1a;
+      --rx-main-bg: #070914;
+      --rx-border: color-mix(in srgb, var(--rx-accent) 20%, rgba(255, 255, 255, 0.06));
+      --rx-border-strong: color-mix(in srgb, var(--rx-accent) 38%, rgba(255, 255, 255, 0.12));
+      --rx-shell-glow: radial-gradient(520px circle at 0% 0%, color-mix(in srgb, var(--rx-accent) 16%, transparent), transparent 60%);
     }
     .studio-root[data-studio-theme="neon-cyber"][data-theme="light"] {
       --rx-bg: #f6f8ff;
@@ -166,21 +119,20 @@ function buildStudioStyles() {
       --rx-main-bg: #f8faff;
     }
     .studio-root[data-studio-theme="neon-cyber"] .modal-shell {
-      border-color: color-mix(in srgb, var(--rx-accent) 52%, transparent);
-      box-shadow: 0 24px 68px rgba(0, 0, 0, 0.68), 0 0 38px color-mix(in srgb, var(--rx-accent) 22%, transparent), inset 0 1px 0 color-mix(in srgb, var(--rx-accent) 36%, rgba(255, 255, 255, 0.18));
+      border-color: color-mix(in srgb, var(--rx-accent) 46%, transparent);
+      box-shadow: 0 24px 68px rgba(0, 0, 0, 0.64), 0 0 30px color-mix(in srgb, var(--rx-accent) 18%, transparent);
     }
     .studio-root[data-studio-theme="neon-cyber"] .nav-item.is-active {
-      box-shadow: 0 0 20px color-mix(in srgb, var(--rx-accent) 26%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      box-shadow: 0 0 18px color-mix(in srgb, var(--rx-accent) 24%, transparent);
     }
 
     .studio-root[data-studio-theme="minimal-mono"] {
       --rx-shell-glow: none;
       --rx-sidebar-bg: var(--rx-bg);
       --rx-main-bg: var(--rx-bg);
-      --rx-surface: color-mix(in srgb, var(--rx-surface) 60%, var(--rx-bg));
     }
     .studio-root[data-studio-theme="minimal-mono"] .modal-shell {
-      box-shadow: 0 22px 54px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.44);
       border-color: var(--rx-border);
     }
     .studio-root[data-studio-theme="minimal-mono"] .nav-item.is-active {
@@ -191,21 +143,17 @@ function buildStudioStyles() {
 
     .studio-root[data-studio-theme="aurora"] {
       --rx-shell-bg: #090b15;
-      --rx-sidebar-bg: linear-gradient(180deg, color-mix(in srgb, var(--rx-accent) 16%, rgba(16, 19, 34, 0.85)) 0%, rgba(13, 15, 26, 0.92) 100%);
+      --rx-sidebar-bg: linear-gradient(180deg, color-mix(in srgb, var(--rx-accent) 14%, var(--rx-surface)) 0%, var(--rx-surface) 100%);
       --rx-main-bg: transparent;
-      --rx-surface: rgba(255, 255, 255, 0.048);
-      --rx-surface-2: rgba(255, 255, 255, 0.082);
-      --rx-shell-glow: radial-gradient(640px circle at 18% 0%, color-mix(in srgb, var(--rx-accent) 22%, transparent), transparent 58%), radial-gradient(520px circle at 92% 95%, rgba(168, 85, 247, 0.18), transparent 60%), radial-gradient(420px circle at 60% 25%, rgba(6, 182, 212, 0.09), transparent 62%);
+      --rx-shell-glow: radial-gradient(620px circle at 20% 0%, color-mix(in srgb, var(--rx-accent) 18%, transparent), transparent 58%), radial-gradient(500px circle at 92% 95%, rgba(168, 85, 247, 0.14), transparent 60%);
     }
     .studio-root[data-studio-theme="aurora"][data-theme="light"] {
       --rx-shell-bg: #f6f8fd;
-      --rx-surface: rgba(255, 255, 255, 0.85);
-      --rx-surface-2: rgba(241, 245, 252, 0.92);
     }
     .studio-root[data-studio-theme="aurora"] .modal-shell {
-      backdrop-filter: blur(var(--rx-studio-blur)) saturate(170%);
-      -webkit-backdrop-filter: blur(var(--rx-studio-blur)) saturate(170%);
-      box-shadow: 0 28px 72px -12px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(var(--rx-studio-blur)) saturate(155%);
+      -webkit-backdrop-filter: blur(var(--rx-studio-blur)) saturate(155%);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
 
     .num { font-variant-numeric: tabular-nums; }
@@ -253,83 +201,24 @@ function buildStudioStyles() {
     .widget-wrap.is-dragging { opacity: 0.94; }
 
     .mini-pill {
-      position: relative;
-      isolation: isolate;
-      overflow: hidden;
       display: inline-flex;
       align-items: center;
       gap: 7px;
       height: 36px;
-      max-width: min(620px, calc(100vw - 24px));
+      max-width: min(600px, calc(100vw - 24px));
       padding: 0 5px 0 11px;
       border-radius: var(--rx-widget-radius);
-      background:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 48%, rgba(255, 255, 255, 0.09) 100%),
-        color-mix(in srgb, #10131e calc(var(--rx-widget-opacity) * 44%), transparent);
-      backdrop-filter: blur(28px) saturate(215%) brightness(1.12) contrast(1.04);
-      -webkit-backdrop-filter: blur(28px) saturate(215%) brightness(1.12) contrast(1.04);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      box-shadow:
-        0 20px 46px -10px rgba(0, 0, 0, 0.60),
-        0 6px 16px rgba(0, 0, 0, 0.28),
-        inset 0 1px 1px rgba(255, 255, 255, 0.42),
-        inset 0 -1px 1px rgba(255, 255, 255, 0.10),
-        inset 1px 0 1px rgba(255, 255, 255, 0.14);
-      color: var(--rx-fg-strong);
+      background: color-mix(in srgb, var(--rx-surface) calc(var(--rx-widget-opacity) * 100%), transparent);
+      backdrop-filter: blur(18px) saturate(150%);
+      -webkit-backdrop-filter: blur(18px) saturate(150%);
+      border: 1px solid var(--rx-border-strong);
+      box-shadow: var(--rx-widget-shadow), inset 0 1px 0 var(--rx-card-sheen);
+      color: var(--rx-fg);
       font-size: 11.5px;
-      font-weight: 550;
-      letter-spacing: -0.005em;
+      font-weight: 500;
       cursor: pointer;
-      animation: rxWidgetIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-      transition: border-color 0.16s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease;
-    }
-    .mini-pill > *,
-    .med-card > *,
-    .modal-shell > * {
-      position: relative;
-      z-index: 3;
-    }
-    .mini-pill::before,
-    .med-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      padding: 1px;
-      pointer-events: none;
-      z-index: 2;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.16) 28%, rgba(255, 255, 255, 0.04) 55%, rgba(255, 255, 255, 0.32) 100%);
-      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-    }
-    .mini-pill::after,
-    .med-card::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      pointer-events: none;
-      z-index: 1;
-      background:
-        radial-gradient(220px circle at var(--rx-mx, 50%) var(--rx-my, -15%), rgba(255, 255, 255, 0.22), transparent 64%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.03) 34%, transparent 56%);
-    }
-    .studio-root[data-theme="light"] [data-widget-theme="glass"] .mini-pill,
-    .studio-root[data-theme="light"] [data-widget-theme="glass"] .med-card {
-      background:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.42) 52%, rgba(255, 255, 255, 0.62) 100%),
-        color-mix(in srgb, #f4f7ff calc(var(--rx-widget-opacity) * 46%), transparent);
-      border-color: rgba(255, 255, 255, 0.84);
-      box-shadow:
-        0 18px 42px -10px rgba(15, 23, 42, 0.18),
-        0 4px 14px rgba(15, 23, 42, 0.08),
-        inset 0 1px 1px rgba(255, 255, 255, 0.95),
-        inset 0 -1px 1px rgba(15, 23, 42, 0.06);
-    }
-    .studio-root[data-theme="light"] [data-widget-theme="glass"] .mini-pill::before,
-    .studio-root[data-theme="light"] [data-widget-theme="glass"] .med-card::before {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.45) 45%, rgba(255, 255, 255, 0.85) 100%);
+      animation: rxWidgetIn 0.16s ease-out;
+      transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
     }
     .preview-stage .mini-pill,
     .preview-stage .med-card {
@@ -340,10 +229,7 @@ function buildStudioStyles() {
     .widget-wrap.is-locked .med-card { cursor: pointer; }
     .widget-wrap.is-dragging .mini-pill,
     .widget-wrap.is-dragging .med-card { cursor: grabbing; }
-    .mini-pill:hover {
-      border-color: rgba(255, 255, 255, 0.34);
-      transform: translateY(-1px);
-    }
+    .mini-pill:hover { border-color: color-mix(in srgb, var(--rx-fg) 26%, transparent); transform: translateY(-1px); }
 
     .pill-actions {
       display: inline-flex;
@@ -351,13 +237,12 @@ function buildStudioStyles() {
       gap: 2px;
       padding: 2px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.065);
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.045);
+      border: 1px solid var(--rx-border);
       flex-shrink: 0;
     }
     .studio-root[data-theme="light"] .pill-actions {
-      background: rgba(15, 23, 42, 0.05);
+      background: rgba(15, 23, 42, 0.045);
       border-color: rgba(15, 23, 42, 0.08);
     }
 
@@ -367,10 +252,12 @@ function buildStudioStyles() {
     [data-widget-scale="lg"] .mini-pill { height: 42px; font-size: 12.5px; gap: 8px; padding: 0 7px 0 13px; }
     [data-widget-scale="lg"] .med-card { width: 368px; }
 
-    /* Glass internal crystal tiles */
-    [data-widget-theme="glass"] .med-header {
-      border-bottom-color: rgba(255, 255, 255, 0.11);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 100%);
+    /* Glass (refined classic translucent surface) */
+    [data-widget-theme="glass"] .mini-pill,
+    [data-widget-theme="glass"] .med-card {
+      background: color-mix(in srgb, var(--rx-surface) calc(var(--rx-widget-opacity) * 86%), transparent);
+      border-color: color-mix(in srgb, var(--rx-accent) 18%, var(--rx-border-strong));
+      box-shadow: var(--rx-widget-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
     [data-widget-theme="glass"] .med-telemetry-stage,
     [data-widget-theme="glass"] .med-stat-tile,
@@ -378,49 +265,21 @@ function buildStudioStyles() {
     [data-widget-theme="glass"] .med-persona-pill,
     [data-widget-theme="glass"] .model-badge,
     [data-widget-theme="glass"] .lang-pill-btn {
-      background: rgba(255, 255, 255, 0.065);
-      border-color: rgba(255, 255, 255, 0.12);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+      background: color-mix(in srgb, var(--rx-surface-2) 70%, transparent);
+      border-color: var(--rx-border);
     }
     [data-widget-theme="glass"] .med-spark-box {
-      background: rgba(255, 255, 255, 0.035);
-      border-color: rgba(255, 255, 255, 0.08);
-    }
-    [data-widget-theme="glass"] .med-footer {
-      border-top-color: rgba(255, 255, 255, 0.10);
-    }
-    .studio-root[data-theme="light"] [data-widget-theme="glass"] .med-telemetry-stage,
-    .studio-root[data-theme="light"] [data-widget-theme="glass"] .med-stat-tile,
-    .studio-root[data-theme="light"] [data-widget-theme="glass"] .med-quota-card,
-    .studio-root[data-theme="light"] [data-widget-theme="glass"] .med-persona-pill,
-    .studio-root[data-theme="light"] [data-widget-theme="glass"] .model-badge,
-    .studio-root[data-theme="light"] [data-widget-theme="glass"] .lang-pill-btn {
-      background: rgba(255, 255, 255, 0.56);
-      border-color: rgba(255, 255, 255, 0.78);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 6px rgba(15, 23, 42, 0.04);
+      background: color-mix(in srgb, var(--rx-bg) 72%, transparent);
+      border-color: var(--rx-border);
     }
 
     /* Dynamic Island */
     [data-widget-theme="island"] .mini-pill,
     [data-widget-theme="island"] .med-card {
-      background: linear-gradient(180deg, #0d0e13 0%, #040406 45%, #020203 100%);
-      backdrop-filter: blur(22px) saturate(160%);
-      -webkit-backdrop-filter: blur(22px) saturate(160%);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      color: #f8fafc;
-      box-shadow:
-        0 24px 56px rgba(0, 0, 0, 0.80),
-        0 0 0 1px rgba(0, 0, 0, 0.9),
-        inset 0 1px 0.5px rgba(255, 255, 255, 0.24),
-        inset 0 -1px 0 rgba(255, 255, 255, 0.06);
-    }
-    [data-widget-theme="island"] .mini-pill::before,
-    [data-widget-theme="island"] .med-card::before {
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.06) 45%, rgba(255, 255, 255, 0.10) 100%);
-    }
-    [data-widget-theme="island"] .mini-pill::after,
-    [data-widget-theme="island"] .med-card::after {
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, transparent 28%);
+      background: #06070a;
+      border-color: rgba(255, 255, 255, 0.13);
+      color: #e8ecf6;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.70), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
     [data-widget-theme="island"] .med-telemetry-stage,
     [data-widget-theme="island"] .med-stat-tile,
@@ -429,127 +288,63 @@ function buildStudioStyles() {
     [data-widget-theme="island"] .model-badge,
     [data-widget-theme="island"] .lang-pill-btn,
     [data-widget-theme="island"] .med-persona-pill,
-    [data-widget-theme="island"] .pill-actions {
-      background: rgba(255, 255, 255, 0.068);
-      border-color: rgba(255, 255, 255, 0.10);
-      color: #f8fafc;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    [data-widget-theme="island"] .pill-actions,
+    [data-widget-theme="island"] .med-status-badge,
+    [data-widget-theme="island"] .med-peak-pill {
+      background: rgba(255, 255, 255, 0.055);
+      border-color: rgba(255, 255, 255, 0.09);
+      color: #f4f6fb;
     }
     [data-widget-theme="island"] .med-tps-num { color: #ffffff; }
-    [data-widget-theme="island"] .med-header { border-bottom-color: rgba(255, 255, 255, 0.08); }
-    [data-widget-theme="island"] .med-footer { border-top-color: rgba(255, 255, 255, 0.08); }
 
-    /* Neon HUD / Prism */
+    /* Neon HUD */
     [data-widget-theme="neon"] .mini-pill,
     [data-widget-theme="neon"] .med-card {
-      background:
-        linear-gradient(160deg, color-mix(in srgb, var(--rx-accent) 16%, transparent) 0%, rgba(10, 12, 24, 0.45) 55%, rgba(168, 85, 247, 0.12) 100%),
-        color-mix(in srgb, #080a16 calc(var(--rx-widget-opacity) * 76%), transparent);
-      backdrop-filter: blur(24px) saturate(190%);
-      -webkit-backdrop-filter: blur(24px) saturate(190%);
-      border-color: color-mix(in srgb, var(--rx-accent) 55%, transparent);
-      box-shadow:
-        0 0 28px color-mix(in srgb, var(--rx-accent) 28%, transparent),
-        0 18px 42px rgba(0, 0, 0, 0.62),
-        inset 0 1px 0 color-mix(in srgb, var(--rx-accent) 45%, rgba(255, 255, 255, 0.25));
-    }
-    [data-widget-theme="neon"] .mini-pill::before,
-    [data-widget-theme="neon"] .med-card::before {
-      background: linear-gradient(135deg, var(--rx-accent) 0%, rgba(56, 189, 248, 0.45) 45%, rgba(168, 85, 247, 0.72) 100%);
-    }
-    [data-widget-theme="neon"] .med-card .med-header {
-      box-shadow: inset 0 2px 0 color-mix(in srgb, var(--rx-accent) 55%, transparent);
+      background: color-mix(in srgb, #080b18 calc(var(--rx-widget-opacity) * 94%), transparent);
+      border-color: color-mix(in srgb, var(--rx-accent) 56%, transparent);
+      box-shadow: 0 0 24px color-mix(in srgb, var(--rx-accent) 24%, transparent), var(--rx-widget-shadow);
     }
     [data-widget-theme="neon"] .med-telemetry-stage,
     [data-widget-theme="neon"] .med-stat-tile,
     [data-widget-theme="neon"] .med-quota-card {
-      background: rgba(10, 14, 28, 0.56);
-      border-color: color-mix(in srgb, var(--rx-accent) 26%, rgba(255, 255, 255, 0.08));
-    }
-    [data-widget-theme="neon"] .med-spark-box {
-      background-image:
-        linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-      background-size: 22px 14px;
+      background: rgba(12, 16, 32, 0.76);
+      border-color: color-mix(in srgb, var(--rx-accent) 24%, rgba(255, 255, 255, 0.08));
     }
     [data-widget-theme="neon"] .metric-chip b,
     [data-widget-theme="neon"] .med-tps-num {
       color: #ffffff;
-      text-shadow: 0 0 14px color-mix(in srgb, var(--rx-accent) 68%, transparent);
+      text-shadow: 0 0 12px color-mix(in srgb, var(--rx-accent) 58%, transparent);
     }
 
-    /* Minimal Air Frost */
+    /* Minimal */
     [data-widget-theme="minimal"] .mini-pill,
     [data-widget-theme="minimal"] .med-card {
-      background: color-mix(in srgb, var(--rx-bg) 38%, transparent);
-      backdrop-filter: blur(22px) saturate(160%);
-      -webkit-backdrop-filter: blur(22px) saturate(160%);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.16);
-    }
-    [data-widget-theme="minimal"] .mini-pill::before,
-    [data-widget-theme="minimal"] .med-card::before {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.24) 0%, transparent 50%, rgba(255, 255, 255, 0.12) 100%);
-    }
-    [data-widget-theme="minimal"] .mini-pill::after,
-    [data-widget-theme="minimal"] .med-card::after {
-      background: none;
+      background: color-mix(in srgb, var(--rx-bg) 72%, transparent);
+      border-color: var(--rx-border);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
     }
     [data-widget-theme="minimal"] .med-telemetry-stage,
     [data-widget-theme="minimal"] .med-stat-tile,
     [data-widget-theme="minimal"] .med-quota-card,
     [data-widget-theme="minimal"] .med-spark-box,
     [data-widget-theme="minimal"] .pill-actions {
-      background: rgba(255, 255, 255, 0.03);
-      border-color: rgba(255, 255, 255, 0.08);
-      box-shadow: none;
-    }
-    .studio-root[data-theme="light"] [data-widget-theme="minimal"] .mini-pill,
-    .studio-root[data-theme="light"] [data-widget-theme="minimal"] .med-card {
-      background: rgba(255, 255, 255, 0.56);
-      border-color: rgba(15, 23, 42, 0.12);
-      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+      background: rgba(255, 255, 255, 0.025);
+      border-color: var(--rx-border);
     }
 
-    /* Ceramic Solid Contrast */
+    /* Solid Contrast */
     [data-widget-theme="solid"] .mini-pill,
     [data-widget-theme="solid"] .med-card {
-      background: linear-gradient(180deg, #1d1f29 0%, #121319 100%);
+      background: linear-gradient(180deg, #171a24 0%, #11131b 100%);
       backdrop-filter: none;
       -webkit-backdrop-filter: none;
-      border: 1px solid rgba(255, 255, 255, 0.13);
-      box-shadow: 0 16px 38px rgba(0, 0, 0, 0.56), inset 0 1px 0 rgba(255, 255, 255, 0.16);
-    }
-    [data-widget-theme="solid"] .mini-pill::before,
-    [data-widget-theme="solid"] .med-card::before,
-    [data-widget-theme="solid"] .mini-pill::after,
-    [data-widget-theme="solid"] .med-card::after {
-      display: none;
-    }
-    [data-widget-theme="solid"] .med-telemetry-stage,
-    [data-widget-theme="solid"] .med-stat-tile,
-    [data-widget-theme="solid"] .med-quota-card {
-      background: rgba(0, 0, 0, 0.28);
-      border-color: rgba(255, 255, 255, 0.08);
-      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.24);
-    }
-    [data-widget-theme="solid"] .med-spark-box {
-      background: #0c0d12;
-      border-color: rgba(255, 255, 255, 0.08);
+      border-color: var(--rx-border-strong);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.07);
     }
     .studio-root[data-theme="light"] [data-widget-theme="solid"] .mini-pill,
     .studio-root[data-theme="light"] [data-widget-theme="solid"] .med-card {
-      background: linear-gradient(180deg, #ffffff 0%, #f1f3f8 100%);
-      border-color: rgba(15, 23, 42, 0.14);
-      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14), inset 0 1px 0 #ffffff;
-    }
-    .studio-root[data-theme="light"] [data-widget-theme="solid"] .med-telemetry-stage,
-    .studio-root[data-theme="light"] [data-widget-theme="solid"] .med-stat-tile,
-    .studio-root[data-theme="light"] [data-widget-theme="solid"] .med-quota-card,
-    .studio-root[data-theme="light"] [data-widget-theme="solid"] .med-spark-box {
-      background: rgba(15, 23, 42, 0.04);
-      border-color: rgba(15, 23, 42, 0.09);
-      box-shadow: none;
+      background: linear-gradient(180deg, #ffffff 0%, #f3f5fa 100%);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
     }
 
     .drag-grip {
@@ -664,25 +459,16 @@ function buildStudioStyles() {
 
     /* === Medium Card (M) === */
     .med-card {
-      position: relative;
-      isolation: isolate;
       width: 336px;
-      border-radius: min(var(--rx-widget-radius), 24px);
-      background:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 48%, rgba(255, 255, 255, 0.09) 100%),
-        color-mix(in srgb, #10131e calc(var(--rx-widget-opacity) * 44%), transparent);
-      backdrop-filter: blur(28px) saturate(215%) brightness(1.12) contrast(1.04);
-      -webkit-backdrop-filter: blur(28px) saturate(215%) brightness(1.12) contrast(1.04);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      box-shadow:
-        0 24px 56px -12px rgba(0, 0, 0, 0.64),
-        0 8px 20px rgba(0, 0, 0, 0.30),
-        inset 0 1px 1px rgba(255, 255, 255, 0.42),
-        inset 0 -1px 1px rgba(255, 255, 255, 0.10);
+      border-radius: min(var(--rx-widget-radius), 22px);
+      background: color-mix(in srgb, var(--rx-surface) calc(var(--rx-widget-opacity) * 100%), transparent);
+      backdrop-filter: blur(20px) saturate(150%);
+      -webkit-backdrop-filter: blur(20px) saturate(150%);
+      border: 1px solid var(--rx-border-strong);
+      box-shadow: var(--rx-shadow), inset 0 1px 0 var(--rx-card-sheen);
       overflow: hidden;
       cursor: grab;
-      animation: rxWidgetIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-      transition: border-color 0.16s ease, box-shadow 0.18s ease;
+      animation: rxWidgetIn 0.16s ease-out;
     }
     .med-header {
       display: flex;
@@ -704,13 +490,9 @@ function buildStudioStyles() {
       gap: 6px;
       padding: 3px 9px 3px 7px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: var(--rx-surface-2);
+      border: 1px solid var(--rx-border);
       min-width: 0;
-    }
-    .studio-root[data-theme="light"] .med-status-badge {
-      background: rgba(15, 23, 42, 0.05);
-      border-color: rgba(15, 23, 42, 0.08);
     }
     .med-phase {
       font-size: 11.5px;
@@ -723,7 +505,7 @@ function buildStudioStyles() {
     .med-head-actions {
       display: flex;
       align-items: center;
-      gap: 3px;
+      gap: 4px;
       flex-shrink: 0;
     }
     .med-body {
@@ -734,9 +516,9 @@ function buildStudioStyles() {
     }
     .med-telemetry-stage {
       padding: 10px 10px 8px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.048);
-      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 13px;
+      background: color-mix(in srgb, var(--rx-bg) 62%, var(--rx-surface));
+      border: 1px solid var(--rx-border);
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -753,16 +535,15 @@ function buildStudioStyles() {
       gap: 5px;
     }
     .med-tps-num {
-      font-size: 30px;
-      font-weight: 750;
-      letter-spacing: -0.035em;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
       color: var(--rx-fg-strong);
-      line-height: 0.96;
+      line-height: 1;
     }
     .med-tps-unit {
       font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
+      font-weight: 650;
       color: var(--rx-accent);
     }
     .med-peak,
@@ -770,21 +551,21 @@ function buildStudioStyles() {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 3px 8px;
+      padding: 2.5px 8px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: var(--rx-surface-2);
+      border: 1px solid var(--rx-border);
       font-size: 10.5px;
       color: var(--rx-muted);
     }
     .med-peak b,
-    .med-peak-pill b { color: var(--rx-fg-strong); font-weight: 650; }
+    .med-peak-pill b { color: var(--rx-fg-strong); font-weight: 600; }
 
     .med-spark-box {
-      height: 46px;
-      border-radius: 10px;
-      background: rgba(0, 0, 0, 0.18);
-      border: 1px solid rgba(255, 255, 255, 0.07);
+      height: 44px;
+      border-radius: 9px;
+      background: var(--rx-bg);
+      border: 1px solid var(--rx-border);
       padding: 4px;
       display: flex;
       align-items: center;
@@ -796,15 +577,15 @@ function buildStudioStyles() {
     }
     .med-stat-tile {
       padding: 8px 10px;
-      border-radius: 12px;
-      background: var(--rx-surface);
+      border-radius: 11px;
+      background: var(--rx-surface-2);
       border: 1px solid var(--rx-border);
       display: flex;
       flex-direction: column;
       gap: 2px;
     }
-    .med-stat-label { font-size: 10px; letter-spacing: 0.02em; color: var(--rx-muted); }
-    .med-stat-val { font-size: 13.5px; font-weight: 650; color: var(--rx-fg-strong); }
+    .med-stat-label { font-size: 10px; color: var(--rx-muted); }
+    .med-stat-val { font-size: 13px; font-weight: 650; color: var(--rx-fg-strong); }
 
     .med-quota-row,
     .med-quota-card {
@@ -815,8 +596,8 @@ function buildStudioStyles() {
       font-size: 11px;
       color: var(--rx-muted);
       padding: 7px 10px;
-      border-radius: 11px;
-      background: var(--rx-surface);
+      border-radius: 10px;
+      background: var(--rx-surface-2);
       border: 1px solid var(--rx-border);
     }
     .med-footer {
@@ -881,8 +662,6 @@ function buildStudioStyles() {
     }
 
     .modal-shell {
-      position: relative;
-      isolation: isolate;
       width: min(940px, calc(100vw - 32px));
       height: min(654px, calc(100vh - 36px));
       border-radius: var(--rx-studio-radius);
@@ -892,22 +671,17 @@ function buildStudioStyles() {
       box-shadow: var(--rx-shadow);
       display: flex;
       overflow: hidden;
-      animation: rxModalIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+      animation: rxModalIn 0.16s ease-out;
     }
     .modal-shell.is-appearance-live {
       width: min(496px, calc(100vw - 24px));
       height: calc(100vh - 28px);
       border-radius: var(--rx-studio-radius);
-      background:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.025) 48%, rgba(255, 255, 255, 0.06) 100%),
-        color-mix(in srgb, var(--rx-bg) 56%, transparent);
-      background-image:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.025) 48%, rgba(255, 255, 255, 0.06) 100%),
-        var(--rx-shell-glow);
-      backdrop-filter: blur(var(--rx-studio-blur)) saturate(200%);
-      -webkit-backdrop-filter: blur(var(--rx-studio-blur)) saturate(200%);
-      box-shadow: 0 26px 68px -12px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.28);
-      animation: rxDrawerIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+      background: var(--rx-glass-strong);
+      background-image: var(--rx-shell-glow);
+      backdrop-filter: blur(var(--rx-studio-blur));
+      -webkit-backdrop-filter: blur(var(--rx-studio-blur));
+      animation: rxDrawerIn 0.16s ease-out;
     }
 
     .modal-sidebar {
@@ -2068,27 +1842,16 @@ function buildStudioStyles() {
       pointer-events: none;
     }
     .live-edit-popover {
-      position: relative;
-      isolation: isolate;
       pointer-events: auto;
       width: min(378px, calc(100vw - 24px));
-      border-radius: 16px;
-      background:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(255, 255, 255, 0.08) 100%),
-        rgba(12, 15, 24, 0.62);
-      backdrop-filter: blur(26px) saturate(200%) brightness(1.08);
-      -webkit-backdrop-filter: blur(26px) saturate(200%) brightness(1.08);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      box-shadow: 0 24px 58px -12px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+      border-radius: 14px;
+      background: var(--rx-glass-strong);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--rx-border-strong);
+      box-shadow: var(--rx-shadow);
       overflow: hidden;
-      animation: rxModalIn 0.16s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .studio-root[data-theme="light"] .live-edit-popover {
-      background:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.56) 100%),
-        rgba(248, 250, 255, 0.72);
-      border-color: rgba(255, 255, 255, 0.88);
-      box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.18), inset 0 1px 0 #ffffff;
+      animation: rxModalIn 0.14s ease-out;
     }
     .le-head {
       display: flex;
@@ -2200,34 +1963,19 @@ function buildStudioStyles() {
       bottom: 16px;
     }
     .update-toast {
-      position: relative;
-      isolation: isolate;
-      overflow: hidden;
       pointer-events: auto;
-      width: min(368px, calc(100vw - 24px));
-      padding: 14px 15px;
-      border-radius: 16px;
-      background:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(255, 255, 255, 0.08) 100%),
-        rgba(12, 15, 24, 0.62);
-      backdrop-filter: blur(26px) saturate(205%) brightness(1.1);
-      -webkit-backdrop-filter: blur(26px) saturate(205%) brightness(1.1);
-      border: 1px solid rgba(255, 255, 255, 0.19);
-      box-shadow:
-        0 24px 56px -12px rgba(0, 0, 0, 0.64),
-        inset 0 1px 1px rgba(255, 255, 255, 0.36),
-        inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+      width: min(364px, calc(100vw - 24px));
+      padding: 13px 14px;
+      border-radius: 14px;
+      background: var(--rx-glass-strong);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--rx-border-strong);
+      box-shadow: var(--rx-shadow);
       display: flex;
       flex-direction: column;
-      gap: 9px;
-      animation: rxModalIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .studio-root[data-theme="light"] .update-toast {
-      background:
-        linear-gradient(155deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.56) 100%),
-        rgba(248, 250, 255, 0.74);
-      border-color: rgba(255, 255, 255, 0.90);
-      box-shadow: 0 20px 48px -12px rgba(15, 23, 42, 0.18), inset 0 1px 0 #ffffff;
+      gap: 8px;
+      animation: rxModalIn 0.16s ease-out;
     }
     .update-toast-head {
       display: flex;

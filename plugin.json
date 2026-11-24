@@ -2,8 +2,8 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "rudex",
   "displayName": "Rudex",
-  "version": "4.2.0",
-  "description": "Rudex — студия в стиле Apple Liquid Glass (iOS 26) и полная русификация (RU ↔ EN) для Google Antigravity 2.0: 5 стилей окна и виджета, интерактивная студия обоев и скруглений, мысли агента на русском, характер чата, дополнения, точный TPS, квоты, экспорт в ZIP и автообновления.",
+  "version": "4.2.1",
+  "description": "Rudex — полная русификация (RU ↔ EN) и студия оформления для Google Antigravity 2.0: темы и Жидкое стекло, студия обоев и углов, кастомное приветствие, мысли агента на русском, характер чата, точный TPS, квоты, экспорт в ZIP и автообновления.",
   "logo": "assets/logo.svg",
   "author": {
     "name": "Ivan0967pro",

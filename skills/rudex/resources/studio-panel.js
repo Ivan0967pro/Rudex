@@ -27,11 +27,11 @@ const DEFAULT_STUDIO_UI = {
 };
 
 const STUDIO_WINDOW_THEMES = [
-  { id: "obsidian", nameRu: "Обсидиан", nameEn: "Obsidian", descRu: "Глубокий графит с верхним оптическим бликом", descEn: "Deep graphite with subtle top optical sheen", bg: "#0c0c10", side: "#13131a" },
-  { id: "frosted", nameRu: "Жидкое стекло", nameEn: "Liquid Glass", descRu: "Кристальное стекло iOS 26 с бликом и преломлением", descEn: "iOS 26 crystal glass with refraction & specular rim", bg: "rgba(18,22,36,0.52)", side: "rgba(255,255,255,0.08)" },
-  { id: "neon-cyber", nameRu: "Кибер-неон", nameEn: "Cyber Neon", descRu: "Светящаяся рамка и контрастный HUD", descEn: "Luminous accent border and cyber HUD", bg: "#070811", side: "#0b0e1d" },
-  { id: "minimal-mono", nameRu: "Минимализм", nameEn: "Minimal Mono", descRu: "Чистые линии без теней и лишнего шума", descEn: "Crisp hairline borders without visual noise", bg: "#0c0c0f", side: "#0c0c0f" },
-  { id: "aurora", nameRu: "Аврора", nameEn: "Aurora", descRu: "Бархатный градиент и мягкая стеклянная аура", descEn: "Velvet gradient backdrop with soft glass aura", bg: "#090b15", side: "#12162b" },
+  { id: "obsidian", nameRu: "Обсидиан", nameEn: "Obsidian", descRu: "Глубокий графит и мягкое акцентное свечение", descEn: "Deep graphite with subtle accent glow", bg: "#0a0b0f", side: "#11131a" },
+  { id: "frosted", nameRu: "Матовое стекло", nameEn: "Frosted Glass", descRu: "Полупрозрачный акрил поверх обоев", descEn: "Translucent acrylic glass over wallpaper", bg: "rgba(17,19,26,0.74)", side: "rgba(24,27,37,0.72)" },
+  { id: "neon-cyber", nameRu: "Кибер-неон", nameEn: "Cyber Neon", descRu: "Светящаяся рамка и контрастный HUD", descEn: "Luminous accent border and cyber HUD", bg: "#070811", side: "#0a0d1a" },
+  { id: "minimal-mono", nameRu: "Минимализм", nameEn: "Minimal Mono", descRu: "Чистые линии без теней и лишнего шума", descEn: "Crisp hairline borders without visual noise", bg: "#0a0b0f", side: "#0a0b0f" },
+  { id: "aurora", nameRu: "Аврора", nameEn: "Aurora", descRu: "Бархатный градиент и мягкая аура", descEn: "Velvet gradient backdrop with soft aura", bg: "#090b15", side: "#12162b" },
 ];
 
 const STUDIO_WINDOW_LAYOUTS = [
@@ -42,11 +42,11 @@ const STUDIO_WINDOW_LAYOUTS = [
 ];
 
 const WIDGET_DESIGN_THEMES = [
-  { id: "glass", nameRu: "Жидкое стекло", nameEn: "Liquid Glass", descRu: "Хрустальная линза iOS 26 с преломлением и световым ободком", descEn: "iOS 26 crystal lens with refraction & specular rim" },
-  { id: "island", nameRu: "Dynamic Island", nameEn: "Dynamic Island", descRu: "Глубокий глянцевый остров с контрастными плитками", descEn: "Deep glossy island capsule with vivid metrics" },
-  { id: "neon", nameRu: "Неоновый HUD", nameEn: "Neon HUD", descRu: "Призматическое стекло с неоновым контуром и свечением", descEn: "Prismatic glass with luminous ring & glowing TPS" },
-  { id: "minimal", nameRu: "Невесомый", nameEn: "Air Frost", descRu: "Воздушная прозрачная вуаль без визуального шума", descEn: "Featherweight frosted veil with hairline border" },
-  { id: "solid", nameRu: "Контрастный монолит", nameEn: "Ceramic Matte", descRu: "Матовый монолит с фаской для ярких обоев", descEn: "Matte ceramic monolith for bright wallpapers" },
+  { id: "glass", nameRu: "Жидкое стекло", nameEn: "Liquid Glass", descRu: "Полупрозрачное стекло с мягким блюром и акцентным кантом", descEn: "Translucent glass with soft blur and accent edge" },
+  { id: "island", nameRu: "Dynamic Island", nameEn: "Dynamic Island", descRu: "Глубокий чёрный остров с яркой телеметрией", descEn: "Deep dark capsule with bold metrics" },
+  { id: "neon", nameRu: "Неоновый HUD", nameEn: "Neon HUD", descRu: "Акцентная подсветка рамки и цифр TPS", descEn: "Luminous accent ring and glowing TPS" },
+  { id: "minimal", nameRu: "Невесомый", nameEn: "Minimal", descRu: "Ультра-лёгкая прозрачная рамка", descEn: "Featherweight ultra-clean frame" },
+  { id: "solid", nameRu: "Контрастный монолит", nameEn: "Solid Contrast", descRu: "Плотный градиентный фон для ярких обоев", descEn: "Solid gradient surface for bright wallpapers" },
 ];
 
 const WALLPAPER_ATMOS_PRESETS = [
@@ -1500,7 +1500,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.2.0", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "4.2.1", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -2900,7 +2900,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "4.2.0";
+    const instVer = (inst && inst.version) || pluginMeta.version || "4.2.1";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -2946,9 +2946,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "4.2.0" },
+          installed: realU.installed || { version: pluginMeta.version || "4.2.1" },
           remote: {
-            version: pluginMeta.version || "4.2.0",
+            version: pluginMeta.version || "4.2.1",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -3607,11 +3607,10 @@ function createStudioPanel(options) {
 
     const isPinned = Boolean(state.settings.pinned);
     const joined = chips.join('<span class="pill-sep"></span>');
-    const hasPendingLe = countPendingLiveEdits() > 0;
     const grip = `<span class="drag-grip">${iconSvg("grip", 12)}</span>`;
     const btns = isPreview
-      ? `<span class="pill-actions"><span class="icon-btn">${iconSvg("bolt", 12)}</span><span class="icon-btn">${iconSvg("expand", 12)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 12)}</span><span class="icon-btn is-primary">${iconSvg("gear", 12)}</span></span>`
-      : `<span class="pill-actions"><button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipSupplement)}">${iconSvg("bolt", 12)}<span class="le-dot-ind" data-live="liveEditDot"${hasPendingLe ? "" : ' style="display:none"'}></span></button><button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 12)}</button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button></span>`;
+      ? `<span class="pill-actions"><span class="icon-btn">${iconSvg("expand", 12)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 12)}</span><span class="icon-btn is-primary">${iconSvg("gear", 12)}</span></span>`
+      : `<span class="pill-actions"><button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 12)}</button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button></span>`;
 
     const bodyAttrs = isPreview ? "" : ` data-widget-body="1"${isPinned ? "" : ' data-drag-handle="1"'}`;
     return `<div class="mini-pill"${bodyAttrs}>${grip}${joined}${btns}</div>`;
@@ -3643,7 +3642,6 @@ function createStudioPanel(options) {
           <div class="med-head-actions">
             <button type="button" class="lang-pill-btn" data-action="toggle-locale" data-no-drag="1" title="${escAttr(tr.tooltipLang)}">${langText}</button>
             <span class="pill-actions">
-              <button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipSupplement)}">${iconSvg("bolt", 12)}<span class="le-dot-ind" data-live="liveEditDot"${countPendingLiveEdits() > 0 ? "" : ' style="display:none"'}></span></button>
               <button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button>
               <button type="button" class="icon-btn" data-action="to-mini" data-no-drag="1" title="${escAttr(tr.tooltipMini)}">${iconSvg("minimize", 12)}</button>
               <button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button>
@@ -5186,7 +5184,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "4.2.0";
+    const ver = inst.version || pluginMeta.version || "4.2.1";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -5252,7 +5250,6 @@ function createStudioPanel(options) {
         <div class="card">
           <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleLang)}</span><span class="kbd">Ctrl + Alt + L</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleModal)}</span><span class="kbd">Ctrl + Alt + P</span></div>
-          <div class="row-item"><span class="row-title">${escHtml(tr.hkSupplement)}</span><span class="kbd">Ctrl + Alt + E</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.hkDoubleClick)}</span><span class="kbd">${escHtml(tr.hkDoubleClickKey)}</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.hkEsc)}</span><span class="kbd">Esc</span></div>
         </div>
@@ -5277,12 +5274,10 @@ function createStudioPanel(options) {
     if (!state.isOpen) return "";
     const tr = t();
     const sui = spNormalizeStudioUi(state.settings.studioUi);
-    const pendingLe = countPendingLiveEdits();
     const tabs = [
       { id: "monitor", label: tr.navMonitor, ic: "activity", title: tr.modalTitleMonitor, sub: tr.modalSubMonitor },
       { id: "appearance", label: tr.navAppearance, ic: "palette", title: tr.modalTitleAppearance, sub: tr.modalSubAppearance },
       { id: "persona", label: tr.navPersona, ic: "sparkles", title: tr.modalTitlePersona, sub: tr.modalSubPersona, dot: state.chatPersona.enabled },
-      { id: "live-edits", label: tr.navSupplements, ic: "bolt", title: tr.modalTitleSupplements, sub: tr.modalSubSupplements, dot: pendingLe > 0, badge: pendingLe > 0 ? String(pendingLe) : "" },
       { id: "settings", label: tr.navSettings, ic: "gear", title: tr.modalTitleSettings, sub: tr.modalSubSettings, dot: Boolean(state.update && state.update.available) },
     ];
     const current = tabs.find((x) => x.id === state.activeTab) || tabs[0];
@@ -5292,7 +5287,6 @@ function createStudioPanel(options) {
     if (current.id === "monitor") bodyHtml = renderMonitorTab();
     else if (current.id === "appearance") bodyHtml = renderAppearanceDrawerBody();
     else if (current.id === "persona") bodyHtml = renderPersonaTab();
-    else if (current.id === "live-edits") bodyHtml = renderSupplementsTab();
     else bodyHtml = renderSettingsTab();
 
     return `
@@ -5305,7 +5299,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("sparkles", 12)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.2.0")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.2.1")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
@@ -7182,7 +7176,10 @@ function createStudioPanel(options) {
   function setOpen(nextOpen, opts) {
     const next = Boolean(nextOpen);
     if (next && opts && typeof opts === "object") {
-      if (opts.tab) state.activeTab = String(opts.tab);
+      if (opts.tab) {
+        const reqTab = String(opts.tab);
+        state.activeTab = reqTab === "live-edits" ? "monitor" : reqTab;
+      }
       if (opts.subTab) state.settingsSubTab = String(opts.subTab);
       if (opts.appSubTab) state.appearanceSubTab = String(opts.appSubTab);
       if (typeof opts.dockedRight === "boolean") state.appearanceDockedRight = opts.dockedRight;
