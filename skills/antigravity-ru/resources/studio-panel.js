@@ -93,9 +93,26 @@ const TEXT = {
     liveEditStatusPending: "Ждёт шага",
     liveEditStatusDelivered: "У агента",
     liveEditStatusApplied: "Выполнено",
-    liveEditHookNote: "Хуки плагина PreInvocation + Stop активны (~/.gemini/config/plugins/antigravity-ru/hooks.json). Горячая клавиша: Ctrl+Alt+E.",
+    liveEditHookNote: "Хуки плагина SessionStart + PreInvocation + PostInvocation + Stop активны (~/.gemini/config/plugins/antigravity-ru/hooks.json). Горячая клавиша: Ctrl+Alt+E.",
     tooltipLiveEdit: "Живая правка агенту без остановки (Ctrl+Alt+E)",
     hkLiveEdit: "Открыть панель живых правок",
+    liveEditInChatToggle: "Живая правка прямо в поле ввода чата (Enter и Ctrl+V фото во время ответа)",
+    liveEditInChatDesc: "Пока агент отвечает, обычное поле чата сразу отправляет правку вместо ожидания в очереди",
+    liveEditModeLabel: "Режим отправки правки в чате",
+    inChatModeAuto: "Авто",
+    inChatModeLive: "Вклинить",
+    inChatModePivot: "Стоп + Сразу",
+    inChatSendBtn: "Применить ⏎",
+    inChatPivotNowBtn: "Остановить и применить сейчас",
+    inChatSending: "Отправка...",
+    inChatPivoting: "Перестройка ответа...",
+    inChatPendingLabel: "Ждёт шага:",
+    inChatHintAuto: "Авто: при потоке текста перестроит ответ сразу; при инструментах вклинит без отмены",
+    inChatHintLive: "Вклинит правку агенту на следующем шаге без остановки работы",
+    inChatHintPivot: "Остановит текущий поток и сразу перестроит ответ с правкой (+Ctrl+V фото)",
+    personaStrictLabel: "100% удержание характера (PreInvocation + анти-дрифт)",
+    personaStrictDesc: "Дублирует правила при старте, освежает якорь на длинных цепочках шагов и изолирует соседние чаты от AGENTS.md",
+    personaHookBadge: "Hook + AGENTS.md",
     appWallpaperTitle: "Студия обоев для чатов",
     appWpNone: "Без обоев",
     appWpGradient: "Градиент",
@@ -343,9 +360,26 @@ const TEXT = {
     liveEditStatusPending: "Pending",
     liveEditStatusDelivered: "Delivered",
     liveEditStatusApplied: "Applied",
-    liveEditHookNote: "Plugin PreInvocation + Stop hooks active. Shortcut: Ctrl+Alt+E.",
+    liveEditHookNote: "Plugin SessionStart + PreInvocation + PostInvocation + Stop hooks active. Shortcut: Ctrl+Alt+E.",
     tooltipLiveEdit: "Send live edit without interrupting (Ctrl+Alt+E)",
     hkLiveEdit: "Toggle live edits composer",
+    liveEditInChatToggle: "Direct live edits right in the chat box (Enter & Ctrl+V photo while responding)",
+    liveEditInChatDesc: "While the agent runs, the main chat composer sends mid-turn edits directly instead of queueing",
+    liveEditModeLabel: "In-chat live edit mode",
+    inChatModeAuto: "Auto",
+    inChatModeLive: "Live",
+    inChatModePivot: "Stop + Now",
+    inChatSendBtn: "Apply ⏎",
+    inChatPivotNowBtn: "Stop & apply now",
+    inChatSending: "Sending...",
+    inChatPivoting: "Pivoting stream...",
+    inChatPendingLabel: "Pending:",
+    inChatHintAuto: "Auto: pivots plain-text streams immediately, injects seamlessly between tool steps",
+    inChatHintLive: "Injects edit on next model step without interrupting running work",
+    inChatHintPivot: "Stops obsolete stream & immediately restarts with edit (+Ctrl+V photos)",
+    personaStrictLabel: "100% Persona Adherence (PreInvocation + Anti-Drift)",
+    personaStrictDesc: "Anchors character on Turn 1, refreshes after long tool chains, and isolates sibling chats from AGENTS.md",
+    personaHookBadge: "Hook + AGENTS.md",
     appWallpaperTitle: "Chat Wallpaper Studio",
     appWpNone: "None",
     appWpGradient: "Gradient",
@@ -2448,6 +2482,87 @@ function buildStyles() {
     .le-status-pill.is-delivered { background: var(--st-accent-soft); color: var(--st-accent); }
     .le-status-pill.is-applied { background: var(--st-success-soft); color: var(--st-success); }
 
+    /* In-Chat Direct Live Edit Bar */
+    .composer-le-mount {
+      position: fixed;
+      z-index: 2147483643;
+      pointer-events: none;
+    }
+    .composer-le-mount.is-hidden { display: none; }
+    .inchat-le-bar {
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      background: var(--st-glass-strong);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--st-border-strong);
+      box-shadow: var(--st-widget-shadow);
+      font-size: 11.5px;
+      color: var(--st-fg);
+    }
+    .inchat-le-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-height: 24px;
+    }
+    .inchat-le-left, .inchat-le-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+    .inchat-mode-group {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px;
+      border-radius: 7px;
+      background: var(--st-card);
+      border: 1px solid var(--st-border);
+      gap: 2px;
+    }
+    .inchat-mode-btn {
+      border: none;
+      background: transparent;
+      color: var(--st-muted);
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 3px 7px;
+      border-radius: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.12s ease, color 0.12s ease;
+    }
+    .inchat-mode-btn:hover { color: var(--st-fg-strong); }
+    .inchat-mode-btn.is-active {
+      background: var(--st-accent-soft);
+      color: var(--st-fg-strong);
+      box-shadow: inset 0 0 0 1px var(--st-accent-border);
+    }
+    .inchat-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--st-fg-strong);
+      white-space: nowrap;
+    }
+    .inchat-pivot-btn {
+      background: rgba(232, 151, 95, 0.14);
+      border-color: rgba(232, 151, 95, 0.38);
+      color: var(--st-warning);
+    }
+    .inchat-pivot-btn:hover { background: rgba(232, 151, 95, 0.24); }
+    .inchat-send-btn { padding: 4px 9px; font-size: 11px; }
+
     @media (max-width: 720px) {
       .modal-shell { flex-direction: column; height: min(660px, calc(100vh - 24px)); }
       .modal-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--st-border); padding: 10px; }
@@ -2467,7 +2582,7 @@ function createStudioPanel(options) {
   const ipc = opts.ipcRenderer || null;
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "3.1.0", dictEntries: 4017, dynamicRulesCount: 471 };
+    : { version: "3.2.0", dictEntries: 4017, dynamicRulesCount: 471 };
   const mediaBlobCache = new Map();
   const mediaLoadInflight = new Set();
 
@@ -2544,6 +2659,7 @@ function createStudioPanel(options) {
       enabled: false,
       activePreset: "custom",
       text: "",
+      strict: true,
     },
     newChatDraftPersona: null,
     settings: {
@@ -2557,6 +2673,9 @@ function createStudioPanel(options) {
       miniFields: Object.assign({}, DEFAULT_MINI_FIELDS),
       showMiniTps: true,
       trackHistory: true,
+      personaStrictMode: true,
+      inChatLiveEditEnabled: true,
+      liveEditMode: "auto",
       customPresets: [],
       appearance: spCloneAppearance(SP_FALLBACK_APPEARANCE),
       appearanceProfiles: [],
@@ -2592,6 +2711,9 @@ function createStudioPanel(options) {
     liveEditError: "",
     liveEdits: [],
     liveEditsAll: [],
+    pivotInProgress: false,
+    bypassComposerInterceptUntil: 0,
+    lastComposerBarSig: "",
     telemetry: createEmptyTelemetry(),
   };
 
@@ -2600,9 +2722,13 @@ function createStudioPanel(options) {
   let styleEl = null;
   let rootEl = null;
   let widgetMountEl = null;
+  let composerBarMountEl = null;
   let popoverMountEl = null;
   let modalMountEl = null;
   let pollTimer = null;
+  let pivotPollTimer = null;
+  let composerKeydownHandler = null;
+  let composerPasteHandler = null;
   let repaintTimer = null;
   let streamSampleTimer = null;
   let readyTimer = null;
@@ -2765,6 +2891,11 @@ function createStudioPanel(options) {
       }
       if (typeof rawSettings.showMiniTps === "boolean") state.settings.showMiniTps = rawSettings.showMiniTps;
       if (typeof rawSettings.trackHistory === "boolean") state.settings.trackHistory = rawSettings.trackHistory;
+      if (typeof rawSettings.personaStrictMode === "boolean") state.settings.personaStrictMode = rawSettings.personaStrictMode;
+      if (typeof rawSettings.inChatLiveEditEnabled === "boolean") state.settings.inChatLiveEditEnabled = rawSettings.inChatLiveEditEnabled;
+      if (rawSettings.liveEditMode === "live" || rawSettings.liveEditMode === "pivot" || rawSettings.liveEditMode === "auto") {
+        state.settings.liveEditMode = rawSettings.liveEditMode;
+      }
       if (Array.isArray(rawSettings.customPresets)) {
         state.settings.customPresets = normalizeCustomPresets(rawSettings.customPresets);
       }
@@ -3035,7 +3166,7 @@ function createStudioPanel(options) {
       const userMsgCount = userMsgs ? userMsgs.length : 0;
       const lastResp = respCount > 0 ? responses[respCount - 1] : null;
 
-      const hasCancelBtn = Boolean(typeof doc.querySelector === "function" && doc.querySelector('[data-testid="cancel-invocation-button"]'));
+      const hasCancelBtn = Boolean(findCancelButton());
       let isGenerating = hasCancelBtn;
       let isThinking = false;
       if (lastResp) {
@@ -3167,13 +3298,14 @@ function createStudioPanel(options) {
     let fallbackPersona = null;
     if (isPromotion) {
       const draft = state.newChatDraftPersona || (state.chatPersona.enabled && state.chatPersona.text.trim()
-        ? { personaEnabled: true, personaActivePreset: state.chatPersona.activePreset || "custom", personaText: state.chatPersona.text }
+        ? { personaEnabled: true, personaActivePreset: state.chatPersona.activePreset || "custom", personaText: state.chatPersona.text, personaStrict: state.chatPersona.strict !== false }
         : null);
       promoPayload = {
         title: detected.title,
         personaEnabled: Boolean(draft && draft.personaEnabled),
         personaActivePreset: draft && draft.personaActivePreset ? draft.personaActivePreset : state.chatPersona.activePreset || "custom",
         personaText: draft && typeof draft.personaText === "string" ? draft.personaText : "",
+        personaStrict: draft ? draft.personaStrict !== false : state.chatPersona.strict !== false,
         telemetry: serializeChatTelemetry(tel),
       };
       if (promoPayload.personaEnabled && promoPayload.personaText.trim()) {
@@ -3181,12 +3313,14 @@ function createStudioPanel(options) {
           personaEnabled: true,
           personaActivePreset: promoPayload.personaActivePreset,
           personaText: promoPayload.personaText,
+          personaStrict: promoPayload.personaStrict !== false,
           at: Date.now(),
         };
         fallbackPersona = {
           personaEnabled: true,
           personaActivePreset: promoPayload.personaActivePreset,
           personaText: promoPayload.personaText,
+          personaStrict: promoPayload.personaStrict !== false,
         };
       }
       if (!snap.isGenerating && !tel.isGenerating && snap.respCount >= 1 && tel.prevRespCount === 0) {
@@ -3200,12 +3334,14 @@ function createStudioPanel(options) {
           personaEnabled: true,
           personaActivePreset: state.chatPersona.activePreset || "custom",
           personaText: state.chatPersona.text,
+          personaStrict: state.chatPersona.strict !== false,
         };
       } else if (state.lastPromotedPersona && Date.now() - state.lastPromotedPersona.at < 20000) {
         fallbackPersona = {
           personaEnabled: true,
           personaActivePreset: state.lastPromotedPersona.personaActivePreset || "custom",
           personaText: state.lastPromotedPersona.personaText,
+          personaStrict: state.lastPromotedPersona.personaStrict !== false,
         };
       }
     } else {
@@ -3225,7 +3361,7 @@ function createStudioPanel(options) {
       freshTel.modelName = snap.modelName;
       freshTel.contextLabel = detected.isNew ? "" : snap.contextLabel;
       state.telemetry = freshTel;
-      state.chatPersona = { enabled: false, activePreset: "custom", text: "" };
+      state.chatPersona = { enabled: false, activePreset: "custom", text: "", strict: state.settings.personaStrictMode !== false };
       state.draftPersonaText = "";
       state.draftDirty = false;
       state.toastMsg = "";
@@ -3256,6 +3392,7 @@ function createStudioPanel(options) {
         enabled: Boolean(rec.personaEnabled),
         activePreset: rec.personaActivePreset || "custom",
         text: typeof rec.personaText === "string" ? rec.personaText : "",
+        strict: typeof rec.personaStrict === "boolean" ? rec.personaStrict : state.settings.personaStrictMode !== false,
       };
       if (!state.draftDirty) {
         state.draftPersonaText = state.chatPersona.text;
@@ -3791,6 +3928,458 @@ function createStudioPanel(options) {
     popoverMountEl.innerHTML = renderLiveEditPopoverMarkup();
   }
 
+  function findCancelButton() {
+    if (!doc) return null;
+    try {
+      if (typeof doc.querySelector === "function") {
+        const direct = doc.querySelector('[data-testid="cancel-invocation-button"]');
+        if (direct && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(direct)) && !isHiddenAncestor(direct, doc.body)) {
+          return direct;
+        }
+      }
+      if (typeof doc.querySelectorAll === "function") {
+        const btns = doc.querySelectorAll('form button[aria-label], [data-testid="composer"] button[aria-label], .composer-container button[aria-label]');
+        for (let i = 0; btns && i < btns.length; i += 1) {
+          const b = btns[i];
+          if (!b || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(b)) || isHiddenAncestor(b, doc.body)) continue;
+          const lbl = typeof b.getAttribute === "function" ? (b.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim() : "";
+          if (/^(?:stop\s+(?:generat|respond|stream|agent)|cancel\s+(?:invoc|generat|request)|остановить\s+(?:генерац|ответ|агент)|прервать\s+(?:генерац|ответ)|отменить\s+(?:генерац|запрос))/i.test(lbl)) {
+            return b;
+          }
+        }
+      }
+    } catch (_e) {}
+    return null;
+  }
+
+  function isIgnoredOrDialog(el) {
+    let cur = el;
+    let guard = 0;
+    while (cur && guard < 18) {
+      if (hostEl && (cur === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(cur) && cur !== doc.body && cur !== doc.documentElement))) {
+        return true;
+      }
+      if (typeof cur.getAttribute === "function") {
+        if (cur.hasAttribute("data-agy-ru-ignore")) return true;
+        if (cur.getAttribute("role") === "dialog") return true;
+      }
+      cur = cur.parentNode;
+      guard += 1;
+    }
+    return false;
+  }
+
+  function findChatComposer() {
+    if (!doc || typeof doc.querySelectorAll !== "function") return null;
+    try {
+      const inputs = doc.querySelectorAll('textarea, [contenteditable="true"]');
+      let bestInput = null;
+      let bestScore = -Infinity;
+      let bestRect = null;
+      for (let i = 0; inputs && i < inputs.length; i += 1) {
+        const el = inputs[i];
+        if (!el || isIgnoredOrDialog(el) || isHiddenAncestor(el, doc.body)) continue;
+        const rect = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+        if (rect && rect.width > 0 && rect.width < 120) continue;
+        const score = rect ? (rect.top * 10 + rect.width) : i;
+        if (score >= bestScore) {
+          bestScore = score;
+          bestInput = el;
+          bestRect = rect;
+        }
+      }
+      if (!bestInput) return null;
+
+      let composerEl = null;
+      let fallbackBox = null;
+      let cur = bestInput.parentNode;
+      const vw = Number(win && win.innerWidth) || 2000;
+      for (let d = 0; cur && d < 6 && cur !== doc.body && cur !== doc.documentElement; d += 1) {
+        const tag = String(cur.tagName || "").toUpperCase();
+        const tid = typeof cur.getAttribute === "function" ? (cur.getAttribute("data-testid") || "") : "";
+        const cls = typeof cur.className === "string" ? cur.className : "";
+        if (tag === "FORM" || tid === "composer" || cls.indexOf("composer") >= 0) {
+          composerEl = cur;
+          break;
+        }
+        if (!fallbackBox && typeof cur.getBoundingClientRect === "function") {
+          const r = cur.getBoundingClientRect();
+          if (r && r.width >= 300 && r.width <= vw && r.height >= 40 && r.height <= 460) {
+            fallbackBox = cur;
+          }
+        }
+        cur = cur.parentNode;
+      }
+      composerEl = composerEl || fallbackBox || bestInput.parentNode || bestInput;
+      const composerRect = (composerEl && typeof composerEl.getBoundingClientRect === "function")
+        ? composerEl.getBoundingClientRect()
+        : (bestRect || { left: 260, top: 760, width: 620, height: 88 });
+      return {
+        inputEl: bestInput,
+        composerEl,
+        composerRect,
+        cancelBtn: findCancelButton(),
+      };
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function isComposerTarget(target, comp) {
+    if (!target || !comp) return false;
+    if (hostEl && typeof hostEl.contains === "function" && hostEl.contains(target)) return false;
+    if (comp.inputEl && (target === comp.inputEl || (typeof comp.inputEl.contains === "function" && comp.inputEl.contains(target)))) {
+      return true;
+    }
+    return Boolean(comp.composerEl && typeof comp.composerEl.contains === "function" && comp.composerEl.contains(target));
+  }
+
+  function readComposerText(inputEl) {
+    if (!inputEl) return "";
+    const tag = String(inputEl.tagName || "").toUpperCase();
+    if (tag === "TEXTAREA" || tag === "INPUT") {
+      return String(inputEl.value || "");
+    }
+    return String(inputEl.innerText != null ? inputEl.innerText : (inputEl.textContent || ""));
+  }
+
+  function setComposerText(inputEl, nextText) {
+    if (!inputEl) return;
+    const val = String(nextText == null ? "" : nextText);
+    const tag = String(inputEl.tagName || "").toUpperCase();
+    if (tag === "TEXTAREA" || tag === "INPUT") {
+      try {
+        const proto = tag === "TEXTAREA"
+          ? (win && win.HTMLTextAreaElement ? win.HTMLTextAreaElement.prototype : null)
+          : (win && win.HTMLInputElement ? win.HTMLInputElement.prototype : null);
+        const desc = proto && typeof Object.getOwnPropertyDescriptor === "function"
+          ? Object.getOwnPropertyDescriptor(proto, "value")
+          : null;
+        if (desc && typeof desc.set === "function") {
+          desc.set.call(inputEl, val);
+        } else {
+          inputEl.value = val;
+        }
+      } catch (_e) {
+        inputEl.value = val;
+      }
+      const EvtCtor = win && typeof win.Event === "function" ? win.Event : (typeof Event === "function" ? Event : null);
+      if (EvtCtor && typeof inputEl.dispatchEvent === "function") {
+        inputEl.dispatchEvent(new EvtCtor("input", { bubbles: true }));
+      }
+      return;
+    }
+    try { if (typeof inputEl.focus === "function") inputEl.focus(); } catch (_e) {}
+    let execUsed = false;
+    if (doc && typeof doc.createRange === "function" && win && typeof win.getSelection === "function" && typeof doc.execCommand === "function") {
+      try {
+        const range = doc.createRange();
+        range.selectNodeContents(inputEl);
+        const sel = win.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(range);
+          execUsed = Boolean(doc.execCommand(val ? "insertText" : "delete", false, val));
+        }
+      } catch (_e) {
+        execUsed = false;
+      }
+    }
+    if (!execUsed) {
+      inputEl.textContent = val;
+      const InpCtor = win && typeof win.InputEvent === "function"
+        ? win.InputEvent
+        : (win && typeof win.Event === "function" ? win.Event : (typeof Event === "function" ? Event : null));
+      if (InpCtor && typeof inputEl.dispatchEvent === "function") {
+        inputEl.dispatchEvent(new InpCtor("input", { bubbles: true }));
+      }
+    }
+  }
+
+  function submitComposer(composerEl, inputEl) {
+    if (composerEl && typeof composerEl.querySelectorAll === "function") {
+      const btns = composerEl.querySelectorAll("button");
+      for (let i = 0; btns && i < btns.length; i += 1) {
+        const b = btns[i];
+        if (!b || b.disabled || isHiddenAncestor(b, doc.body)) continue;
+        const tid = typeof b.getAttribute === "function" ? (b.getAttribute("data-testid") || "") : "";
+        if (tid === "cancel-invocation-button") continue;
+        const typ = typeof b.getAttribute === "function" ? (b.getAttribute("type") || "") : "";
+        const lbl = typeof b.getAttribute === "function" ? (b.getAttribute("aria-label") || "") : "";
+        if (/stop|cancel|останов|прерв|отмен/i.test(lbl)) continue;
+        if (typ === "submit" || /send/i.test(tid) || /send|отправ/i.test(lbl)) {
+          if (typeof b.click === "function") {
+            b.click();
+            return true;
+          }
+        }
+      }
+    }
+    if (inputEl && typeof inputEl.dispatchEvent === "function") {
+      const KbdCtor = win && typeof win.KeyboardEvent === "function"
+        ? win.KeyboardEvent
+        : (typeof KeyboardEvent === "function" ? KeyboardEvent : null);
+      if (KbdCtor) {
+        inputEl.dispatchEvent(new KbdCtor("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function isPureTextStreaming() {
+    const tel = state.telemetry;
+    return Boolean(
+      tel.isGenerating &&
+      tel.phase === "streaming" &&
+      tel.growthTicks >= 2 &&
+      (nowHiRes() - (tel.lastGrowthAt || 0)) < 2800
+    );
+  }
+
+  function renderComposerBarMarkup() {
+    const tr = t();
+    const mode = state.settings.liveEditMode || "auto";
+    const pendingCnt = countPendingLiveEdits();
+    const draftImgs = Array.isArray(state.liveEditDraftImages) ? state.liveEditDraftImages : [];
+    const streamingNow = isPureTextStreaming();
+    const effectiveLiveMode = mode === "pivot" || (mode === "auto" && streamingNow) ? "pivot" : "live";
+
+    let statusTxt = effectiveLiveMode === "pivot" ? tr.inChatModePivot : tr.inChatModeLive;
+    if (state.pivotInProgress) statusTxt = tr.inChatPivoting;
+    else if (state.liveEditBusy) statusTxt = tr.inChatSending;
+
+    return `
+      <div class="inchat-le-bar" data-role="inChatLiveEditBar">
+        <div class="inchat-le-row">
+          <div class="inchat-le-left">
+            <span class="inchat-status-pill">
+              <span class="status-dot${state.pivotInProgress || state.telemetry.isGenerating ? " is-live" : ""}"></span>
+              ${iconSvg("bolt", 12)}
+              <span>${escHtml(statusTxt)}</span>
+            </span>
+            ${pendingCnt > 0 ? `<span class="le-status-pill is-pending">${escHtml(tr.inChatPendingLabel)} ${pendingCnt}</span>` : ""}
+            <div class="inchat-mode-group">
+              <button type="button" class="inchat-mode-btn${mode === "auto" ? " is-active" : ""}" data-action="set-live-edit-mode" data-val="auto" title="${escAttr(tr.inChatHintAuto)}">${escHtml(tr.inChatModeAuto)}</button>
+              <button type="button" class="inchat-mode-btn${mode === "live" ? " is-active" : ""}" data-action="set-live-edit-mode" data-val="live" title="${escAttr(tr.inChatHintLive)}">${escHtml(tr.inChatModeLive)}</button>
+              <button type="button" class="inchat-mode-btn${mode === "pivot" ? " is-active" : ""}" data-action="set-live-edit-mode" data-val="pivot" title="${escAttr(tr.inChatHintPivot)}">${escHtml(tr.inChatModePivot)}</button>
+            </div>
+          </div>
+          <div class="inchat-le-right">
+            <button type="button" class="btn btn-sm inchat-send-btn" data-action="pick-live-edit-images" title="${escAttr(tr.liveEditPickPhoto)}">${iconSvg("image", 12)}<span>${escHtml(tr.liveEditPickPhoto)}${draftImgs.length > 0 ? ` (${draftImgs.length})` : ""}</span></button>
+            ${pendingCnt > 0 && !state.pivotInProgress ? `<button type="button" class="btn btn-sm inchat-send-btn inchat-pivot-btn" data-action="force-pivot-now">${escHtml(tr.inChatPivotNowBtn)}</button>` : ""}
+            <button type="button" class="btn btn-sm btn-primary inchat-send-btn" data-action="send-inchat-live-edit">${iconSvg("send", 12)}<span>${escHtml(tr.inChatSendBtn)}</span></button>
+          </div>
+        </div>
+        ${draftImgs.length > 0 ? `
+          <div class="le-thumbs">
+            ${draftImgs.map((im, idx) => `
+              <div class="le-thumb-chip">
+                ${im.previewDataUrl ? `<img class="le-thumb-img" src="${escAttr(im.previewDataUrl)}" alt=""/>` : iconSvg("image", 13)}
+                <span class="le-thumb-name">${escHtml(im.name || ("photo-" + (idx + 1)))}</span>
+                <button type="button" class="preset-del-btn" data-action="remove-live-edit-img" data-idx="${idx}" title="Remove">${iconSvg("close", 11)}</button>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  function renderComposerBarStructure() {
+    if (!composerBarMountEl || state.destroyed) return;
+    composerBarMountEl.innerHTML = renderComposerBarMarkup();
+  }
+
+  function syncComposerBarPosition(forceRender) {
+    if (!composerBarMountEl || state.destroyed) return;
+    if (state.settings.inChatLiveEditEnabled === false) {
+      if (state.lastComposerBarSig !== "HIDDEN") {
+        state.lastComposerBarSig = "HIDDEN";
+        composerBarMountEl.className = "composer-le-mount is-hidden";
+        composerBarMountEl.innerHTML = "";
+      }
+      return;
+    }
+    const comp = findChatComposer();
+    const pendingCnt = countPendingLiveEdits();
+    const hasDraftImgs = Array.isArray(state.liveEditDraftImages) && state.liveEditDraftImages.length > 0;
+    const isActive = Boolean(comp && (comp.cancelBtn || state.telemetry.isGenerating || state.pivotInProgress || (hasDraftImgs && comp.cancelBtn) || pendingCnt > 0));
+    if (!isActive || !comp) {
+      if (state.lastComposerBarSig !== "HIDDEN") {
+        state.lastComposerBarSig = "HIDDEN";
+        composerBarMountEl.className = "composer-le-mount is-hidden";
+        composerBarMountEl.innerHTML = "";
+      }
+      return;
+    }
+
+    const rect = comp.composerRect || { left: 260, top: 760, width: 620, height: 88 };
+    const vw = Number(win && win.innerWidth) || 1280;
+    const vh = Number(win && win.innerHeight) || 800;
+    const w = Math.max(280, Math.min(Math.round(rect.width || 620), vw - 24));
+    const left = Math.max(12, Math.min(Math.round(rect.left || 240), vw - w - 12));
+    const bottom = Math.max(12, Math.min(vh - 60, Math.round(vh - (rect.top || (vh - 100)) + 6)));
+
+    composerBarMountEl.className = "composer-le-mount";
+    composerBarMountEl.style.left = `${left}px`;
+    composerBarMountEl.style.width = `${w}px`;
+    composerBarMountEl.style.bottom = `${bottom}px`;
+
+    const imgSig = (state.liveEditDraftImages || []).map((x) => x && x.name ? x.name : "1").join(",");
+    const sig = `${state.locale}|${state.settings.liveEditMode}|${isPureTextStreaming() ? 1 : 0}|${pendingCnt}|${state.pivotInProgress ? 1 : 0}|${state.liveEditBusy ? 1 : 0}|${imgSig}`;
+    if (forceRender || sig !== state.lastComposerBarSig) {
+      state.lastComposerBarSig = sig;
+      renderComposerBarStructure();
+    }
+  }
+
+  function executeInstantPivot(pivotText, hasImages, ipcPromise) {
+    if (state.destroyed) return;
+    if (pivotPollTimer && win && typeof win.clearInterval === "function") {
+      win.clearInterval(pivotPollTimer);
+      pivotPollTimer = null;
+    }
+    state.pivotInProgress = true;
+    state.lastCancelClickAt = nowHiRes();
+    syncComposerBarPosition(true);
+
+    const cancelBtn = findCancelButton();
+    if (cancelBtn && typeof cancelBtn.click === "function") {
+      try { cancelBtn.click(); } catch (_e) {}
+    }
+
+    const startAt = Date.now();
+    let ipcDone = !ipcPromise;
+    if (ipcPromise && typeof ipcPromise.then === "function") {
+      Promise.resolve(ipcPromise).then(() => { ipcDone = true; }).catch(() => { ipcDone = true; });
+    }
+
+    const finishPivot = () => {
+      if (state.destroyed) return;
+      const runSubmit = () => {
+        if (state.destroyed) return;
+        const comp = findChatComposer();
+        const promptMsg = (pivotText && String(pivotText).trim())
+          ? String(pivotText).trim()
+          : (hasImages ? "Примени прикреплённое фото (живая правка)." : "Примени живую правку.");
+        if (comp && comp.inputEl) {
+          state.bypassComposerInterceptUntil = Date.now() + 900;
+          setComposerText(comp.inputEl, promptMsg);
+          submitComposer(comp.composerEl, comp.inputEl);
+        }
+        state.pivotInProgress = false;
+        syncComposerBarPosition(true);
+      };
+      if (win && typeof win.setTimeout === "function") {
+        win.setTimeout(runSubmit, 120);
+      } else {
+        runSubmit();
+      }
+    };
+
+    if (!win || typeof win.setInterval !== "function") {
+      finishPivot();
+      return;
+    }
+    pivotPollTimer = win.setInterval(() => {
+      if (state.destroyed) {
+        win.clearInterval(pivotPollTimer);
+        pivotPollTimer = null;
+        return;
+      }
+      const stillGenerating = Boolean(findCancelButton());
+      const elapsed = Date.now() - startAt;
+      if ((!stillGenerating && ipcDone) || elapsed >= 3000) {
+        win.clearInterval(pivotPollTimer);
+        pivotPollTimer = null;
+        finishPivot();
+      }
+    }, 80);
+  }
+
+  function submitInChatLiveEdit(rawText, modeOverride) {
+    if (state.liveEditBusy && modeOverride !== "pivot") return;
+    const comp = findChatComposer();
+    const raw = rawText != null ? String(rawText) : (comp ? readComposerText(comp.inputEl) : "");
+    const text = raw.trim();
+    const imgs = Array.isArray(state.liveEditDraftImages) ? state.liveEditDraftImages.slice(0, 4) : [];
+    if (!text && imgs.length === 0) return;
+
+    const chosenMode = modeOverride || state.settings.liveEditMode || "auto";
+    const effectiveMode = chosenMode === "pivot" || (chosenMode === "auto" && isPureTextStreaming()) ? "pivot" : "live";
+
+    if (comp && comp.inputEl) {
+      setComposerText(comp.inputEl, "");
+    }
+    state.liveEditDraftImages = [];
+    state.liveEditError = "";
+    state.liveEditBusy = true;
+    syncComposerBarPosition(true);
+
+    const ipcPromise = invokeIpc("agy-studio:send-live-edit", {
+      chatKey: state.activeChatKey || "__new__",
+      title: state.activeChatTitle || "",
+      text,
+      mode: effectiveMode,
+      images: imgs.map((im) => ({ name: im.name, sourcePath: im.sourcePath || "", dataUrl: im.dataUrl || "" })),
+      fallbackAny: !UUID_RE.test(String(state.activeChatKey || "")),
+    }).then((res) => {
+      if (state.destroyed) return res;
+      state.liveEditBusy = false;
+      if (res && res.ok) {
+        applyLiveEditsPayload(res);
+      } else {
+        state.liveEditError = (res && res.error) || "SEND_FAILED";
+      }
+      renderPopoverStructure();
+      updateLiveDom();
+      syncComposerBarPosition(true);
+      if (state.isOpen && state.activeTab === "live-edits") renderStructure();
+      return res;
+    });
+
+    if (effectiveMode === "pivot") {
+      executeInstantPivot(text, imgs.length > 0, ipcPromise);
+    }
+  }
+
+  function extractClipboardImages(clipboardData, onComplete) {
+    const items = clipboardData && clipboardData.items ? clipboardData.items : null;
+    if (!items || typeof items.length !== "number") return false;
+    const files = [];
+    for (let i = 0; i < items.length; i += 1) {
+      const it = items[i];
+      if (it && typeof it.type === "string" && it.type.indexOf("image/") === 0 && typeof it.getAsFile === "function") {
+        const f = it.getAsFile();
+        if (f) files.push(f);
+      }
+    }
+    if (files.length === 0) return false;
+    const ReaderCtor = win && typeof win.FileReader === "function" ? win.FileReader : (typeof FileReader === "function" ? FileReader : null);
+    if (!ReaderCtor) return false;
+    files.forEach((file, idx) => {
+      if (!Array.isArray(state.liveEditDraftImages)) state.liveEditDraftImages = [];
+      if (state.liveEditDraftImages.length >= 4) return;
+      const reader = new ReaderCtor();
+      reader.onload = () => {
+        if (state.destroyed || typeof reader.result !== "string") return;
+        if (!Array.isArray(state.liveEditDraftImages)) state.liveEditDraftImages = [];
+        if (state.liveEditDraftImages.length >= 4) return;
+        const rawExt = file.type && file.type.split("/")[1] ? file.type.split("/")[1].replace(/[^a-z0-9]/gi, "") : "png";
+        state.liveEditDraftImages.push({
+          name: file.name || `clipboard-${Date.now()}-${idx + 1}.${rawExt || "png"}`,
+          sourcePath: "",
+          dataUrl: reader.result,
+          previewDataUrl: reader.result,
+        });
+        if (typeof onComplete === "function") onComplete();
+      };
+      try { reader.readAsDataURL(file); } catch (_err) {}
+    });
+    return true;
+  }
+
   function scrapeDomQuotaSnapshot(force) {
     if (!doc || !doc.body) return;
     const now = Date.now();
@@ -3854,6 +4443,7 @@ function createStudioPanel(options) {
     if (state.destroyed) return;
     sampleStreamTick();
     scrapeDomQuotaSnapshot(false);
+    syncComposerBarPosition(false);
     updateLiveDom();
   }
 
@@ -4200,13 +4790,18 @@ function createStudioPanel(options) {
     const customs = s.customPresets || [];
     const hasUnsaved = Boolean(state.draftDirty && state.draftPersonaText.trim() !== (cp.text || "").trim());
 
+    const strictOn = cp.strict !== false;
+
     return `
       <div class="persona-stack">
       <div class="spark-meta">
-        <span class="status-pill" data-live="chatBadge">
-          <span class="status-dot" style="background:${state.activeChatKey === "__new__" ? "var(--st-muted)" : "var(--st-accent)"}"></span>
-          <span>${escHtml(formatChatBadgeLabel())}</span>
-        </span>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span class="status-pill" data-live="chatBadge">
+            <span class="status-dot" style="background:${state.activeChatKey === "__new__" ? "var(--st-muted)" : "var(--st-accent)"}"></span>
+            <span>${escHtml(formatChatBadgeLabel())}</span>
+          </span>
+          <span class="nav-badge">${iconSvg("bolt", 11)} ${escHtml(tr.personaHookBadge)}</span>
+        </div>
         <span class="row-desc">${escHtml(tr.chatScopeHint)}</span>
       </div>
       <div class="card">
@@ -4222,6 +4817,15 @@ function createStudioPanel(options) {
               <span class="switch-thumb"></span>
             </button>
           </div>
+        </div>
+        <div class="row-item">
+          <div class="row-info">
+            <span class="row-title">${escHtml(tr.personaStrictLabel)}</span>
+            <span class="row-desc">${escHtml(tr.personaStrictDesc)}</span>
+          </div>
+          <button type="button" class="switch${strictOn ? " is-on" : ""}" role="switch" aria-checked="${strictOn ? "true" : "false"}" data-action="toggle-persona-strict">
+            <span class="switch-thumb"></span>
+          </button>
         </div>
       </div>
 
@@ -4275,7 +4879,7 @@ function createStudioPanel(options) {
   function renderLanguageTab() {
     const tr = t();
     const isRu = state.locale !== "en";
-    const ver = pluginMeta.version || "3.1.0";
+    const ver = pluginMeta.version || "3.2.0";
     const dictCount = pluginMeta.dictEntries || 4017;
     const dynCount = pluginMeta.dynamicRulesCount || 471;
 
@@ -4678,12 +5282,38 @@ function createStudioPanel(options) {
 
   function renderLiveEditsTab() {
     const tr = t();
+    const s = state.settings;
+    const leMode = s.liveEditMode || "auto";
+    const inChatOn = s.inChatLiveEditEnabled !== false;
     const list = state.liveEdits || [];
     const draftImgs = state.liveEditDraftImages || [];
     const canSend = Boolean((state.liveEditDraftText && state.liveEditDraftText.trim()) || draftImgs.length > 0) && !state.liveEditBusy;
 
     return `
       <div class="hint-banner">${iconSvg("bolt", 14)}<span>${escHtml(tr.liveEditHookNote)}</span></div>
+
+      <div class="card">
+        <div class="row-item">
+          <div class="row-info">
+            <span class="row-title">${escHtml(tr.liveEditInChatToggle)}</span>
+            <span class="row-desc">${escHtml(tr.liveEditInChatDesc)}</span>
+          </div>
+          <button type="button" class="switch${inChatOn ? " is-on" : ""}" role="switch" aria-checked="${inChatOn ? "true" : "false"}" data-action="toggle-inchat-live-edit">
+            <span class="switch-thumb"></span>
+          </button>
+        </div>
+        <div class="row-item">
+          <div class="row-info">
+            <span class="row-title">${escHtml(tr.liveEditModeLabel)}</span>
+            <span class="row-desc">${escHtml(leMode === "pivot" ? tr.inChatHintPivot : (leMode === "live" ? tr.inChatHintLive : tr.inChatHintAuto))}</span>
+          </div>
+          <div class="inchat-mode-group">
+            <button type="button" class="inchat-mode-btn${leMode === "auto" ? " is-active" : ""}" data-action="set-live-edit-mode" data-val="auto">${escHtml(tr.inChatModeAuto)}</button>
+            <button type="button" class="inchat-mode-btn${leMode === "live" ? " is-active" : ""}" data-action="set-live-edit-mode" data-val="live">${escHtml(tr.inChatModeLive)}</button>
+            <button type="button" class="inchat-mode-btn${leMode === "pivot" ? " is-active" : ""}" data-action="set-live-edit-mode" data-val="pivot">${escHtml(tr.inChatModePivot)}</button>
+          </div>
+        </div>
+      </div>
 
       <div class="section-group">
         <span class="section-label">${escHtml(tr.liveEditTitle)}</span>
@@ -4774,7 +5404,7 @@ function createStudioPanel(options) {
           <aside class="modal-sidebar">
             <div class="sidebar-brand">
               <span class="brand-title">${escHtml(tr.brandTitle)}</span>
-              <span class="brand-ver num">v${escHtml(pluginMeta.version || "3.1.0")}</span>
+              <span class="brand-ver num">v${escHtml(pluginMeta.version || "3.2.0")}</span>
             </div>
             <span class="sidebar-section-label">${escHtml(tr.sidebarSectionStudio)}</span>
             <nav class="nav-list">
@@ -4967,6 +5597,9 @@ function createStudioPanel(options) {
     if (popoverMountEl) {
       renderPopoverStructure();
     }
+    if (composerBarMountEl) {
+      syncComposerBarPosition(true);
+    }
   }
 
   function selectPreset(id) {
@@ -5008,7 +5641,7 @@ function createStudioPanel(options) {
 
     if (targetChatKey === "__new__") {
       state.newChatDraftPersona = nextEnabled && textVal.trim()
-        ? { personaEnabled: true, personaActivePreset: presetId, personaText: textVal }
+        ? { personaEnabled: true, personaActivePreset: presetId, personaText: textVal, personaStrict: state.chatPersona.strict !== false }
         : null;
     }
 
@@ -5018,6 +5651,7 @@ function createStudioPanel(options) {
       personaEnabled: nextEnabled,
       personaText: textVal,
       personaActivePreset: presetId,
+      strict: state.chatPersona.strict !== false,
       customPresets: state.settings.customPresets || [],
     }).then((res) => {
       if (state.destroyed) return res;
@@ -5028,6 +5662,7 @@ function createStudioPanel(options) {
           enabled: Boolean(res.chat.personaEnabled),
           activePreset: res.chat.personaActivePreset || presetId,
           text: typeof res.chat.personaText === "string" ? res.chat.personaText : textVal,
+          strict: typeof res.chat.personaStrict === "boolean" ? res.chat.personaStrict : state.chatPersona.strict !== false,
         };
         if (typeof res.exists === "boolean") state.personaFileExists = res.exists;
         if (typeof res.rulePath === "string" && res.rulePath) state.personaFilePath = res.rulePath;
@@ -5182,6 +5817,17 @@ function createStudioPanel(options) {
       persistPersona(next);
       return;
     }
+    if (action === "toggle-persona-strict") {
+      const nextStrict = state.chatPersona.strict === false;
+      state.chatPersona.strict = nextStrict;
+      saveSettingsPatch({ personaStrictMode: nextStrict });
+      if (state.chatPersona.enabled && state.draftPersonaText.trim()) {
+        persistPersona(true);
+      } else {
+        renderStructure();
+      }
+      return;
+    }
     if (action === "select-preset") {
       if (targetEl.closest && targetEl.closest('[data-action="delete-custom-preset"]')) return;
       selectPreset(actionEl.getAttribute("data-id") || "");
@@ -5219,6 +5865,36 @@ function createStudioPanel(options) {
       state.chatPersona.activePreset = "custom";
       renderStructure();
       persistPersona(false);
+      return;
+    }
+    if (action === "set-live-edit-mode") {
+      const m = actionEl.getAttribute("data-val");
+      const nextMode = m === "live" || m === "pivot" ? m : "auto";
+      saveSettingsPatch({ liveEditMode: nextMode });
+      syncComposerBarPosition(true);
+      return;
+    }
+    if (action === "toggle-inchat-live-edit") {
+      saveSettingsPatch({ inChatLiveEditEnabled: state.settings.inChatLiveEditEnabled === false });
+      syncComposerBarPosition(true);
+      return;
+    }
+    if (action === "send-inchat-live-edit") {
+      submitInChatLiveEdit(null, null);
+      return;
+    }
+    if (action === "force-pivot-now") {
+      const comp = findChatComposer();
+      const typed = comp && comp.inputEl ? readComposerText(comp.inputEl).trim() : "";
+      if (typed || (state.liveEditDraftImages && state.liveEditDraftImages.length > 0)) {
+        submitInChatLiveEdit(typed, "pivot");
+        return;
+      }
+      const pendings = (state.liveEdits || []).filter((x) => x && x.status === "pending");
+      const latest = pendings.length > 0 ? pendings[pendings.length - 1] : null;
+      const pText = latest && latest.text ? latest.text : "";
+      const hasImgs = Boolean(latest && Array.isArray(latest.images) && latest.images.length > 0);
+      executeInstantPivot(pText, hasImgs, null);
       return;
     }
     if (action === "toggle-live-edit") {
@@ -5266,6 +5942,7 @@ function createStudioPanel(options) {
         }
         state.liveEditDraftImages = cur;
         renderPopoverStructure();
+        syncComposerBarPosition(true);
         if (state.isOpen && state.activeTab === "live-edits") renderStructure();
       });
       return;
@@ -5275,6 +5952,7 @@ function createStudioPanel(options) {
       if (!isNaN(idx) && idx >= 0 && Array.isArray(state.liveEditDraftImages)) {
         state.liveEditDraftImages.splice(idx, 1);
         renderPopoverStructure();
+        syncComposerBarPosition(true);
         if (state.isOpen && state.activeTab === "live-edits") renderStructure();
       }
       return;
@@ -5289,6 +5967,7 @@ function createStudioPanel(options) {
         applyLiveEditsPayload(res);
         renderPopoverStructure();
         updateLiveDom();
+        syncComposerBarPosition(true);
         if (state.isOpen && state.activeTab === "live-edits") renderStructure();
       });
       return;
@@ -5712,41 +6391,12 @@ function createStudioPanel(options) {
     });
     rootEl.addEventListener("paste", (e) => {
       if (!state.liveEditOpen && !(state.isOpen && state.activeTab === "live-edits")) return;
-      const cd = e && e.clipboardData;
-      const items = cd && cd.items ? cd.items : null;
-      if (!items || typeof items.length !== "number") return;
-      const files = [];
-      for (let i = 0; i < items.length; i += 1) {
-        const it = items[i];
-        if (it && typeof it.type === "string" && it.type.indexOf("image/") === 0 && typeof it.getAsFile === "function") {
-          const f = it.getAsFile();
-          if (f) files.push(f);
-        }
-      }
-      if (files.length === 0) return;
-      if (typeof e.preventDefault === "function") e.preventDefault();
-      const ReaderCtor = win && typeof win.FileReader === "function" ? win.FileReader : (typeof FileReader === "function" ? FileReader : null);
-      if (!ReaderCtor) return;
-      files.forEach((file, idx) => {
-        if (!Array.isArray(state.liveEditDraftImages)) state.liveEditDraftImages = [];
-        if (state.liveEditDraftImages.length >= 4) return;
-        const reader = new ReaderCtor();
-        reader.onload = () => {
-          if (state.destroyed || typeof reader.result !== "string") return;
-          if (!Array.isArray(state.liveEditDraftImages)) state.liveEditDraftImages = [];
-          if (state.liveEditDraftImages.length >= 4) return;
-          const rawExt = file.type && file.type.split("/")[1] ? file.type.split("/")[1].replace(/[^a-z0-9]/gi, "") : "png";
-          state.liveEditDraftImages.push({
-            name: file.name || `clipboard-${Date.now()}-${idx + 1}.${rawExt || "png"}`,
-            sourcePath: "",
-            dataUrl: reader.result,
-            previewDataUrl: reader.result,
-          });
-          renderPopoverStructure();
-          if (state.isOpen && state.activeTab === "live-edits") renderStructure();
-        };
-        try { reader.readAsDataURL(file); } catch (_err) {}
+      const handled = extractClipboardImages(e && e.clipboardData, () => {
+        renderPopoverStructure();
+        syncComposerBarPosition(true);
+        if (state.isOpen && state.activeTab === "live-edits") renderStructure();
       });
+      if (handled && typeof e.preventDefault === "function") e.preventDefault();
     });
     rootEl.addEventListener("change", (e) => {
       const target = e ? e.target : null;
@@ -5761,7 +6411,10 @@ function createStudioPanel(options) {
     if (win && typeof win.addEventListener === "function") {
       win.addEventListener("mousemove", handlePointerMove);
       win.addEventListener("mouseup", handlePointerUp);
-      resizeHandler = () => clampWidgetToViewport();
+      resizeHandler = () => {
+        clampWidgetToViewport();
+        syncComposerBarPosition(false);
+      };
       win.addEventListener("resize", resizeHandler);
       focusSyncHandler = () => {
         if (state.destroyed || !state.hasActivatedChat || state.draftDirty) return;
@@ -5787,6 +6440,45 @@ function createStudioPanel(options) {
         }
       };
       doc.addEventListener("keydown", keydownHandler, true);
+      composerKeydownHandler = (e) => {
+        if (!e || e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.isComposing) return;
+        if (state.destroyed || state.settings.inChatLiveEditEnabled === false) return;
+        if (Date.now() < state.bypassComposerInterceptUntil) return;
+        const tEl = e.target;
+        if (!tEl || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(tEl))) return;
+        const comp = findChatComposer();
+        if (!comp || !isComposerTarget(tEl, comp)) return;
+        if (!comp.cancelBtn && !state.telemetry.isGenerating) return;
+        const rawTxt = readComposerText(comp.inputEl);
+        const trimmed = rawTxt.trim();
+        if (trimmed.startsWith("/")) return;
+        const hasImgs = Array.isArray(state.liveEditDraftImages) && state.liveEditDraftImages.length > 0;
+        if (!trimmed && !hasImgs) return;
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+        else if (typeof e.stopPropagation === "function") e.stopPropagation();
+        submitInChatLiveEdit(rawTxt, null);
+      };
+      doc.addEventListener("keydown", composerKeydownHandler, true);
+      composerPasteHandler = (e) => {
+        if (state.destroyed || state.settings.inChatLiveEditEnabled === false) return;
+        const tEl = e && e.target;
+        if (!tEl || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(tEl))) return;
+        const comp = findChatComposer();
+        if (!comp || !isComposerTarget(tEl, comp)) return;
+        if (!comp.cancelBtn && !state.telemetry.isGenerating) return;
+        const handled = extractClipboardImages(e && e.clipboardData, () => {
+          renderPopoverStructure();
+          syncComposerBarPosition(true);
+          if (state.isOpen && state.activeTab === "live-edits") renderStructure();
+        });
+        if (handled) {
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+          else if (typeof e.stopPropagation === "function") e.stopPropagation();
+        }
+      };
+      doc.addEventListener("paste", composerPasteHandler, true);
       cancelClickHandler = (e) => {
         const tEl = e && e.target;
         if (!tEl || typeof tEl.closest !== "function") return;
@@ -5825,12 +6517,15 @@ function createStudioPanel(options) {
     rootEl.className = "studio-root";
     widgetMountEl = doc.createElement("div");
     widgetMountEl.className = "widget-wrap";
+    composerBarMountEl = doc.createElement("div");
+    composerBarMountEl.className = "composer-le-mount is-hidden";
     popoverMountEl = doc.createElement("div");
     popoverMountEl.className = "popover-mount";
     modalMountEl = doc.createElement("div");
     modalMountEl.className = "modal-mount";
 
     rootEl.appendChild(widgetMountEl);
+    rootEl.appendChild(composerBarMountEl);
     rootEl.appendChild(popoverMountEl);
     rootEl.appendChild(modalMountEl);
     shadowRoot.appendChild(styleEl);
@@ -6013,6 +6708,7 @@ function createStudioPanel(options) {
   function applyLiveEditsUpdate(payload) {
     applyLiveEditsPayload(payload);
     renderPopoverStructure();
+    syncComposerBarPosition(true);
     updateLiveDom();
     if (state.isOpen && state.activeTab === "live-edits") renderStructure();
   }
@@ -6036,6 +6732,10 @@ function createStudioPanel(options) {
     if (pollTimer && win && typeof win.clearInterval === "function") {
       win.clearInterval(pollTimer);
       pollTimer = null;
+    }
+    if (pivotPollTimer && win && typeof win.clearInterval === "function") {
+      win.clearInterval(pivotPollTimer);
+      pivotPollTimer = null;
     }
     if (repaintTimer && win && typeof win.clearTimeout === "function") {
       win.clearTimeout(repaintTimer);
@@ -6065,6 +6765,8 @@ function createStudioPanel(options) {
     }
     if (doc && typeof doc.removeEventListener === "function") {
       if (keydownHandler) doc.removeEventListener("keydown", keydownHandler, true);
+      if (composerKeydownHandler) doc.removeEventListener("keydown", composerKeydownHandler, true);
+      if (composerPasteHandler) doc.removeEventListener("paste", composerPasteHandler, true);
       if (cancelClickHandler) doc.removeEventListener("click", cancelClickHandler, true);
     }
     const revokeApi = win && win.URL && typeof win.URL.revokeObjectURL === "function" ? win.URL : (typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function" ? URL : null);
@@ -6085,6 +6787,7 @@ function createStudioPanel(options) {
     shadowRoot = null;
     rootEl = null;
     widgetMountEl = null;
+    composerBarMountEl = null;
     popoverMountEl = null;
     modalMountEl = null;
   }

@@ -314,6 +314,9 @@ function sanitizeStudioSettings(raw) {
     personaEnabled: Boolean(src.personaEnabled),
     personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
     personaText: typeof src.personaText === "string" ? src.personaText : "",
+    personaStrictMode: src.personaStrictMode !== false,
+    inChatLiveEditEnabled: src.inChatLiveEditEnabled !== false,
+    liveEditMode: src.liveEditMode === "live" || src.liveEditMode === "pivot" ? src.liveEditMode : "auto",
     customPresets: presets,
     appearance: sanitizeAppearance(src.appearance),
     appearanceProfiles: sanitizeAppearanceProfiles(src.appearanceProfiles),
@@ -359,6 +362,14 @@ const MAX_STORED_CHATS = 120;
 
 function getStudioChatsPath() {
   return path.join(app.getPath("userData"), "agy_studio_chats.json");
+}
+
+function getPersonaActiveFlagPath() {
+  return path.join(app.getPath("userData"), "agy_studio_persona_active.flag");
+}
+
+function getPersonaAnchorsPath() {
+  return path.join(app.getPath("userData"), "studio_persona_anchors.json");
 }
 
 function normalizeChatKey(raw) {
@@ -409,6 +420,7 @@ function defaultChatRecord(title) {
     personaEnabled: false,
     personaActivePreset: "custom",
     personaText: "",
+    personaStrict: true,
     telemetry: defaultChatTelemetry(),
     quota: defaultChatQuota(),
   };
@@ -521,12 +533,59 @@ function sanitizeChatRecord(raw) {
     personaEnabled: Boolean(src.personaEnabled),
     personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
     personaText: typeof src.personaText === "string" ? src.personaText : "",
+    personaStrict: src.personaStrict !== false,
     telemetry: sanitizeChatTelemetry(src.telemetry),
     quota: sanitizeChatQuota(src.quota),
   };
 }
 
-function loadStudioChats() {
+function syncPersonaActiveFlag(store) {
+  try {
+    const flagPath = getPersonaActiveFlagPath();
+    const s = store && typeof store === "object" ? store : {};
+    let needFlag = Boolean(
+      s.pendingNewChatPersona &&
+      s.pendingNewChatPersona.enabled &&
+      typeof s.pendingNewChatPersona.text === "string" &&
+      s.pendingNewChatPersona.text.trim()
+    );
+    if (!needFlag && typeof s.activeAgentsMdChatKey === "string" && s.activeAgentsMdChatKey) {
+      needFlag = true;
+    }
+    if (!needFlag && s.chats && typeof s.chats === "object") {
+      for (const k of Object.keys(s.chats)) {
+        const c = s.chats[k];
+        if (c && c.personaEnabled && typeof c.personaText === "string" && c.personaText.trim()) {
+          needFlag = true;
+          break;
+        }
+      }
+    }
+    if (!needFlag) {
+      try {
+        const anchorsPath = getPersonaAnchorsPath();
+        if (fs.existsSync(anchorsPath)) {
+          const rawA = JSON.parse(fs.readFileSync(anchorsPath, "utf8"));
+          const amap = rawA && rawA.anchors && typeof rawA.anchors === "object" ? rawA.anchors : {};
+          for (const ak of Object.keys(amap)) {
+            if (amap[ak] && amap[ak].enabled) {
+              needFlag = true;
+              break;
+            }
+          }
+        }
+      } catch {}
+    }
+    if (needFlag) {
+      fs.mkdirSync(path.dirname(flagPath), { recursive: true });
+      fs.writeFileSync(flagPath, "1\\n", "utf8");
+    } else if (fs.existsSync(flagPath)) {
+      fs.unlinkSync(flagPath);
+    }
+  } catch {}
+}
+
+function loadStudioChatsStore() {
   try {
     const p = getStudioChatsPath();
     if (fs.existsSync(p)) {
@@ -538,14 +597,41 @@ function loadStudioChats() {
         if (nk === "__new__") continue;
         out[nk] = sanitizeChatRecord(srcChats[k]);
       }
-      return out;
+      const rawPending = parsed && parsed.pendingNewChatPersona && typeof parsed.pendingNewChatPersona === "object"
+        ? parsed.pendingNewChatPersona
+        : null;
+      const pendingNewChatPersona = rawPending && rawPending.enabled && typeof rawPending.text === "string" && rawPending.text.trim()
+        ? {
+            enabled: true,
+            text: rawPending.text,
+            activePreset: typeof rawPending.activePreset === "string" ? rawPending.activePreset : "custom",
+            strict: rawPending.strict !== false,
+            updatedAt: toNonNegInt(rawPending.updatedAt),
+            claimedBy: typeof rawPending.claimedBy === "string" ? rawPending.claimedBy : "",
+          }
+        : null;
+      const activeAgentsMdChatKey = parsed && typeof parsed.activeAgentsMdChatKey === "string"
+        ? parsed.activeAgentsMdChatKey.trim()
+        : "";
+      return {
+        version: 1,
+        chats: out,
+        pendingNewChatPersona,
+        activeAgentsMdChatKey,
+      };
     }
   } catch {}
-  return {};
+  return {
+    version: 1,
+    chats: {},
+    pendingNewChatPersona: null,
+    activeAgentsMdChatKey: "",
+  };
 }
 
-function saveStudioChats(chatsMap) {
-  const src = chatsMap && typeof chatsMap === "object" ? chatsMap : {};
+function saveStudioChatsStore(storeObj) {
+  const s = storeObj && typeof storeObj === "object" ? storeObj : {};
+  const src = s.chats && typeof s.chats === "object" ? s.chats : {};
   const entries = Object.keys(src)
     .filter((k) => k && k !== "__new__")
     .map((k) => [k, sanitizeChatRecord(src[k])])
@@ -555,41 +641,70 @@ function saveStudioChats(chatsMap) {
   for (const pair of entries) {
     pruned[pair[0]] = pair[1];
   }
+  const payload = {
+    version: 1,
+    chats: pruned,
+    pendingNewChatPersona: s.pendingNewChatPersona || null,
+    activeAgentsMdChatKey: typeof s.activeAgentsMdChatKey === "string" ? s.activeAgentsMdChatKey : "",
+  };
   try {
     const p = getStudioChatsPath();
     fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, JSON.stringify({ version: 1, chats: pruned }, null, 2) + "\\n", "utf8");
+    const tmp = p + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(payload, null, 2) + "\\n", "utf8");
+    try {
+      fs.renameSync(tmp, p);
+    } catch {
+      fs.writeFileSync(p, JSON.stringify(payload, null, 2) + "\\n", "utf8");
+      try { fs.unlinkSync(tmp); } catch {}
+    }
   } catch (err) {
     console.warn("[i18nMain] Failed to persist studio chats:", err && err.message ? err.message : err);
   }
-  return pruned;
+  syncPersonaActiveFlag(payload);
+  return payload;
+}
+
+function loadStudioChats() {
+  return loadStudioChatsStore().chats;
+}
+
+function saveStudioChats(chatsMap) {
+  const cur = loadStudioChatsStore();
+  cur.chats = chatsMap && typeof chatsMap === "object" ? chatsMap : {};
+  return saveStudioChatsStore(cur).chats;
 }
 
 function stripRuleFrontmatter(md) {
   return String(md || "").replace(/^---\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n*/, "");
 }
 
-function formatPersonaRuleContent(trimmed, usePlugin) {
+function formatPersonaRuleContent(trimmed, usePlugin, strictMode) {
   const header = usePlugin ? "" : "---\\ntrigger: always_on\\n---\\n\\n";
+  const strictLine = strictMode !== false
+    ? "- **Plan+Execute & Multi-Step Anchoring:** When switching between planner, executor, or background subagents, keep the exact <user_persona> tone on every single user-facing line. Built-in safety boundaries remain active and never bypassed, while every permissible answer follows this voice."
+    : "- **Safety & Truthfulness:** Built-in model safety boundaries remain intact; deliver all permissible replies cleanly in this persona.";
   const body = [
-    "# Active Chat Persona & Response Rules (Antigravity Studio)",
+    "# Active Chat Persona & Behavioral Execution Protocol (Antigravity Studio)",
     "",
-    "You MUST follow every instruction inside <user_persona> strictly, completely, and consistently in EVERY user-facing message of this conversation (orchestrator, planner, executor, and all subagents), including after tool calls, long multi-step runs, and status updates:",
+    "You MUST follow every stylistic, tonal, roleplay, formatting, and language directive inside <user_persona> across 100% of EVERY user-facing message (orchestrator, planner, executor, and subagents):",
     "",
     "<user_persona>",
     trimmed,
     "</user_persona>",
     "",
-    "## Strict Adherence Requirements",
-    "- **Full compliance from first word to last:** Adopt the exact persona, voice, tone, directness, formatting, and length preferences specified above in every paragraph and sentence of your response.",
-    "- **No silent drift or unrequested hedging:** Never revert to a bland default voice after calling tools or subagents, and do not add unsolicited lectures, caveats, or stylistic filler that contradict the active <user_persona>.",
-    "- **Factual precision preserved:** While writing 100% of prose strictly in the active style/persona, keep all code blocks, file paths, commands, and verified facts accurate.",
+    "## Mandatory Compliance Check (Run Before Every Reply)",
+    "1. **First-word-to-last lock:** Adopt the exact persona, voice, tone, speech mannerisms, directness, formatting, and length from the opening syllable to the final line.",
+    "2. **Zero drift after tool calls & code:** Running terminal commands, reading/editing files, hitting errors, or outputting code blocks MUST NOT reset your style back to default neutral assistant phrasing.",
+    "3. **No unsolicited hedging or lectures:** Never add off-character disclaimers or stylistic filler that contradict <user_persona>.",
+    "4. **Factual precision preserved:** Keep code snippets, file paths, symbol names, commands, and verified tool outcomes 100% accurate.",
+    strictLine,
     "",
   ].join("\\n");
   return header + body;
 }
 
-function syncPersonaRuleFile(enabled, text) {
+function syncPersonaRuleFile(enabled, text, strictMode) {
   const usePlugin = isPluginInstalled();
   const rulePath = usePlugin ? getPluginPersonaRulePath() : getLegacyPersonaRulePath();
   const otherPath = usePlugin ? getLegacyPersonaRulePath() : getPluginPersonaRulePath();
@@ -613,7 +728,7 @@ function syncPersonaRuleFile(enabled, text) {
   if (bodyBytes > MAX_PERSONA_BODY_BYTES) {
     return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: "EXCEEDS_BYTE_LIMIT", rulePath };
   }
-  const content = formatPersonaRuleContent(trimmed, usePlugin);
+  const content = formatPersonaRuleContent(trimmed, usePlugin, strictMode !== false);
   try {
     fs.mkdirSync(path.dirname(rulePath), { recursive: true });
     const tmpRule = rulePath + ".tmp";
@@ -1630,6 +1745,7 @@ function registerI18nIpc() {
     console.warn("[antigravity-ru] Failed to register agy-media protocol:", err && err.message ? err.message : err);
   }
   console.log("[antigravity-ru] Active Russian localization loaded (locale=" + getLocale() + ", store=" + getStorePath() + ")");
+  syncPersonaActiveFlag(loadStudioChatsStore());
   ipcMain.on("agy-i18n:get-locale-sync", (event) => {
     event.returnValue = getLocale();
   });
@@ -1647,6 +1763,7 @@ function registerI18nIpc() {
     const p = payload && typeof payload === "object" ? payload : {};
     const key = normalizeChatKey(p.chatKey);
     const titleStr = typeof p.title === "string" ? p.title.trim().slice(0, 80) : "";
+    const store = loadStudioChatsStore();
     if (key === "__new__") {
       const dp = p.draftPersona && typeof p.draftPersona === "object" ? p.draftPersona : null;
       const rec = dp && dp.personaEnabled && typeof dp.personaText === "string" && dp.personaText.trim()
@@ -1654,12 +1771,25 @@ function registerI18nIpc() {
             personaEnabled: true,
             personaActivePreset: typeof dp.personaActivePreset === "string" ? dp.personaActivePreset : "custom",
             personaText: dp.personaText,
+            personaStrict: dp.personaStrict !== false,
           })
         : defaultChatRecord("");
-      const syncRes = syncPersonaRuleFile(Boolean(rec.personaEnabled), rec.personaText || "");
+      store.pendingNewChatPersona = rec.personaEnabled && rec.personaText.trim()
+        ? {
+            enabled: true,
+            text: rec.personaText.trim(),
+            activePreset: rec.personaActivePreset || "custom",
+            strict: rec.personaStrict !== false,
+            updatedAt: Date.now(),
+            claimedBy: "",
+          }
+        : null;
+      store.activeAgentsMdChatKey = rec.personaEnabled && rec.personaText.trim() ? "__new__" : "";
+      saveStudioChatsStore(store);
+      const syncRes = syncPersonaRuleFile(Boolean(rec.personaEnabled), rec.personaText || "", rec.personaStrict !== false);
       return { ok: true, chatKey: "__new__", chat: rec, personaFileExists: syncRes.exists, personaFilePath: syncRes.rulePath, quotaSummary: buildQuotaSummary("__new__") };
     }
-    const chats = loadStudioChats();
+    const chats = store.chats;
     let changed = false;
     const migrateKey = normalizeChatKey(p.migrateFromKey);
     const fb = p.fallbackPersona && typeof p.fallbackPersona === "object" ? p.fallbackPersona : null;
@@ -1684,6 +1814,7 @@ function registerI18nIpc() {
         personaEnabled: true,
         personaActivePreset: typeof fb.personaActivePreset === "string" ? fb.personaActivePreset : "custom",
         personaText: fb.personaText,
+        personaStrict: fb.personaStrict !== false,
       });
       changed = true;
     } else if (chats[key] && fb && fb.personaEnabled && typeof fb.personaText === "string" && fb.personaText.trim() && !chats[key].personaEnabled) {
@@ -1693,15 +1824,21 @@ function registerI18nIpc() {
         personaEnabled: true,
         personaActivePreset: typeof fb.personaActivePreset === "string" ? fb.personaActivePreset : (chats[key].personaActivePreset || "custom"),
         personaText: fb.personaText,
+        personaStrict: fb.personaStrict !== false,
       }));
       changed = true;
     } else if (chats[key] && titleStr && !chats[key].title) {
       chats[key].title = titleStr;
       changed = true;
     }
-    if (changed) saveStudioChats(chats);
     const rec = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(titleStr);
-    const syncRes = syncPersonaRuleFile(Boolean(rec.personaEnabled), rec.personaText || "");
+    const nextOwner = rec.personaEnabled && rec.personaText.trim() ? key : "";
+    if (store.activeAgentsMdChatKey !== nextOwner) {
+      store.activeAgentsMdChatKey = nextOwner;
+      changed = true;
+    }
+    if (changed) saveStudioChatsStore(store);
+    const syncRes = syncPersonaRuleFile(Boolean(rec.personaEnabled), rec.personaText || "", rec.personaStrict !== false);
     return { ok: true, chatKey: key, chat: rec, personaFileExists: syncRes.exists, personaFilePath: syncRes.rulePath, quotaSummary: buildQuotaSummary(key) };
   });
   ipcMain.handle("agy-studio:save-persona", (_event, payload) => {
@@ -1710,35 +1847,49 @@ function registerI18nIpc() {
     const titleStr = typeof p.title === "string" ? p.title.trim().slice(0, 80) : "";
     const enabled = Boolean(p.personaEnabled);
     const text = typeof p.personaText === "string" ? p.personaText : "";
+    const strictMode = p.strict !== false;
     const presetId = typeof p.personaActivePreset === "string" && p.personaActivePreset ? p.personaActivePreset : "custom";
     if (Array.isArray(p.customPresets)) {
       saveStudioSettings({ customPresets: p.customPresets });
     }
-    const syncRes = syncPersonaRuleFile(enabled, text);
+    const syncRes = syncPersonaRuleFile(enabled, text, strictMode);
     if (!syncRes.ok) {
       return { ok: false, error: syncRes.error || "SAVE_FAILED", byteLength: syncRes.byteLength, exists: syncRes.exists, rulePath: syncRes.rulePath, state: getStudioState() };
     }
     const activeEnabled = enabled && syncRes.exists;
+    const store = loadStudioChatsStore();
     let chatRec = null;
     if (key !== "__new__") {
-      const chats = loadStudioChats();
-      const prev = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(titleStr);
-      chats[key] = sanitizeChatRecord(Object.assign({}, prev, {
+      const prev = store.chats[key] ? sanitizeChatRecord(store.chats[key]) : defaultChatRecord(titleStr);
+      store.chats[key] = sanitizeChatRecord(Object.assign({}, prev, {
         title: titleStr || prev.title || "",
         updatedAt: Date.now(),
         personaEnabled: activeEnabled,
         personaActivePreset: presetId,
         personaText: text,
+        personaStrict: strictMode,
       }));
-      saveStudioChats(chats);
-      chatRec = chats[key];
+      chatRec = store.chats[key];
     } else {
+      store.pendingNewChatPersona = activeEnabled && text.trim()
+        ? {
+            enabled: true,
+            text: text.trim(),
+            activePreset: presetId,
+            strict: strictMode,
+            updatedAt: Date.now(),
+            claimedBy: "",
+          }
+        : null;
       chatRec = sanitizeChatRecord({
         personaEnabled: activeEnabled,
         personaActivePreset: presetId,
         personaText: text,
+        personaStrict: strictMode,
       });
     }
+    store.activeAgentsMdChatKey = activeEnabled && text.trim() ? key : "";
+    saveStudioChatsStore(store);
     const state = getStudioState();
     broadcastStudioSettings(state);
     return { ok: true, exists: syncRes.exists, byteLength: syncRes.byteLength, rulePath: syncRes.rulePath, chatKey: key, chat: chatRec, state };
@@ -1927,7 +2078,7 @@ function registerI18nIpc() {
         includeArtifacts: p.includeArtifacts !== false,
         includePersona: p.includePersona !== false,
         includeFullLog: Boolean(p.includeFullLog),
-        pluginVersion: (meta && meta.pluginVersion) || "3.1.0",
+        pluginVersion: (meta && meta.pluginVersion) || "3.2.0",
         outPath,
       });
       return res;
@@ -2115,6 +2266,7 @@ function registerI18nIpc() {
       chatKey: key,
       title: typeof p.title === "string" ? p.title.trim().slice(0, 80) : "",
       text,
+      mode: p.mode === "pivot" ? "pivot" : "live",
       images: savedImgs,
       status: "pending",
       fallbackAny: Boolean(p.fallbackAny || key === "__new__" || key.startsWith("chat-")),
