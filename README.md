@@ -4,7 +4,7 @@
   <p><strong>Русификатор и настройка внешнего вида для Google Antigravity 2.0</strong></p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-4.4.5-d97757?style=flat-square" alt="Version 4.4.5" />
+    <img src="https://img.shields.io/badge/version-4.4.6-d97757?style=flat-square" alt="Version 4.4.6" />
     <img src="https://img.shields.io/badge/Antigravity-2.0-262624?style=flat-square" alt="Google Antigravity 2.0" />
     <img src="https://img.shields.io/badge/locale-RU%20%E2%86%94%20EN-788c5d?style=flat-square" alt="RU / EN" />
     <img src="https://img.shields.io/badge/license-MIT-9e9b91?style=flat-square" alt="MIT License" />

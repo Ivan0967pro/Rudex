@@ -1108,7 +1108,7 @@ div:has(> textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(:has
 body :where(button, [role="button"], [data-slot="button"], [data-slot="toggle"], [data-testid="model-selector-trigger"], [data-testid="send-button-loading"], [data-testid="send-button-pending"], [data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([class*="rounded-full"]):not([data-rudex-ignore="1"]) {
   border-radius: ${c.buttons}px !important;
 }${btnPillRule}
-body :where([data-slot="card"], [data-slot="collapsible"], [class*="bg-card"], details, [data-testid*="card"], [data-testid*="tool"], [data-testid*="artifact"], [data-testid="agent-response"] :where(div, section, article)[class*="border"][class*="rounded-"]):not(button):not(input):not(textarea):not(pre):not([role="dialog"]):not([role="alertdialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]):not([data-testid="agent-response"]):not([data-testid="user-message-content"]):not([data-testid="user-message-bubble"]):not([data-testid="composer"]):not(aside):not(nav):not(#rudex-studio-host):not(#rudex-studio-host *) {
+body :where([data-slot="card"], [class*="bg-card"], details, [data-testid*="card"], [data-testid*="tool"], [data-testid*="artifact"], [data-testid="agent-response"] :where(div, section, article)[class*="border"][class*="rounded-"]):not(button):not(input):not(textarea):not(pre):not([role="dialog"]):not([role="alertdialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]):not([data-testid="agent-response"]):not([data-testid="user-message-content"]):not([data-testid="user-message-bubble"]):not([data-testid="composer"]):not(aside):not(nav):not(#rudex-studio-host):not(#rudex-studio-host *) {
   border-radius: ${c.cards}px !important;
 }
 :where([data-testid="agent-response"], [data-markdown-root], main) :where(pre, [class*="code-block"], [data-testid*="code-block"], div:has(> pre)) {
@@ -1433,10 +1433,13 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:
 [role="tooltip"],
 [data-radix-popper-content-wrapper] > *,
 .agy-overlay,
-:where([data-slot="card"], [data-slot="collapsible"], [class*="bg-card"], [class*="bg-popover"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where([data-slot="card"], [class*="bg-card"], [class*="bg-popover"]):not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   background-color: ${vars.cardBg} !important;
   border-color: ${effectiveBorder} !important;
   color: ${vars.fgColor};
+}
+[data-testid="agent-response"] [data-slot="collapsible"]:not([class*="border"]):not([class*="bg-"]) {
+  background-color: transparent !important;
 }
 :where(div, section, aside, header, nav)[class*="bg-zinc-950"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre),
 :where(div, section, aside, header, nav)[class*="bg-neutral-950"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre),
@@ -1445,11 +1448,11 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:
 :where(div, section, aside, header, nav)[class*="bg-stone-950"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre) {
   background-color: ${vars.sidebarBg} !important;
 }
-:where(div, section, form, article)[class*="bg-zinc-900"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
-:where(div, section, form, article)[class*="bg-neutral-900"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
-:where(div, section, form, article)[class*="bg-gray-900"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
-:where(div, section, form, article)[class*="bg-slate-900"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
-:where(div, section, form, article)[class*="bg-stone-900"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code) {
+:where(div, section, form, article)[class*="bg-zinc-900"]:not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
+:where(div, section, form, article)[class*="bg-neutral-900"]:not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
+:where(div, section, form, article)[class*="bg-gray-900"]:not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
+:where(div, section, form, article)[class*="bg-slate-900"]:not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code),
+:where(div, section, form, article)[class*="bg-stone-900"]:not([data-testid="agent-response"]):not([data-slot="collapsible"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(pre):not(code) {
   background-color: ${vars.cardBg} !important;
 }
 :where(div, section, button, span)[class*="bg-secondary"]:not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]),
@@ -1840,10 +1843,12 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:
     const agentBorder = cfg.messageStyle === "minimal" || cfg.borderStrength === 0 || (cfg.messageStyle === "glass" && cfg.borderStrength === 50)
       ? "none"
       : `1px solid ${dynamicBorderCol}`;
+    const needsAgentPad = agentBorder !== "none" || (Boolean(agentBg) && agentBg !== "transparent");
     chunks.push(`
 [data-testid="agent-response"] {
   border-radius: ${cRadii.messages}px !important;
-  ${agentBorder !== "none" ? `border: ${agentBorder} !important; padding: 12px 18px !important;` : "border: none !important;"}
+  ${agentBorder !== "none" ? `border: ${agentBorder} !important;` : "border: none !important;"}
+  ${needsAgentPad ? "padding: 14px 18px !important;" : ""}
   ${agentBg ? `background-color: ${agentBg} !important;` : ""}
 }
 [data-testid="user-message-bubble"],
