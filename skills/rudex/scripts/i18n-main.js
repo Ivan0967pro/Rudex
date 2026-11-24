@@ -86,6 +86,9 @@ const DEFAULT_STUDIO_UI = {
   widgetOpacity: 88,
   studioRadius: 16,
   studioBlur: 20,
+  appScale: 100,
+  studioScale: 100,
+  widgetZoom: 100,
 };
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const SAFE_MEDIA_FILE_RE = /^[a-zA-Z0-9._-]{1,120}$/;
@@ -354,16 +357,70 @@ function sanitizeStudioUi(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const rawWrad = Number(src.widgetRadius);
   const widgetRadius = Number.isFinite(rawWrad) && rawWrad < 50 ? Math.round(clampNum(rawWrad, 4, 24, 999)) : 999;
+  const legacyScale = VALID_WIDGET_SCALES.has(src.widgetScale) ? src.widgetScale : DEFAULT_STUDIO_UI.widgetScale;
+  const hasExplicitZoom = src.widgetZoom !== undefined && src.widgetZoom !== null && Number.isFinite(Number(src.widgetZoom));
+  const fallbackZoom = legacyScale === "sm" ? 85 : (legacyScale === "lg" ? 120 : 100);
+  const widgetZoom = hasExplicitZoom ? Math.round(clampNum(src.widgetZoom, 70, 160, fallbackZoom)) : fallbackZoom;
   return {
     windowTheme: VALID_STUDIO_THEMES.has(src.windowTheme) ? src.windowTheme : DEFAULT_STUDIO_UI.windowTheme,
     windowLayout: VALID_STUDIO_LAYOUTS.has(src.windowLayout) ? src.windowLayout : DEFAULT_STUDIO_UI.windowLayout,
     widgetTheme: VALID_WIDGET_THEMES.has(src.widgetTheme) ? src.widgetTheme : DEFAULT_STUDIO_UI.widgetTheme,
-    widgetScale: VALID_WIDGET_SCALES.has(src.widgetScale) ? src.widgetScale : DEFAULT_STUDIO_UI.widgetScale,
+    widgetScale: legacyScale,
     widgetRadius,
     widgetOpacity: Math.round(clampNum(src.widgetOpacity, 45, 100, DEFAULT_STUDIO_UI.widgetOpacity)),
     studioRadius: Math.round(clampNum(src.studioRadius, 8, 26, DEFAULT_STUDIO_UI.studioRadius)),
     studioBlur: Math.round(clampNum(src.studioBlur, 0, 32, DEFAULT_STUDIO_UI.studioBlur)),
+    appScale: Math.round(clampNum(src.appScale, 70, 150, DEFAULT_STUDIO_UI.appScale)),
+    studioScale: Math.round(clampNum(src.studioScale, 75, 140, DEFAULT_STUDIO_UI.studioScale)),
+    widgetZoom,
   };
+}
+
+let zoomHookRegistered = false;
+
+function getHubZoomTargets() {
+  const targets = [];
+  const seen = new Set();
+  const pushWc = (wc) => {
+    if (!wc || typeof wc.setZoomFactor !== "function") return;
+    if (typeof wc.isDestroyed === "function" && wc.isDestroyed()) return;
+    if (seen.has(wc)) return;
+    seen.add(wc);
+    targets.push(wc);
+  };
+  try {
+    const utils = require("./utils");
+    if (utils && typeof utils.getHubWindows === "function" && typeof utils.getHubWebContents === "function") {
+      for (const w of utils.getHubWindows()) {
+        if (w && !w.__isWebviewPopupWindow) pushWc(utils.getHubWebContents(w));
+      }
+    }
+  } catch {}
+  if (targets.length === 0) {
+    try {
+      if (BrowserWindow && typeof BrowserWindow.getAllWindows === "function") {
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w || w.__isWebviewPopupWindow) continue;
+          if (typeof w.isDestroyed === "function" && w.isDestroyed()) continue;
+          pushWc(w.webContents);
+        }
+      }
+    } catch {}
+  }
+  return targets;
+}
+
+function applyAppScaleToWindows(scalePct, targetWc) {
+  const pct = Math.round(clampNum(scalePct, 70, 150, 100));
+  const factor = pct / 100;
+  const list = targetWc ? [targetWc] : getHubZoomTargets();
+  for (const wc of list) {
+    try {
+      if (!wc || typeof wc.setZoomFactor !== "function") continue;
+      if (typeof wc.isDestroyed === "function" && wc.isDestroyed()) continue;
+      wc.setZoomFactor(factor);
+    } catch {}
+  }
 }
 
 function sanitizeAppearanceProfiles(raw) {
@@ -549,6 +606,9 @@ function saveStudioSettings(patch) {
     writeJsonAtomic(getStudioSettingsPath(), next);
   } catch (err) {
     console.warn("[Rudex] Failed to persist studio settings:", err && err.message ? err.message : err);
+  }
+  if (pObj.studioUi && Object.prototype.hasOwnProperty.call(pObj.studioUi, "appScale")) {
+    applyAppScaleToWindows(next.studioUi.appScale);
   }
   if (pObj.appearance || pObj.appearanceProfiles) {
     schedulePruneOrphanedMedia(next);
@@ -1640,6 +1700,7 @@ function getStudioState(activeChatKey) {
   return {
     locale: getLocale(),
     settings,
+    appZoomSupported: true,
     personaFileExists,
     personaFilePath: rulePath,
     patchMeta: getPatchMeta(),
@@ -1893,7 +1954,7 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.2.2");
+  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.3.0");
   const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
   const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
   const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
@@ -2681,6 +2742,33 @@ function registerI18nIpc() {
   if (bootThinkingRu && !fs.existsSync(getPersonaRulePath())) {
     resyncActiveChatRuleFile();
   }
+  const bootAppScale = loadStudioSettings().studioUi.appScale;
+  if (bootAppScale !== 100) {
+    applyAppScaleToWindows(bootAppScale);
+    setTimeout(() => {
+      try {
+        const cur = loadStudioSettings().studioUi.appScale;
+        if (cur !== 100) applyAppScaleToWindows(cur);
+      } catch {}
+    }, 1200);
+  }
+  if (!zoomHookRegistered && app && typeof app.on === "function") {
+    zoomHookRegistered = true;
+    app.on("browser-window-created", (_ev, win) => {
+      try {
+        if (!win || win.__isWebviewPopupWindow || !win.webContents) return;
+        const applyCur = () => {
+          try {
+            if (win.__isWebviewPopupWindow) return;
+            const cur = loadStudioSettings().studioUi.appScale;
+            if (cur !== 100) applyAppScaleToWindows(cur, win.webContents);
+          } catch {}
+        };
+        win.webContents.on("dom-ready", applyCur);
+        win.webContents.on("did-finish-load", applyCur);
+      } catch {}
+    });
+  }
   const bootLe = loadAllLiveEdits();
   if (bootLe.hasPending) ensureLiveEditWatcher();
   startPeriodicUpdateChecks();
@@ -3040,7 +3128,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.2.2",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.3.0",
         outPath,
       });
       return res;
@@ -3467,3 +3555,5 @@ exports.handleStudioMediaProtocolRequest = handleStudioMediaProtocolRequest;
 exports.translateUiString = translateUiString;
 exports.schedulePostAppUpdateRepatch = schedulePostAppUpdateRepatch;
 exports.writePostAppUpdateWatcherScript = writePostAppUpdateWatcherScript;
+exports.sanitizeStudioUi = sanitizeStudioUi;
+exports.applyAppScaleToWindows = applyAppScaleToWindows;

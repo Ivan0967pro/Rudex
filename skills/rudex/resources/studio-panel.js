@@ -24,6 +24,9 @@ const DEFAULT_STUDIO_UI = {
   widgetOpacity: 88,
   studioRadius: 16,
   studioBlur: 20,
+  appScale: 100,
+  studioScale: 100,
+  widgetZoom: 100,
 };
 
 const STUDIO_WINDOW_THEMES = [
@@ -202,14 +205,20 @@ const TEXT = {
     studioWindowSliders: "Геометрия и стекло окна Studio",
     studioRadiusLabel: "Скругление углов Studio",
     studioBlurLabel: "Размытие стекла Studio",
+    studioScaleTitle: "Масштаб окна Rudex Studio",
+    studioScaleHint: "Можно также зажать и потянуть правый нижний уголок окна Studio (двойной клик — 100%).",
+    studioResizeGripTip: "Потяните, чтобы изменить масштаб окна (двойной клик — 100%)",
     studioResetBtn: "Сбросить дизайн окна",
     studioThemeCycleTip: "Сменить стиль окна Rudex",
     studioDesignQuickBtn: "Окно",
     widgetThemeTitle: "Дизайн мини-окна",
     widgetScaleTitle: "Масштаб виджета",
+    widgetScaleHint: "В закреплённом положении зажмите виджет мышкой и потяните, чтобы плавно изменить его масштаб.",
     widgetScaleSm: "Компактный (S)",
     widgetScaleMd: "Обычный (M)",
     widgetScaleLg: "Крупный (L)",
+    appScaleTitle: "Масштаб интерфейса Antigravity",
+    appScaleDesc: "Масштабирует весь интерфейс Antigravity и все его элементы. Окно и виджет Rudex масштабируются отдельно.",
     widgetOpacityLabel: "Прозрачность мини-окна",
     widgetRadiusLabel: "Скругление мини-окна",
     widgetRadiusPill: "Капсула",
@@ -397,7 +406,7 @@ const TEXT = {
     fieldQuota: "Лимиты (5ч / Нед.)",
     dockTitle: "Позиция на экране",
     pinLockLabel: "Закрепить виджет",
-    pinLockDesc: "Фиксирует позицию; клик по мини-капсуле всегда открывает Rudex",
+    pinLockDesc: "Фиксирует позицию; в закреплённом виде зажмите и потяните виджет, чтобы изменить масштаб (клик открывает Rudex)",
     dockResetBtn: "К якорю",
     dockBottomRight: "Правый низ",
     dockTopRight: "Правый верх",
@@ -466,7 +475,10 @@ const TEXT = {
     updateToastTitle: "Доступно обновление Rudex",
     updateToastBusyTitle: "Обновление Rudex",
     updateToastDesc: "Нажмите «Обновить» — Antigravity перезапустится с новой версией скилла.",
-    hotkeysTitle: "Горячие клавиши",
+    hotkeysTitle: "Горячие клавиши и управление",
+    hkAppScale: "Масштаб интерфейса Antigravity",
+    hkWidgetResize: "Масштаб виджета (закреплён)",
+    hkWidgetResizeKey: "Зажать и потянуть",
     hkToggleLang: "Переключить язык RU / EN",
     hkToggleModal: "Открыть / закрыть Rudex",
     hkDoubleClick: "Открыть настройки по виджету",
@@ -584,14 +596,20 @@ const TEXT = {
     studioWindowSliders: "Studio Geometry & Glass",
     studioRadiusLabel: "Studio corner radius",
     studioBlurLabel: "Studio backdrop blur",
+    studioScaleTitle: "Rudex Studio Window Scale",
+    studioScaleHint: "You can also hold and drag the bottom-right corner grip of Studio (double-click resets to 100%).",
+    studioResizeGripTip: "Drag to scale Studio window (double-click resets to 100%)",
     studioResetBtn: "Reset window design",
     studioThemeCycleTip: "Cycle Rudex window theme",
     studioDesignQuickBtn: "Window",
     widgetThemeTitle: "Mini Window Design",
     widgetScaleTitle: "Widget scale",
+    widgetScaleHint: "When pinned, hold and drag the widget with your mouse to smoothly resize it.",
     widgetScaleSm: "Compact (S)",
     widgetScaleMd: "Regular (M)",
     widgetScaleLg: "Large (L)",
+    appScaleTitle: "Antigravity Interface Scale",
+    appScaleDesc: "Scales the entire Antigravity UI and all elements. Rudex Studio and widget scale independently.",
     widgetOpacityLabel: "Mini window opacity",
     widgetRadiusLabel: "Mini window radius",
     widgetRadiusPill: "Capsule",
@@ -779,7 +797,7 @@ const TEXT = {
     fieldQuota: "Quota (5h / Wk)",
     dockTitle: "Position",
     pinLockLabel: "Lock widget in place",
-    pinLockDesc: "Locks position; clicking the mini pill always opens Rudex",
+    pinLockDesc: "Locks position; when pinned, hold and drag the widget to scale it (click opens Rudex)",
     dockResetBtn: "Snap to anchor",
     dockBottomRight: "Bottom right",
     dockTopRight: "Top right",
@@ -848,7 +866,10 @@ const TEXT = {
     updateToastTitle: "Rudex Update Available",
     updateToastBusyTitle: "Updating Rudex",
     updateToastDesc: "Click Update to install the latest skill release and restart Antigravity.",
-    hotkeysTitle: "Shortcuts",
+    hotkeysTitle: "Shortcuts & Controls",
+    hkAppScale: "Antigravity interface scale",
+    hkWidgetResize: "Scale pinned widget",
+    hkWidgetResizeKey: "Hold & drag",
     hkToggleLang: "Toggle RU / EN localization",
     hkToggleModal: "Toggle Rudex Studio",
     hkDoubleClick: "Open Rudex from widget",
@@ -1077,6 +1098,11 @@ function spNormalizeAppearance(raw) {
   });
 }
 
+function widgetZoomToBucket(z) {
+  const n = Number(z) || 100;
+  return n <= 90 ? "sm" : (n >= 112 ? "lg" : "md");
+}
+
 function spNormalizeStudioUi(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const clampInt = (v, min, max, fb) => {
@@ -1088,15 +1114,22 @@ function spNormalizeStudioUi(raw) {
   const widThemes = WIDGET_DESIGN_THEMES.map((x) => x.id);
   const rawWrad = Number(src.widgetRadius);
   const widgetRadius = Number.isFinite(rawWrad) && rawWrad < 50 ? clampInt(rawWrad, 4, 24, 999) : 999;
+  const legacyScale = src.widgetScale === "sm" || src.widgetScale === "lg" ? src.widgetScale : "md";
+  const hasExplicitZoom = src.widgetZoom !== undefined && src.widgetZoom !== null && Number.isFinite(Number(src.widgetZoom));
+  const fallbackZoom = legacyScale === "sm" ? 85 : (legacyScale === "lg" ? 120 : 100);
+  const widgetZoom = hasExplicitZoom ? clampInt(src.widgetZoom, 70, 160, fallbackZoom) : fallbackZoom;
   return {
     windowTheme: winThemes.indexOf(src.windowTheme) >= 0 ? src.windowTheme : DEFAULT_STUDIO_UI.windowTheme,
     windowLayout: winLayouts.indexOf(src.windowLayout) >= 0 ? src.windowLayout : DEFAULT_STUDIO_UI.windowLayout,
     widgetTheme: widThemes.indexOf(src.widgetTheme) >= 0 ? src.widgetTheme : DEFAULT_STUDIO_UI.widgetTheme,
-    widgetScale: src.widgetScale === "sm" || src.widgetScale === "lg" ? src.widgetScale : "md",
+    widgetScale: legacyScale,
+    widgetZoom,
     widgetRadius,
     widgetOpacity: clampInt(src.widgetOpacity, 45, 100, DEFAULT_STUDIO_UI.widgetOpacity),
     studioRadius: clampInt(src.studioRadius, 8, 26, DEFAULT_STUDIO_UI.studioRadius),
     studioBlur: clampInt(src.studioBlur, 0, 32, DEFAULT_STUDIO_UI.studioBlur),
+    appScale: clampInt(src.appScale, 70, 150, DEFAULT_STUDIO_UI.appScale),
+    studioScale: clampInt(src.studioScale, 75, 140, DEFAULT_STUDIO_UI.studioScale),
   };
 }
 
@@ -1500,7 +1533,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.2.2", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "4.3.0", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1590,6 +1623,7 @@ function createStudioPanel(options) {
     settingsSaveSeq: 0,
     lastRemoteStateSig: "",
     hasActivatedChat: false,
+    appZoomSupported: false,
     hydrationIgnoreUntil: 0,
     pendingNewSendAt: 0,
     lastCancelClickAt: 0,
@@ -1716,6 +1750,8 @@ function createStudioPanel(options) {
   let pointerUpHandler = null;
   let dragState = null;
   let wpDragState = null;
+  let widgetResizeState = null;
+  let studioResizeState = null;
   let lastBodyClickAt = 0;
   let lastDragEndedAt = 0;
 
@@ -1823,6 +1859,13 @@ function createStudioPanel(options) {
       rootEl.style.setProperty("--rx-studio-blur", `${sui.studioBlur}px`);
       rootEl.style.setProperty("--rx-widget-opacity", (sui.widgetOpacity / 100).toFixed(2));
       rootEl.style.setProperty("--rx-widget-radius", sui.widgetRadius >= 999 ? "999px" : `${sui.widgetRadius}px`);
+      const appFactor = state.appZoomSupported ? (sui.appScale / 100) : 1;
+      const studioZoom = Math.max(0.55, Math.min(2.0, (sui.studioScale / 100) / appFactor));
+      const widgetZoom = Math.max(0.55, Math.min(2.2, (sui.widgetZoom / 100) / appFactor));
+      const previewZoom = Math.max(0.7, Math.min(1.25, sui.widgetZoom / 100));
+      rootEl.style.setProperty("--rx-studio-zoom", studioZoom.toFixed(4));
+      rootEl.style.setProperty("--rx-widget-zoom", widgetZoom.toFixed(4));
+      rootEl.style.setProperty("--rx-widget-preview-zoom", previewZoom.toFixed(4));
       const activeApp = state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance;
       const preset = spFindThemePreset(activeApp && activeApp.presetId);
       const accent = (activeApp && (activeApp.customAccent || activeApp.presetId === "custom"))
@@ -1920,6 +1963,9 @@ function createStudioPanel(options) {
     if (sig) state.lastRemoteStateSig = sig;
 
     const prevThinkRu = Boolean(state.settings.thinkingInRussian);
+    if (typeof remote.appZoomSupported === "boolean") {
+      state.appZoomSupported = remote.appZoomSupported;
+    }
     if (remote.locale === "ru" || remote.locale === "en") {
       state.locale = remote.locale;
     }
@@ -2900,7 +2946,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "4.2.2";
+    const instVer = (inst && inst.version) || pluginMeta.version || "4.3.0";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -2946,9 +2992,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "4.2.2" },
+          installed: realU.installed || { version: pluginMeta.version || "4.3.0" },
           remote: {
-            version: pluginMeta.version || "4.2.2",
+            version: pluginMeta.version || "4.3.0",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -4456,11 +4502,6 @@ function createStudioPanel(options) {
           <button type="button" class="btn btn-sm" data-action="sync-all-corners">${escHtml(tr.cornersSyncAllBtn)}</button>
         </div>
       `}
-
-      <div class="slider-box">
-        <div class="slider-head"><span>${escHtml(tr.cornersStudioQuickLabel)}</span><b class="num" data-live-app-val="studioUi.studioRadius">${sui.studioRadius}px</b></div>
-        <input type="range" class="range-input" min="8" max="26" step="1" data-app-field="studioUi.studioRadius" value="${sui.studioRadius}"/>
-      </div>
     `;
   }
 
@@ -4611,7 +4652,6 @@ function createStudioPanel(options) {
     const draft = spNormalizeAppearance(state.appearanceDraft);
     const ty = draft.typography;
     const fonts = spGetFontPresets();
-    const profiles = state.settings.appearanceProfiles || [];
     const densities = [
       { id: "compact", label: tr.appDensityCompact },
       { id: "comfortable", label: tr.appDensityComfort },
@@ -4701,16 +4741,6 @@ function createStudioPanel(options) {
               <span class="row-desc">${escHtml(tr.personaStrictDesc)}</span>
             </div>
             <button type="button" class="switch${strictOn ? " is-on" : ""}" role="switch" aria-checked="${strictOn ? "true" : "false"}" data-action="toggle-persona-strict"><span class="switch-thumb"></span></button>
-          </div>
-          <div class="row-item">
-            <div class="row-info">
-              <span class="row-title">${escHtml(tr.thinkingRuTitle)}</span>
-              <span class="row-desc">${escHtml(tr.thinkingRuGlobalDesc)}</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-              <span class="${state.settings.thinkingInRussian ? "badge-active" : "nav-badge"}">${escHtml(state.settings.thinkingInRussian ? tr.thinkingRuOn : tr.thinkingRuDefault)}</span>
-              <button type="button" class="switch${state.settings.thinkingInRussian ? " is-on" : ""}" role="switch" aria-checked="${state.settings.thinkingInRussian ? "true" : "false"}" data-action="toggle-thinking-ru" aria-label="${escAttr(tr.thinkingRuTitle)}"><span class="switch-thumb"></span></button>
-            </div>
           </div>
         </div>
 
@@ -4909,6 +4939,19 @@ function createStudioPanel(options) {
         </div>
       </div>
 
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.studioScaleTitle)}</span>
+        <div class="slider-box">
+          <div class="scale-stepper">
+            <button type="button" class="scale-step-btn" data-action="step-scale" data-target="studioScale" data-delta="-5">−</button>
+            <button type="button" class="scale-pct-btn num" data-action="step-scale" data-target="studioScale" data-delta="reset" data-live-app-val="studioUi.studioScale">${sui.studioScale}%</button>
+            <button type="button" class="scale-step-btn" data-action="step-scale" data-target="studioScale" data-delta="5">+</button>
+            <input type="range" class="range-input" min="75" max="140" step="5" data-app-field="studioUi.studioScale" value="${sui.studioScale}"/>
+          </div>
+          <span class="row-desc" style="margin-top:6px;display:block">${escHtml(tr.studioScaleHint)}</span>
+        </div>
+      </div>
+
       <div style="display:flex;justify-content:flex-end">
         <button type="button" class="btn btn-sm" data-action="reset-studio-ui">${iconSvg("reset", 12)}${escHtml(tr.studioResetBtn)}</button>
       </div>
@@ -5011,6 +5054,15 @@ function createStudioPanel(options) {
           ${scales.map((sc) => `
             <button type="button" class="subtab-btn${sui.widgetScale === sc.id ? " is-active" : ""}" data-action="set-widget-scale" data-val="${sc.id}">${escHtml(sc.label)}</button>
           `).join("")}
+        </div>
+        <div class="slider-box" style="margin-top:8px">
+          <div class="scale-stepper">
+            <button type="button" class="scale-step-btn" data-action="step-scale" data-target="widgetZoom" data-delta="-5">−</button>
+            <button type="button" class="scale-pct-btn num" data-action="step-scale" data-target="widgetZoom" data-delta="reset" data-live-app-val="studioUi.widgetZoom">${sui.widgetZoom}%</button>
+            <button type="button" class="scale-step-btn" data-action="step-scale" data-target="widgetZoom" data-delta="5">+</button>
+            <input type="range" class="range-input" min="70" max="160" step="5" data-app-field="studioUi.widgetZoom" value="${sui.widgetZoom}"/>
+          </div>
+          <span class="row-desc" style="margin-top:6px;display:block">${escHtml(tr.widgetScaleHint)}</span>
         </div>
       </div>
 
@@ -5178,13 +5230,14 @@ function createStudioPanel(options) {
 
   function renderSystemSub(tr) {
     const isRu = state.locale !== "en";
+    const sui = spNormalizeStudioUi(state.settings.studioUi);
     const thinkingRu = Boolean(state.settings.thinkingInRussian);
     const autoUpdates = state.settings.autoCheckUpdates !== false;
     const u = state.update || {};
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "4.2.2";
+    const ver = inst.version || pluginMeta.version || "4.3.0";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -5221,6 +5274,24 @@ function createStudioPanel(options) {
       </div>
 
       <div class="section-group">
+        <span class="section-label">${escHtml(tr.appScaleTitle)}</span>
+        <div class="slider-box">
+          <div class="scale-stepper">
+            <button type="button" class="scale-step-btn" data-action="step-scale" data-target="appScale" data-delta="-5">−</button>
+            <button type="button" class="scale-pct-btn num" data-action="step-scale" data-target="appScale" data-delta="reset" data-live-app-val="studioUi.appScale">${sui.appScale}%</button>
+            <button type="button" class="scale-step-btn" data-action="step-scale" data-delta="5" data-target="appScale">+</button>
+            <input type="range" class="range-input" min="70" max="150" step="5" data-app-field="studioUi.appScale" value="${sui.appScale}"/>
+          </div>
+          <div class="token-chips" style="margin-top:8px">
+            ${[80, 90, 100, 110, 125].map((pct) => `
+              <button type="button" class="btn btn-sm${sui.appScale === pct ? " btn-primary" : ""}" data-action="set-app-scale" data-val="${pct}">${pct}%</button>
+            `).join("")}
+          </div>
+          <span class="row-desc" style="margin-top:6px;display:block">${escHtml(tr.appScaleDesc)}</span>
+        </div>
+      </div>
+
+      <div class="section-group">
         <span class="section-label">${escHtml(tr.updateSectionTitle)}</span>
         <div class="card">
           <div class="row-item">
@@ -5250,6 +5321,8 @@ function createStudioPanel(options) {
         <div class="card">
           <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleLang)}</span><span class="kbd">Ctrl + Alt + L</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleModal)}</span><span class="kbd">Ctrl + Alt + P</span></div>
+          <div class="row-item"><span class="row-title">${escHtml(tr.hkAppScale)}</span><span class="kbd">Ctrl + / − / 0</span></div>
+          <div class="row-item"><span class="row-title">${escHtml(tr.hkWidgetResize)}</span><span class="kbd">${escHtml(tr.hkWidgetResizeKey)}</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.hkDoubleClick)}</span><span class="kbd">${escHtml(tr.hkDoubleClickKey)}</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.hkEsc)}</span><span class="kbd">Esc</span></div>
         </div>
@@ -5299,7 +5372,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("sparkles", 12)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.2.2")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.3.0")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
@@ -5342,12 +5415,12 @@ function createStudioPanel(options) {
                     ${iconSvg(isAppearanceDrawer ? "panelCenter" : "panelRight", 13)}
                     <span>${escHtml(isAppearanceDrawer ? tr.appDockCenterBtn : tr.appDockRightBtn)}</span>
                   </button>
-                ` : `
+                ` : (current.id !== "settings" ? `
                   <button type="button" class="btn btn-sm btn-ghost" data-action="open-studio-design" title="${escAttr(tr.setSubStudio)}">
                     ${iconSvg("layout", 13)}
                     <span>${escHtml(tr.studioDesignQuickBtn)}</span>
                   </button>
-                `}
+                ` : "")}
                 <button type="button" class="icon-btn" data-action="close-modal" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 15)}</button>
               </div>
             </header>
@@ -5367,6 +5440,8 @@ function createStudioPanel(options) {
               </footer>
             ` : ""}
           </section>
+          <span class="resize-hud-badge" data-role="studioResizeHud"></span>
+          <div class="modal-resize-grip" data-studio-resize="1" title="${escAttr(tr.studioResizeGripTip)}"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M11 5L5 11M11 9L9 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
         </div>
       </div>
     `;
@@ -5530,9 +5605,10 @@ function createStudioPanel(options) {
     if (!rootEl || state.destroyed) return;
     syncTheme();
     if (widgetMountEl) {
-      widgetMountEl.innerHTML = state.settings.viewMode === "medium"
+      const bodyMarkup = state.settings.viewMode === "medium"
         ? renderMediumCardMarkup()
         : renderMiniCapsuleMarkup(false);
+      widgetMountEl.innerHTML = bodyMarkup + `<span class="resize-hud-badge" data-role="widgetResizeHud"></span>`;
       state.lastSparkMedSig = (state.telemetry.samples || []).join(",");
       applyWidgetPosition();
     }
@@ -5765,7 +5841,30 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "set-widget-scale") {
-      saveSettingsPatch({ studioUi: { widgetScale: actionEl.getAttribute("data-val") || "md" } });
+      const sc = actionEl.getAttribute("data-val") || "md";
+      const z = sc === "sm" ? 85 : (sc === "lg" ? 120 : 100);
+      saveSettingsPatch({ studioUi: { widgetScale: sc, widgetZoom: z } });
+      return;
+    }
+    if (action === "set-app-scale") {
+      const val = Math.max(70, Math.min(150, Math.round(Number(actionEl.getAttribute("data-val")) || 100)));
+      saveSettingsPatch({ studioUi: { appScale: val } });
+      return;
+    }
+    if (action === "step-scale") {
+      const target = actionEl.getAttribute("data-target");
+      const rawDelta = actionEl.getAttribute("data-delta");
+      const sui = spNormalizeStudioUi(state.settings.studioUi);
+      if (target === "appScale") {
+        const next = rawDelta === "reset" ? 100 : Math.max(70, Math.min(150, sui.appScale + (Number(rawDelta) || 0)));
+        saveSettingsPatch({ studioUi: { appScale: next } });
+      } else if (target === "studioScale") {
+        const next = rawDelta === "reset" ? 100 : Math.max(75, Math.min(140, sui.studioScale + (Number(rawDelta) || 0)));
+        saveSettingsPatch({ studioUi: { studioScale: next } });
+      } else if (target === "widgetZoom") {
+        const next = rawDelta === "reset" ? 100 : Math.max(70, Math.min(160, sui.widgetZoom + (Number(rawDelta) || 0)));
+        saveSettingsPatch({ studioUi: { widgetZoom: next, widgetScale: widgetZoomToBucket(next) } });
+      }
       return;
     }
     if (action === "set-widget-preview-mode") {
@@ -6555,15 +6654,31 @@ function createStudioPanel(options) {
       const sub = field.split(".")[1];
       const rawNum = Number(rawVal) || 0;
       const val = sub === "widgetRadius" && rawNum >= 25 ? 999 : Math.round(rawNum);
-      state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, { [sub]: val }));
+      const uiPatch = { [sub]: val };
+      if (sub === "widgetZoom") uiPatch.widgetScale = widgetZoomToBucket(val);
+      state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, uiPatch));
       syncTheme();
-      const suiLabel = sub === "widgetOpacity"
+      const pctFields = sub === "widgetOpacity" || sub === "appScale" || sub === "studioScale" || sub === "widgetZoom";
+      const suiLabel = pctFields
         ? `${val}%`
         : (sub === "widgetRadius" && val >= 999 ? tr.widgetRadiusPill : `${val}px`);
       if (modalMountEl) {
         setLiveSlot(modalMountEl, `[data-live-app-val="${field}"]`, suiLabel, false);
+        if (sub === "widgetZoom") {
+          const bucket = widgetZoomToBucket(val);
+          const scBtns = modalMountEl.querySelectorAll('[data-action="set-widget-scale"]');
+          for (let i = 0; i < scBtns.length; i += 1) {
+            if (scBtns[i].classList) scBtns[i].classList.toggle("is-active", scBtns[i].getAttribute("data-val") === bucket);
+          }
+        }
+        if (sub === "appScale") {
+          const appBtns = modalMountEl.querySelectorAll('[data-action="set-app-scale"]');
+          for (let i = 0; i < appBtns.length; i += 1) {
+            if (appBtns[i].classList) appBtns[i].classList.toggle("btn-primary", Number(appBtns[i].getAttribute("data-val")) === val);
+          }
+        }
       }
-      invokeIpc("agy-studio:save-settings", { studioUi: { [sub]: val } });
+      invokeIpc("agy-studio:save-settings", { studioUi: uiPatch });
       return true;
     } else if (field === "wallpaper.gradColor0" || field === "wallpaper.gradColor1" || field === "wallpaper.gradColor2") {
       const idx = parseInt(field.slice(-1), 10);
@@ -6651,10 +6766,36 @@ function createStudioPanel(options) {
   }
 
   function handlePointerDown(e) {
-    if (!widgetMountEl || !e || (typeof e.button === "number" && e.button !== 0) || state.settings.pinned) return;
+    if (!widgetMountEl || !e || (typeof e.button === "number" && e.button !== 0)) return;
     const tEl = e.target;
     if (!tEl || typeof tEl.closest !== "function") return;
     if (tEl.closest('[data-no-drag="1"]') || tEl.closest("button")) return;
+
+    if (state.settings.pinned) {
+      const body = tEl.closest('[data-widget-body="1"]');
+      if (!body) return;
+      if (typeof widgetMountEl.setPointerCapture === "function" && e.pointerId !== undefined) {
+        try { widgetMountEl.setPointerCapture(e.pointerId); } catch (_e) {}
+      }
+      const rect = typeof widgetMountEl.getBoundingClientRect === "function"
+        ? widgetMountEl.getBoundingClientRect()
+        : { left: 900, top: 700, width: 240, height: 40 };
+      const vw = win && win.innerWidth ? win.innerWidth : 1280;
+      const vh = win && win.innerHeight ? win.innerHeight : 800;
+      const sui = spNormalizeStudioUi(state.settings.studioUi);
+      widgetResizeState = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startZoom: sui.widgetZoom,
+        currentZoom: sui.widgetZoom,
+        signX: (rect.left + rect.width / 2) > vw / 2 ? -1 : 1,
+        signY: (rect.top + rect.height / 2) > vh / 2 ? -1 : 1,
+        moved: false,
+      };
+      return;
+    }
+
     const handle = tEl.closest('[data-drag-handle="1"]');
     if (!handle) return;
 
@@ -6680,6 +6821,47 @@ function createStudioPanel(options) {
   }
 
   function handlePointerMove(e) {
+    if (studioResizeState) {
+      const dx = e.clientX - studioResizeState.startX;
+      const dy = e.clientY - studioResizeState.startY;
+      if (!studioResizeState.moved && Math.hypot(dx, dy) < 4) return;
+      studioResizeState.moved = true;
+      const nextScale = Math.max(75, Math.min(140, Math.round(studioResizeState.startScale + (dx + dy) * 0.25)));
+      studioResizeState.currentScale = nextScale;
+      state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, { studioScale: nextScale }));
+      syncTheme();
+      if (modalMountEl) {
+        const sh = modalMountEl.querySelector(".modal-shell");
+        if (sh && sh.classList && typeof sh.classList.add === "function") sh.classList.add("is-resizing");
+        const hud = modalMountEl.querySelector('[data-role="studioResizeHud"]');
+        if (hud) hud.textContent = `${nextScale}%`;
+        setLiveSlot(modalMountEl, '[data-live-app-val="studioUi.studioScale"]', `${nextScale}%`, false);
+        const inp = modalMountEl.querySelector('[data-app-field="studioUi.studioScale"]');
+        if (inp) inp.value = String(nextScale);
+      }
+      return;
+    }
+    if (widgetResizeState && widgetMountEl) {
+      const dx = e.clientX - widgetResizeState.startX;
+      const dy = e.clientY - widgetResizeState.startY;
+      if (!widgetResizeState.moved && Math.hypot(dx, dy) < 5) return;
+      widgetResizeState.moved = true;
+      if (widgetMountEl.classList && typeof widgetMountEl.classList.add === "function") widgetMountEl.classList.add("is-resizing");
+      const delta = dx * widgetResizeState.signX * 0.75 + dy * widgetResizeState.signY * 0.75;
+      const nextZoom = Math.max(70, Math.min(160, Math.round(widgetResizeState.startZoom + delta * 0.45)));
+      const nextBucket = widgetZoomToBucket(nextZoom);
+      widgetResizeState.currentZoom = nextZoom;
+      state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, { widgetZoom: nextZoom, widgetScale: nextBucket }));
+      syncTheme();
+      const hud = typeof widgetMountEl.querySelector === "function" ? widgetMountEl.querySelector('[data-role="widgetResizeHud"]') : null;
+      if (hud) hud.textContent = `${nextZoom}%`;
+      if (modalMountEl) {
+        setLiveSlot(modalMountEl, '[data-live-app-val="studioUi.widgetZoom"]', `${nextZoom}%`, false);
+        const inp = modalMountEl.querySelector('[data-app-field="studioUi.widgetZoom"]');
+        if (inp) inp.value = String(nextZoom);
+      }
+      return;
+    }
     if (wpDragState && modalMountEl) {
       const wp = state.appearanceDraft.wallpaper;
       const dxPct = ((e.clientX - wpDragState.startX) / Math.max(40, wpDragState.width)) * 100;
@@ -6732,6 +6914,36 @@ function createStudioPanel(options) {
   }
 
   function handlePointerUp() {
+    if (studioResizeState) {
+      const st = studioResizeState;
+      studioResizeState = null;
+      if (modalMountEl) {
+        const sh = modalMountEl.querySelector(".modal-shell");
+        if (sh && sh.classList && typeof sh.classList.remove === "function") sh.classList.remove("is-resizing");
+      }
+      if (st.gripEl && typeof st.gripEl.releasePointerCapture === "function" && st.pointerId !== undefined) {
+        try { st.gripEl.releasePointerCapture(st.pointerId); } catch (_e) {}
+      }
+      if (st.moved) {
+        saveSettingsPatch({ studioUi: { studioScale: st.currentScale } });
+      }
+      return;
+    }
+    if (widgetResizeState) {
+      const st = widgetResizeState;
+      widgetResizeState = null;
+      if (widgetMountEl) {
+        if (widgetMountEl.classList && typeof widgetMountEl.classList.remove === "function") widgetMountEl.classList.remove("is-resizing");
+        if (typeof widgetMountEl.releasePointerCapture === "function" && st.pointerId !== undefined) {
+          try { widgetMountEl.releasePointerCapture(st.pointerId); } catch (_e) {}
+        }
+      }
+      if (st.moved) {
+        lastDragEndedAt = Date.now();
+        saveSettingsPatch({ studioUi: { widgetZoom: st.currentZoom, widgetScale: widgetZoomToBucket(st.currentZoom) } });
+      }
+      return;
+    }
     if (wpDragState) {
       const stageEl = wpDragState.stageEl;
       const pid = wpDragState.pointerId;
@@ -6861,6 +7073,24 @@ function createStudioPanel(options) {
     rootEl.addEventListener("pointerdown", (e) => {
       const target = e ? e.target : null;
       if (!target || typeof target.closest !== "function" || (typeof e.button === "number" && e.button !== 0)) return;
+      const grip = target.closest('[data-studio-resize="1"]');
+      if (grip) {
+        const sui = spNormalizeStudioUi(state.settings.studioUi);
+        studioResizeState = {
+          gripEl: grip,
+          pointerId: e.pointerId,
+          startX: e.clientX,
+          startY: e.clientY,
+          startScale: sui.studioScale,
+          currentScale: sui.studioScale,
+          moved: false,
+        };
+        if (typeof grip.setPointerCapture === "function" && e.pointerId !== undefined) {
+          try { grip.setPointerCapture(e.pointerId); } catch (_e) {}
+        }
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        return;
+      }
       if (target.closest("button") || target.closest("[data-action]")) return;
       const stage = target.closest('[data-wp-stage="1"]');
       if (!stage || (stage.classList && stage.classList.contains("is-empty"))) return;
@@ -6883,6 +7113,14 @@ function createStudioPanel(options) {
       if (stage.classList && typeof stage.classList.add === "function") stage.classList.add("is-dragging");
       if (typeof stage.setPointerCapture === "function" && e.pointerId !== undefined) {
         try { stage.setPointerCapture(e.pointerId); } catch (_e) {}
+      }
+    });
+
+    rootEl.addEventListener("dblclick", (e) => {
+      const target = e ? e.target : null;
+      if (!target || typeof target.closest !== "function") return;
+      if (target.closest('[data-studio-resize="1"]')) {
+        saveSettingsPatch({ studioUi: { studioScale: 100 } });
       }
     });
 

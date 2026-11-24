@@ -400,7 +400,7 @@ test("Manifest & hooks.json follow Rudex v4.2.1 architecture without PostInvocat
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.2.2");
+  assert.equal(pkg.version, "4.3.0");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -890,10 +890,10 @@ test("Studio styles and panel UI render without layout/CSS regressions and sync 
   });
   assert.equal(translator.getGreetingConfig().title, "Привет от панели!");
 
-  // Verify both Persona tab and default Settings tab (Language & System) render Russian thinking toggle
+  // Verify Persona tab does NOT duplicate thinkingInRussian toggle while Settings -> Language & System exposes it once
   panel.setOpen(true, { tab: "persona" });
   const personaHtml = modalMount ? modalMount.innerHTML : "";
-  assert.ok(personaHtml.includes('data-action="toggle-thinking-ru"'), "Persona tab must prominently expose thinkingInRussian toggle");
+  assert.equal(personaHtml.includes('data-action="toggle-thinking-ru"'), false, "Persona tab must NOT duplicate thinkingInRussian toggle");
 
   panel.setOpen(true, { tab: "settings" });
   const sysHtmlOff = modalMount ? modalMount.innerHTML : "";
@@ -2227,7 +2227,7 @@ test("Antigravity update survival: versionGuard auto-repatches, updater.js hooks
     // 4) rudex-hook.js auto-repatch recovers stripped resources/app even when all 3 feature flags are OFF
     fs.writeFileSync(path.join(mockAppRoot, "version"), "44.10.0\n", "utf8");
     fs.writeFileSync(path.join(mockResDir, "app.asar"), "STOCK_44_10_ASAR", "utf8");
-    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.2.2"}', "utf8");
+    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.3.0"}', "utf8");
     fs.writeFileSync(
       path.join(mockPluginDir, "skills", "rudex", "scripts", "install.js"),
       `"use strict";\nconst fs = require("fs");\nfs.writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify(process.argv.slice(2)), "utf8");\n`,
@@ -2574,7 +2574,7 @@ test("Apple Liquid Glass preset, optical theme CSS, smooth sparkline, and Studio
         ipcCalls.push(ch);
         if (ch === "agy-studio:get-state") return { locale: "ru", settings: { viewMode: "medium" } };
         if (ch === "agy-studio:get-update-state") {
-          return { status: "up-to-date", available: false, dismissed: false, installed: { version: "4.2.2", commitShort: "abcdef1" }, remote: null };
+          return { status: "up-to-date", available: false, dismissed: false, installed: { version: "4.3.0", commitShort: "abcdef1" }, remote: null };
         }
         return { ok: true };
       },
@@ -2685,5 +2685,152 @@ test("Updater core parses GitHub Atom feed, bypasses cache on force check, and f
     assert.equal(res.remote.commitMessage, "feat(ui): Liquid Glass & Atom fallback");
   } finally {
     await new Promise((resolve) => srv.close(resolve));
+  }
+});
+
+// =============================================================================
+// 16. Independent App/Studio/Widget Scaling, Pinned Hold-Resize & Deduplication (v4.3.0)
+// =============================================================================
+test("Independent app/studio/widget scaling, pinned hold-to-resize, zoom compensation, and deduplicated settings work cleanly", async () => {
+  const { doc, win } = createMockDom();
+  const winListeners = new Map();
+  win.addEventListener = (type, fn) => {
+    if (!winListeners.has(type)) winListeners.set(type, new Set());
+    winListeners.get(type).add(fn);
+  };
+  win.removeEventListener = (type, fn) => {
+    if (winListeners.has(type)) winListeners.get(type).delete(fn);
+  };
+  win.dispatchEvent = (ev) => {
+    const set = winListeners.get(ev && ev.type);
+    if (set) for (const fn of set) fn(ev);
+    return true;
+  };
+
+  const translator = createDomTranslator({ document: doc, window: win, dictionary, applyDynamicRules, initialLocale: "ru" });
+  translator.init();
+
+  const savedPatches = [];
+  const ipcMock = {
+    invoke: async (ch, payload) => {
+      if (ch === "agy-studio:get-state") {
+        return {
+          locale: "ru",
+          appZoomSupported: true,
+          settings: {
+            pinned: false,
+            viewMode: "mini",
+            studioUi: { appScale: 125, studioScale: 100, widgetZoom: 100, widgetScale: "md" },
+          },
+        };
+      }
+      if (ch === "agy-studio:save-settings") {
+        savedPatches.push(payload);
+        return { ok: true, appZoomSupported: true, settings: payload };
+      }
+      return { ok: true };
+    },
+  };
+
+  const te = createThemeEngine({ document: doc, window: win });
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: ipcMock,
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine: te,
+  });
+
+  try {
+    panel.init();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const host = doc.getElementById("rudex-studio-host");
+    const root = host.shadowRoot.querySelector(".studio-root");
+    const widgetMount = host.shadowRoot.querySelector(".widget-wrap");
+    const modalMount = host.shadowRoot.querySelector(".modal-mount");
+
+    // Verify zoom compensation when appZoomSupported=true & appScale=125: studioZoom = 1/1.25 = 0.8
+    assert.equal(root.style.getPropertyValue("--rx-studio-zoom"), "0.8000");
+    assert.equal(root.style.getPropertyValue("--rx-widget-zoom"), "0.8000");
+
+    // Verify Appearance -> Corners does NOT duplicate studioRadius, while Settings -> Window Design exposes both studioRadius & studioScale
+    panel.setOpen(true, { tab: "appearance", appSubTab: "corners", dockedRight: false });
+    assert.equal(modalMount.innerHTML.includes('data-app-field="studioUi.studioRadius"'), false, "Corners must NOT duplicate studioUi.studioRadius");
+    assert.ok(modalMount.innerHTML.includes('data-studio-resize="1"'), "Studio modal must render corner resize grip");
+
+    panel.setOpen(true, { tab: "settings", subTab: "studio" });
+    assert.ok(modalMount.innerHTML.includes('data-app-field="studioUi.studioRadius"'), "Studio Design must expose studioRadius");
+    assert.ok(modalMount.innerHTML.includes('data-app-field="studioUi.studioScale"'), "Studio Design must expose studioScale");
+    assert.equal(modalMount.innerHTML.includes('btn-ghost" data-action="open-studio-design"'), false, "Settings header must not duplicate open-studio-design button");
+
+    panel.setOpen(true, { tab: "settings", subTab: "system" });
+    assert.ok(modalMount.innerHTML.includes('data-app-field="studioUi.appScale"'), "System settings must expose appScale slider");
+    assert.ok(modalMount.innerHTML.includes('data-action="set-app-scale"'), "System settings must expose appScale presets");
+
+    panel.setOpen(true, { tab: "settings", subTab: "widget" });
+    assert.ok(modalMount.innerHTML.includes('data-app-field="studioUi.widgetZoom"'), "Widget settings must expose smooth widgetZoom slider");
+
+    // Verify step-scale works for studioScale & appScale & widgetZoom
+    const stepStudio = doc.createElement("button");
+    stepStudio.setAttribute("data-action", "step-scale");
+    stepStudio.setAttribute("data-target", "studioScale");
+    stepStudio.setAttribute("data-delta", "5");
+    root.appendChild(stepStudio);
+    root.dispatchEvent({ type: "click", target: stepStudio });
+    assert.ok(savedPatches.some((p) => p.studioUi && p.studioUi.studioScale === 105));
+
+    const stepApp = doc.createElement("button");
+    stepApp.setAttribute("data-action", "step-scale");
+    stepApp.setAttribute("data-target", "appScale");
+    stepApp.setAttribute("data-delta", "reset");
+    root.appendChild(stepApp);
+    root.dispatchEvent({ type: "click", target: stepApp });
+    assert.ok(savedPatches.some((p) => p.studioUi && p.studioUi.appScale === 100));
+
+    // Close modal to test pinned hold-resize vs unpinned move
+    panel.setOpen(false);
+    panel.applyRemoteState({
+      locale: "ru",
+      appZoomSupported: true,
+      settings: { pinned: true, viewMode: "mini", studioUi: { appScale: 100, studioScale: 100, widgetZoom: 100 } },
+    }, true);
+
+    widgetMount.getBoundingClientRect = () => ({ left: 1100, top: 800, right: 1340, bottom: 840, width: 240, height: 40 });
+    const pinnedBody = doc.createElement("div");
+    pinnedBody.setAttribute("data-widget-body", "1");
+    widgetMount.appendChild(pinnedBody);
+
+    savedPatches.length = 0;
+    widgetMount.dispatchEvent({ type: "mousedown", button: 0, clientX: 1200, clientY: 820, target: pinnedBody });
+    win.dispatchEvent({ type: "mousemove", clientX: 1120, clientY: 760 });
+    win.dispatchEvent({ type: "mouseup" });
+
+    assert.ok(savedPatches.some((p) => p.studioUi && p.studioUi.widgetZoom > 100), "Holding & dragging pinned widget inward must increase widgetZoom");
+    assert.equal(modalMount.innerHTML, "", "Resizing pinned widget by hold-drag must NOT open the Studio modal");
+
+    // Unpinned drag still moves floating position
+    panel.applyRemoteState({ locale: "ru", settings: { pinned: false } }, true);
+    const dragBody = doc.createElement("div");
+    dragBody.setAttribute("data-widget-body", "1");
+    dragBody.setAttribute("data-drag-handle", "1");
+    widgetMount.appendChild(dragBody);
+    savedPatches.length = 0;
+    widgetMount.dispatchEvent({ type: "mousedown", button: 0, clientX: 1200, clientY: 820, target: dragBody });
+    win.dispatchEvent({ type: "mousemove", clientX: 1000, clientY: 700 });
+    win.dispatchEvent({ type: "mouseup" });
+    assert.ok(savedPatches.some((p) => p.layoutMode === "floating" && typeof p.floatX === "number"), "Unpinned drag must move floating position");
+
+    // Verify backend scaling & sanitization in i18n-main.js
+    const i18nMainText = fs.readFileSync(path.join(SCRIPTS_DIR, "i18n-main.js"), "utf8");
+    assert.ok(i18nMainText.includes("applyAppScaleToWindows"), "i18n-main.js must implement applyAppScaleToWindows");
+    assert.ok(i18nMainText.includes("appZoomSupported: true"), "i18n-main.js must report appZoomSupported: true");
+  } finally {
+    panel.destroy();
+    te.destroy();
+    translator.destroy();
   }
 });

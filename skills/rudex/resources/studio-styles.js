@@ -37,8 +37,11 @@ function buildStudioStyles() {
       --rx-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
       --rx-studio-radius: 16px;
       --rx-studio-blur: 20px;
+      --rx-studio-zoom: 1;
       --rx-widget-opacity: 0.88;
       --rx-widget-radius: 999px;
+      --rx-widget-zoom: 1;
+      --rx-widget-preview-zoom: 1;
       --rx-card-sheen: rgba(255, 255, 255, 0.06);
       --rx-shell-bg: var(--rx-bg);
       --rx-sidebar-bg: #0d0d11;
@@ -222,14 +225,55 @@ function buildStudioStyles() {
     }
     .preview-stage .mini-pill,
     .preview-stage .med-card {
+      zoom: var(--rx-widget-preview-zoom);
       animation: none !important;
       cursor: default;
     }
+    .widget-wrap .mini-pill,
+    .widget-wrap .med-card {
+      zoom: var(--rx-widget-zoom);
+    }
     .widget-wrap.is-locked .mini-pill,
-    .widget-wrap.is-locked .med-card { cursor: pointer; }
+    .widget-wrap.is-locked .med-card { cursor: nwse-resize; }
+    .widget-wrap.is-locked.dock-bottom-left .mini-pill,
+    .widget-wrap.is-locked.dock-bottom-left .med-card,
+    .widget-wrap.is-locked.dock-top-right .mini-pill,
+    .widget-wrap.is-locked.dock-top-right .med-card { cursor: nesw-resize; }
     .widget-wrap.is-dragging .mini-pill,
     .widget-wrap.is-dragging .med-card { cursor: grabbing; }
+    .widget-wrap.is-resizing .mini-pill,
+    .widget-wrap.is-resizing .med-card {
+      border-color: var(--rx-accent) !important;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--rx-accent) 42%, transparent), var(--rx-widget-shadow) !important;
+    }
     .mini-pill:hover { border-color: color-mix(in srgb, var(--rx-fg) 26%, transparent); transform: translateY(-1px); }
+
+    .resize-hud-badge {
+      position: absolute;
+      top: -30px;
+      right: 0;
+      display: none;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--rx-accent);
+      color: var(--rx-accent-fg);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.42);
+      pointer-events: none;
+      z-index: 30;
+      white-space: nowrap;
+    }
+    .widget-wrap.is-resizing .resize-hud-badge,
+    .modal-shell.is-resizing .resize-hud-badge { display: inline-flex; }
+    .modal-shell .resize-hud-badge {
+      top: auto;
+      bottom: 14px;
+      right: 26px;
+    }
 
     .pill-actions {
       display: inline-flex;
@@ -246,11 +290,7 @@ function buildStudioStyles() {
       border-color: rgba(15, 23, 42, 0.08);
     }
 
-    /* Widget Themes & Scales */
-    [data-widget-scale="sm"] .mini-pill { height: 30px; font-size: 10.5px; gap: 5px; padding: 0 4px 0 9px; }
-    [data-widget-scale="sm"] .med-card { width: 296px; }
-    [data-widget-scale="lg"] .mini-pill { height: 42px; font-size: 12.5px; gap: 8px; padding: 0 7px 0 13px; }
-    [data-widget-scale="lg"] .med-card { width: 368px; }
+    /* Widget Themes */
 
     /* Glass (refined classic translucent surface) */
     [data-widget-theme="glass"] .mini-pill,
@@ -668,8 +708,10 @@ function buildStudioStyles() {
     }
 
     .modal-shell {
-      width: min(940px, calc(100vw - 32px));
-      height: min(654px, calc(100vh - 36px));
+      position: relative;
+      zoom: var(--rx-studio-zoom);
+      width: min(940px, calc((100vw - 32px) / var(--rx-studio-zoom)));
+      height: min(654px, calc((100vh - 36px) / var(--rx-studio-zoom)));
       border-radius: var(--rx-studio-radius);
       background: var(--rx-shell-bg);
       background-image: var(--rx-shell-glow);
@@ -680,8 +722,8 @@ function buildStudioStyles() {
       animation: rxModalIn 0.16s ease-out;
     }
     .modal-shell.is-appearance-live {
-      width: min(496px, calc(100vw - 24px));
-      height: calc(100vh - 28px);
+      width: min(496px, calc((100vw - 24px) / var(--rx-studio-zoom)));
+      height: calc((100vh - 28px) / var(--rx-studio-zoom));
       border-radius: var(--rx-studio-radius);
       background: var(--rx-glass-strong);
       background-image: var(--rx-shell-glow);
@@ -689,6 +731,69 @@ function buildStudioStyles() {
       -webkit-backdrop-filter: blur(var(--rx-studio-blur));
       animation: rxDrawerIn 0.16s ease-out;
     }
+    .modal-shell.is-resizing {
+      border-color: var(--rx-accent) !important;
+      animation: none;
+    }
+    .modal-resize-grip {
+      position: absolute;
+      right: 2px;
+      bottom: 2px;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 3px;
+      cursor: nwse-resize;
+      color: var(--rx-muted);
+      opacity: 0.45;
+      z-index: 25;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .modal-resize-grip:hover { opacity: 1; color: var(--rx-accent); }
+
+    .scale-stepper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .scale-stepper .range-input {
+      flex: 1;
+      min-width: 80px;
+    }
+    .scale-step-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      border: 1px solid var(--rx-border-strong);
+      background: var(--rx-surface-2);
+      color: var(--rx-fg-strong);
+      font-size: 14px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .scale-step-btn:hover { border-color: var(--rx-accent-border); background: var(--rx-hover); }
+    .scale-pct-btn {
+      min-width: 48px;
+      height: 26px;
+      padding: 0 8px;
+      border-radius: 7px;
+      border: 1px solid var(--rx-border);
+      background: var(--rx-surface);
+      color: var(--rx-fg-strong);
+      font-size: 11.5px;
+      font-weight: 650;
+      cursor: pointer;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .scale-pct-btn:hover { border-color: var(--rx-accent-border); }
 
     .modal-sidebar {
       width: 214px;
