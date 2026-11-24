@@ -65,7 +65,7 @@ const DEFAULT_MINI_FIELDS = {
 };
 const VALID_APPEARANCE_PRESETS = new Set(["native", "liquid-glass", "obsidian-glass", "midnight-neon", "warm-contrast", "light-paper", "emerald-void", "crimson-noir", "tokyo-night", "sakura-dusk", "nordic-frost", "custom"]);
 const VALID_WALLPAPER_TYPES = new Set(["none", "gradient", "image", "video"]);
-const VALID_GRADIENT_PRESETS = new Set(["aurora", "cosmic", "sunset", "emerald", "cyber", "silk", "sakura", "ocean", "amber", "mist"]);
+const VALID_GRADIENT_PRESETS = new Set(["antigravity", "aurora", "cosmic", "sunset", "emerald", "cyber", "silk", "sakura", "ocean", "amber", "mist"]);
 const VALID_GRADIENT_STYLES = new Set(["linear", "radial", "mesh"]);
 const VALID_WALLPAPER_FITS = new Set(["cover", "contain", "fill"]);
 const VALID_TINT_BLENDS = new Set(["normal", "multiply", "screen", "overlay", "soft-light"]);
@@ -114,8 +114,8 @@ const DEFAULT_APPEARANCE = {
   uiPolish: true,
   customAccent: false,
   accentColor: "#3b82f6",
-  canvasBg: "#09090b",
-  cardBg: "#131316",
+  canvasBg: "#070708",
+  cardBg: "#15151a",
   glassOpacity: 78,
   sidebarOpacity: 72,
   glassBlur: 12,
@@ -138,9 +138,9 @@ const DEFAULT_APPEARANCE = {
   },
   wallpaper: {
     type: "none",
-    gradientPreset: "aurora",
+    gradientPreset: "antigravity",
     gradStyle: "linear",
-    gradColors: ["#0f172a", "#1e1b4b", "#09090b"],
+    gradColors: ["#15151a", "#0d0d11", "#070708"],
     gradAngle: 135,
     gradAnimated: true,
     gradSpeed: 18,
@@ -245,13 +245,13 @@ function sanitizeAppearance(raw) {
   const presetId = VALID_APPEARANCE_PRESETS.has(src.presetId) ? src.presetId : "native";
   const wpSrc = src.wallpaper && typeof src.wallpaper === "object" ? src.wallpaper : {};
   const wpType = VALID_WALLPAPER_TYPES.has(wpSrc.type) ? wpSrc.type : "none";
-  const gradientPreset = VALID_GRADIENT_PRESETS.has(wpSrc.gradientPreset) ? wpSrc.gradientPreset : "aurora";
+  const gradientPreset = VALID_GRADIENT_PRESETS.has(wpSrc.gradientPreset) ? wpSrc.gradientPreset : "antigravity";
   const gradStyle = VALID_GRADIENT_STYLES.has(wpSrc.gradStyle) ? wpSrc.gradStyle : "linear";
   const rawGc = Array.isArray(wpSrc.gradColors) ? wpSrc.gradColors : DEFAULT_APPEARANCE.wallpaper.gradColors;
   const gradColors = [
-    sanitizeHexColor(rawGc[0], "#0f172a"),
-    sanitizeHexColor(rawGc[1], "#1e1b4b"),
-    sanitizeHexColor(rawGc[2], "#09090b"),
+    sanitizeHexColor(rawGc[0], "#15151a"),
+    sanitizeHexColor(rawGc[1], "#0d0d11"),
+    sanitizeHexColor(rawGc[2], "#070708"),
   ];
   const mediaUrl = sanitizeMediaUrl(wpSrc.mediaUrl);
   const mediaFile = mediaUrl && typeof wpSrc.mediaFile === "string" && SAFE_MEDIA_FILE_RE.test(wpSrc.mediaFile.trim())
@@ -1893,7 +1893,7 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.2.1");
+  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.2.2");
   const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
   const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
   const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
@@ -3040,7 +3040,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.2.1",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.2.2",
         outPath,
       });
       return res;

@@ -33,6 +33,7 @@ const {
 } = require(path.join(RES_DIR, "telemetry-engine.js"));
 const {
   THEME_PRESETS,
+  GRADIENT_PRESETS,
   CORNER_PRESETS,
   DEFAULT_APPEARANCE,
   normalizeAppearance,
@@ -399,7 +400,7 @@ test("Manifest & hooks.json follow Rudex v4.2.1 architecture without PostInvocat
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.2.1");
+  assert.equal(pkg.version, "4.2.2");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -2226,7 +2227,7 @@ test("Antigravity update survival: versionGuard auto-repatches, updater.js hooks
     // 4) rudex-hook.js auto-repatch recovers stripped resources/app even when all 3 feature flags are OFF
     fs.writeFileSync(path.join(mockAppRoot, "version"), "44.10.0\n", "utf8");
     fs.writeFileSync(path.join(mockResDir, "app.asar"), "STOCK_44_10_ASAR", "utf8");
-    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.2.1"}', "utf8");
+    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.2.2"}', "utf8");
     fs.writeFileSync(
       path.join(mockPluginDir, "skills", "rudex", "scripts", "install.js"),
       `"use strict";\nconst fs = require("fs");\nfs.writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify(process.argv.slice(2)), "utf8");\n`,
@@ -2541,7 +2542,9 @@ test("Apple Liquid Glass preset, optical theme CSS, smooth sparkline, and Studio
 
   const studioCss = buildStudioStyles();
   for (const tok of [
-    "#0a0b0f",
+    "#070708",
+    "#15151a",
+    "#252527",
     ".med-telemetry-stage",
     ".med-quota-card",
     ".med-status-badge",
@@ -2550,6 +2553,8 @@ test("Apple Liquid Glass preset, optical theme CSS, smooth sparkline, and Studio
   ]) {
     assert.ok(studioCss.includes(tok), `Missing refined Studio CSS token: ${tok}`);
   }
+  assert.equal(GRADIENT_PRESETS[0].id, "antigravity", "Default gradient preset must be native Antigravity");
+  assert.deepEqual(GRADIENT_PRESETS[0].colors, ["#15151a", "#0d0d11", "#070708"]);
   assert.equal(studioCss.includes(".mini-pill::before"), false, "White pseudo-border on mini-pill must be removed");
   assert.equal(studioCss.includes(".med-card::before"), false, "White pseudo-border on med-card must be removed");
 
@@ -2569,7 +2574,7 @@ test("Apple Liquid Glass preset, optical theme CSS, smooth sparkline, and Studio
         ipcCalls.push(ch);
         if (ch === "agy-studio:get-state") return { locale: "ru", settings: { viewMode: "medium" } };
         if (ch === "agy-studio:get-update-state") {
-          return { status: "up-to-date", available: false, dismissed: false, installed: { version: "4.2.1", commitShort: "abcdef1" }, remote: null };
+          return { status: "up-to-date", available: false, dismissed: false, installed: { version: "4.2.2", commitShort: "abcdef1" }, remote: null };
         }
         return { ok: true };
       },

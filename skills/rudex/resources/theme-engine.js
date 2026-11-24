@@ -10,12 +10,12 @@ const THEME_PRESETS = [
     mode: "native",
     vars: {
       accentColor: "#3b82f6",
-      canvasBg: "#0c0c0e",
-      cardBg: "#131316",
-      sidebarBg: "#0f0f12",
+      canvasBg: "#070708",
+      cardBg: "#15151a",
+      sidebarBg: "#0d0d11",
       fgColor: "#ececef",
       mutedColor: "#9a9aa6",
-      borderColor: "#27272e",
+      borderColor: "#252527",
       glassOpacity: 82,
       glassBlur: 12,
       radius: 12,
@@ -244,6 +244,7 @@ const THEME_PRESETS = [
 ];
 
 const GRADIENT_PRESETS = [
+  { id: "antigravity", nameRu: "Antigravity", nameEn: "Antigravity", colors: ["#15151a", "#0d0d11", "#070708"], angle: 135 },
   { id: "aurora", nameRu: "Аврора", nameEn: "Aurora", colors: ["#0f172a", "#1e1b4b", "#09090b"], angle: 135 },
   { id: "cosmic", nameRu: "Космос", nameEn: "Cosmic", colors: ["#090d1e", "#311042", "#0d1b2a"], angle: 125 },
   { id: "sunset", nameRu: "Закат", nameEn: "Sunset", colors: ["#1f121b", "#4a1c2d", "#171426"], angle: 145 },
@@ -302,8 +303,8 @@ const DEFAULT_APPEARANCE = {
   uiPolish: true,
   customAccent: false,
   accentColor: "#3b82f6",
-  canvasBg: "#09090b",
-  cardBg: "#131316",
+  canvasBg: "#070708",
+  cardBg: "#15151a",
   glassOpacity: 78,
   sidebarOpacity: 72,
   glassBlur: 12,
@@ -326,9 +327,9 @@ const DEFAULT_APPEARANCE = {
   },
   wallpaper: {
     type: "none",
-    gradientPreset: "aurora",
+    gradientPreset: "antigravity",
     gradStyle: "linear",
-    gradColors: ["#0f172a", "#1e1b4b", "#09090b"],
+    gradColors: ["#15151a", "#0d0d11", "#070708"],
     gradAngle: 135,
     gradAnimated: true,
     gradSpeed: 18,

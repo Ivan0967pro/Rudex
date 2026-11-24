@@ -11,16 +11,16 @@ function buildStudioStyles() {
     }
 
     .studio-root {
-      --rx-bg: #0a0b0f;
-      --rx-surface: #11131a;
-      --rx-surface-2: #181b25;
-      --rx-glass: rgba(14, 16, 22, 0.88);
-      --rx-glass-strong: rgba(13, 15, 21, 0.95);
+      --rx-bg: #070708;
+      --rx-surface: #15151a;
+      --rx-surface-2: #1c1c22;
+      --rx-glass: rgba(21, 21, 26, 0.90);
+      --rx-glass-strong: rgba(13, 13, 17, 0.96);
       --rx-fg: #dcdfea;
       --rx-fg-strong: #f6f7fb;
       --rx-muted: #84899e;
-      --rx-border: rgba(255, 255, 255, 0.08);
-      --rx-border-strong: rgba(255, 255, 255, 0.14);
+      --rx-border: rgba(255, 255, 255, 0.075);
+      --rx-border-strong: #252527;
       --rx-hover: rgba(255, 255, 255, 0.06);
       --rx-accent: #3b82f6;
       --rx-accent-fg: #ffffff;
@@ -41,9 +41,9 @@ function buildStudioStyles() {
       --rx-widget-radius: 999px;
       --rx-card-sheen: rgba(255, 255, 255, 0.06);
       --rx-shell-bg: var(--rx-bg);
-      --rx-sidebar-bg: var(--rx-surface);
+      --rx-sidebar-bg: #0d0d11;
       --rx-main-bg: var(--rx-bg);
-      --rx-shell-glow: radial-gradient(640px circle at 12% 0%, color-mix(in srgb, var(--rx-accent) 10%, transparent), transparent 62%);
+      --rx-shell-glow: radial-gradient(640px circle at 12% 0%, rgba(255, 255, 255, 0.025), transparent 62%);
       color: var(--rx-fg);
       font-size: 13px;
       line-height: 1.45;
@@ -82,8 +82,8 @@ function buildStudioStyles() {
       --rx-shell-bg: color-mix(in srgb, var(--rx-bg) 74%, transparent);
       --rx-sidebar-bg: color-mix(in srgb, var(--rx-surface) 64%, transparent);
       --rx-main-bg: color-mix(in srgb, var(--rx-bg) 56%, transparent);
-      --rx-surface: color-mix(in srgb, #141722 72%, transparent);
-      --rx-surface-2: color-mix(in srgb, #1d2130 78%, transparent);
+      --rx-surface: color-mix(in srgb, #15151a 72%, transparent);
+      --rx-surface-2: color-mix(in srgb, #1c1c22 78%, transparent);
       --rx-shell-glow: radial-gradient(560px circle at 85% 0%, color-mix(in srgb, var(--rx-accent) 12%, transparent), transparent 65%);
     }
     .studio-root[data-studio-theme="frosted"][data-theme="light"] {
@@ -255,9 +255,15 @@ function buildStudioStyles() {
     /* Glass (refined classic translucent surface) */
     [data-widget-theme="glass"] .mini-pill,
     [data-widget-theme="glass"] .med-card {
-      background: color-mix(in srgb, var(--rx-surface) calc(var(--rx-widget-opacity) * 86%), transparent);
-      border-color: color-mix(in srgb, var(--rx-accent) 18%, var(--rx-border-strong));
-      box-shadow: var(--rx-widget-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.018) 0%, transparent 100%), color-mix(in srgb, var(--rx-surface) calc(var(--rx-widget-opacity) * 92%), transparent);
+      border-color: var(--rx-border-strong);
+      box-shadow: 0 0 0 2px rgba(13, 13, 17, 0.7), 0 10px 28px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    [data-theme="light"] [data-widget-theme="glass"] .mini-pill,
+    [data-theme="light"] [data-widget-theme="glass"] .med-card {
+      background: color-mix(in srgb, var(--rx-surface) calc(var(--rx-widget-opacity) * 90%), transparent);
+      border-color: var(--rx-border);
+      box-shadow: var(--rx-widget-shadow);
     }
     [data-widget-theme="glass"] .med-telemetry-stage,
     [data-widget-theme="glass"] .med-stat-tile,
@@ -335,7 +341,7 @@ function buildStudioStyles() {
     /* Solid Contrast */
     [data-widget-theme="solid"] .mini-pill,
     [data-widget-theme="solid"] .med-card {
-      background: linear-gradient(180deg, #171a24 0%, #11131b 100%);
+      background: linear-gradient(180deg, #1a1a20 0%, #15151a 100%);
       backdrop-filter: none;
       -webkit-backdrop-filter: none;
       border-color: var(--rx-border-strong);

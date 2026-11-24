@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "rudex",
   "displayName": "Rudex",
-  "version": "4.2.1",
+  "version": "4.2.2",
   "description": "Rudex — полная русификация (RU ↔ EN) и студия оформления для Google Antigravity 2.0: темы и Жидкое стекло, студия обоев и углов, кастомное приветствие, мысли агента на русском, характер чата, точный TPS, квоты, экспорт в ZIP и автообновления.",
   "logo": "assets/logo.svg",
   "author": {

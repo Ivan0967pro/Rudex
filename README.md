@@ -4,7 +4,7 @@
   <p><strong>Полная русификация (<code>RU ↔ EN</code>), студия оформления и стекла, интерактивная студия обоев и скруглений, мысли агента на русском, характер чата, живой TPS, квоты, экспорт в ZIP и автообновления для Google Antigravity 2.0</strong></p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-4.2.1-0a84ff?style=flat-square" alt="Version 4.2.1" />
+    <img src="https://img.shields.io/badge/version-4.2.2-0a84ff?style=flat-square" alt="Version 4.2.2" />
     <img src="https://img.shields.io/badge/Antigravity-2.0-6366f1?style=flat-square" alt="Google Antigravity 2.0" />
     <img src="https://img.shields.io/badge/locale-RU%20%E2%86%94%20EN-22c55e?style=flat-square" alt="RU / EN" />
     <img src="https://img.shields.io/badge/license-MIT-94a3b8?style=flat-square" alt="MIT License" />
@@ -25,7 +25,7 @@ irm https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.ps1 | iex
 
 ---
 
-## Возможности Rudex v4.2.1
+## Возможности Rudex v4.2.2
 
 ### 1. Apple Liquid Glass (iOS 26) и кастомизация интерфейса
 - **Пресет «Жидкое стекло (iOS 26)» (`liquid-glass`)** и ещё **10+ встроенных тем** (*Обсидиановое стекло*, *Полуночный неон*, *Токийская ночь*, *Сумерки сакуры*, *Светлая бумага*, *Скандинавский лёд* и др.) + **Своя тема** с ручным подбором цветов и акцента.
@@ -83,7 +83,12 @@ irm https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.ps1 | iex
 
 ---
 
-## Что нового в v4.2.1
+## Что нового в v4.2.2
+
+- **Родная палитра Antigravity** — мини-капсула, карточка и окно Студии теперь используют точные цвета интерфейса Antigravity (`#070708`, `#0d0d11`, `#15151a`, `#252527`) без синеватого оттенка.
+- **Базовый градиент «Antigravity»** — новый пресет обоев по умолчанию в нативных тонах.
+
+## Что было в v4.2.1
 
 - **Чистый классический дизайн с обновлённой палитрой** — убрана лишняя белая окантовка поверхностей, обновлены цвета всех тем Студии и 5 режимов виджета при полном сохранении удобного визуального разделения блоков телеметрии и кнопок.
 - **Убран пункт «Дополнения» из интерфейса** — меню Студии и кнопки мини-капсулы / карточки стали ещё чище и лаконичнее.

@@ -27,10 +27,10 @@ const DEFAULT_STUDIO_UI = {
 };
 
 const STUDIO_WINDOW_THEMES = [
-  { id: "obsidian", nameRu: "Обсидиан", nameEn: "Obsidian", descRu: "Глубокий графит и мягкое акцентное свечение", descEn: "Deep graphite with subtle accent glow", bg: "#0a0b0f", side: "#11131a" },
-  { id: "frosted", nameRu: "Матовое стекло", nameEn: "Frosted Glass", descRu: "Полупрозрачный акрил поверх обоев", descEn: "Translucent acrylic glass over wallpaper", bg: "rgba(17,19,26,0.74)", side: "rgba(24,27,37,0.72)" },
+  { id: "obsidian", nameRu: "Обсидиан", nameEn: "Obsidian", descRu: "Глубокий графит и мягкое акцентное свечение", descEn: "Deep graphite with subtle accent glow", bg: "#070708", side: "#0d0d11" },
+  { id: "frosted", nameRu: "Матовое стекло", nameEn: "Frosted Glass", descRu: "Полупрозрачный акрил поверх обоев", descEn: "Translucent acrylic glass over wallpaper", bg: "rgba(21,21,26,0.74)", side: "rgba(28,28,34,0.72)" },
   { id: "neon-cyber", nameRu: "Кибер-неон", nameEn: "Cyber Neon", descRu: "Светящаяся рамка и контрастный HUD", descEn: "Luminous accent border and cyber HUD", bg: "#070811", side: "#0a0d1a" },
-  { id: "minimal-mono", nameRu: "Минимализм", nameEn: "Minimal Mono", descRu: "Чистые линии без теней и лишнего шума", descEn: "Crisp hairline borders without visual noise", bg: "#0a0b0f", side: "#0a0b0f" },
+  { id: "minimal-mono", nameRu: "Минимализм", nameEn: "Minimal Mono", descRu: "Чистые линии без теней и лишнего шума", descEn: "Crisp hairline borders without visual noise", bg: "#070708", side: "#070708" },
   { id: "aurora", nameRu: "Аврора", nameEn: "Aurora", descRu: "Бархатный градиент и мягкая аура", descEn: "Velvet gradient backdrop with soft aura", bg: "#090b15", side: "#12162b" },
 ];
 
@@ -999,8 +999,8 @@ function spDefaultAppearance() {
     uiPolish: true,
     customAccent: false,
     accentColor: "#3b82f6",
-    canvasBg: "#09090b",
-    cardBg: "#131316",
+    canvasBg: "#070708",
+    cardBg: "#15151a",
     glassOpacity: 78,
     sidebarOpacity: 72,
     glassBlur: 12,
@@ -1023,9 +1023,9 @@ function spDefaultAppearance() {
     },
     wallpaper: {
       type: "none",
-      gradientPreset: "aurora",
+      gradientPreset: "antigravity",
       gradStyle: "linear",
-      gradColors: ["#0f172a", "#1e1b4b", "#09090b"],
+      gradColors: ["#15151a", "#0d0d11", "#070708"],
       gradAngle: 135,
       gradAnimated: true,
       gradSpeed: 18,
@@ -1500,7 +1500,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.2.1", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "4.2.2", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -2900,7 +2900,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "4.2.1";
+    const instVer = (inst && inst.version) || pluginMeta.version || "4.2.2";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -2946,9 +2946,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "4.2.1" },
+          installed: realU.installed || { version: pluginMeta.version || "4.2.2" },
           remote: {
-            version: pluginMeta.version || "4.2.1",
+            version: pluginMeta.version || "4.2.2",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -5184,7 +5184,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "4.2.1";
+    const ver = inst.version || pluginMeta.version || "4.2.2";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -5299,7 +5299,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("sparkles", 12)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.2.1")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.2.2")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
