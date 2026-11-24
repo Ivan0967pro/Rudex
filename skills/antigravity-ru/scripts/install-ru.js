@@ -229,7 +229,7 @@ function buildPreloadSnippet(dictObj, pluginMeta) {
   const dictJson = JSON.stringify(dictObj)
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
-  const metaJson = JSON.stringify(pluginMeta || { version: "3.0.1", dictEntries: Object.keys(dictObj).length, dynamicRulesCount: 0 });
+  const metaJson = JSON.stringify(pluginMeta || { version: "3.0.2", dictEntries: Object.keys(dictObj).length, dynamicRulesCount: 0 });
 
   return [
     "// === ANTIGRAVITY_RU_I18N_START ===",
@@ -256,11 +256,13 @@ function buildPreloadSnippet(dictObj, pluginMeta) {
     `      applyDynamicRules,`,
     `      initialLocale,`,
     `    });`,
+    `    let studioPanel = null;`,
     `    const themeEngine = createThemeEngine({`,
     `      document: g.document,`,
     `      window: g.window || g,`,
+    `      resolveMediaUrl: (fn, mu) => (studioPanel && typeof studioPanel.resolveMediaUrl === "function" ? studioPanel.resolveMediaUrl(fn, mu) : mu),`,
     `    });`,
-    `    const studioPanel = createStudioPanel({`,
+    `    studioPanel = createStudioPanel({`,
     `      document: g.document,`,
     `      window: g.window || g,`,
     `      ipcRenderer: electron_1.ipcRenderer,`,
@@ -451,7 +453,7 @@ function runInstall(targetAppDir, sourceAsar, stampVersion, dictObj, dynRuleCoun
 
   const pkg = JSON.parse(fs.readFileSync(path.join(targetAppDir, "package.json"), "utf8"));
   const resolvedStamp = stampVersion || pkg.version || "custom";
-  let pluginVersion = "3.0.1";
+  let pluginVersion = "3.0.2";
   try {
     const pluginJsonPath = path.join(PLUGIN_ROOT, "plugin.json");
     if (fs.existsSync(pluginJsonPath)) {

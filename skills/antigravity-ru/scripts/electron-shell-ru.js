@@ -50,6 +50,10 @@ let uiMaps = null;
 
 const MAX_PERSONA_BODY_BYTES = 23000;
 const FIVE_HOUR_MS = 5 * 60 * 60 * 1000;
+const SEVEN_DAY_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_TRANSCRIPT_UNITS_PER_1PCT_5H = 50000;
+const DEFAULT_TRANSCRIPT_UNITS_PER_1PCT_WEEKLY = 225000;
+const transcriptSummaryCache = new Map();
 const DEFAULT_MINI_FIELDS = {
   status: true,
   lang: true,
@@ -449,13 +453,17 @@ function sanitizeChatQuota(raw) {
 }
 
 function isBogusHydrationSpikeEntry(h) {
-  return Boolean(h && h.durSec > 0 && h.durSec <= 0.25 && h.tokens >= 400 && h.avgTps >= 900);
+  if (!h) return false;
+  if (h.avgTps >= 900 || h.peakTps >= 900) return true;
+  if (h.durSec > 0 && h.durSec <= 0.25 && h.avgTps >= 450) return true;
+  if (h.durSec > 0 && h.durSec <= 0.25 && h.tokens >= 400 && h.avgTps >= 350) return true;
+  return false;
 }
 
 function sanitizeChatTelemetry(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   let samples = Array.isArray(src.samples)
-    ? src.samples.slice(-24).map((n) => toNonNegInt(n))
+    ? src.samples.slice(-24).map((n) => toNonNegInt(n)).filter((n) => n > 0 && n < 900)
     : [];
   const rawHist = Array.isArray(src.history)
     ? src.history
@@ -475,16 +483,14 @@ function sanitizeChatTelemetry(raw) {
   let peakTps = toNonNegInt(src.peakTps);
   let lastDurSec = toNonNegFloat(src.lastDurSec);
   const respTokens = toNonNegInt(src.respTokens);
-  if (history.length === 0 && rawHist.length > 0 && lastAvgTps >= 900 && lastDurSec > 0 && lastDurSec <= 0.25 && respTokens >= 400) {
-    lastAvgTps = 0;
-    peakTps = 0;
-    lastDurSec = 0;
-    samples = [];
-  } else if (lastAvgTps >= 900 && lastDurSec > 0 && lastDurSec <= 0.25 && respTokens >= 400) {
+  const hasBogusMetric = lastAvgTps >= 900 || peakTps >= 900 || (lastDurSec > 0 && lastDurSec <= 0.25 && lastAvgTps >= 450);
+  if (hasBogusMetric) {
     lastAvgTps = history[0] ? history[0].avgTps : 0;
     lastDurSec = history[0] ? history[0].durSec : 0;
-    peakTps = history.reduce((mx, it) => Math.max(mx, it.peakTps || 0), 0);
-    samples = [];
+    peakTps = history.reduce((mx, it) => Math.max(mx, it.peakTps < 900 ? (it.peakTps || 0) : 0), 0);
+    if (samples.length === 0 && lastAvgTps > 0) {
+      samples = [lastAvgTps];
+    }
   }
   return {
     lastAvgTps,
@@ -643,9 +649,10 @@ function defaultQuotaFamilyState(famId) {
     weeklyReset: "",
     fiveHourReset: "",
     updatedAt: 0,
+    resetAt: 0,
     calibrated: false,
-    tokensPer1Pct5h: isClaude ? 12000 : 18000,
-    tokensPer1PctWeekly: isClaude ? 75000 : 110000,
+    tokensPer1Pct5h: isClaude ? 40000 : 50000,
+    tokensPer1PctWeekly: isClaude ? 180000 : 225000,
     pending5hByChat: {},
     pendingWeeklyByChat: {},
   };
@@ -681,9 +688,10 @@ function sanitizeQuotaFamilyState(famId, raw) {
     weeklyReset: typeof src.weeklyReset === "string" ? src.weeklyReset.slice(0, 80) : "",
     fiveHourReset: typeof src.fiveHourReset === "string" ? src.fiveHourReset.slice(0, 80) : "",
     updatedAt: toNonNegInt(src.updatedAt),
+    resetAt: toNonNegInt(src.resetAt),
     calibrated: Boolean(src.calibrated),
-    tokensPer1Pct5h: Number.isFinite(t5) && t5 >= 2000 && t5 <= 500000 ? Math.round(t5) : def.tokensPer1Pct5h,
-    tokensPer1PctWeekly: Number.isFinite(tw) && tw >= 10000 && tw <= 2500000 ? Math.round(tw) : def.tokensPer1PctWeekly,
+    tokensPer1Pct5h: Number.isFinite(t5) && t5 >= 5000 && t5 <= 1000000 ? Math.round(t5) : def.tokensPer1Pct5h,
+    tokensPer1PctWeekly: Number.isFinite(tw) && tw >= 20000 && tw <= 5000000 ? Math.round(tw) : def.tokensPer1PctWeekly,
     pending5hByChat: sanitizePendingMap(src.pending5hByChat),
     pendingWeeklyByChat: sanitizePendingMap(src.pendingWeeklyByChat),
   };
@@ -697,6 +705,7 @@ function loadQuotaStore() {
       const fams = parsed && typeof parsed === "object" && parsed.families ? parsed.families : {};
       return {
         version: 1,
+        resetAt: toNonNegInt(parsed && parsed.resetAt),
         families: {
           gemini: sanitizeQuotaFamilyState("gemini", fams.gemini),
           claudeGpt: sanitizeQuotaFamilyState("claudeGpt", fams.claudeGpt),
@@ -706,6 +715,7 @@ function loadQuotaStore() {
   } catch {}
   return {
     version: 1,
+    resetAt: 0,
     families: {
       gemini: defaultQuotaFamilyState("gemini"),
       claudeGpt: defaultQuotaFamilyState("claudeGpt"),
@@ -716,6 +726,7 @@ function loadQuotaStore() {
 function saveQuotaStore(store) {
   const normalized = {
     version: 1,
+    resetAt: toNonNegInt(store && store.resetAt),
     families: {
       gemini: sanitizeQuotaFamilyState("gemini", store && store.families ? store.families.gemini : null),
       claudeGpt: sanitizeQuotaFamilyState("claudeGpt", store && store.families ? store.families.claudeGpt : null),
@@ -731,38 +742,135 @@ function saveQuotaStore(store) {
   return normalized;
 }
 
-function computeChatFamilyMetrics(chatKey, famId, fq, famState, nowMs) {
-  const pending5hWt = (famState.pending5hByChat && famState.pending5hByChat[chatKey]) || 0;
-  const pendingWeeklyWt = (famState.pendingWeeklyByChat && famState.pendingWeeklyByChat[chatKey]) || 0;
-  const estInc5h = pending5hWt / Math.max(2000, famState.tokensPer1Pct5h);
-  const estIncWeek = pendingWeeklyWt / Math.max(10000, famState.tokensPer1PctWeekly);
-  const fiveHourPct = fq.observedFiveHourPct > 0
-    ? toQuotaPct(fq.observedFiveHourPct + estInc5h)
-    : toQuotaPct(fq.estFiveHourPct);
-  const weeklyPct = fq.observedWeeklyPct > 0
-    ? toQuotaPct(fq.observedWeeklyPct + estIncWeek)
-    : toQuotaPct(fq.estWeeklyPct);
-  let windowEst = 0;
-  const recent = Array.isArray(fq.recentTurns) ? fq.recentTurns : [];
-  for (let i = 0; i < recent.length; i += 1) {
-    if (nowMs - recent[i].ts <= FIVE_HOUR_MS) {
-      windowEst += Number(recent[i].est5h) || 0;
+function parseResetDurationMs(rawStr) {
+  const s = String(rawStr || "").trim().toLowerCase();
+  if (!s) return 0;
+  let totalMs = 0;
+  const re = /(\\d+(?:[.,]\\d+)?)\\s*(?:дн[а-яё]*|д\\.?|days?|d\\b|час[а-яё]*|ч\\.?|hours?|hrs?|h\\b|мин[а-яё]*|м\\.?|minutes?|mins?|m\\b|сек[а-яё]*|с\\.?|seconds?|secs?|s\\b)/gi;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    const val = parseFloat(m[1].replace(",", "."));
+    if (!Number.isFinite(val) || val <= 0) continue;
+    const tok = m[0].replace(m[1], "").trim().toLowerCase();
+    if (tok.startsWith("д") || tok.startsWith("d")) totalMs += val * 86400000;
+    else if (tok.startsWith("ч") || tok.startsWith("h")) totalMs += val * 3600000;
+    else if (tok.startsWith("м") || tok.startsWith("m")) totalMs += val * 60000;
+    else if (tok.startsWith("с") || tok.startsWith("s")) totalMs += val * 1000;
+  }
+  return Math.round(totalMs);
+}
+
+function readTranscriptStepsCached(lp, mtimeMs, size) {
+  const cacheKey = lp + ":" + Math.round(mtimeMs) + ":" + size;
+  const cached = transcriptSummaryCache.get(cacheKey);
+  if (cached) return cached;
+  let steps = [];
+  let titleGuess = "";
+  try {
+    const raw = fs.readFileSync(lp, "utf8");
+    const lines = raw.split(/\\r?\\n/);
+    let runningCtxTok = 0;
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (!line) continue;
+      let o;
+      try { o = JSON.parse(line); } catch { continue; }
+      const ts = o.created_at ? Date.parse(o.created_at) : 0;
+      const contentStr = typeof o.content === "string" ? o.content : "";
+      const thinkStr = typeof o.thinking === "string" ? o.thinking : "";
+      const toolsStr = Array.isArray(o.tool_calls) ? JSON.stringify(o.tool_calls) : "";
+      if (!titleGuess && o.type === "USER_INPUT" && contentStr.trim()) {
+        const cleanU = contentStr.replace(/\\s+/g, " ").trim();
+        if (cleanU && !cleanU.startsWith("<")) {
+          titleGuess = cleanU.slice(0, 60);
+        }
+      }
+      const stepOutTok = Math.max(20, Math.round((contentStr.length + thinkStr.length + toolsStr.length) / 3.5));
+      if (o.type === "PLANNER_RESPONSE") {
+        const ctxTok = Math.min(120000, 10000 + runningCtxTok);
+        const stepUnits = Math.round(stepOutTok + ctxTok * 0.10);
+        steps.push({ ts: Number.isFinite(ts) && ts > 0 ? ts : mtimeMs, units: stepUnits });
+      }
+      runningCtxTok = Math.min(180000, runningCtxTok + Math.round((contentStr.length + toolsStr.length) / 3.5));
+    }
+  } catch {}
+  const entry = { steps, titleGuess, mtimeMs };
+  if (transcriptSummaryCache.size > 260) {
+    transcriptSummaryCache.clear();
+  }
+  transcriptSummaryCache.set(cacheKey, entry);
+  return entry;
+}
+
+function scanBrainTranscriptsQuota(weeklyStartMs, fiveHourStartMs, resetWatermarkMs) {
+  const out = new Map();
+  const brainDir = path.join(os.homedir(), ".gemini", "antigravity", "brain");
+  let entries;
+  try {
+    if (!fs.existsSync(brainDir)) return out;
+    entries = fs.readdirSync(brainDir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  const minCutoff = Math.max(resetWatermarkMs || 0, Math.min(weeklyStartMs, fiveHourStartMs));
+  for (let i = 0; i < entries.length; i += 1) {
+    const ent = entries[i];
+    if (!ent || !ent.isDirectory()) continue;
+    const chatId = normalizeChatKey(ent.name);
+    if (!chatId || chatId === "__new__") continue;
+    const lp = path.join(brainDir, ent.name, ".system_generated", "logs", "transcript.jsonl");
+    let st;
+    try {
+      if (!fs.existsSync(lp)) continue;
+      st = fs.statSync(lp);
+    } catch {
+      continue;
+    }
+    if (!st || !st.isFile() || st.size < 20 || st.mtimeMs < minCutoff) continue;
+    const parsed = readTranscriptStepsCached(lp, st.mtimeMs, st.size);
+    let unitsWeekly = 0;
+    let units5h = 0;
+    let stepsWeekly = 0;
+    let steps5h = 0;
+    let lastTs = 0;
+    for (let s = 0; s < parsed.steps.length; s += 1) {
+      const stp = parsed.steps[s];
+      if (stp.ts < (resetWatermarkMs || 0)) continue;
+      if (stp.ts > lastTs) lastTs = stp.ts;
+      if (stp.ts >= weeklyStartMs) {
+        unitsWeekly += stp.units;
+        stepsWeekly += 1;
+      }
+      if (stp.ts >= fiveHourStartMs) {
+        units5h += stp.units;
+        steps5h += 1;
+      }
+    }
+    if (stepsWeekly > 0 || steps5h > 0) {
+      out.set(chatId, {
+        chatKey: chatId,
+        unitsWeekly,
+        units5h,
+        stepsWeekly,
+        steps5h,
+        lastTs: lastTs || Math.round(st.mtimeMs),
+        titleGuess: parsed.titleGuess || "",
+      });
     }
   }
-  const fiveHourWindowPct = fq.observedFiveHourPct > 0
-    ? Math.max(toQuotaPct(windowEst), toQuotaPct(estInc5h))
-    : toQuotaPct(windowEst);
-  return {
-    family: famId,
-    turns: fq.turns,
-    weightedTokens: fq.weightedTokens,
-    fiveHourPct,
-    fiveHourWindowPct: Math.min(fiveHourPct, fiveHourWindowPct || fiveHourPct),
-    weeklyPct,
-    calibrated: fq.observedFiveHourPct > 0 || fq.observedWeeklyPct > 0 || famState.calibrated,
-    lastModel: fq.lastModel || "",
-    lastTurnAt: fq.lastTurnAt || 0,
-  };
+  return out;
+}
+
+function getFamilyCycleBounds(famState, nowMs) {
+  const wkRemMs = parseResetDurationMs(famState.weeklyReset);
+  const fhRemMs = parseResetDurationMs(famState.fiveHourReset);
+  const weeklyStartMs = wkRemMs > 0 && wkRemMs <= SEVEN_DAY_MS
+    ? nowMs - (SEVEN_DAY_MS - wkRemMs)
+    : nowMs - SEVEN_DAY_MS;
+  const fiveHourStartMs = fhRemMs > 0 && fhRemMs <= FIVE_HOUR_MS
+    ? nowMs - (FIVE_HOUR_MS - fhRemMs)
+    : nowMs - FIVE_HOUR_MS;
+  return { weeklyStartMs, fiveHourStartMs };
 }
 
 function buildQuotaSummary(activeChatKey) {
@@ -770,33 +878,118 @@ function buildQuotaSummary(activeChatKey) {
   const chats = loadStudioChats();
   const normActive = normalizeChatKey(activeChatKey);
   const nowMs = Date.now();
+  const resetWm = Math.max(store.resetAt || 0, store.families.gemini.resetAt || 0, store.families.claudeGpt.resetAt || 0);
+  const gemBounds = getFamilyCycleBounds(store.families.gemini, nowMs);
+  const claBounds = getFamilyCycleBounds(store.families.claudeGpt, nowMs);
+  const minWeeklyStart = Math.min(gemBounds.weeklyStartMs, claBounds.weeklyStartMs);
+  const minFiveStart = Math.min(gemBounds.fiveHourStartMs, claBounds.fiveHourStartMs);
+  const diskByChat = scanBrainTranscriptsQuota(minWeeklyStart, minFiveStart, resetWm);
+
+  const allKeys = new Set(Object.keys(chats));
+  for (const k of diskByChat.keys()) allKeys.add(k);
+
+  const familyTotals = {
+    gemini: { unitsWeekly: 0, units5h: 0 },
+    claudeGpt: { unitsWeekly: 0, units5h: 0 },
+  };
+  const chatMeta = new Map();
+
+  for (const key of allKeys) {
+    if (!key || key === "__new__") continue;
+    const rec = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord("");
+    const disk = diskByChat.get(key) || null;
+    const modelName = (rec.telemetry && rec.telemetry.modelName) || (rec.quota.claudeGpt.lastModel) || (rec.quota.gemini.lastModel) || "";
+    const hasCla = rec.quota.claudeGpt.turns > 0 || (modelName && classifyModelFamily(modelName) === "claudeGpt");
+    const primaryFamily = hasCla && rec.quota.claudeGpt.lastTurnAt >= rec.quota.gemini.lastTurnAt ? "claudeGpt" : "gemini";
+    const famWeight = Math.max(0.4, getModelQuotaWeight(modelName));
+
+    let unitsWeekly = 0;
+    let units5h = 0;
+    let turns = (rec.quota.gemini.turns || 0) + (rec.quota.claudeGpt.turns || 0);
+    if (disk) {
+      unitsWeekly = Math.round(disk.unitsWeekly * famWeight);
+      units5h = Math.round(disk.units5h * famWeight);
+      turns = Math.max(turns, disk.stepsWeekly || disk.steps5h || 0);
+    } else {
+      const fqPrimary = rec.quota[primaryFamily];
+      unitsWeekly = fqPrimary.weightedTokens || 0;
+      const recent = Array.isArray(fqPrimary.recentTurns) ? fqPrimary.recentTurns : [];
+      for (let i = 0; i < recent.length; i += 1) {
+        if (nowMs - recent[i].ts <= FIVE_HOUR_MS && recent[i].ts >= resetWm) {
+          units5h += recent[i].wt || 0;
+        }
+      }
+    }
+    familyTotals[primaryFamily].unitsWeekly += unitsWeekly;
+    familyTotals[primaryFamily].units5h += units5h;
+    chatMeta.set(key, { rec, disk, modelName, primaryFamily, unitsWeekly, units5h, turns });
+  }
+
+  const rates = {};
+  for (const famId of ["gemini", "claudeGpt"]) {
+    const fam = store.families[famId];
+    const totW = familyTotals[famId].unitsWeekly;
+    const tot5 = familyTotals[famId].units5h;
+    const usedW = fam.weeklyRem !== null ? Math.max(0, 100 - fam.weeklyRem) : null;
+    const used5 = fam.fiveHourRem !== null ? Math.max(0, 100 - fam.fiveHourRem) : null;
+    const impliedW = usedW !== null && usedW >= 0.5 && totW > 0
+      ? Math.round(clampNum(totW / usedW, 25000, 3000000, fam.tokensPer1PctWeekly))
+      : fam.tokensPer1PctWeekly;
+    const implied5 = used5 !== null && used5 >= 0.5 && tot5 > 0
+      ? Math.round(clampNum(tot5 / used5, 8000, 800000, fam.tokensPer1Pct5h))
+      : Math.max(15000, Math.round(impliedW * 0.22));
+    rates[famId] = {
+      usedWeeklyReal: usedW,
+      used5hReal: used5,
+      totW,
+      tot5,
+      unitsPer1PctWeekly: impliedW,
+      unitsPer1Pct5h: implied5,
+      calibrated: Boolean(fam.calibrated || (usedW !== null && totW > 0) || (used5 !== null && tot5 > 0)),
+    };
+  }
+
   const rows = [];
   let activeChatSummary = null;
+  for (const [key, info] of chatMeta.entries()) {
+    const { rec, disk, modelName, primaryFamily, unitsWeekly, units5h, turns } = info;
+    const rateInfo = rates[primaryFamily];
+    const famState = store.families[primaryFamily];
+    const fq = rec.quota[primaryFamily];
 
-  for (const key of Object.keys(chats)) {
-    const rec = sanitizeChatRecord(chats[key]);
-    const gMet = computeChatFamilyMetrics(key, "gemini", rec.quota.gemini, store.families.gemini, nowMs);
-    const cMet = computeChatFamilyMetrics(key, "claudeGpt", rec.quota.claudeGpt, store.families.claudeGpt, nowMs);
-    const totalTurns = gMet.turns + cMet.turns;
-    const hasActivity = totalTurns > 0 || gMet.fiveHourPct > 0 || gMet.weeklyPct > 0 || cMet.fiveHourPct > 0 || cMet.weeklyPct > 0;
-    const dominant = cMet.lastTurnAt > gMet.lastTurnAt || (cMet.turns > 0 && gMet.turns === 0) ? cMet : gMet;
-    const combinedFiveHour = toQuotaPct(gMet.fiveHourPct + cMet.fiveHourPct);
-    const combinedWeekly = toQuotaPct(gMet.weeklyPct + cMet.weeklyPct);
-    const combinedWindow5h = toQuotaPct(gMet.fiveHourWindowPct + cMet.fiveHourWindowPct);
+    let weeklyPct = 0;
+    if (rateInfo.usedWeeklyReal !== null && rateInfo.totW > 0 && unitsWeekly > 0) {
+      weeklyPct = toQuotaPct(rateInfo.usedWeeklyReal * (unitsWeekly / rateInfo.totW));
+    } else if (unitsWeekly > 0) {
+      weeklyPct = toQuotaPct(unitsWeekly / Math.max(20000, rateInfo.unitsPer1PctWeekly));
+    }
+    if (fq.observedWeeklyPct > weeklyPct) weeklyPct = fq.observedWeeklyPct;
+
+    let fiveHourWindowPct = 0;
+    if (rateInfo.used5hReal !== null && rateInfo.tot5 > 0 && units5h > 0) {
+      fiveHourWindowPct = toQuotaPct(rateInfo.used5hReal * (units5h / rateInfo.tot5));
+    } else if (units5h > 0) {
+      fiveHourWindowPct = toQuotaPct(units5h / Math.max(8000, rateInfo.unitsPer1Pct5h));
+    }
+    const fiveHourPct = Math.max(fiveHourWindowPct, fq.observedFiveHourPct || 0);
+
+    const hasActivity = turns > 0 || unitsWeekly > 0 || units5h > 0 || fiveHourPct > 0 || weeklyPct > 0;
+    const displayTitle = rec.title || (disk && disk.titleGuess) || modelName || key.slice(0, 12);
+    const updatedAt = Math.max(rec.updatedAt || 0, (disk && disk.lastTs) || 0, fq.lastTurnAt || 0);
     const item = {
       chatKey: key,
-      title: rec.title || (rec.telemetry && rec.telemetry.modelName) || key.slice(0, 12),
-      modelName: (rec.telemetry && rec.telemetry.modelName) || dominant.lastModel || "",
-      primaryFamily: dominant.family,
-      turns: totalTurns,
-      weightedTokens: gMet.weightedTokens + cMet.weightedTokens,
-      fiveHourPct: combinedFiveHour,
-      fiveHourWindowPct: combinedWindow5h,
-      weeklyPct: combinedWeekly,
-      calibrated: gMet.calibrated || cMet.calibrated,
-      updatedAt: Math.max(rec.updatedAt || 0, gMet.lastTurnAt || 0, cMet.lastTurnAt || 0),
-      gemini: gMet,
-      claudeGpt: cMet,
+      title: displayTitle,
+      modelName,
+      primaryFamily,
+      turns,
+      weightedTokens: Math.max(unitsWeekly, fq.weightedTokens || 0),
+      fiveHourPct: toQuotaPct(fiveHourPct),
+      fiveHourWindowPct: toQuotaPct(Math.min(100, fiveHourWindowPct)),
+      weeklyPct: toQuotaPct(Math.min(100, weeklyPct)),
+      calibrated: rateInfo.calibrated || Boolean(famState.calibrated),
+      updatedAt,
+      gemini: primaryFamily === "gemini" ? { fiveHourPct, weeklyPct, turns } : { fiveHourPct: 0, weeklyPct: 0, turns: 0 },
+      claudeGpt: primaryFamily === "claudeGpt" ? { fiveHourPct, weeklyPct, turns } : { fiveHourPct: 0, weeklyPct: 0, turns: 0 },
     };
     if (key === normActive) {
       activeChatSummary = item;
@@ -807,8 +1000,8 @@ function buildQuotaSummary(activeChatKey) {
   }
 
   rows.sort((a, b) => {
-    const scoreA = a.fiveHourPct * 3 + a.weeklyPct + (a.chatKey === normActive ? 0.0001 : 0);
-    const scoreB = b.fiveHourPct * 3 + b.weeklyPct + (b.chatKey === normActive ? 0.0001 : 0);
+    const scoreA = a.fiveHourWindowPct * 3 + a.weeklyPct + (a.chatKey === normActive ? 0.0001 : 0);
+    const scoreB = b.fiveHourWindowPct * 3 + b.weeklyPct + (b.chatKey === normActive ? 0.0001 : 0);
     if (Math.abs(scoreB - scoreA) > 0.0005) return scoreB - scoreA;
     return (b.updatedAt || 0) - (a.updatedAt || 0);
   });
@@ -821,9 +1014,9 @@ function buildQuotaSummary(activeChatKey) {
         weeklyReset: store.families.gemini.weeklyReset,
         fiveHourReset: store.families.gemini.fiveHourReset,
         updatedAt: store.families.gemini.updatedAt,
-        calibrated: store.families.gemini.calibrated,
-        tokensPer1Pct5h: store.families.gemini.tokensPer1Pct5h,
-        tokensPer1PctWeekly: store.families.gemini.tokensPer1PctWeekly,
+        calibrated: rates.gemini.calibrated,
+        tokensPer1Pct5h: rates.gemini.unitsPer1Pct5h,
+        tokensPer1PctWeekly: rates.gemini.unitsPer1PctWeekly,
       },
       claudeGpt: {
         weeklyRem: store.families.claudeGpt.weeklyRem,
@@ -831,9 +1024,9 @@ function buildQuotaSummary(activeChatKey) {
         weeklyReset: store.families.claudeGpt.weeklyReset,
         fiveHourReset: store.families.claudeGpt.fiveHourReset,
         updatedAt: store.families.claudeGpt.updatedAt,
-        calibrated: store.families.claudeGpt.calibrated,
-        tokensPer1Pct5h: store.families.claudeGpt.tokensPer1Pct5h,
-        tokensPer1PctWeekly: store.families.claudeGpt.tokensPer1PctWeekly,
+        calibrated: rates.claudeGpt.calibrated,
+        tokensPer1Pct5h: rates.claudeGpt.unitsPer1Pct5h,
+        tokensPer1PctWeekly: rates.claudeGpt.unitsPer1PctWeekly,
       },
     },
     activeChat: activeChatSummary,
@@ -1278,6 +1471,7 @@ function registerI18nIpc() {
     const chats = loadStudioChats();
     let changed = false;
     const migrateKey = normalizeChatKey(p.migrateFromKey);
+    const fb = p.fallbackPersona && typeof p.fallbackPersona === "object" ? p.fallbackPersona : null;
     if (!chats[key] && migrateKey !== "__new__" && migrateKey !== key && migrateKey.startsWith("chat-") && chats[migrateKey]) {
       chats[key] = sanitizeChatRecord(Object.assign({}, chats[migrateKey], {
         title: titleStr || chats[migrateKey].title || "",
@@ -1290,6 +1484,24 @@ function registerI18nIpc() {
       chats[key] = sanitizeChatRecord(Object.assign({}, promo, {
         title: titleStr || (typeof promo.title === "string" ? promo.title : ""),
         updatedAt: Date.now(),
+      }));
+      changed = true;
+    } else if (!chats[key] && fb && fb.personaEnabled && typeof fb.personaText === "string" && fb.personaText.trim()) {
+      chats[key] = sanitizeChatRecord({
+        title: titleStr,
+        updatedAt: Date.now(),
+        personaEnabled: true,
+        personaActivePreset: typeof fb.personaActivePreset === "string" ? fb.personaActivePreset : "custom",
+        personaText: fb.personaText,
+      });
+      changed = true;
+    } else if (chats[key] && fb && fb.personaEnabled && typeof fb.personaText === "string" && fb.personaText.trim() && !chats[key].personaEnabled) {
+      chats[key] = sanitizeChatRecord(Object.assign({}, chats[key], {
+        title: titleStr || chats[key].title || "",
+        updatedAt: Date.now(),
+        personaEnabled: true,
+        personaActivePreset: typeof fb.personaActivePreset === "string" ? fb.personaActivePreset : (chats[key].personaActivePreset || "custom"),
+        personaText: fb.personaText,
       }));
       changed = true;
     } else if (chats[key] && titleStr && !chats[key].title) {
@@ -1442,6 +1654,31 @@ function registerI18nIpc() {
     } catch {}
     return { ok: true, items };
   });
+  ipcMain.handle("agy-studio:read-media", async (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const targetUrl = typeof p.mediaUrl === "string" && p.mediaUrl.trim()
+      ? p.mediaUrl.trim()
+      : (typeof p.fileName === "string" && p.fileName.trim() ? "agy-media://local/" + encodeURIComponent(p.fileName.trim()) : "");
+    const resolved = resolveSafeMediaFile(targetUrl);
+    if (!resolved) {
+      return { ok: false, error: "MEDIA_NOT_FOUND" };
+    }
+    if (resolved.size > 64 * 1024 * 1024) {
+      return { ok: false, fallbackToScheme: true, size: resolved.size };
+    }
+    try {
+      const buf = await fs.promises.readFile(resolved.fullPath);
+      return {
+        ok: true,
+        fileName: resolved.fileName,
+        mime: resolved.mime,
+        size: resolved.size,
+        bytes: new Uint8Array(buf),
+      };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "READ_FAILED" };
+    }
+  });
   ipcMain.handle("agy-studio:delete-media", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
     const name = typeof p.fileName === "string" ? path.basename(p.fileName.trim()) : "";
@@ -1499,7 +1736,7 @@ function registerI18nIpc() {
         includeArtifacts: p.includeArtifacts !== false,
         includePersona: p.includePersona !== false,
         includeFullLog: Boolean(p.includeFullLog),
-        pluginVersion: (meta && meta.pluginVersion) || "3.0.0",
+        pluginVersion: (meta && meta.pluginVersion) || "3.0.2",
         outPath,
       });
       return res;
@@ -1535,13 +1772,13 @@ function registerI18nIpc() {
     const contextTok = toNonNegInt(p.contextTokens);
     const famId = classifyModelFamily(modelName);
     const weight = getModelQuotaWeight(modelName);
-    const wt = Math.max(1, Math.round((Math.max(1, outputTok) + contextTok * 0.25) * weight));
+    const wt = Math.max(100, Math.round((Math.max(20, outputTok) + 4500 + contextTok * 0.25) * weight));
     const now = Date.now();
 
     const store = loadQuotaStore();
     const famState = store.families[famId];
-    const inc5h = wt / Math.max(2000, famState.tokensPer1Pct5h);
-    const incWeek = wt / Math.max(10000, famState.tokensPer1PctWeekly);
+    const inc5h = wt / Math.max(5000, famState.tokensPer1Pct5h);
+    const incWeek = wt / Math.max(20000, famState.tokensPer1PctWeekly);
 
     const chats = loadStudioChats();
     const prev = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(titleStr);
@@ -1592,7 +1829,7 @@ function registerI18nIpc() {
           const res5h = applyQuotaDropForWindow(famId, drop5h, famState.pending5hByChat, chats, activeKey, false);
           if (res5h.distributed && res5h.totalPending > 0 && drop5h >= 0.5) {
             const observedRate = res5h.totalPending / Math.max(0.2, drop5h);
-            famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * 0.65 + observedRate * 0.35, 2000, 500000, famState.tokensPer1Pct5h));
+            famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * 0.65 + observedRate * 0.35, 5000, 1000000, famState.tokensPer1Pct5h));
             famState.calibrated = true;
           }
           famState.pending5hByChat = {};
@@ -1609,7 +1846,7 @@ function registerI18nIpc() {
           const resW = applyQuotaDropForWindow(famId, dropWeek, famState.pendingWeeklyByChat, chats, activeKey, true);
           if (resW.distributed && resW.totalPending > 0 && dropWeek >= 0.5) {
             const observedRateW = resW.totalPending / Math.max(0.2, dropWeek);
-            famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * 0.65 + observedRateW * 0.35, 10000, 2500000, famState.tokensPer1PctWeekly));
+            famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * 0.65 + observedRateW * 0.35, 20000, 5000000, famState.tokensPer1PctWeekly));
             famState.calibrated = true;
           }
           famState.pendingWeeklyByChat = {};
@@ -1640,8 +1877,12 @@ function registerI18nIpc() {
   ipcMain.handle("agy-studio:reset-quota-stats", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
     const store = loadQuotaStore();
+    const resetAt = Date.now();
+    store.resetAt = resetAt;
+    store.families.gemini.resetAt = resetAt;
     store.families.gemini.pending5hByChat = {};
     store.families.gemini.pendingWeeklyByChat = {};
+    store.families.claudeGpt.resetAt = resetAt;
     store.families.claudeGpt.pending5hByChat = {};
     store.families.claudeGpt.pendingWeeklyByChat = {};
     saveQuotaStore(store);

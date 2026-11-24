@@ -713,6 +713,7 @@ function createEmptyTelemetry() {
     prevUserCount: 0,
     firstUserNorm: "",
     unconfirmedGrowthTicks: 0,
+    growthTicks: 0,
     tpsBuckets: [],
     wasGenerating: false,
     dirty: false,
@@ -866,6 +867,60 @@ function formatBytesCompact(bytes) {
   return b + " B";
 }
 
+function extractPctForLabel(slice, labelRe, crossBoundaryRe) {
+  let m;
+  const globalLabel = new RegExp(labelRe.source, "gi");
+  while ((m = globalLabel.exec(slice)) !== null) {
+    const startIdx = m.index;
+    const afterLabel = slice.slice(m.index + m[0].length, m.index + m[0].length + 240);
+    const beforeSlice = slice.slice(Math.max(0, startIdx - 140), startIdx);
+    const pctM = /(\d{1,3}(?:[.,]\d+)?)\s*%/.exec(afterLabel);
+    const sameLineAfter = pctM && !/[\r\n]/.test(afterLabel.slice(0, pctM.index)) && !crossBoundaryRe.test(afterLabel.slice(0, pctM.index));
+
+    const revMatches = [];
+    const pctGlobal = /(\d{1,3}(?:[.,]\d+)?)\s*%/g;
+    let pm;
+    while ((pm = pctGlobal.exec(beforeSlice)) !== null) revMatches.push(pm);
+    const lastPm = revMatches.length > 0 ? revMatches[revMatches.length - 1] : null;
+    const gapBefore = lastPm ? beforeSlice.slice(lastPm.index + lastPm[0].length) : "";
+    const sameLineBefore = lastPm && !/[\r\n]/.test(gapBefore) && !crossBoundaryRe.test(gapBefore);
+
+    if (sameLineAfter) {
+      const val = parseFloat(pctM[1].replace(",", "."));
+      if (Number.isFinite(val) && val >= 0 && val <= 100) {
+        const resetSlice = afterLabel.slice(pctM.index, pctM.index + pctM[0].length + 120);
+        const rM = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(resetSlice);
+        return { val, reset: rM ? rM[1].trim() : "" };
+      }
+    }
+    if (sameLineBefore) {
+      const val = parseFloat(lastPm[1].replace(",", "."));
+      if (Number.isFinite(val) && val >= 0 && val <= 100) {
+        const resetAfter = afterLabel.slice(0, 120);
+        const rM2 = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(resetAfter);
+        return { val, reset: rM2 ? rM2[1].trim() : "" };
+      }
+    }
+    if (pctM && !crossBoundaryRe.test(afterLabel.slice(0, pctM.index))) {
+      const val = parseFloat(pctM[1].replace(",", "."));
+      if (Number.isFinite(val) && val >= 0 && val <= 100) {
+        const resetSlice = afterLabel.slice(pctM.index, pctM.index + pctM[0].length + 120);
+        const rM = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(resetSlice);
+        return { val, reset: rM ? rM[1].trim() : "" };
+      }
+    }
+    if (lastPm && !crossBoundaryRe.test(gapBefore)) {
+      const val = parseFloat(lastPm[1].replace(",", "."));
+      if (Number.isFinite(val) && val >= 0 && val <= 100) {
+        const resetAfter = afterLabel.slice(0, 120);
+        const rM2 = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(resetAfter);
+        return { val, reset: rM2 ? rM2[1].trim() : "" };
+      }
+    }
+  }
+  return null;
+}
+
 function parseQuotaSectionFromSlice(slice) {
   if (!slice) return null;
   let weeklyRem = null;
@@ -873,31 +928,45 @@ function parseQuotaSectionFromSlice(slice) {
   let weeklyReset = "";
   let fiveHourReset = "";
 
-  const wkRe = /(?:weekly\s+limit(?:\s+remaining)?|остаток\s+недельн[а-яё]*\s+лимит[а-яё]*|недельн[а-яё]*\s+лимит(?:\s+осталось)?|осталось\s+за\s+недел[а-яё]*)[\s\S]{0,180}?(\d{1,3}(?:[.,]\d+)?)\s*%/i;
-  const wkM = wkRe.exec(slice);
-  if (wkM) {
-    const val = parseFloat(wkM[1].replace(",", "."));
-    if (Number.isFinite(val) && val >= 0 && val <= 100) weeklyRem = val;
-    const afterWk = slice.slice(wkM.index + wkM[0].length, wkM.index + wkM[0].length + 120);
-    const rM = /(?:refresh(?:ed)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(afterWk);
+  const wkLabelRe = /(?:weekly\s+limit(?:\s+remaining)?|остаток\s+недельн[а-яё]*\s+лимит[а-яё]*|недельн[а-яё]*\s+лимит(?:\s+осталось|\s+исчерпан)?|осталось\s+за\s+недел[а-яё]*)/i;
+  const wkCrossRe = /(?:five\s*hour|5[-\s]*hour|5[-\s]*часов|пяти[-\s]*часов|gemini\s+models|claude\s*(?:and|и)\s*gpt)/i;
+  const wkUnusedM = /(?:not\s+used\s+any\s+of\s+your\s+weekly\s+limit|ещё\s+не\s+расходовали\s+недельн[а-яё]*\s+лимит)[\s\S]{0,120}/i.exec(slice);
+  if (wkUnusedM) {
+    weeklyRem = 100;
+    const rM = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(wkUnusedM[0]);
     if (rM) weeklyReset = rM[1].trim();
+  } else {
+    const wkHit = extractPctForLabel(slice, wkLabelRe, wkCrossRe);
+    if (wkHit) {
+      weeklyRem = wkHit.val;
+      weeklyReset = wkHit.reset;
+    } else if (/(?:used\s+all\s+of|reached|exhausted)\s+your\s+weekly\s+limit|исчерпали\s+недельн[а-яё]*\s+лимит/i.test(slice)) {
+      weeklyRem = 0;
+    }
   }
 
-  const fhRe = /(?:(?:five\s*hour|5[-\s]*hour)\s+limit(?:\s+remaining)?|остаток\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит[а-яё]*|(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит(?:\s+осталось)?|осталось\s+за\s+5\s*ч[а-яё]*)[\s\S]{0,180}?(\d{1,3}(?:[.,]\d+)?)\s*%/i;
-  const fhM = fhRe.exec(slice);
-  if (fhM) {
-    const val = parseFloat(fhM[1].replace(",", "."));
-    if (Number.isFinite(val) && val >= 0 && val <= 100) fiveHourRem = val;
-    const afterFh = slice.slice(fhM.index + fhM[0].length, fhM.index + fhM[0].length + 120);
-    const rM2 = /(?:refresh(?:ed)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(afterFh);
+  const fhLabelRe = /(?:(?:five\s*hour|5[-\s]*hour)\s+limit(?:\s+remaining)?|остаток\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит[а-яё]*|(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит(?:\s+осталось|\s+исчерпан)?|осталось\s+за\s+5\s*ч[а-яё]*|\b5ч\s+лимит)/i;
+  const fhCrossRe = /(?:weekly\s+limit|недельн[а-яё]*\s+лимит|gemini\s+models|claude\s*(?:and|и)\s*gpt)/i;
+  const fhUnusedM = /(?:not\s+used\s+any\s+of\s+your\s+(?:5-hour|five[- ]hour)\s+limit|ещё\s+не\s+расходовали\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит)[\s\S]{0,120}/i.exec(slice);
+  if (fhUnusedM) {
+    fiveHourRem = 100;
+    const rM2 = /(?:refresh(?:ed|ing)?\s+in|reset[a-z]*\s+in|обнов[а-яё]*\s+через|сброс[а-яё]*\s+через)\s+([^\n\r•·]{2,48})/i.exec(fhUnusedM[0]);
     if (rM2) fiveHourReset = rM2[1].trim();
+  } else {
+    const fhHit = extractPctForLabel(slice, fhLabelRe, fhCrossRe);
+    if (fhHit) {
+      fiveHourRem = fhHit.val;
+      fiveHourReset = fhHit.reset;
+    } else if (/(?:used\s+all\s+of|reached|exhausted)\s+your\s+(?:5-hour|five[- ]hour)\s+limit|исчерпали\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит/i.test(slice)) {
+      fiveHourRem = 0;
+    }
   }
 
   if (weeklyRem === null && fiveHourRem === null) return null;
   return { weeklyRem, fiveHourRem, weeklyReset, fiveHourReset };
 }
 
-function parseQuotaFromDocumentText(fullText) {
+function parseQuotaFromDocumentText(fullText, activeModelName) {
   const txt = String(fullText || "");
   if (!txt || txt.length < 20) return null;
   if (!/limit\s+remaining|weekly\s+limit|five\s*hour|5[-\s]*hour|остаток\s+(?:недельн|5|пяти)|недельн[а-яё]*\s+лимит|пятичас|5[-\s]*часов/i.test(txt)) {
@@ -921,8 +990,8 @@ function parseQuotaFromDocumentText(fullText) {
   let gemini = null;
   for (let i = gemIdxs.length - 1; i >= 0; i -= 1) {
     const start = gemIdxs[i];
-    const nextCla = claIdxs.find((c) => c > start && c - start < 800);
-    const end = nextCla ? nextCla : start + 560;
+    const nextCla = claIdxs.find((c) => c > start && c - start < 2400);
+    const end = nextCla ? nextCla : start + 2400;
     const parsed = parseQuotaSectionFromSlice(txt.slice(start, end));
     if (parsed) {
       gemini = parsed;
@@ -933,12 +1002,21 @@ function parseQuotaFromDocumentText(fullText) {
   let claudeGpt = null;
   for (let i = claIdxs.length - 1; i >= 0; i -= 1) {
     const start = claIdxs[i];
-    const nextGem = gemIdxs.find((g) => g > start && g - start < 800);
-    const end = nextGem ? nextGem : start + 560;
+    const nextGem = gemIdxs.find((g) => g > start && g - start < 2400);
+    const end = nextGem ? nextGem : start + 2400;
     const parsed = parseQuotaSectionFromSlice(txt.slice(start, end));
     if (parsed) {
       claudeGpt = parsed;
       break;
+    }
+  }
+
+  if (!gemini && !claudeGpt) {
+    const fallbackParsed = parseQuotaSectionFromSlice(txt.slice(-3000));
+    if (fallbackParsed) {
+      const isCla = /claude|sonnet|opus|haiku|gpt|openai/i.test(String(activeModelName || ""));
+      if (isCla) claudeGpt = fallbackParsed;
+      else gemini = fallbackParsed;
     }
   }
 
@@ -2171,8 +2249,59 @@ function createStudioPanel(options) {
   const ipc = opts.ipcRenderer || null;
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "3.0.1", dictEntries: 4017, dynamicRulesCount: 471 };
-  const themeEngine = opts.themeEngine || (typeof createThemeEngine === "function" ? createThemeEngine({ document: doc, window: win }) : null);
+    : { version: "3.0.2", dictEntries: 4017, dynamicRulesCount: 471 };
+  const mediaBlobCache = new Map();
+  const mediaLoadInflight = new Set();
+
+  function invokeIpc(channel, payload) {
+    if (!ipc || typeof ipc.invoke !== "function") return Promise.resolve(null);
+    try {
+      return Promise.resolve(ipc.invoke(channel, payload)).catch(() => null);
+    } catch (_e) {
+      return Promise.resolve(null);
+    }
+  }
+
+  function extractMediaFileName(fileName, mediaUrl) {
+    if (typeof fileName === "string" && fileName.trim()) return fileName.trim();
+    const s = String(mediaUrl || "").trim();
+    if (s.startsWith("agy-media://local/")) {
+      try { return decodeURIComponent(s.slice("agy-media://local/".length)); } catch (_e) {}
+    }
+    return "";
+  }
+
+  function resolveStudioMediaUrl(fileName, mediaUrl) {
+    const key = extractMediaFileName(fileName, mediaUrl);
+    if (!key) return mediaUrl || "";
+    const cached = mediaBlobCache.get(key);
+    if (cached) return cached;
+    if (!mediaLoadInflight.has(key) && ipc && win && typeof win.Blob === "function" && win.URL && typeof win.URL.createObjectURL === "function") {
+      mediaLoadInflight.add(key);
+      invokeIpc("agy-studio:read-media", { fileName: key, mediaUrl }).then((res) => {
+        mediaLoadInflight.delete(key);
+        if (state.destroyed || !res || !res.ok || !res.bytes) return;
+        try {
+          const blob = new win.Blob([res.bytes], { type: res.mime || "application/octet-stream" });
+          const blobUrl = win.URL.createObjectURL(blob);
+          const old = mediaBlobCache.get(key);
+          if (old && old !== blobUrl && typeof win.URL.revokeObjectURL === "function") {
+            try { win.URL.revokeObjectURL(old); } catch (_e) {}
+          }
+          mediaBlobCache.set(key, blobUrl);
+          if (state.mounted) {
+            applyThemeToHost(state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance);
+            if (state.isOpen && state.activeTab === "appearance" && modalMountEl) {
+              setLiveSlot(modalMountEl, '[data-live="appearancePreview"]', buildAppearancePreviewHtml(state.appearanceDraft), true);
+            }
+          }
+        } catch (_e) {}
+      });
+    }
+    return mediaUrl || "";
+  }
+
+  const themeEngine = opts.themeEngine || (typeof createThemeEngine === "function" ? createThemeEngine({ document: doc, window: win, resolveMediaUrl: resolveStudioMediaUrl }) : null);
 
   const state = {
     initialized: false,
@@ -2188,6 +2317,8 @@ function createStudioPanel(options) {
     hasActivatedChat: false,
     hydrationIgnoreUntil: 0,
     pendingNewSendAt: 0,
+    lastCancelClickAt: 0,
+    lastPromotedPersona: null,
     lastTempKey: "",
     lastTempKeyAt: 0,
     lastTempFirstUserNorm: "",
@@ -2248,6 +2379,7 @@ function createStudioPanel(options) {
   let modalMountEl = null;
   let pollTimer = null;
   let repaintTimer = null;
+  let streamSampleTimer = null;
   let readyTimer = null;
   let settleTimer = null;
   let readyObserver = null;
@@ -2255,6 +2387,7 @@ function createStudioPanel(options) {
   let themeObserver = null;
   let toastTimer = null;
   let keydownHandler = null;
+  let cancelClickHandler = null;
   let resizeHandler = null;
   let focusSyncHandler = null;
   let dragState = null;
@@ -2352,33 +2485,6 @@ function createStudioPanel(options) {
         if (el) el.textContent = "";
       }, 3200);
     }
-  }
-
-  function invokeIpc(channel, payload) {
-    if (!ipc || typeof ipc.invoke !== "function") return Promise.resolve(null);
-    try {
-      return Promise.resolve(ipc.invoke(channel, payload)).catch(() => null);
-    } catch (_e) {
-      return Promise.resolve(null);
-    }
-  }
-
-  function applyThemeToHost(appCfg) {
-    if (!themeEngine || typeof themeEngine.apply !== "function") return;
-    try {
-      themeEngine.apply(appCfg || state.settings.appearance);
-    } catch (_e) {}
-  }
-
-  function buildAppearancePreviewHtml(appCfg) {
-    const cfg = spNormalizeAppearance(appCfg || state.appearanceDraft);
-    if (themeEngine && typeof themeEngine.buildPreviewMarkup === "function") {
-      return themeEngine.buildPreviewMarkup(cfg, state.locale);
-    }
-    const preset = spFindThemePreset(cfg.presetId);
-    const v = cfg.presetId === "custom" ? { accentColor: cfg.accentColor, canvasBg: cfg.canvasBg, cardBg: cfg.cardBg } : preset.vars;
-    const isRu = state.locale !== "en";
-    return `<div style="padding:12px;border-radius:10px;background:${escAttr(v.canvasBg)};border:1px solid ${escAttr(v.accentColor)};color:#f1f2f6;font-size:12px">${escHtml(isRu ? preset.nameRu : preset.nameEn)} · ${escHtml(cfg.wallpaper.type)}</div>`;
   }
 
   function saveSettingsPatch(patch) {
@@ -2499,24 +2605,132 @@ function createStudioPanel(options) {
     return "";
   }
 
-  function findActiveSidebarKeyParts() {
+  function extractKeyPartsFromEl(el) {
+    if (!el || typeof el.getAttribute !== "function") return { uuid: "", stable: "" };
+    const attrs = ["data-conversation-id", "data-cascade-id", "data-session-id", "data-chat-id", "href", "id", "data-testid"];
+    let stable = "";
+    for (let a = 0; a < attrs.length; a += 1) {
+      const v = el.getAttribute(attrs[a]) || "";
+      if (!v) continue;
+      const u = extractUuid(v);
+      if (u) return { uuid: u, stable: u };
+      if (!stable && (attrs[a] === "href" || attrs[a] === "id" || attrs[a].startsWith("data-"))) {
+        stable = attrs[a] + "=" + v;
+      }
+    }
+    return { uuid: "", stable };
+  }
+
+  function isUiOverlayNode(el) {
+    if (!el) return false;
+    if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) return true;
+    if (typeof el.closest === "function" && el.closest('[role="dialog"], [role="alertdialog"], [role="menu"], [role="tablist"]')) {
+      return true;
+    }
+    return false;
+  }
+
+  function findActiveSidebarKeyParts(activeTitle) {
     if (!doc || typeof doc.querySelectorAll !== "function") return { uuid: "", stable: "" };
     try {
-      const nodes = doc.querySelectorAll('[data-conversation-id], [data-cascade-id], [data-session-id], [data-chat-id], [aria-current="page"], [aria-selected="true"], [data-active="true"], [data-state="active"]');
-      if (!nodes) return { uuid: "", stable: "" };
+      const activeNodes = doc.querySelectorAll('[aria-current="page"], [aria-current="true"], [aria-selected="true"], [data-active="true"], [data-selected="true"], [data-state="active"]');
       let stable = "";
-      for (let i = 0; i < nodes.length; i += 1) {
-        const el = nodes[i];
-        if (!el || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(el))) continue;
-        if (typeof el.getAttribute !== "function") continue;
-        const attrs = ["data-conversation-id", "data-cascade-id", "data-session-id", "data-chat-id", "href", "id", "data-testid"];
-        for (let a = 0; a < attrs.length; a += 1) {
-          const v = el.getAttribute(attrs[a]) || "";
-          if (!v) continue;
-          const u = extractUuid(v);
-          if (u) return { uuid: u, stable: u };
-          if (!stable && (attrs[a] === "href" || attrs[a] === "id" || attrs[a].startsWith("data-"))) {
-            stable = attrs[a] + "=" + v;
+      for (let i = 0; activeNodes && i < activeNodes.length; i += 1) {
+        const el = activeNodes[i];
+        if (!el || isUiOverlayNode(el)) continue;
+        const pSelf = extractKeyPartsFromEl(el);
+        if (pSelf.uuid) return pSelf;
+        if (!stable && pSelf.stable) stable = pSelf.stable;
+        if (typeof el.closest === "function") {
+          const anc = el.closest('[data-conversation-id], [data-cascade-id], [data-session-id], [data-chat-id], a[href]');
+          if (anc && !isUiOverlayNode(anc)) {
+            const pAnc = extractKeyPartsFromEl(anc);
+            if (pAnc.uuid) return pAnc;
+            if (!stable && pAnc.stable) stable = pAnc.stable;
+          }
+        }
+        if (typeof el.querySelector === "function") {
+          const desc = el.querySelector('[data-conversation-id], [data-cascade-id], [data-session-id], [data-chat-id], a[href]');
+          if (desc && !isUiOverlayNode(desc)) {
+            const pDesc = extractKeyPartsFromEl(desc);
+            if (pDesc.uuid) return pDesc;
+          }
+        }
+      }
+
+      const mainArea = typeof doc.querySelector === "function"
+        ? doc.querySelector('main, [data-testid="chat-container"], [data-testid="conversation-view"]')
+        : null;
+      if (mainArea && typeof mainArea.querySelector === "function") {
+        const mainConv = mainArea.querySelector('[data-conversation-id], [data-cascade-id], [data-session-id], [data-chat-id]');
+        if (mainConv && !isUiOverlayNode(mainConv)) {
+          const pMain = extractKeyPartsFromEl(mainConv);
+          if (pMain.uuid) return pMain;
+          if (!stable && pMain.stable) stable = pMain.stable;
+        }
+      }
+
+      const rows = doc.querySelectorAll('[data-conversation-id], [data-cascade-id], [data-session-id], [data-chat-id]');
+      if (rows && rows.length > 0) {
+        for (let i = 0; i < rows.length; i += 1) {
+          const r = rows[i];
+          if (!r || isUiOverlayNode(r)) continue;
+          const cls = typeof r.className === "string" ? r.className : "";
+          const ariaSel = typeof r.getAttribute === "function" ? (r.getAttribute("aria-selected") || r.getAttribute("data-active") || r.getAttribute("data-state") || "") : "";
+          if (/\b(?:active|selected|current)\b/i.test(cls) || ariaSel === "true" || ariaSel === "active") {
+            const pCls = extractKeyPartsFromEl(r);
+            if (pCls.uuid) return pCls;
+          }
+        }
+        if (win && typeof win.getComputedStyle === "function" && rows.length >= 2) {
+          const bgCounts = new Map();
+          const rowStyles = [];
+          for (let i = 0; i < Math.min(rows.length, 40); i += 1) {
+            const r = rows[i];
+            if (!r || isUiOverlayNode(r)) continue;
+            const bg = String(win.getComputedStyle(r).backgroundColor || "").trim();
+            rowStyles.push({ r, bg });
+            bgCounts.set(bg, (bgCounts.get(bg) || 0) + 1);
+          }
+          let majorityBg = "";
+          let majorityCnt = 0;
+          bgCounts.forEach((cnt, bg) => {
+            if (cnt > majorityCnt) { majorityCnt = cnt; majorityBg = bg; }
+          });
+          const distinctActive = [];
+          for (let i = 0; i < rowStyles.length; i += 1) {
+            const bg = rowStyles[i].bg;
+            if (!bg || bg === majorityBg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") continue;
+            distinctActive.push(rowStyles[i].r);
+          }
+          if (distinctActive.length === 1) {
+            const pBg = extractKeyPartsFromEl(distinctActive[0]);
+            if (pBg.uuid) return pBg;
+          }
+        }
+        if (activeTitle) {
+          const normActiveTitle = cleanTitleStr(activeTitle).toLowerCase();
+          if (normActiveTitle) {
+            const titleMatches = [];
+            for (let i = 0; i < Math.min(rows.length, 40); i += 1) {
+              const r = rows[i];
+              if (!r || isUiOverlayNode(r)) continue;
+              const rawTxt = (r.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+              if (!rawTxt) continue;
+              if (rawTxt.includes(normActiveTitle)) {
+                titleMatches.push({ r, rawTxt });
+              }
+            }
+            if (titleMatches.length === 1) {
+              const pTm = extractKeyPartsFromEl(titleMatches[0].r);
+              if (pTm.uuid) return pTm;
+            } else if (titleMatches.length > 1) {
+              const justNowMatch = titleMatches.find((m) => /\b(?:just now|now)\b|сейчас/i.test(m.rawTxt));
+              if (justNowMatch) {
+                const pJn = extractKeyPartsFromEl(justNowMatch.r);
+                if (pJn.uuid) return pJn;
+              }
+            }
           }
         }
       }
@@ -2541,14 +2755,14 @@ function createStudioPanel(options) {
       return { key: urlUuid, isNew: false, title };
     }
 
-    const domParts = findActiveSidebarKeyParts();
-    if (domParts.uuid) {
-      return { key: domParts.uuid, isNew: false, title };
-    }
-
     if (snap.userMsgCount === 0 && snap.respCount === 0) {
       state.pendingNewSendAt = 0;
       return { key: "__new__", isNew: true, title: "" };
+    }
+
+    const domParts = findActiveSidebarKeyParts(title);
+    if (domParts.uuid) {
+      return { key: domParts.uuid, isNew: false, title };
     }
 
     if (state.hasActivatedChat && state.activeChatKey === "__new__" && snap.userMsgCount <= 1) {
@@ -2703,7 +2917,7 @@ function createStudioPanel(options) {
     const wasActivated = state.hasActivatedChat;
     const tel = state.telemetry;
 
-    const isPromotion = wasActivated && prevKey === "__new__" && detected.key !== "__new__" && (state.newChatDraftPersona !== null || snap.isGenerating || tel.isGenerating || state.pendingNewSendAt > 0);
+    const isPromotion = wasActivated && prevKey === "__new__" && detected.key !== "__new__" && snap.userMsgCount <= 1 && (state.newChatDraftPersona !== null || snap.isGenerating || tel.isGenerating || state.pendingNewSendAt > 0);
     state.pendingNewSendAt = 0;
 
     if (wasActivated && prevKey.startsWith("chat-")) {
@@ -2725,8 +2939,11 @@ function createStudioPanel(options) {
     }
 
     let promoPayload = null;
+    let fallbackPersona = null;
     if (isPromotion) {
-      const draft = state.newChatDraftPersona;
+      const draft = state.newChatDraftPersona || (state.chatPersona.enabled && state.chatPersona.text.trim()
+        ? { personaEnabled: true, personaActivePreset: state.chatPersona.activePreset || "custom", personaText: state.chatPersona.text }
+        : null);
       promoPayload = {
         title: detected.title,
         personaEnabled: Boolean(draft && draft.personaEnabled),
@@ -2734,17 +2951,45 @@ function createStudioPanel(options) {
         personaText: draft && typeof draft.personaText === "string" ? draft.personaText : "",
         telemetry: serializeChatTelemetry(tel),
       };
+      if (promoPayload.personaEnabled && promoPayload.personaText.trim()) {
+        state.lastPromotedPersona = {
+          personaEnabled: true,
+          personaActivePreset: promoPayload.personaActivePreset,
+          personaText: promoPayload.personaText,
+          at: Date.now(),
+        };
+        fallbackPersona = {
+          personaEnabled: true,
+          personaActivePreset: promoPayload.personaActivePreset,
+          personaText: promoPayload.personaText,
+        };
+      }
       if (!snap.isGenerating && !tel.isGenerating && snap.respCount >= 1 && tel.prevRespCount === 0) {
         tel.prevFloatTok = snap.respFloatTok;
         tel.turnStartFloatTok = snap.respFloatTok;
       }
       state.newChatDraftPersona = null;
-    } else if (!migrateFromKey) {
+    } else if (migrateFromKey) {
+      if (state.chatPersona.enabled && state.chatPersona.text.trim()) {
+        fallbackPersona = {
+          personaEnabled: true,
+          personaActivePreset: state.chatPersona.activePreset || "custom",
+          personaText: state.chatPersona.text,
+        };
+      } else if (state.lastPromotedPersona && Date.now() - state.lastPromotedPersona.at < 20000) {
+        fallbackPersona = {
+          personaEnabled: true,
+          personaActivePreset: state.lastPromotedPersona.personaActivePreset || "custom",
+          personaText: state.lastPromotedPersona.personaText,
+        };
+      }
+    } else {
       state.newChatDraftPersona = null;
+      state.lastPromotedPersona = null;
       state.hydrationIgnoreUntil = nowHiRes() + 2000;
       const freshTel = createEmptyTelemetry();
-      freshTel.respTokens = snap.respTokens;
-      freshTel.chatTokens = snap.chatTokens;
+      freshTel.respTokens = detected.isNew ? 0 : snap.respTokens;
+      freshTel.chatTokens = detected.isNew ? 0 : snap.chatTokens;
       freshTel.prevFloatTok = snap.respFloatTok;
       freshTel.turnStartFloatTok = snap.respFloatTok;
       freshTel.preTokenAt = nowHiRes();
@@ -2753,7 +2998,7 @@ function createStudioPanel(options) {
       freshTel.prevUserCount = snap.userMsgCount;
       freshTel.firstUserNorm = snap.firstUserNorm;
       freshTel.modelName = snap.modelName;
-      freshTel.contextLabel = snap.contextLabel;
+      freshTel.contextLabel = detected.isNew ? "" : snap.contextLabel;
       state.telemetry = freshTel;
       state.chatPersona = { enabled: false, activePreset: "custom", text: "" };
       state.draftPersonaText = "";
@@ -2767,12 +3012,14 @@ function createStudioPanel(options) {
     state.activeChatTitle = detected.title;
     const seq = ++state.activeChatSwitchSeq;
     renderStructure();
+    updateLiveDom();
 
     invokeIpc("agy-studio:activate-chat", {
       chatKey: detected.key,
       title: detected.title,
       promoteFromNew: promoPayload,
       migrateFromKey,
+      fallbackPersona,
       draftPersona: detected.isNew ? state.newChatDraftPersona : null,
     }).then((res) => {
       if (state.destroyed || seq !== state.activeChatSwitchSeq || !res || !res.chat) return;
@@ -2790,14 +3037,22 @@ function createStudioPanel(options) {
       }
       const rt = rec.telemetry;
       const curTel = state.telemetry;
-      if (rt && !curTel.isGenerating && !curTel.wasGenerating && (rt.lastAvgTps > 0 || rt.peakTps > 0 || (Array.isArray(rt.history) && rt.history.length > 0))) {
-        curTel.lastAvgTps = rt.lastAvgTps || 0;
-        curTel.peakTps = rt.peakTps || 0;
+      if (detected.isNew) {
+        if (!curTel.isGenerating) {
+          curTel.lastAvgTps = 0;
+          curTel.peakTps = 0;
+          curTel.currentTps = 0;
+          curTel.samples = [];
+          curTel.history = [];
+        }
+      } else if (rt && !curTel.isGenerating && !curTel.wasGenerating && (rt.lastAvgTps > 0 || rt.peakTps > 0 || (Array.isArray(rt.history) && rt.history.length > 0))) {
+        curTel.lastAvgTps = rt.lastAvgTps < 900 ? (rt.lastAvgTps || 0) : 0;
+        curTel.peakTps = rt.peakTps < 900 ? (rt.peakTps || 0) : 0;
         curTel.lastDurSec = rt.lastDurSec || 0;
         curTel.lastThinkingSec = rt.lastThinkingSec || 0;
         if (!curTel.modelName && rt.modelName) curTel.modelName = rt.modelName;
-        if (Array.isArray(rt.samples) && rt.samples.length > 0) curTel.samples = rt.samples.slice(-24);
-        if (Array.isArray(rt.history) && rt.history.length > 0) curTel.history = rt.history.slice(0, 8);
+        if (Array.isArray(rt.samples) && rt.samples.length > 0) curTel.samples = rt.samples.filter((s) => s > 0 && s < 900).slice(-24);
+        if (Array.isArray(rt.history) && rt.history.length > 0) curTel.history = rt.history.filter((h) => h && h.avgTps < 900).slice(0, 8);
       }
       if (res.quotaSummary && typeof res.quotaSummary === "object") {
         state.quotaSummary = res.quotaSummary;
@@ -2828,42 +3083,66 @@ function createStudioPanel(options) {
     });
   }
 
+  function resetActiveTurnOnCancel(tel, snap, hiNow) {
+    tel.isGenerating = false;
+    tel.wasGenerating = false;
+    tel.phase = "idle";
+    tel.currentTps = 0;
+    tel.tpsBuckets = [];
+    tel.firstGrowthAt = 0;
+    tel.lastGrowthAt = 0;
+    tel.activeStreamMs = 0;
+    tel.growthTicks = 0;
+    tel.unconfirmedGrowthTicks = 0;
+    tel.preTokenAt = hiNow;
+    tel.prevFloatTok = snap.respFloatTok;
+    tel.turnStartFloatTok = snap.respFloatTok;
+    tel.activeRespEl = snap.lastResp;
+  }
+
   function finalizeTurn(tel, snap, hiNow) {
     const gainedFloat = Math.max(0, snap.respFloatTok - tel.turnStartFloatTok);
-    if (gainedFloat >= 1.5) {
+    const isTinyFragment = gainedFloat < 3 && tel.activeStreamMs < 250;
+    if (gainedFloat >= 2 && !isTinyFragment) {
       let durMs = 0;
       if (tel.activeStreamMs > 40) {
         const initSlice = tel.preTokenAt > 0 && tel.firstGrowthAt > tel.preTokenAt
-          ? Math.min(200, Math.max(60, tel.firstGrowthAt - tel.preTokenAt))
-          : 90;
+          ? Math.min(240, Math.max(90, tel.firstGrowthAt - tel.preTokenAt))
+          : 120;
         durMs = tel.activeStreamMs + initSlice;
       } else if (tel.preTokenAt > 0 && tel.lastGrowthAt > tel.preTokenAt) {
-        durMs = Math.min(400, Math.max(85, tel.lastGrowthAt - tel.preTokenAt));
+        durMs = Math.max(300, Math.min(2500, tel.lastGrowthAt - tel.preTokenAt));
       } else {
-        durMs = 120;
+        durMs = 350;
       }
-      const durSec = Math.max(0.08, durMs / 1000);
-      const avgTps = Math.min(999, Math.max(1, Math.round(gainedFloat / durSec)));
-      tel.lastAvgTps = avgTps;
-      tel.lastDurSec = Number(durSec.toFixed(2));
-      tel.lastThinkingSec = snap.thinkingSec || (tel.firstGrowthAt > tel.turnStartMs ? Number(((tel.firstGrowthAt - tel.turnStartMs) / 1000).toFixed(2)) : 0);
-      tel.peakTps = Math.max(tel.peakTps, avgTps);
-      if (state.settings.trackHistory !== false) {
-        tel.history.unshift({
-          model: tel.modelName || t().modelUnknown,
-          tokens: Math.max(1, Math.round(gainedFloat)),
-          durSec: tel.lastDurSec,
-          avgTps,
-          peakTps: tel.peakTps,
-          at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        });
-        if (tel.history.length > 8) tel.history.length = 8;
-        if (state.isOpen && state.activeTab === "monitor") {
-          updateHistoryDom();
+      const durSec = Math.max(0.25, durMs / 1000);
+      const rawAvgTps = Math.max(1, Math.round(gainedFloat / durSec));
+      const isSuspiciousSpike = (tel.growthTicks || 0) <= 1 && rawAvgTps >= 450;
+      if (!isSuspiciousSpike) {
+        const avgTps = rawAvgTps;
+        tel.lastAvgTps = avgTps;
+        tel.lastDurSec = Number(durSec.toFixed(2));
+        tel.lastThinkingSec = snap.thinkingSec || (tel.firstGrowthAt > tel.turnStartMs ? Number(((tel.firstGrowthAt - tel.turnStartMs) / 1000).toFixed(2)) : 0);
+        if ((tel.growthTicks || 0) >= 2 && gainedFloat >= 4) {
+          tel.peakTps = Math.max(tel.peakTps, avgTps);
         }
+        if (state.settings.trackHistory !== false) {
+          tel.history.unshift({
+            model: tel.modelName || t().modelUnknown,
+            tokens: Math.max(1, Math.round(gainedFloat)),
+            durSec: tel.lastDurSec,
+            avgTps,
+            peakTps: Math.max(tel.peakTps, avgTps),
+            at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          });
+          if (tel.history.length > 8) tel.history.length = 8;
+          if (state.isOpen && state.activeTab === "monitor") {
+            updateHistoryDom();
+          }
+        }
+        tel.dirty = true;
+        recordTurnQuotaImpact(gainedFloat, snap.chatTokens, tel.modelName || snap.modelName || "");
       }
-      tel.dirty = true;
-      recordTurnQuotaImpact(gainedFloat, snap.chatTokens, tel.modelName || snap.modelName || "");
     }
     tel.currentTps = 0;
     tel.tpsBuckets = [];
@@ -2871,6 +3150,7 @@ function createStudioPanel(options) {
     tel.lastGrowthAt = 0;
     tel.firstGrowthAt = 0;
     tel.activeStreamMs = 0;
+    tel.growthTicks = 0;
     tel.preTokenAt = hiNow;
     tel.prevFloatTok = snap.respFloatTok;
   }
@@ -2889,6 +3169,20 @@ function createStudioPanel(options) {
 
     if (!sw.switched) {
       const sameConvGrowth = snap.userMsgCount <= tel.prevUserCount + 1;
+      const wasCanceled = (
+        (snap.respCount < tel.prevRespCount) ||
+        (snap.userMsgCount < tel.prevUserCount) ||
+        (snap.lastResp && tel.activeRespEl && snap.lastResp === tel.activeRespEl && snap.respFloatTok + 1 < tel.prevFloatTok) ||
+        (tel.wasGenerating && !snap.hasCancelBtn && state.lastCancelClickAt > 0 && hiNow - state.lastCancelClickAt < 2000)
+      );
+      if (wasCanceled) {
+        resetActiveTurnOnCancel(tel, snap, hiNow);
+        tel.prevRespCount = snap.respCount;
+        tel.prevUserCount = snap.userMsgCount;
+        tel.respTokens = snap.respTokens;
+        return;
+      }
+
       const newRespAppeared = Boolean(
         snap.lastResp &&
         tel.activeRespEl &&
@@ -2896,22 +3190,27 @@ function createStudioPanel(options) {
         (snap.respCount !== tel.prevRespCount || snap.respFloatTok + 2 < tel.prevFloatTok)
       );
       if (newRespAppeared) {
-        if (tel.wasGenerating) {
+        if (tel.wasGenerating && !snap.hasCancelBtn) {
           finalizeTurn(tel, Object.assign({}, snap, { respFloatTok: tel.prevFloatTok }), hiNow);
           if (tel.dirty && state.activeChatKey !== "__new__") {
             flushChatTelemetry(state.activeChatKey, state.activeChatTitle, tel);
           }
+          tel.turnStartFloatTok = 0;
+          tel.prevFloatTok = 0;
+          tel.firstGrowthAt = 0;
+          tel.lastGrowthAt = 0;
+          tel.preTokenAt = hiNow;
+          tel.activeStreamMs = 0;
+          tel.growthTicks = 0;
+          tel.turnStartMs = hiNow;
+          tel.tpsBuckets = [];
+          tel.currentTps = 0;
+        } else {
+          // New bubble within same active turn (e.g. after tool call) — keep turn continuity
+          tel.prevFloatTok = 0;
+          tel.turnStartFloatTok = 0;
         }
         tel.activeRespEl = snap.lastResp;
-        tel.turnStartFloatTok = 0;
-        tel.prevFloatTok = 0;
-        tel.firstGrowthAt = 0;
-        tel.lastGrowthAt = 0;
-        tel.preTokenAt = hiNow;
-        tel.activeStreamMs = 0;
-        tel.turnStartMs = hiNow;
-        tel.tpsBuckets = [];
-        tel.currentTps = 0;
       } else if (snap.lastResp) {
         tel.activeRespEl = snap.lastResp;
       }
@@ -2930,6 +3229,7 @@ function createStudioPanel(options) {
           tel.preTokenAt = hiNow;
           tel.activeRespEl = snap.lastResp;
           tel.unconfirmedGrowthTicks = 0;
+          tel.growthTicks = 0;
           tel.phase = "idle";
           tel.prevRespCount = snap.respCount;
           tel.prevUserCount = snap.userMsgCount;
@@ -2957,25 +3257,26 @@ function createStudioPanel(options) {
         tel.unconfirmedGrowthTicks = 0;
       }
 
-      let seedMs = 180;
+      let seedMs = 350;
       if (deltaFloat > 0) {
         if (!tel.firstGrowthAt) {
           tel.firstGrowthAt = hiNow;
           tel.activeStreamMs = 0;
-          seedMs = tel.preTokenAt > 0 ? Math.min(300, Math.max(85, hiNow - tel.preTokenAt)) : 180;
+          seedMs = tel.preTokenAt > 0 ? Math.min(800, Math.max(220, hiNow - tel.preTokenAt)) : 350;
         } else if (tel.lastGrowthAt > 0) {
           const gap = hiNow - tel.lastGrowthAt;
-          if (gap > 0 && gap <= 650) {
+          if (gap > 0 && gap <= 850) {
             tel.activeStreamMs += gap;
           }
         }
         tel.lastGrowthAt = hiNow;
+        tel.growthTicks = (tel.growthTicks || 0) + 1;
       } else if (!tel.firstGrowthAt) {
         tel.preTokenAt = hiNow;
       }
 
       const idleSinceGrowth = tel.lastGrowthAt > 0 ? (hiNow - tel.lastGrowthAt) : Infinity;
-      const graceMs = snap.isGenerating ? 900 : 240;
+      const graceMs = snap.hasCancelBtn ? 1500 : (snap.isGenerating ? 900 : 280);
       const recentlyGrew = tel.lastGrowthAt > 0 && idleSinceGrowth <= graceMs;
       const stalledHeuristic = !snap.hasCancelBtn && tel.lastGrowthAt > 0 && idleSinceGrowth > 2500 && snap.respFloatTok > 0;
       const effectiveGenerating = stalledHeuristic ? false : Boolean(snap.isGenerating || recentlyGrew);
@@ -2986,30 +3287,47 @@ function createStudioPanel(options) {
         tel.tpsBuckets = [];
         tel.peakTps = 0;
         tel.currentTps = 0;
+        tel.growthTicks = deltaFloat > 0 ? 1 : 0;
       }
 
       if (effectiveGenerating) {
         if (deltaFloat > 0) {
+          const isBatchDump = deltaFloat > 65 && (tel.growthTicks <= 1 || (tel.firstGrowthAt && hiNow - tel.firstGrowthAt < 200));
           tel.tpsBuckets.push({ t: hiNow, d: deltaFloat });
-          tel.tpsBuckets = tel.tpsBuckets.filter((b) => hiNow - b.t <= 1400);
+          tel.tpsBuckets = tel.tpsBuckets.filter((b) => hiNow - b.t <= 1500);
           let sumD = 0;
           for (let i = 0; i < tel.tpsBuckets.length; i += 1) sumD += tel.tpsBuckets[i].d;
           const winSpanMs = tel.tpsBuckets.length >= 2 ? (hiNow - tel.tpsBuckets[0].t) : 0;
-          const rawTps = winSpanMs >= 60
-            ? (sumD / Math.max(0.20, winSpanMs / 1000))
-            : Math.min(450, deltaFloat / Math.max(0.18, seedMs / 1000));
-          const clampedRaw = Math.min(999, Math.max(0, rawTps));
-          const smoothed = tel.currentTps > 0
-            ? Math.round(tel.currentTps * 0.30 + clampedRaw * 0.70)
-            : Math.round(clampedRaw);
-          tel.currentTps = Math.min(999, Math.max(0, smoothed));
           const gainedFloat = Math.max(0, snap.respFloatTok - tel.turnStartFloatTok);
-          if (gainedFloat >= 1.5 && tel.currentTps > tel.peakTps) {
-            tel.peakTps = tel.currentTps;
+          const activeDurSec = Math.max(0.45, (tel.activeStreamMs + seedMs) / 1000);
+          let instTps = 0;
+          if (isBatchDump) {
+            const batchDenom = Math.max(0.55, tel.preTokenAt > 0 ? (hiNow - tel.preTokenAt) / 1000 : 0.75);
+            instTps = Math.min(260, deltaFloat / batchDenom);
+          } else if (winSpanMs >= 120) {
+            const windowTps = sumD / Math.max(0.55, winSpanMs / 1000);
+            const cumTps = gainedFloat / activeDurSec;
+            instTps = windowTps * 0.70 + cumTps * 0.30;
+          } else {
+            instTps = deltaFloat / Math.max(0.40, seedMs / 1000);
           }
+          if (tel.growthTicks <= 1 && instTps > 600) {
+            instTps = Math.min(220, gainedFloat / Math.max(0.55, seedMs / 1000));
+          }
+          const smoothed = tel.currentTps > 0
+            ? Math.round(tel.currentTps * 0.35 + instTps * 0.65)
+            : Math.round(instTps);
+          tel.currentTps = Math.max(0, smoothed);
           if (tel.currentTps > 0) {
-            tel.samples.push(tel.currentTps);
-            if (tel.samples.length > 24) tel.samples.shift();
+            if ((tel.growthTicks >= 2 && gainedFloat >= 4) || (gainedFloat >= 8 && activeDurSec >= 0.30 && !isBatchDump)) {
+              if (tel.currentTps > tel.peakTps) {
+                tel.peakTps = tel.currentTps;
+              }
+            }
+            if (!isBatchDump || tel.growthTicks >= 2) {
+              tel.samples.push(tel.currentTps);
+              if (tel.samples.length > 24) tel.samples.shift();
+            }
           }
           tel.dirty = true;
         }
@@ -3030,15 +3348,18 @@ function createStudioPanel(options) {
     } else if (sw.promoted && (snap.isGenerating || snap.respFloatTok > tel.prevFloatTok)) {
       const gained = Math.max(0, snap.respFloatTok - tel.prevFloatTok);
       if (gained > 0) {
-        const seedMs = tel.preTokenAt > 0 ? Math.min(260, Math.max(40, hiNow - tel.preTokenAt)) : 120;
+        const seedMs = Math.max(0.55, (tel.preTokenAt > 0 ? Math.min(800, hiNow - tel.preTokenAt) : 550) / 1000);
         tel.lastGrowthAt = hiNow;
         if (!tel.firstGrowthAt) tel.firstGrowthAt = hiNow;
         if (!tel.turnStartMs) tel.turnStartMs = hiNow;
+        tel.growthTicks = (tel.growthTicks || 0) + 1;
         tel.tpsBuckets.push({ t: hiNow, d: gained });
-        const rawTps = Math.min(999, Math.round(gained / Math.max(0.08, seedMs / 1000)));
+        const rawTps = Math.min(350, Math.max(1, Math.round(gained / seedMs)));
         tel.currentTps = rawTps;
-        if (snap.respFloatTok >= 1.5) tel.peakTps = Math.max(tel.peakTps, rawTps);
-        if (rawTps > 0) {
+        if (tel.growthTicks >= 2 && snap.respFloatTok >= 4) {
+          tel.peakTps = Math.max(tel.peakTps, rawTps);
+        }
+        if (rawTps > 0 && tel.growthTicks >= 2) {
           tel.samples.push(rawTps);
           if (tel.samples.length > 24) tel.samples.shift();
         }
@@ -3058,6 +3379,22 @@ function createStudioPanel(options) {
     tel.respTokens = snap.respTokens;
   }
 
+  function scheduleStreamSample() {
+    if (state.destroyed || !state.mounted) return;
+    if (!win || typeof win.setTimeout !== "function") {
+      sampleStreamTick();
+      scheduleRepaint();
+      return;
+    }
+    if (streamSampleTimer) return;
+    streamSampleTimer = win.setTimeout(() => {
+      streamSampleTimer = null;
+      if (state.destroyed || !state.mounted) return;
+      sampleStreamTick();
+      scheduleRepaint();
+    }, 75);
+  }
+
   function scheduleRepaint() {
     if (state.destroyed || !state.mounted) return;
     if (repaintTimer || !win || typeof win.setTimeout !== "function") {
@@ -3070,6 +3407,27 @@ function createStudioPanel(options) {
     }, 75);
   }
 
+  function applyThemeToHost(appCfg) {
+    if (!themeEngine || typeof themeEngine.apply !== "function") return;
+    try {
+      themeEngine.apply(appCfg || state.settings.appearance);
+    } catch (_e) {}
+  }
+
+  function buildAppearancePreviewHtml(appCfg) {
+    const cfg = spNormalizeAppearance(appCfg || state.appearanceDraft);
+    const resolvedMedia = cfg.wallpaper && cfg.wallpaper.mediaUrl
+      ? resolveStudioMediaUrl(cfg.wallpaper.mediaFile, cfg.wallpaper.mediaUrl)
+      : "";
+    if (themeEngine && typeof themeEngine.buildPreviewMarkup === "function") {
+      return themeEngine.buildPreviewMarkup(cfg, state.locale, resolvedMedia);
+    }
+    const preset = spFindThemePreset(cfg.presetId);
+    const v = cfg.presetId === "custom" ? { accentColor: cfg.accentColor, canvasBg: cfg.canvasBg, cardBg: cfg.cardBg } : preset.vars;
+    const isRu = state.locale !== "en";
+    return `<div style="padding:12px;border-radius:10px;background:${escAttr(v.canvasBg)};border:1px solid ${escAttr(v.accentColor)};color:#f1f2f6;font-size:12px">${escHtml(isRu ? preset.nameRu : preset.nameEn)} · ${escHtml(cfg.wallpaper.type)}</div>`;
+  }
+
   function scrapeDomQuotaSnapshot(force) {
     if (!doc || !doc.body) return;
     const now = Date.now();
@@ -3078,7 +3436,7 @@ function createStudioPanel(options) {
     try {
       const txt = doc.body.innerText || doc.body.textContent || "";
       if (!txt || txt.length < 30) return;
-      const parsed = parseQuotaFromDocumentText(txt);
+      const parsed = parseQuotaFromDocumentText(txt, state.telemetry.modelName);
       if (!parsed) return;
       const sig = JSON.stringify(parsed);
       if (sig === state.lastQuotaScrapeSig && now - state.lastQuotaSyncAt < 30000) return;
@@ -3554,7 +3912,7 @@ function createStudioPanel(options) {
   function renderLanguageTab() {
     const tr = t();
     const isRu = state.locale !== "en";
-    const ver = pluginMeta.version || "3.0.1";
+    const ver = pluginMeta.version || "3.0.2";
     const dictCount = pluginMeta.dictEntries || 4017;
     const dynCount = pluginMeta.dynamicRulesCount || 471;
 
@@ -3981,7 +4339,7 @@ function createStudioPanel(options) {
           <aside class="modal-sidebar">
             <div class="sidebar-brand">
               <span class="brand-title">${escHtml(tr.brandTitle)}</span>
-              <span class="brand-ver num">v${escHtml(pluginMeta.version || "3.0.1")}</span>
+              <span class="brand-ver num">v${escHtml(pluginMeta.version || "3.0.2")}</span>
             </div>
             <span class="sidebar-section-label">${escHtml(tr.sidebarSectionStudio)}</span>
             <nav class="nav-list">
@@ -4435,7 +4793,8 @@ function createStudioPanel(options) {
       state.appearanceDraft.wallpaper.gradColors = found.colors.slice(0, 3);
       state.appearanceDraft.wallpaper.gradAngle = found.angle;
       state.appearanceDirty = true;
-      if (state.appearanceLivePreview) applyThemeToHost(state.appearanceDraft);
+      state.appearanceLivePreview = true;
+      applyThemeToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
@@ -4463,7 +4822,9 @@ function createStudioPanel(options) {
           state.appearanceDraft.wallpaper.mediaUrl = res.mediaUrl;
           state.appearanceDraft.wallpaper.mediaMime = res.mime || "";
           state.appearanceDirty = true;
-          if (state.appearanceLivePreview) applyThemeToHost(state.appearanceDraft);
+          state.appearanceLivePreview = true;
+          resolveStudioMediaUrl(res.fileName, res.mediaUrl);
+          applyThemeToHost(state.appearanceDraft);
           setToast(tr.appMediaPickedMsg, false);
           renderStructure();
         } else if (res && !res.canceled) {
@@ -4537,6 +4898,7 @@ function createStudioPanel(options) {
     if (action === "discard-appearance") {
       state.appearanceDraft = spCloneAppearance(state.settings.appearance);
       state.appearanceDirty = false;
+      state.appearanceLivePreview = false;
       applyThemeToHost(state.settings.appearance);
       renderStructure();
       return;
@@ -4812,6 +5174,14 @@ function createStudioPanel(options) {
         }
       };
       doc.addEventListener("keydown", keydownHandler, true);
+      cancelClickHandler = (e) => {
+        const tEl = e && e.target;
+        if (!tEl || typeof tEl.closest !== "function") return;
+        if (tEl.closest('[data-testid="cancel-invocation-button"]')) {
+          state.lastCancelClickAt = nowHiRes();
+        }
+      };
+      doc.addEventListener("click", cancelClickHandler, true);
     }
   }
 
@@ -4865,19 +5235,26 @@ function createStudioPanel(options) {
         domObserver = new win.MutationObserver((muts) => {
           if (state.destroyed) return;
           if (Array.isArray(muts) && muts.length > 0) {
-            let allOwn = true;
+            let hasExternal = false;
             for (let i = 0; i < muts.length; i += 1) {
-              const tNode = muts[i] && muts[i].target;
-              if (!tNode) continue;
-              if (tNode !== hostEl && (!hostEl || typeof hostEl.contains !== "function" || !hostEl.contains(tNode))) {
-                allOwn = false;
-                break;
+              const m = muts[i];
+              if (!m) continue;
+              if (m.type === "attributes" && typeof m.attributeName === "string" && m.attributeName.indexOf("data-agy-ru-bg-") === 0) {
+                continue;
               }
+              const tNode = m.target;
+              if (!tNode) continue;
+              const tId = tNode.id || "";
+              if (tId === "agy-ru-studio-host" || tId === "agy-ru-studio-bg" || tId === "agy-ru-studio-theme") continue;
+              if (hostEl && (tNode === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(tNode)))) {
+                continue;
+              }
+              hasExternal = true;
+              break;
             }
-            if (allOwn) return;
+            if (!hasExternal) return;
           }
-          sampleStreamTick();
-          scheduleRepaint();
+          scheduleStreamSample();
         });
         domObserver.observe(doc.body, { childList: true, subtree: true, characterData: true });
       } catch (_e) {}
@@ -5011,6 +5388,10 @@ function createStudioPanel(options) {
       win.clearTimeout(repaintTimer);
       repaintTimer = null;
     }
+    if (streamSampleTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(streamSampleTimer);
+      streamSampleTimer = null;
+    }
     if (toastTimer && win && typeof win.clearTimeout === "function") {
       win.clearTimeout(toastTimer);
       toastTimer = null;
@@ -5029,9 +5410,17 @@ function createStudioPanel(options) {
       if (resizeHandler) win.removeEventListener("resize", resizeHandler);
       if (focusSyncHandler) win.removeEventListener("focus", focusSyncHandler);
     }
-    if (doc && typeof doc.removeEventListener === "function" && keydownHandler) {
-      doc.removeEventListener("keydown", keydownHandler, true);
+    if (doc && typeof doc.removeEventListener === "function") {
+      if (keydownHandler) doc.removeEventListener("keydown", keydownHandler, true);
+      if (cancelClickHandler) doc.removeEventListener("click", cancelClickHandler, true);
     }
+    if (win && win.URL && typeof win.URL.revokeObjectURL === "function") {
+      mediaBlobCache.forEach((blobUrl) => {
+        try { win.URL.revokeObjectURL(blobUrl); } catch (_e) {}
+      });
+    }
+    mediaBlobCache.clear();
+    mediaLoadInflight.clear();
     if (hostEl && hostEl.parentNode) {
       hostEl.parentNode.removeChild(hostEl);
     }
@@ -5055,6 +5444,7 @@ function createStudioPanel(options) {
     applyRemoteState,
     estimateTokens,
     pollStream,
+    resolveMediaUrl: resolveStudioMediaUrl,
   };
 }
 

@@ -255,6 +255,7 @@ function teValidMediaUrl(raw) {
   const s = raw.trim();
   if (!s) return "";
   if (s.startsWith("agy-media://local/")) return s.slice(0, 240);
+  if (s.startsWith("blob:") && s.length <= 240 && !/[\s"'<>]/.test(s)) return s;
   return "";
 }
 
@@ -444,24 +445,54 @@ html, body {
     const sidebarGlassBg = hasThemeOverride
       ? teHexToRgba(vars.sidebarBg, Math.min(100, vars.glassOpacity + 8))
       : `rgba(14, 14, 18, ${Math.min(100, cfg.glassOpacity + 8) / 100})`;
+    const headerGlassBg = hasThemeOverride
+      ? teHexToRgba(vars.sidebarBg, Math.min(100, vars.glassOpacity + 4))
+      : `rgba(14, 14, 18, ${Math.min(100, cfg.glassOpacity + 4) / 100})`;
+    const popoverBg = hasThemeOverride
+      ? teHexToRgba(vars.cardBg, Math.min(98, Math.max(92, vars.glassOpacity + 14)))
+      : "rgba(22, 22, 28, 0.96)";
     const blurPx = cfg.glassBlur;
+    const fallbackBg = hasThemeOverride ? vars.canvasBg : "#09090b";
 
     chunks.push(`
-html {
-  background-color: ${hasThemeOverride ? vars.canvasBg : "#09090b"} !important;
+:root, html, body {
+  --background: transparent !important;
+  --color-background: transparent !important;
+  --canvas: transparent !important;
+  --bg-canvas: transparent !important;
+  --sidebar: ${sidebarGlassBg} !important;
+  --card: ${surfaceBg} !important;
 }
-body, #root, #app, main, [data-testid="chat-container"] {
+html {
+  background-color: ${fallbackBg} !important;
+}
+body, #root, #app {
   background-color: transparent !important;
   background-image: none !important;
 }
-body > *:not(#agy-ru-studio-bg):not(#agy-ru-studio-host) {
+#root, #app {
   position: relative;
   z-index: 1;
 }
-aside, nav[aria-label], [data-testid="sidebar"] {
+[data-agy-ru-bg-shell="1"] {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+[data-agy-ru-bg-sidebar="1"],
+aside,
+nav[aria-label],
+[data-testid="sidebar"] {
   background-color: ${sidebarGlassBg} !important;
-  backdrop-filter: blur(${blurPx}px);
-  -webkit-backdrop-filter: blur(${blurPx}px);
+}
+[data-agy-ru-bg-header="1"] {
+  background-color: ${headerGlassBg} !important;
+}
+main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
+[data-testid="chat-container"]:not([role="dialog"]),
+[data-testid="conversation-view"]:not([role="dialog"]),
+[class*="bg-background"]:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
+.bg-black:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]) {
+  background-color: transparent !important;
 }
 [data-testid="agent-response"], [data-testid="user-message-content"] {
   border-radius: ${vars.radius}px;
@@ -473,9 +504,15 @@ aside, nav[aria-label], [data-testid="sidebar"] {
 }
 form:has(textarea), [data-testid="composer"], .composer-container {
   background-color: ${surfaceBg} !important;
-  backdrop-filter: blur(${blurPx}px);
-  -webkit-backdrop-filter: blur(${blurPx}px);
   border-radius: ${vars.radius}px;
+}
+[role="dialog"],
+[role="alertdialog"],
+[role="menu"],
+[role="listbox"],
+[role="tooltip"],
+[data-radix-popper-content-wrapper] > * {
+  background-color: ${popoverBg} !important;
 }
 `);
   }
@@ -566,6 +603,7 @@ function teBuildGradientCss(wp) {
 function createThemeEngine(options = {}) {
   const doc = options.document || (typeof document !== "undefined" ? document : null);
   const win = options.window || (typeof window !== "undefined" ? window : null);
+  const resolveMediaUrl = typeof options.resolveMediaUrl === "function" ? options.resolveMediaUrl : null;
 
   let currentConfig = normalizeAppearance(DEFAULT_APPEARANCE);
   let styleNode = null;
@@ -576,6 +614,175 @@ function createThemeEngine(options = {}) {
   let visHandler = null;
   let blurHandler = null;
   let focusHandler = null;
+  let shellScanTimer = null;
+  let shellObserver = null;
+  let shellResizeHandler = null;
+  let wallpaperActive = false;
+
+  const SHELL_ATTRS = ["data-agy-ru-bg-shell", "data-agy-ru-bg-sidebar", "data-agy-ru-bg-header"];
+  const SHELL_SKIP_TAGS = new Set(["PRE", "CODE", "BUTTON", "INPUT", "TEXTAREA", "FORM", "SVG", "IMG", "VIDEO", "CANVAS", "SCRIPT", "STYLE"]);
+  const SHELL_SKIP_ROLES = new Set(["dialog", "alertdialog", "menu", "listbox", "tooltip"]);
+  const SHELL_SKIP_TESTIDS = new Set(["user-message-content", "agent-response"]);
+
+  function teParseBgAlpha(bgStr) {
+    if (!bgStr || bgStr === "transparent") return 0;
+    const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i.exec(String(bgStr).trim());
+    if (!m) return 0;
+    const alpha = m[4] !== undefined ? parseFloat(m[4]) : 1;
+    return Number.isFinite(alpha) ? alpha : 0;
+  }
+
+  function clearShellAttrsOnElement(el) {
+    if (!el || typeof el.removeAttribute !== "function") return;
+    for (let i = 0; i < SHELL_ATTRS.length; i += 1) {
+      if (typeof el.hasAttribute !== "function" || el.hasAttribute(SHELL_ATTRS[i])) {
+        el.removeAttribute(SHELL_ATTRS[i]);
+      }
+    }
+  }
+
+  function setExclusiveShellAttr(el, targetAttr) {
+    if (!el || typeof el.setAttribute !== "function") return;
+    for (let i = 0; i < SHELL_ATTRS.length; i += 1) {
+      const a = SHELL_ATTRS[i];
+      if (a === targetAttr) {
+        if (typeof el.getAttribute !== "function" || el.getAttribute(a) !== "1") {
+          el.setAttribute(a, "1");
+        }
+      } else if (typeof el.removeAttribute === "function") {
+        if (typeof el.hasAttribute !== "function" || el.hasAttribute(a)) {
+          el.removeAttribute(a);
+        }
+      }
+    }
+  }
+
+  function clearWallpaperShells() {
+    if (shellScanTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(shellScanTimer);
+      shellScanTimer = null;
+    }
+    if (shellObserver && typeof shellObserver.disconnect === "function") {
+      shellObserver.disconnect();
+      shellObserver = null;
+    }
+    if (shellResizeHandler && win && typeof win.removeEventListener === "function") {
+      win.removeEventListener("resize", shellResizeHandler);
+      shellResizeHandler = null;
+    }
+    if (!doc || typeof doc.querySelectorAll !== "function") return;
+    try {
+      const marked = doc.querySelectorAll("[data-agy-ru-bg-shell], [data-agy-ru-bg-sidebar], [data-agy-ru-bg-header]");
+      for (let i = 0; marked && i < marked.length; i += 1) {
+        clearShellAttrsOnElement(marked[i]);
+      }
+    } catch (_e) {}
+  }
+
+  function isSkippedShellNode(el) {
+    if (!el || el.nodeType !== 1) return true;
+    const id = el.id || "";
+    if (id === "agy-ru-studio-host" || id === "agy-ru-studio-bg" || id === "agy-ru-studio-theme") return true;
+    const tag = String(el.tagName || "").toUpperCase();
+    if (SHELL_SKIP_TAGS.has(tag)) return true;
+    if (typeof el.getAttribute === "function") {
+      const role = el.getAttribute("role");
+      if (role && SHELL_SKIP_ROLES.has(role)) return true;
+      const tid = el.getAttribute("data-testid");
+      if (tid && SHELL_SKIP_TESTIDS.has(tid)) return true;
+      if (el.hasAttribute("data-markdown-root")) return true;
+      if (el.hasAttribute("data-radix-popper-content-wrapper")) return true;
+    }
+    return false;
+  }
+
+  function scanWallpaperShells() {
+    if (!wallpaperActive || !doc || !win || typeof win.getComputedStyle !== "function") return;
+    const rootTarget = (typeof doc.querySelector === "function" && doc.querySelector("#root, #app")) || doc.body;
+    if (!rootTarget) return;
+    const vw = Number(win.innerWidth) || 0;
+    const vh = Number(win.innerHeight) || 0;
+    if (vw < 100 || vh < 100) return;
+
+    const queue = [{ el: rootTarget, depth: 0 }];
+    let visited = 0;
+    const maxNodes = 160;
+    const maxDepth = 7;
+
+    while (queue.length > 0 && visited < maxNodes) {
+      const item = queue.shift();
+      const el = item.el;
+      if (isSkippedShellNode(el)) continue;
+      visited += 1;
+
+      if (typeof el.getBoundingClientRect === "function") {
+        const rect = el.getBoundingClientRect();
+        if (rect && rect.width > 0 && rect.height > 0) {
+          let attr = "";
+          if (rect.width >= vw * 0.5 && rect.height >= vh * 0.5) {
+            attr = "data-agy-ru-bg-shell";
+          } else if (rect.left <= 16 && rect.width >= 150 && rect.width <= 420 && rect.height >= vh * 0.65) {
+            attr = "data-agy-ru-bg-sidebar";
+          } else if (rect.top <= 16 && rect.height >= 26 && rect.height <= 68 && rect.width >= vw * 0.5) {
+            attr = "data-agy-ru-bg-header";
+          }
+          if (attr) {
+            const bgAlpha = teParseBgAlpha(win.getComputedStyle(el).backgroundColor);
+            if (bgAlpha >= 0.85 || (typeof el.hasAttribute === "function" && el.hasAttribute(attr))) {
+              setExclusiveShellAttr(el, attr);
+            }
+          } else {
+            clearShellAttrsOnElement(el);
+          }
+        }
+      }
+
+      if (item.depth < maxDepth && el.children) {
+        for (let i = 0; i < el.children.length; i += 1) {
+          queue.push({ el: el.children[i], depth: item.depth + 1 });
+        }
+      }
+    }
+  }
+
+  function scheduleShellScan() {
+    if (!wallpaperActive) return;
+    if (!win || typeof win.setTimeout !== "function") {
+      scanWallpaperShells();
+      return;
+    }
+    if (shellScanTimer) return;
+    shellScanTimer = win.setTimeout(() => {
+      shellScanTimer = null;
+      scanWallpaperShells();
+    }, 180);
+  }
+
+  function ensureShellWatchers() {
+    if (!wallpaperActive || !doc || !win) return;
+    scanWallpaperShells();
+    if (!shellObserver && typeof win.MutationObserver === "function") {
+      const watchTarget = (typeof doc.querySelector === "function" && doc.querySelector("#root, #app")) || doc.body;
+      if (watchTarget) {
+        try {
+          shellObserver = new win.MutationObserver((muts) => {
+            if (!wallpaperActive) return;
+            for (let i = 0; i < muts.length; i += 1) {
+              const m = muts[i];
+              if (m.type === "attributes" && SHELL_ATTRS.indexOf(m.attributeName) >= 0) continue;
+              scheduleShellScan();
+              break;
+            }
+          });
+          shellObserver.observe(watchTarget, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style"] });
+        } catch (_e) {}
+      }
+    }
+    if (!shellResizeHandler && typeof win.addEventListener === "function") {
+      shellResizeHandler = () => scheduleShellScan();
+      win.addEventListener("resize", shellResizeHandler);
+    }
+  }
 
   function removeVideoListeners() {
     if (doc && visHandler && typeof doc.removeEventListener === "function") {
@@ -704,13 +911,24 @@ function createThemeEngine(options = {}) {
   function applyWallpaper(cfg) {
     const wp = cfg.wallpaper;
     if (wp.type === "none") {
+      wallpaperActive = false;
+      clearWallpaperShells();
       removeBgLayer();
       return;
     }
-    if ((wp.type === "image" || wp.type === "video") && !wp.mediaUrl) {
+    const rawMediaUrl = wp.mediaUrl;
+    const resolvedSrc = (wp.type === "image" || wp.type === "video")
+      ? ((resolveMediaUrl ? resolveMediaUrl(wp.mediaFile, rawMediaUrl) : "") || rawMediaUrl)
+      : "";
+    if ((wp.type === "image" || wp.type === "video") && !resolvedSrc) {
+      wallpaperActive = false;
+      clearWallpaperShells();
       removeBgLayer();
       return;
     }
+
+    wallpaperActive = true;
+    ensureShellWatchers();
 
     const layer = ensureBgLayer();
     if (!layer) return;
@@ -720,7 +938,7 @@ function createThemeEngine(options = {}) {
     const scaleVal = wp.scale > 100 ? `scale(${(wp.scale / 100).toFixed(2)})` : (wp.blur > 0 ? "scale(1.06)" : "none");
 
     if (wp.type === "video") {
-      const needNewVideo = !mediaChild || mediaChild.tagName !== "VIDEO" || activeVideoUrl !== wp.mediaUrl;
+      const needNewVideo = !mediaChild || mediaChild.tagName !== "VIDEO" || activeVideoUrl !== resolvedSrc;
       if (needNewVideo) {
         removeVideoListeners();
         if (mediaChild && mediaChild.parentNode) {
@@ -737,7 +955,7 @@ function createThemeEngine(options = {}) {
         vid.loop = true;
         vid.playsInline = true;
         vid.preload = "metadata";
-        vid.src = wp.mediaUrl;
+        vid.src = resolvedSrc;
         vid.style.position = "absolute";
         vid.style.inset = "0";
         vid.style.width = "100%";
@@ -750,7 +968,7 @@ function createThemeEngine(options = {}) {
           layer.appendChild(vid);
         }
         mediaChild = vid;
-        activeVideoUrl = wp.mediaUrl;
+        activeVideoUrl = resolvedSrc;
         try {
           if (typeof vid.play === "function") {
             const p = vid.play();
@@ -790,8 +1008,8 @@ function createThemeEngine(options = {}) {
         }
         mediaChild = img;
       }
-      if (mediaChild.getAttribute("src") !== wp.mediaUrl) {
-        mediaChild.setAttribute("src", wp.mediaUrl);
+      if (mediaChild.getAttribute("src") !== resolvedSrc) {
+        mediaChild.setAttribute("src", resolvedSrc);
       }
       mediaChild.style.filter = filterCss;
       mediaChild.style.opacity = opacityVal;
@@ -829,6 +1047,8 @@ function createThemeEngine(options = {}) {
   function apply(rawAppearance) {
     currentConfig = normalizeAppearance(rawAppearance);
     if (isAppearanceNativeDefault(currentConfig)) {
+      wallpaperActive = false;
+      clearWallpaperShells();
       removeStyleNode();
       removeBgLayer();
       return currentConfig;
@@ -839,7 +1059,7 @@ function createThemeEngine(options = {}) {
     return currentConfig;
   }
 
-  function buildPreviewMarkup(rawAppearance, locale) {
+  function buildPreviewMarkup(rawAppearance, locale, resolvedMediaOverride) {
     const cfg = normalizeAppearance(rawAppearance);
     const vars = teResolveThemeVars(cfg);
     const wp = cfg.wallpaper;
@@ -852,15 +1072,16 @@ function createThemeEngine(options = {}) {
     const agentLabel = isRu ? "Готово! Обновлены цвета, обои и шрифт." : "Done! Theme, wallpaper and font applied.";
     const inputLabel = isRu ? "Написать сообщение..." : "Ask anything...";
 
+    const mediaSrc = teValidMediaUrl(resolvedMediaOverride) || (resolveMediaUrl && wp.mediaFile ? resolveMediaUrl(wp.mediaFile, wp.mediaUrl) : "") || wp.mediaUrl;
     let bgHtml = "";
     if (wp.type === "gradient") {
       const gradBg = teBuildGradientCss(wp);
       const animStyle = wp.gradAnimated ? `background-size:220% 220%;animation:agy-ru-grad-shift ${wp.gradSpeed}s ease infinite;` : "";
       bgHtml = `<div style="position:absolute;inset:0;background-image:${teEscapeAttr(gradBg)};${animStyle}opacity:${(wp.opacity / 100).toFixed(2)};filter:blur(${Math.round(wp.blur * 0.45)}px)"></div>`;
-    } else if (wp.type === "image" && wp.mediaUrl) {
-      bgHtml = `<img src="${teEscapeAttr(wp.mediaUrl)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:${(wp.opacity / 100).toFixed(2)};filter:blur(${Math.round(wp.blur * 0.45)}px);transform:scale(${(wp.scale / 100).toFixed(2)})"/>`;
-    } else if (wp.type === "video" && wp.mediaUrl) {
-      bgHtml = `<video src="${teEscapeAttr(wp.mediaUrl)}" autoplay muted loop playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:${(wp.opacity / 100).toFixed(2)};filter:blur(${Math.round(wp.blur * 0.45)}px)"></video>`;
+    } else if (wp.type === "image" && mediaSrc) {
+      bgHtml = `<img src="${teEscapeAttr(mediaSrc)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:${(wp.opacity / 100).toFixed(2)};filter:blur(${Math.round(wp.blur * 0.45)}px);transform:scale(${(wp.scale / 100).toFixed(2)})"/>`;
+    } else if (wp.type === "video" && mediaSrc) {
+      bgHtml = `<video src="${teEscapeAttr(mediaSrc)}" autoplay muted loop playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:${(wp.opacity / 100).toFixed(2)};filter:blur(${Math.round(wp.blur * 0.45)}px)"></video>`;
     }
 
     const dimOpacity = wp.type === "none" ? 0 : (wp.type === "gradient" ? (wp.dim * 0.55) / 100 : wp.dim / 100);
@@ -902,8 +1123,12 @@ function createThemeEngine(options = {}) {
   return {
     apply,
     buildPreviewMarkup,
+    scanWallpaperShells,
+    clearWallpaperShells,
     getCurrent: () => normalizeAppearance(currentConfig),
     destroy: () => {
+      wallpaperActive = false;
+      clearWallpaperShells();
       removeStyleNode();
       removeBgLayer();
     },
