@@ -13,7 +13,7 @@ const DEFAULT_MINI_FIELDS = {
   quota: false,
 };
 
-const CURATED_ACCENTS = ["#3b82f6", "#6366f1", "#8b5cf6", "#10b981", "#14b8a6", "#f59e0b", "#ec4899", "#ef4444"];
+const CURATED_ACCENTS = ["#d97757", "#c15f3c", "#788c5d", "#6a9bcc", "#3b82f6", "#10b981", "#f59e0b", "#e11d48", "#8b5cf6"];
 
 const DEFAULT_STUDIO_UI = {
   windowTheme: "obsidian",
@@ -21,35 +21,45 @@ const DEFAULT_STUDIO_UI = {
   widgetTheme: "glass",
   widgetScale: "md",
   widgetRadius: 999,
-  widgetOpacity: 88,
-  studioRadius: 16,
-  studioBlur: 20,
+  widgetOpacity: 92,
+  studioRadius: 14,
+  studioBlur: 18,
   appScale: 100,
   studioScale: 100,
   widgetZoom: 100,
 };
 
 const STUDIO_WINDOW_THEMES = [
-  { id: "obsidian", nameRu: "Обсидиан", nameEn: "Obsidian", descRu: "Глубокий графит и мягкое акцентное свечение", descEn: "Deep graphite with subtle accent glow", bg: "#070708", side: "#0d0d11" },
-  { id: "frosted", nameRu: "Матовое стекло", nameEn: "Frosted Glass", descRu: "Полупрозрачный акрил поверх обоев", descEn: "Translucent acrylic glass over wallpaper", bg: "rgba(21,21,26,0.74)", side: "rgba(28,28,34,0.72)" },
-  { id: "neon-cyber", nameRu: "Кибер-неон", nameEn: "Cyber Neon", descRu: "Светящаяся рамка и контрастный HUD", descEn: "Luminous accent border and cyber HUD", bg: "#070811", side: "#0a0d1a" },
-  { id: "minimal-mono", nameRu: "Минимализм", nameEn: "Minimal Mono", descRu: "Чистые линии без теней и лишнего шума", descEn: "Crisp hairline borders without visual noise", bg: "#070708", side: "#070708" },
-  { id: "aurora", nameRu: "Аврора", nameEn: "Aurora", descRu: "Бархатный градиент и мягкая аура", descEn: "Velvet gradient backdrop with soft aura", bg: "#090b15", side: "#12162b" },
+  { id: "obsidian", nameRu: "В тон теме", nameEn: "Follow Theme", descRu: "Адаптивный графит — наследует палитру активной темы", descEn: "Adaptive slate that inherits the active theme palette", bg: "#070708", side: "#0c0c0f" },
+  { id: "claude-dark", nameRu: "Claude Code · Тёмная", nameEn: "Claude Code Dark", descRu: "Тёплый уголь #1F1E1D, крем и терракота #D97757", descEn: "Warm #1F1E1D charcoal, cream ink & #D97757 terracotta", bg: "#1f1e1d", side: "#181716", accent: "#d97757" },
+  { id: "claude-light", nameRu: "Claude Code · Светлая", nameEn: "Claude Code Light", descRu: "Пергамент #FAF9F5, чернила #141413 и терракота", descEn: "Ivory #FAF9F5 parchment, #141413 ink & terracotta", bg: "#faf9f5", side: "#f0eee6", accent: "#c15f3c", isLight: true },
+  { id: "frosted", nameRu: "Матовое стекло", nameEn: "Frosted Glass", descRu: "Полупрозрачный акрил поверх фона и обоев", descEn: "Translucent acrylic glass over wallpaper", bg: "rgba(21,21,26,0.74)", side: "rgba(28,28,34,0.72)" },
+  { id: "minimal-mono", nameRu: "Минимализм", nameEn: "Minimal Mono", descRu: "Единая плоскость с тонкими 1px-разделителями", descEn: "Single flat plane with crisp hairline dividers", bg: "#070708", side: "#070708" },
+  { id: "aurora", nameRu: "Графит с тоном", nameEn: "Tinted Graphite", descRu: "Спокойный графит с лёгким оттенком акцента", descEn: "Calm graphite tinted subtly by your accent color", bg: "#0b0c12", side: "#10121c" },
+  { id: "neon-cyber", nameRu: "Контрастный HUD", nameEn: "Contrast HUD", descRu: "Тёмный контрастный контур с акцентной рамкой", descEn: "High-contrast dark shell with accent border", bg: "#08090f", side: "#0b0c14" },
 ];
 
 const STUDIO_WINDOW_LAYOUTS = [
   { id: "sidebar", nameRu: "Классический сайдбар", nameEn: "Classic Sidebar", descRu: "Боковое меню с подписями и статусом", descEn: "Full left sidebar with labels & status" },
   { id: "rail", nameRu: "Компактный рейл", nameEn: "Compact Rail", descRu: "Узкая полоса иконок — максимум пространства", descEn: "Slim icon rail for maximum workspace" },
   { id: "topbar", nameRu: "Верхняя панель", nameEn: "Top Bar", descRu: "Горизонтальная навигация сверху окна", descEn: "Horizontal tab bar across the top" },
-  { id: "floating-glass", nameRu: "Парящие карточки", nameEn: "Floating Glass", descRu: "Две раздельные стеклянные панели", descEn: "Detached floating sidebar & content cards" },
+  { id: "floating-glass", nameRu: "Раздельные панели", nameEn: "Split Panels", descRu: "Две раздельные карточки навигации и контента", descEn: "Detached sidebar & content cards" },
 ];
 
 const WIDGET_DESIGN_THEMES = [
-  { id: "glass", nameRu: "Жидкое стекло", nameEn: "Liquid Glass", descRu: "Полупрозрачное стекло с мягким блюром и акцентным кантом", descEn: "Translucent glass with soft blur and accent edge" },
-  { id: "island", nameRu: "Dynamic Island", nameEn: "Dynamic Island", descRu: "Глубокий чёрный остров с яркой телеметрией", descEn: "Deep dark capsule with bold metrics" },
-  { id: "neon", nameRu: "Неоновый HUD", nameEn: "Neon HUD", descRu: "Акцентная подсветка рамки и цифр TPS", descEn: "Luminous accent ring and glowing TPS" },
-  { id: "minimal", nameRu: "Невесомый", nameEn: "Minimal", descRu: "Ультра-лёгкая прозрачная рамка", descEn: "Featherweight ultra-clean frame" },
-  { id: "solid", nameRu: "Контрастный монолит", nameEn: "Solid Contrast", descRu: "Плотный градиентный фон для ярких обоев", descEn: "Solid gradient surface for bright wallpapers" },
+  { id: "glass", nameRu: "В тон теме", nameEn: "Adaptive Glass", descRu: "Полупрозрачная поверхность в цветах активной темы", descEn: "Translucent surface matched to your active theme" },
+  { id: "claude", nameRu: "Claude Code", nameEn: "Claude Code", descRu: "Тёплый уголь / пергамент и терракотовый акцент", descEn: "Warm Anthropic charcoal / parchment & terracotta" },
+  { id: "island", nameRu: "Монолит Dark", nameEn: "Dark Island", descRu: "Глубокий тёмный остров с контрастными цифрами", descEn: "Deep dark capsule with crisp metrics" },
+  { id: "minimal", nameRu: "Невесомый", nameEn: "Minimal", descRu: "Ультра-лёгкая сдержанная рамка без лишнего фона", descEn: "Featherweight ultra-clean frame" },
+  { id: "solid", nameRu: "Плотный", nameEn: "Solid", descRu: "Непрозрачная матовая карточка для ярких обоев", descEn: "Opaque matte card for bright wallpapers" },
+  { id: "neon", nameRu: "Контрастный контур", nameEn: "Accent Ring", descRu: "Тёмный виджет с тонкой акцентной рамкой", descEn: "Dark widget with crisp accent outline" },
+];
+
+const FONT_PAIR_PRESETS = [
+  { id: "claude-default", nameRu: "Claude Code", nameEn: "Claude Code", descRu: "Claude Sans + JetBrains Mono", descEn: "Claude Sans + JetBrains Mono", uiFont: "claude-sans", monoFont: "claude-mono" },
+  { id: "claude-editorial", nameRu: "Claude Editorial", nameEn: "Claude Editorial", descRu: "Source Serif 4 + JetBrains Mono", descEn: "Source Serif 4 + JetBrains Mono", uiFont: "claude-serif", monoFont: "claude-mono" },
+  { id: "claude-cli", nameRu: "Claude Code CLI", nameEn: "Claude Code CLI", descRu: "Моноширинный терминал везде", descEn: "Monospace terminal everywhere", uiFont: "claude-mono-ui", monoFont: "claude-mono" },
+  { id: "system", nameRu: "Стандартный", nameEn: "System Default", descRu: "Системные шрифты Antigravity", descEn: "Native Antigravity system fonts", uiFont: "system", monoFont: "system" },
 ];
 
 const WALLPAPER_ATMOS_PRESETS = [
@@ -86,6 +96,8 @@ const ICON_PATHS = {
   back: '<polyline points="15 18 9 12 15 6"/>',
   activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
   sliders: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  rudexMark: '<path d="M7 19V5h6.2a4 4 0 0 1 0 8H7" stroke-width="2.1"/><path d="M12.5 13 17.5 19" stroke="var(--rx-accent)" stroke-width="2.2"/>',
+  persona: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>',
   sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
   palette: '<circle cx="13.5" cy="6.5" r=".75" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".75" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".75" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".75" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
@@ -130,6 +142,19 @@ const TEXT = {
     appLayerWallpaper: "Обои",
     appLayerSurface: "Стекло",
     appLayerGreeting: "Приветствие",
+    appLayerText: "Шрифт",
+    claudeSuiteTitle: "Стиль Claude Code",
+    claudeSuiteDesc: "Цвета и шрифты Anthropic для всего Antigravity и меню Rudex",
+    claudeSuiteDarkBtn: "Тёмная",
+    claudeSuiteLightBtn: "Светлая",
+    claudeSuiteApplied: "Применён стиль Claude Code (цвета + шрифты)",
+    themeTagDark: "Тёмная",
+    themeTagLight: "Светлая",
+    themeTagNative: "Базовая",
+    fontPairsTitle: "Готовые шрифтовые пары Claude Code",
+    fontPreviewLabel: "Живой образец типографики",
+    fontPreviewTitle: "Чистая типографика интерфейса",
+    fontPreviewBody: "Шрифты применяются одновременно ко всему интерфейсу Antigravity, ответам агента и окну Rudex Studio.",
     modalTitlePersona: "Характер агента",
     modalSubPersona: "Персональная инструкция для текущего чата",
     modalTitleSupplements: "Дополнения агенту",
@@ -521,6 +546,19 @@ const TEXT = {
     appLayerWallpaper: "Wallpaper",
     appLayerSurface: "Glass",
     appLayerGreeting: "Greeting",
+    appLayerText: "Font",
+    claudeSuiteTitle: "Claude Code Style",
+    claudeSuiteDesc: "Anthropic palette & typography for Antigravity UI and Rudex menu",
+    claudeSuiteDarkBtn: "Dark",
+    claudeSuiteLightBtn: "Light",
+    claudeSuiteApplied: "Claude Code palette & fonts applied",
+    themeTagDark: "Dark",
+    themeTagLight: "Light",
+    themeTagNative: "Native",
+    fontPairsTitle: "Claude Code Font Pairings",
+    fontPreviewLabel: "Live typography specimen",
+    fontPreviewTitle: "Editorial interface typography",
+    fontPreviewBody: "Selected fonts apply across the entire Antigravity UI, agent responses, and the Rudex Studio menu.",
     modalTitlePersona: "Agent Persona",
     modalSubPersona: "Per-chat persona instruction (active from next reply)",
     modalTitleSupplements: "Agent Supplements",
@@ -1149,16 +1187,48 @@ function spCloneAppearance(raw) {
   return JSON.parse(JSON.stringify(spNormalizeAppearance(raw)));
 }
 
+let _spThemeModCache = null;
+function spGetThemeMod() {
+  if (_spThemeModCache !== null) return _spThemeModCache;
+  if (typeof THEME_PRESETS === "undefined" && typeof module !== "undefined" && typeof require === "function") {
+    try { _spThemeModCache = require("./theme-engine.js"); return _spThemeModCache; } catch (_e) {}
+  }
+  _spThemeModCache = false;
+  return false;
+}
+
 function spGetThemePresets() {
-  return typeof THEME_PRESETS !== "undefined" && Array.isArray(THEME_PRESETS) ? THEME_PRESETS : [];
+  if (typeof THEME_PRESETS !== "undefined" && Array.isArray(THEME_PRESETS)) return THEME_PRESETS;
+  const mod = spGetThemeMod();
+  return mod && Array.isArray(mod.THEME_PRESETS) ? mod.THEME_PRESETS : [];
 }
 
 function spGetGradientPresets() {
-  return typeof GRADIENT_PRESETS !== "undefined" && Array.isArray(GRADIENT_PRESETS) ? GRADIENT_PRESETS : [];
+  if (typeof GRADIENT_PRESETS !== "undefined" && Array.isArray(GRADIENT_PRESETS)) return GRADIENT_PRESETS;
+  const mod = spGetThemeMod();
+  return mod && Array.isArray(mod.GRADIENT_PRESETS) ? mod.GRADIENT_PRESETS : [];
 }
 
 function spGetFontPresets() {
-  return typeof FONT_PRESETS !== "undefined" && FONT_PRESETS ? FONT_PRESETS : { ui: [{ id: "system", label: "System", labelEn: "System" }], mono: [{ id: "system", label: "System Mono", labelEn: "System Mono" }] };
+  if (typeof FONT_PRESETS !== "undefined" && FONT_PRESETS) return FONT_PRESETS;
+  const mod = spGetThemeMod();
+  if (mod && mod.FONT_PRESETS) return mod.FONT_PRESETS;
+  return { ui: [{ id: "system", label: "System", labelEn: "System", stack: "" }], mono: [{ id: "system", label: "System Mono", labelEn: "System Mono", stack: "" }] };
+}
+
+function spFindFont(group, id) {
+  if (typeof teFindFont === "function") return teFindFont(group, id);
+  const mod = spGetThemeMod();
+  if (mod && typeof mod.teFindFont === "function") return mod.teFindFont(group, id);
+  const list = (spGetFontPresets()[group]) || [];
+  return list.find((f) => f.id === id) || list[0] || { id: "system", stack: "" };
+}
+
+function spMixHexColor(hexA, hexB, ratio) {
+  if (typeof teMixHex === "function") return teMixHex(hexA, hexB, ratio);
+  const mod = spGetThemeMod();
+  if (mod && typeof mod.teMixHex === "function") return mod.teMixHex(hexA, hexB, ratio);
+  return hexA;
 }
 
 function spFindThemePreset(id) {
@@ -1450,23 +1520,22 @@ function buildSparklineMarkup(samples, width, height, idPrefix) {
   const baseY = (height - padY).toFixed(1);
   const areaD = `${lineD} L${last[0]} ${baseY} L${first[0]} ${baseY} Z`;
   const gradId = `rxSparkGrad_${idPrefix}`;
-  const guideTopY = (padY + innerH * 0.25).toFixed(1);
-  const guideBotY = (padY + innerH * 0.75).toFixed(1);
+  const guideTopY = (padY + innerH * 0.28).toFixed(1);
+  const guideBotY = (padY + innerH * 0.72).toFixed(1);
   const isIdle = peakVal <= 0.05;
   return `<svg class="spark-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:100%;display:block">
     <defs>
       <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="var(--rx-accent)" stop-opacity="${isIdle ? "0.10" : "0.38"}"/>
-        <stop offset="55%" stop-color="var(--rx-accent)" stop-opacity="${isIdle ? "0.04" : "0.14"}"/>
+        <stop offset="0%" stop-color="var(--rx-accent)" stop-opacity="${isIdle ? "0.06" : "0.22"}"/>
+        <stop offset="70%" stop-color="var(--rx-accent)" stop-opacity="${isIdle ? "0.02" : "0.05"}"/>
         <stop offset="100%" stop-color="var(--rx-accent)" stop-opacity="0"/>
       </linearGradient>
     </defs>
-    <line x1="${padX}" y1="${guideTopY}" x2="${width - padX}" y2="${guideTopY}" stroke="rgba(255,255,255,0.07)" stroke-dasharray="2 4" stroke-width="1"/>
-    <line x1="${padX}" y1="${guideBotY}" x2="${width - padX}" y2="${guideBotY}" stroke="rgba(255,255,255,0.07)" stroke-dasharray="2 4" stroke-width="1"/>
+    <line x1="${padX}" y1="${guideTopY}" x2="${width - padX}" y2="${guideTopY}" stroke="var(--rx-border)" stroke-dasharray="2 4" stroke-width="1"/>
+    <line x1="${padX}" y1="${guideBotY}" x2="${width - padX}" y2="${guideBotY}" stroke="var(--rx-border)" stroke-dasharray="2 4" stroke-width="1"/>
     <path d="${areaD}" fill="url(#${gradId})"/>
-    <path d="${lineD}" fill="none" stroke="var(--rx-accent)" stroke-opacity="${isIdle ? "0.42" : "1"}" stroke-width="${isIdle ? "1.35" : "2"}" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${last[0]}" cy="${last[1]}" r="${isIdle ? "3.8" : "5.2"}" fill="var(--rx-accent)" fill-opacity="${isIdle ? "0.18" : "0.28"}"/>
-    <circle cx="${last[0]}" cy="${last[1]}" r="2.3" fill="${isIdle ? "var(--rx-accent)" : "#ffffff"}" stroke="var(--rx-accent)" stroke-width="1.2"/>
+    <path d="${lineD}" fill="none" stroke="var(--rx-accent)" stroke-opacity="${isIdle ? "0.45" : "0.95"}" stroke-width="${isIdle ? "1.3" : "1.75"}" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="2.4" fill="var(--rx-bg)" stroke="var(--rx-accent)" stroke-width="1.6"/>
   </svg>`;
 }
 
@@ -1533,7 +1602,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.3.0", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "4.4.0", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1817,11 +1886,19 @@ function createStudioPanel(options) {
   }
 
   function detectTheme() {
+    const sui = spNormalizeStudioUi(state.settings.studioUi);
+    if (sui.windowTheme === "claude-light") return "light";
+    if (sui.windowTheme === "claude-dark") return "dark";
     const activeApp = state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance;
-    if (activeApp && activeApp.presetId === "light-paper") return "light";
-    if (activeApp && activeApp.presetId === "custom") {
-      const customL = parseColorLightness(activeApp.canvasBg);
-      if (customL !== null) return customL > 0.58 ? "light" : "dark";
+    if (activeApp && activeApp.presetId && activeApp.presetId !== "native") {
+      if (activeApp.presetId === "custom") {
+        const customL = parseColorLightness(activeApp.canvasBg);
+        if (customL !== null) return customL > 0.58 ? "light" : "dark";
+      } else {
+        const pr = spFindThemePreset(activeApp.presetId);
+        if (pr && pr.mode === "light") return "light";
+        if (pr && pr.mode === "dark") return "dark";
+      }
     }
     if (!doc || !win) return "dark";
     try {
@@ -1866,14 +1943,81 @@ function createStudioPanel(options) {
       rootEl.style.setProperty("--rx-studio-zoom", studioZoom.toFixed(4));
       rootEl.style.setProperty("--rx-widget-zoom", widgetZoom.toFixed(4));
       rootEl.style.setProperty("--rx-widget-preview-zoom", previewZoom.toFixed(4));
-      const activeApp = state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance;
+
+      const activeApp = spNormalizeAppearance(state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance);
       const preset = spFindThemePreset(activeApp && activeApp.presetId);
-      const accent = (activeApp && (activeApp.customAccent || activeApp.presetId === "custom"))
+      const hasThemePalette = activeApp && activeApp.presetId && activeApp.presetId !== "native";
+
+      // Sync full active theme palette into Rudex Studio & widget bridge variables
+      const themePropNames = [
+        "--rx-theme-bg",
+        "--rx-theme-sidebar",
+        "--rx-theme-surface",
+        "--rx-theme-surface-2",
+        "--rx-theme-fg",
+        "--rx-theme-fg-strong",
+        "--rx-theme-muted",
+        "--rx-theme-border",
+        "--rx-theme-border-strong",
+      ];
+      if (hasThemePalette) {
+        const vars = activeApp.presetId === "custom"
+          ? {
+              mode: next,
+              canvasBg: activeApp.canvasBg,
+              cardBg: activeApp.cardBg,
+              sidebarBg: spMixHexColor(activeApp.canvasBg, activeApp.cardBg, 0.45),
+              fgColor: next === "light" ? "#141418" : "#ececef",
+              mutedColor: next === "light" ? "#5c5c66" : "#9a9aa6",
+              borderColor: next === "light" ? "rgba(17, 18, 24, 0.12)" : "rgba(255, 255, 255, 0.10)",
+            }
+          : (preset && preset.vars ? preset.vars : null);
+        if (vars) {
+          const isThemeLight = (preset && preset.mode === "light") || (activeApp.presetId === "custom" && next === "light");
+          const surface2 = spMixHexColor(vars.cardBg, isThemeLight ? "#000000" : "#ffffff", isThemeLight ? 0.05 : 0.065);
+          const softFg = spMixHexColor(vars.fgColor, vars.canvasBg, 0.14);
+          rootEl.style.setProperty("--rx-theme-bg", vars.canvasBg);
+          rootEl.style.setProperty("--rx-theme-sidebar", vars.sidebarBg || vars.canvasBg);
+          rootEl.style.setProperty("--rx-theme-surface", vars.cardBg);
+          rootEl.style.setProperty("--rx-theme-surface-2", surface2);
+          rootEl.style.setProperty("--rx-theme-fg", softFg);
+          rootEl.style.setProperty("--rx-theme-fg-strong", vars.fgColor);
+          rootEl.style.setProperty("--rx-theme-muted", vars.mutedColor);
+          rootEl.style.setProperty("--rx-theme-border", isThemeLight ? "rgba(20, 20, 19, 0.09)" : "rgba(255, 255, 255, 0.08)");
+          rootEl.style.setProperty("--rx-theme-border-strong", vars.borderColor || (isThemeLight ? "rgba(20, 20, 19, 0.16)" : "rgba(255, 255, 255, 0.15)"));
+        }
+      } else {
+        for (let i = 0; i < themePropNames.length; i += 1) {
+          rootEl.style.removeProperty(themePropNames[i]);
+        }
+      }
+
+      // Sync accent color (respect explicit Claude Studio theme accent when on native Antigravity)
+      let accent = (activeApp && (activeApp.customAccent || activeApp.presetId === "custom"))
         ? (activeApp.accentColor || "#3b82f6")
         : ((preset && preset.vars && preset.vars.accentColor) || (activeApp && activeApp.accentColor) || "#3b82f6");
+      if (!activeApp.customAccent && activeApp.presetId === "native") {
+        if (sui.windowTheme === "claude-dark") accent = "#d97757";
+        else if (sui.windowTheme === "claude-light") accent = "#c15f3c";
+      }
       rootEl.style.setProperty("--rx-accent", accent);
       const l = parseColorLightness(accent);
-      rootEl.style.setProperty("--rx-accent-fg", l !== null && l > 0.62 ? "#111216" : "#ffffff");
+      rootEl.style.setProperty("--rx-accent-fg", l !== null && l > 0.62 ? "#141413" : "#ffffff");
+
+      // Sync selected UI & Mono fonts (including Claude Code fonts) into Rudex Studio & widget
+      const ty = activeApp.typography || {};
+      const uiFontObj = spFindFont("ui", ty.uiFont);
+      const monoFontObj = spFindFont("mono", ty.monoFont);
+      if (uiFontObj && uiFontObj.stack) {
+        rootEl.style.setProperty("--rx-font-ui", uiFontObj.stack);
+      } else {
+        rootEl.style.removeProperty("--rx-font-ui");
+      }
+      if (monoFontObj && monoFontObj.stack) {
+        rootEl.style.setProperty("--rx-font-mono", monoFontObj.stack);
+      } else {
+        rootEl.style.removeProperty("--rx-font-mono");
+      }
     }
   }
 
@@ -2946,7 +3090,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "4.3.0";
+    const instVer = (inst && inst.version) || pluginMeta.version || "4.4.0";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -2992,9 +3136,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "4.3.0" },
+          installed: realU.installed || { version: pluginMeta.version || "4.4.0" },
           remote: {
-            version: pluginMeta.version || "4.3.0",
+            version: pluginMeta.version || "4.4.0",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -3910,13 +4054,14 @@ function createStudioPanel(options) {
       <div class="card card-pad">
         <div class="spark-panel-head">
           <div class="spark-meta">
-            <span class="status-pill" style="flex-shrink:0">
+            <span class="status-chip" style="flex-shrink:0">
               <span class="status-dot${tel.isGenerating ? " is-live" : ""}" data-live="dot"></span>
               <span data-live="phase">${escHtml(phase)}</span>
             </span>
-            <span class="status-pill" style="color:var(--rx-muted)" title="${escAttr(tel.modelName || tr.modelUnknown)}"><span class="status-pill-text" data-live="model">${escHtml(tel.modelName || tr.modelUnknown)}</span></span>
+            <span class="layer-sep">·</span>
+            <span class="spark-model-inline" title="${escAttr(tel.modelName || tr.modelUnknown)}" data-live="model">${escHtml(tel.modelName || tr.modelUnknown)}</span>
           </div>
-          <button type="button" class="btn btn-sm" data-action="reset-telemetry">${iconSvg("reset", 13)}${escHtml(tr.resetStats)}</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-action="reset-telemetry">${iconSvg("reset", 12)}${escHtml(tr.resetStats)}</button>
         </div>
         <div class="modal-spark-box" data-live="sparkModal">${buildSparklineMarkup(tel.samples, 560, 102, "modal")}</div>
         <div class="spark-card-foot">
@@ -3927,8 +4072,9 @@ function createStudioPanel(options) {
 
       <div class="quota-strip">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="row-title" style="font-size:12px">${escHtml(tr.quotaSectionTitle)}:</span>
-          <span class="status-pill num" data-live="quotaMed">${escHtml(getActiveChatQuotaDisplay().miniText)}</span>
+          <span class="row-title" style="font-size:12px">${escHtml(tr.quotaSectionTitle)}</span>
+          <span class="layer-sep">·</span>
+          <span class="num" style="font-size:11.5px;color:var(--rx-fg-strong);font-weight:550" data-live="quotaMed">${escHtml(getActiveChatQuotaDisplay().miniText)}</span>
         </div>
         <button type="button" class="btn btn-sm" data-action="open-export-limits">${escHtml(tr.quotaOpenLimitsLink)}</button>
       </div>
@@ -3969,6 +4115,10 @@ function createStudioPanel(options) {
     const styleLabelMap = { glass: tr.appMsgStyleGlass, solid: tr.appMsgStyleSolid, minimal: tr.appMsgStyleMinimal };
     const surfaceLabel = `${styleLabelMap[draft.messageStyle] || tr.appMsgStyleGlass} · ${draft.glassOpacity}%`;
 
+    const fonts = spGetFontPresets();
+    const uiFontObj = (fonts.ui || []).find((f) => f.id === (draft.typography && draft.typography.uiFont)) || (fonts.ui && fonts.ui[0]);
+    const fontShortLabel = uiFontObj ? (uiFontObj.id === "system" ? (isRu ? "Системный" : "System") : (isRu ? uiFontObj.label : (uiFontObj.labelEn || uiFontObj.label)).split(" (")[0]) : "System";
+
     let inner = "";
     if (sub === "theme") inner = renderAppearanceThemeSub(tr, isRu);
     else if (sub === "wallpaper") inner = renderAppearanceWallpaperSub(tr, isRu);
@@ -3978,28 +4128,28 @@ function createStudioPanel(options) {
     else inner = renderAppearanceTextSub(tr, isRu);
 
     return `
-      <div class="layer-summary-strip">
-        <button type="button" class="layer-pill${sub === "theme" ? " is-active" : ""}" data-action="set-app-subtab" data-val="theme">
-          <span class="layer-dot" style="background:${escAttr(effAccent)}"></span>
-          <span>${escHtml(tr.appLayerTheme)}: ${escHtml(themeLabel)}</span>
-        </button>
-        <button type="button" class="layer-pill${sub === "wallpaper" ? " is-active" : ""}" data-action="set-app-subtab" data-val="wallpaper">
-          <span>${escHtml(tr.appLayerWallpaper)}: ${escHtml(wpLabel)}</span>
-        </button>
-        <button type="button" class="layer-pill${sub === "corners" ? " is-active" : ""}" data-action="set-app-subtab" data-val="corners">
-          <span>${escHtml(tr.appLayerCorners)}: ${escHtml(cornersLabel)}</span>
-        </button>
-        <button type="button" class="layer-pill${sub === "surface" ? " is-active" : ""}" data-action="set-app-subtab" data-val="surface">
-          <span>${escHtml(tr.appLayerSurface)}: ${escHtml(surfaceLabel)}</span>
-        </button>
-        <button type="button" class="layer-pill${sub === "greeting" ? " is-active" : ""}" data-action="set-app-subtab" data-val="greeting">
-          <span>${escHtml(tr.appLayerGreeting)}: ${escHtml(gd.enabled ? tr.personaActiveTag : tr.personaOffTag)}</span>
-        </button>
-      </div>
       <div class="subtab-bar">
         ${subTabs.map((st) => `
           <button type="button" class="subtab-btn${st.id === sub ? " is-active" : ""}" data-action="set-app-subtab" data-val="${st.id}">${escHtml(st.label)}</button>
         `).join("")}
+      </div>
+      <div class="layer-summary-strip">
+        <button type="button" class="layer-pill${sub === "theme" ? " is-active" : ""}" data-action="set-app-subtab" data-val="theme">
+          <span class="layer-dot" style="background:${escAttr(effAccent)}"></span>
+          <span>${escHtml(themeLabel)}</span>
+        </button>
+        <span class="layer-sep">·</span>
+        <button type="button" class="layer-pill${sub === "wallpaper" ? " is-active" : ""}" data-action="set-app-subtab" data-val="wallpaper">
+          <span>${escHtml(tr.appLayerWallpaper)}: ${escHtml(wpLabel)}</span>
+        </button>
+        <span class="layer-sep">·</span>
+        <button type="button" class="layer-pill${sub === "corners" ? " is-active" : ""}" data-action="set-app-subtab" data-val="corners">
+          <span>${escHtml(cornersLabel)}</span>
+        </button>
+        <span class="layer-sep">·</span>
+        <button type="button" class="layer-pill${sub === "text" ? " is-active" : ""}" data-action="set-app-subtab" data-val="text">
+          <span>${escHtml(tr.appLayerText)}: ${escHtml(fontShortLabel)}</span>
+        </button>
       </div>
       ${inner}
     `;
@@ -4014,22 +4164,51 @@ function createStudioPanel(options) {
       : ((curPreset && curPreset.vars && curPreset.vars.accentColor) || draft.accentColor);
     const fineOpen = Boolean(state.openDisclosures.themeFine);
     const profiles = state.settings.appearanceProfiles || [];
+    const isClaudeDarkActive = draft.presetId === "claude-code-dark";
+    const isClaudeLightActive = draft.presetId === "claude-code-light";
 
     return `
+      <div class="claude-spotlight">
+        <div class="claude-spot-info">
+          <span class="claude-spot-title">
+            <span class="claude-spot-dot"></span>
+            <span>${escHtml(tr.claudeSuiteTitle)}</span>
+          </span>
+          <span class="claude-spot-desc">${escHtml(tr.claudeSuiteDesc)}</span>
+        </div>
+        <div class="claude-spot-actions">
+          <button type="button" class="claude-preset-btn${isClaudeDarkActive ? " is-active" : ""}" data-action="apply-claude-suite" data-val="dark">
+            <span class="claude-chip-swatch" style="background:linear-gradient(135deg,#1f1e1d 55%,#d97757 55%)"></span>
+            <span>${escHtml(tr.claudeSuiteDarkBtn)}</span>
+          </button>
+          <button type="button" class="claude-preset-btn${isClaudeLightActive ? " is-active" : ""}" data-action="apply-claude-suite" data-val="light">
+            <span class="claude-chip-swatch" style="background:linear-gradient(135deg,#faf9f5 55%,#c15f3c 55%)"></span>
+            <span>${escHtml(tr.claudeSuiteLightBtn)}</span>
+          </button>
+        </div>
+      </div>
+
       <div class="section-group">
         <span class="section-label">${escHtml(tr.appThemesTitle)}</span>
         <div class="theme-grid">
           ${presets.map((pr) => {
             const sel = draft.presetId === pr.id;
             const sw = pr.vars;
+            const tagText = pr.badge || (pr.mode === "light" ? tr.themeTagLight : (pr.mode === "native" ? tr.themeTagNative : tr.themeTagDark));
             return `
               <button type="button" class="theme-card${sel ? " is-selected" : ""}" data-action="select-theme-preset" data-id="${escAttr(pr.id)}">
-                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(isRu ? pr.nameRu : pr.nameEn)}</span>
-                <span class="theme-dots">
-                  <span class="theme-dot" style="background:${escAttr(sw.canvasBg)}"></span>
-                  <span class="theme-dot" style="background:${escAttr(sw.cardBg)}"></span>
-                  <span class="theme-dot" style="background:${escAttr(sw.accentColor)}"></span>
+                <span class="theme-swatch-mini" style="background:${escAttr(sw.canvasBg)}">
+                  <span class="theme-swatch-side" style="background:${escAttr(sw.sidebarBg || sw.canvasBg)}"></span>
+                  <span class="theme-swatch-body">
+                    <span class="theme-swatch-card" style="background:${escAttr(sw.cardBg)}"></span>
+                    <span class="theme-swatch-accent" style="background:${escAttr(sw.accentColor)}"></span>
+                  </span>
                 </span>
+                <span class="theme-card-meta">
+                  <span class="theme-card-name">${escHtml(isRu ? pr.nameRu : pr.nameEn)}</span>
+                  <span class="theme-card-tag">${escHtml(tagText)}</span>
+                </span>
+                ${sel ? `<span class="theme-check">${iconSvg("check", 13)}</span>` : ""}
               </button>
             `;
           }).join("")}
@@ -4113,7 +4292,7 @@ function createStudioPanel(options) {
       modeBody = `
         <div class="section-group">
           <span class="section-label">${escHtml(tr.appGradStyleLabel)}</span>
-          <div class="subtab-bar">
+          <div class="subtab-bar is-segmented">
             ${gradStyles.map((gs) => `
               <button type="button" class="subtab-btn${wp.gradStyle === gs.id ? " is-active" : ""}" data-action="set-wallpaper-grad-style" data-val="${gs.id}">${escHtml(gs.label)}</button>
             `).join("")}
@@ -4266,7 +4445,7 @@ function createStudioPanel(options) {
           </div>
         ` : ""}
 
-        <div class="subtab-bar">
+        <div class="subtab-bar is-segmented">
           ${fits.map((ft) => `
             <button type="button" class="subtab-btn${wp.fit === ft.id ? " is-active" : ""}" data-action="set-wp-fit" data-val="${ft.id}">${escHtml(ft.label)}</button>
           `).join("")}
@@ -4403,7 +4582,7 @@ function createStudioPanel(options) {
     }
 
     return `
-      <div class="subtab-bar">
+      <div class="subtab-bar is-segmented">
         ${modes.map((m) => `
           <button type="button" class="subtab-btn${wp.type === m.id ? " is-active" : ""}" data-action="set-wallpaper-type" data-val="${m.id}">${escHtml(m.label)}</button>
         `).join("")}
@@ -4464,7 +4643,7 @@ function createStudioPanel(options) {
         </div>
       </div>
 
-      <div class="subtab-bar">
+      <div class="subtab-bar is-segmented">
         <button type="button" class="subtab-btn${c.mode === "linked" ? " is-active" : ""}" data-action="set-corners-mode" data-val="linked">${escHtml(tr.cornersModeLinked)}</button>
         <button type="button" class="subtab-btn${c.mode === "custom" ? " is-active" : ""}" data-action="set-corners-mode" data-val="custom">${escHtml(tr.cornersModeCustom)}</button>
       </div>
@@ -4516,7 +4695,7 @@ function createStudioPanel(options) {
     return `
       <div class="section-group">
         <span class="section-label">${escHtml(tr.appMsgStyleLabel)}</span>
-        <div class="subtab-bar">
+        <div class="subtab-bar is-segmented">
           ${styles.map((st) => `
             <button type="button" class="subtab-btn${draft.messageStyle === st.id ? " is-active" : ""}" data-action="set-message-style" data-val="${st.id}">${escHtml(st.label)}</button>
           `).join("")}
@@ -4596,7 +4775,7 @@ function createStudioPanel(options) {
         </div>
       </div>
 
-      <div class="subtab-bar">
+      <div class="subtab-bar is-segmented">
         ${modes.map((m) => `
           <button type="button" class="subtab-btn${gd.mode === m.id ? " is-active" : ""}" data-action="set-greeting-mode" data-val="${m.id}">${escHtml(m.label)}</button>
         `).join("")}
@@ -4652,6 +4831,10 @@ function createStudioPanel(options) {
     const draft = spNormalizeAppearance(state.appearanceDraft);
     const ty = draft.typography;
     const fonts = spGetFontPresets();
+    const uiFontObj = (fonts.ui || []).find((f) => f.id === ty.uiFont) || { stack: "" };
+    const monoFontObj = (fonts.mono || []).find((f) => f.id === ty.monoFont) || { stack: "" };
+    const uiStack = uiFontObj.stack || "var(--rx-font-ui)";
+    const monoStack = monoFontObj.stack || "var(--rx-font-mono)";
     const densities = [
       { id: "compact", label: tr.appDensityCompact },
       { id: "comfortable", label: tr.appDensityComfort },
@@ -4659,6 +4842,30 @@ function createStudioPanel(options) {
     ];
 
     return `
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.fontPairsTitle)}</span>
+        <div class="font-pair-grid">
+          ${FONT_PAIR_PRESETS.map((fp) => {
+            const sel = ty.uiFont === fp.uiFont && ty.monoFont === fp.monoFont;
+            return `
+              <button type="button" class="font-pair-btn${sel ? " is-selected" : ""}" data-action="apply-font-pair" data-id="${escAttr(fp.id)}">
+                <span class="font-pair-title">${escHtml(isRu ? fp.nameRu : fp.nameEn)}</span>
+                <span class="font-pair-sub">${escHtml(isRu ? fp.descRu : fp.descEn)}</span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.fontPreviewLabel)}</span>
+        <div class="typo-preview-card">
+          <div class="typo-preview-head" data-live="typoPreviewHead" style="font-family:${escAttr(uiStack)};font-size:${Math.min(18, ty.fontSize + 1)}px">${escHtml(tr.fontPreviewTitle)}</div>
+          <p class="typo-preview-body" data-live="typoPreviewBody" style="font-family:${escAttr(uiStack)};font-size:${ty.fontSize}px;line-height:${ty.lineHeight}">${escHtml(tr.fontPreviewBody)}</p>
+          <div class="typo-preview-code" data-live="typoPreviewCode" style="font-family:${escAttr(monoStack)}">const theme = { palette: "claude-code", accent: "#d97757" };</div>
+        </div>
+      </div>
+
       <div class="control-grid-2">
         <div class="section-group">
           <span class="section-label">${escHtml(tr.appUiFont)}</span>
@@ -4692,7 +4899,7 @@ function createStudioPanel(options) {
 
       <div class="section-group">
         <span class="section-label">${escHtml(tr.appDensity)}</span>
-        <div class="subtab-bar">
+        <div class="subtab-bar is-segmented">
           ${densities.map((d) => `
             <button type="button" class="subtab-btn${ty.density === d.id ? " is-active" : ""}" data-action="set-density" data-val="${d.id}">${escHtml(d.label)}</button>
           `).join("")}
@@ -4714,13 +4921,15 @@ function createStudioPanel(options) {
 
     return `
       <div class="persona-stack">
-        <div class="spark-meta">
-          <span class="status-pill" data-live="chatBadge">
-            <span class="status-dot" style="background:${state.activeChatKey === "__new__" ? "var(--rx-muted)" : "var(--rx-accent)"}"></span>
-            <span>${escHtml(formatChatBadgeLabel())}</span>
-          </span>
-          <span class="nav-badge">${iconSvg("bolt", 11)} ${escHtml(tr.personaHookBadge)}</span>
-          <span class="row-desc" style="flex-basis:100%">${escHtml(tr.chatScopeHint)}</span>
+        <div class="persona-scope-bar">
+          <div class="persona-scope-top">
+            <span class="status-chip" data-live="chatBadge" style="min-width:0;overflow:hidden;text-overflow:ellipsis">
+              <span class="status-dot" style="background:${state.activeChatKey === "__new__" ? "var(--rx-muted)" : "var(--rx-accent)"}"></span>
+              <span style="overflow:hidden;text-overflow:ellipsis">${escHtml(formatChatBadgeLabel())}</span>
+            </span>
+            <span class="nav-badge" style="flex-shrink:0">${escHtml(tr.personaHookBadge)}</span>
+          </div>
+          <span class="row-desc">${escHtml(tr.chatScopeHint)}</span>
         </div>
 
         <div class="card">
@@ -4887,11 +5096,14 @@ function createStudioPanel(options) {
         <div class="design-card-grid">
           ${STUDIO_WINDOW_THEMES.map((wt) => {
             const sel = sui.windowTheme === wt.id;
+            const bodyPaneBg = wt.isLight ? "rgba(20,20,19,0.06)" : "rgba(255,255,255,0.07)";
+            const accentBar = wt.accent ? `<span style="position:absolute;left:5px;top:6px;width:2px;height:10px;border-radius:1px;background:${escAttr(wt.accent)}"></span>` : "";
             return `
               <button type="button" class="design-card${sel ? " is-selected" : ""}" data-action="set-studio-theme" data-val="${wt.id}">
-                <span class="design-thumb" style="background:${escAttr(wt.bg)};${wt.id === "neon-cyber" ? "border-color:var(--rx-accent)" : ""}">
+                <span class="design-thumb" style="background:${escAttr(wt.bg)};${wt.id === "neon-cyber" ? "border-color:var(--rx-accent)" : (wt.isLight ? "border-color:rgba(20,20,19,0.22)" : "")}">
                   <span style="width:12px;height:100%;border-radius:3px;background:${escAttr(wt.side)}"></span>
-                  <span style="flex:1;height:100%;border-radius:3px;background:rgba(255,255,255,0.06)"></span>
+                  <span style="flex:1;height:100%;border-radius:3px;background:${bodyPaneBg}"></span>
+                  ${accentBar}
                 </span>
                 <span class="design-meta">
                   <span class="design-title">${escHtml(isRu ? wt.nameRu : wt.nameEn)}</span>
@@ -5004,19 +5216,22 @@ function createStudioPanel(options) {
         <div class="design-card-grid">
           ${WIDGET_DESIGN_THEMES.map((wt) => {
             const sel = sui.widgetTheme === wt.id;
-            let thumbStyle = "background:linear-gradient(135deg,#0f172a,#1e1b4b);border-color:rgba(255,255,255,0.28)";
-            let capsuleStyle = "width:28px;height:12px;border-radius:999px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.45);box-shadow:inset 0 1px 0 rgba(255,255,255,0.6)";
-            if (wt.id === "island") {
-              thumbStyle = "background:#040406;border-color:rgba(255,255,255,0.2)";
-              capsuleStyle = "width:28px;height:11px;border-radius:999px;background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.22)";
+            let thumbStyle = "background:#111217;border-color:rgba(255,255,255,0.18)";
+            let capsuleStyle = "width:28px;height:11px;border-radius:999px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.28)";
+            if (wt.id === "claude") {
+              thumbStyle = "background:#1f1e1d;border-color:#d97757";
+              capsuleStyle = "width:28px;height:11px;border-radius:999px;background:#262624;border:1px solid rgba(217,119,87,0.75)";
+            } else if (wt.id === "island") {
+              thumbStyle = "background:#060608;border-color:rgba(255,255,255,0.18)";
+              capsuleStyle = "width:28px;height:11px;border-radius:999px;background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.20)";
             } else if (wt.id === "neon") {
-              thumbStyle = "background:#080a16;border-color:var(--rx-accent);box-shadow:0 0 10px color-mix(in srgb,var(--rx-accent) 42%,transparent)";
-              capsuleStyle = "width:28px;height:11px;border-radius:999px;background:var(--rx-accent-soft);border:1px solid var(--rx-accent);box-shadow:0 0 8px color-mix(in srgb,var(--rx-accent) 55%,transparent)";
+              thumbStyle = "background:#090b14;border-color:var(--rx-accent)";
+              capsuleStyle = "width:28px;height:11px;border-radius:999px;background:var(--rx-accent-soft);border:1px solid var(--rx-accent)";
             } else if (wt.id === "minimal") {
               thumbStyle = "background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.14)";
               capsuleStyle = "width:28px;height:10px;border-radius:999px;background:transparent;border:1px solid rgba(255,255,255,0.24)";
             } else if (wt.id === "solid") {
-              thumbStyle = "background:linear-gradient(180deg,#1d1f29,#121319);border-color:rgba(255,255,255,0.16)";
+              thumbStyle = "background:#191a20;border-color:rgba(255,255,255,0.16)";
               capsuleStyle = "width:28px;height:11px;border-radius:999px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.14)";
             }
             return `
@@ -5050,7 +5265,7 @@ function createStudioPanel(options) {
 
       <div class="section-group">
         <span class="section-label">${escHtml(tr.widgetScaleTitle)}</span>
-        <div class="subtab-bar">
+        <div class="subtab-bar is-segmented">
           ${scales.map((sc) => `
             <button type="button" class="subtab-btn${sui.widgetScale === sc.id ? " is-active" : ""}" data-action="set-widget-scale" data-val="${sc.id}">${escHtml(sc.label)}</button>
           `).join("")}
@@ -5237,7 +5452,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "4.3.0";
+    const ver = inst.version || pluginMeta.version || "4.4.0";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -5350,7 +5565,7 @@ function createStudioPanel(options) {
     const tabs = [
       { id: "monitor", label: tr.navMonitor, ic: "activity", title: tr.modalTitleMonitor, sub: tr.modalSubMonitor },
       { id: "appearance", label: tr.navAppearance, ic: "palette", title: tr.modalTitleAppearance, sub: tr.modalSubAppearance },
-      { id: "persona", label: tr.navPersona, ic: "sparkles", title: tr.modalTitlePersona, sub: tr.modalSubPersona, dot: state.chatPersona.enabled },
+      { id: "persona", label: tr.navPersona, ic: "persona", title: tr.modalTitlePersona, sub: tr.modalSubPersona, dot: state.chatPersona.enabled },
       { id: "settings", label: tr.navSettings, ic: "gear", title: tr.modalTitleSettings, sub: tr.modalSubSettings, dot: Boolean(state.update && state.update.available) },
     ];
     const current = tabs.find((x) => x.id === state.activeTab) || tabs[0];
@@ -5369,10 +5584,10 @@ function createStudioPanel(options) {
             <aside class="modal-sidebar">
               <div class="sidebar-brand">
                 <span class="brand-title-wrap">
-                  <span class="brand-logo-dot">${iconSvg("sparkles", 12)}</span>
+                  <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.3.0")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.4.0")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
@@ -5386,16 +5601,12 @@ function createStudioPanel(options) {
               </nav>
               <div class="sidebar-foot">
                 <div class="sidebar-foot-row">
-                  <span class="sidebar-foot-hint">${escHtml(tr.sidebarFooterHint)}</span>
-                  <span class="kbd">Ctrl+Alt+P</span>
-                </div>
-                <div class="sidebar-foot-row">
                   <div class="sidebar-quick-actions">
                     <button type="button" class="lang-pill-btn" data-action="toggle-locale" title="${escAttr(tr.tooltipLang)}">${state.locale === "en" ? "EN" : "RU"}</button>
-                    <button type="button" class="icon-btn" data-action="cycle-studio-theme" title="${escAttr(tr.studioThemeCycleTip)}">${iconSvg("wand", 12)}</button>
-                    <button type="button" class="icon-btn" data-action="open-studio-design" title="${escAttr(tr.setSubStudio)}">${iconSvg("layout", 12)}</button>
+                    <button type="button" class="icon-btn" data-action="cycle-studio-theme" title="${escAttr(tr.studioThemeCycleTip)}">${iconSvg("palette", 13)}</button>
+                    <button type="button" class="icon-btn" data-action="open-studio-design" title="${escAttr(tr.setSubStudio)}">${iconSvg("layout", 13)}</button>
                   </div>
-                  <span class="nav-badge" style="font-size:9.5px">${escHtml(sui.windowTheme)}</span>
+                  <span class="kbd">Ctrl+Alt+P</span>
                 </div>
               </div>
             </aside>
@@ -6158,6 +6369,53 @@ function createStudioPanel(options) {
       });
       return;
     }
+    if (action === "apply-claude-suite") {
+      const variant = actionEl.getAttribute("data-val") === "light" ? "light" : "dark";
+      const presetId = variant === "light" ? "claude-code-light" : "claude-code-dark";
+      const pr = spFindThemePreset(presetId);
+      const sw = pr && pr.vars ? pr.vars : null;
+      state.appearanceDraft.presetId = presetId;
+      state.appearanceDraft.customAccent = false;
+      if (sw) {
+        state.appearanceDraft.accentColor = sw.accentColor;
+        state.appearanceDraft.canvasBg = sw.canvasBg;
+        state.appearanceDraft.cardBg = sw.cardBg;
+        state.appearanceDraft.radius = sw.radius;
+        if (state.appearanceDraft.corners) {
+          state.appearanceDraft.corners.mode = "linked";
+          state.appearanceDraft.corners.all = sw.radius;
+        }
+      }
+      if (!state.appearanceDraft.typography) state.appearanceDraft.typography = spDefaultAppearance().typography;
+      state.appearanceDraft.typography.uiFont = "claude-sans";
+      state.appearanceDraft.typography.monoFont = "claude-mono";
+      saveSettingsPatch({
+        studioUi: {
+          windowTheme: variant === "light" ? "claude-light" : "claude-dark",
+          widgetTheme: "claude",
+        },
+      });
+      state.appearanceDirty = true;
+      state.appearanceLivePreview = true;
+      applyThemeToHost(state.appearanceDraft);
+      setToast(tr.claudeSuiteApplied, false);
+      renderStructure();
+      return;
+    }
+    if (action === "apply-font-pair") {
+      const pid = actionEl.getAttribute("data-id") || "";
+      const found = FONT_PAIR_PRESETS.find((x) => x.id === pid);
+      if (found) {
+        if (!state.appearanceDraft.typography) state.appearanceDraft.typography = spDefaultAppearance().typography;
+        state.appearanceDraft.typography.uiFont = found.uiFont;
+        state.appearanceDraft.typography.monoFont = found.monoFont;
+        state.appearanceDirty = true;
+        state.appearanceLivePreview = true;
+        applyThemeToHost(state.appearanceDraft);
+        renderStructure();
+      }
+      return;
+    }
     if (action === "select-theme-preset") {
       const pid = actionEl.getAttribute("data-id") || "native";
       const pr = spFindThemePreset(pid);
@@ -6732,14 +6990,27 @@ function createStudioPanel(options) {
     } else if (field === "typography.uiFont" || field === "typography.monoFont") {
       const sub = field.split(".")[1];
       draft.typography[sub] = String(rawVal || "system");
+      markAppearanceDirty();
+      renderStructure();
+      return true;
     } else if (field === "typography.fontSize") {
       const n = Math.round(Number(rawVal) || 14);
       draft.typography.fontSize = n;
       labelText = `${n}px`;
+      if (modalMountEl) {
+        const ph = modalMountEl.querySelector('[data-live="typoPreviewHead"]');
+        const pb = modalMountEl.querySelector('[data-live="typoPreviewBody"]');
+        if (ph) ph.style.fontSize = `${Math.min(18, n + 1)}px`;
+        if (pb) pb.style.fontSize = `${n}px`;
+      }
     } else if (field === "typography.lineHeight") {
       const n = Math.round((Number(rawVal) || 1.55) * 100) / 100;
       draft.typography.lineHeight = n;
       labelText = String(n);
+      if (modalMountEl) {
+        const pb = modalMountEl.querySelector('[data-live="typoPreviewBody"]');
+        if (pb) pb.style.lineHeight = String(n);
+      }
     } else if (field === "typography.chatMaxWidth") {
       const n = Math.round(Number(rawVal) || 0);
       draft.typography.chatMaxWidth = n < 680 ? 0 : n;

@@ -63,19 +63,35 @@ const DEFAULT_MINI_FIELDS = {
   model: false,
   quota: false,
 };
-const VALID_APPEARANCE_PRESETS = new Set(["native", "liquid-glass", "obsidian-glass", "midnight-neon", "warm-contrast", "light-paper", "emerald-void", "crimson-noir", "tokyo-night", "sakura-dusk", "nordic-frost", "custom"]);
+const VALID_APPEARANCE_PRESETS = new Set([
+  "native",
+  "claude-code-dark",
+  "claude-code-light",
+  "claude-terminal",
+  "liquid-glass",
+  "obsidian-glass",
+  "midnight-neon",
+  "warm-contrast",
+  "light-paper",
+  "emerald-void",
+  "crimson-noir",
+  "tokyo-night",
+  "sakura-dusk",
+  "nordic-frost",
+  "custom",
+]);
 const VALID_WALLPAPER_TYPES = new Set(["none", "gradient", "image", "video"]);
-const VALID_GRADIENT_PRESETS = new Set(["antigravity", "aurora", "cosmic", "sunset", "emerald", "cyber", "silk", "sakura", "ocean", "amber", "mist"]);
+const VALID_GRADIENT_PRESETS = new Set(["antigravity", "claude-ember", "claude-parchment", "aurora", "cosmic", "sunset", "emerald", "cyber", "silk", "sakura", "ocean", "amber", "mist"]);
 const VALID_GRADIENT_STYLES = new Set(["linear", "radial", "mesh"]);
 const VALID_WALLPAPER_FITS = new Set(["cover", "contain", "fill"]);
 const VALID_TINT_BLENDS = new Set(["normal", "multiply", "screen", "overlay", "soft-light"]);
 const VALID_MESSAGE_STYLES = new Set(["glass", "solid", "minimal"]);
-const VALID_UI_FONTS = new Set(["system", "segoe", "inter", "rubik", "ibm-plex", "georgia"]);
-const VALID_MONO_FONTS = new Set(["system", "cascadia", "jetbrains", "consolas", "fira"]);
+const VALID_UI_FONTS = new Set(["system", "claude-sans", "claude-serif", "claude-lora", "claude-mono-ui", "geist", "segoe", "inter", "rubik", "ibm-plex", "georgia"]);
+const VALID_MONO_FONTS = new Set(["system", "claude-mono", "geist-mono", "ibm-plex-mono", "cascadia", "jetbrains", "consolas", "fira"]);
 const VALID_DENSITIES = new Set(["compact", "comfortable", "spacious"]);
-const VALID_STUDIO_THEMES = new Set(["obsidian", "frosted", "neon-cyber", "minimal-mono", "aurora"]);
+const VALID_STUDIO_THEMES = new Set(["obsidian", "claude-dark", "claude-light", "frosted", "neon-cyber", "minimal-mono", "aurora"]);
 const VALID_STUDIO_LAYOUTS = new Set(["sidebar", "rail", "topbar", "floating-glass"]);
-const VALID_WIDGET_THEMES = new Set(["glass", "island", "neon", "minimal", "solid"]);
+const VALID_WIDGET_THEMES = new Set(["glass", "claude", "island", "neon", "minimal", "solid"]);
 const VALID_WIDGET_SCALES = new Set(["sm", "md", "lg"]);
 const DEFAULT_STUDIO_UI = {
   windowTheme: "obsidian",
@@ -1954,7 +1970,7 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.3.0");
+  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.4.0");
   const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
   const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
   const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
@@ -3128,7 +3144,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.3.0",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.0",
         outPath,
       });
       return res;

@@ -35,10 +35,13 @@ const {
   THEME_PRESETS,
   GRADIENT_PRESETS,
   CORNER_PRESETS,
+  FONT_PRESETS,
   DEFAULT_APPEARANCE,
   normalizeAppearance,
   isAppearanceNativeDefault,
   teResolveCornerRadii,
+  teFindFont,
+  teBuildWebFontUrl,
   detectHostIsLight,
   buildThemeCss,
   createThemeEngine,
@@ -400,7 +403,7 @@ test("Manifest & hooks.json follow Rudex v4.2.1 architecture without PostInvocat
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.3.0");
+  assert.equal(pkg.version, "4.4.0");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -2828,6 +2831,146 @@ test("Independent app/studio/widget scaling, pinned hold-to-resize, zoom compens
     const i18nMainText = fs.readFileSync(path.join(SCRIPTS_DIR, "i18n-main.js"), "utf8");
     assert.ok(i18nMainText.includes("applyAppScaleToWindows"), "i18n-main.js must implement applyAppScaleToWindows");
     assert.ok(i18nMainText.includes("appZoomSupported: true"), "i18n-main.js must report appZoomSupported: true");
+  } finally {
+    panel.destroy();
+    te.destroy();
+    translator.destroy();
+  }
+});
+
+// =============================================================================
+// 17. Claude Code Palettes, Fonts, WebFont Injection & Editorial Studio Redesign (v4.4.0)
+// =============================================================================
+test("Claude Code themes, fonts, Google Fonts loader, one-click suite, and full Studio palette/font sync work cleanly", async () => {
+  // 1) Theme presets & gradients
+  const ccDark = THEME_PRESETS.find((p) => p.id === "claude-code-dark");
+  const ccLight = THEME_PRESETS.find((p) => p.id === "claude-code-light");
+  const ccTerm = THEME_PRESETS.find((p) => p.id === "claude-terminal");
+  assert.ok(ccDark && ccDark.vars.accentColor === "#d97757" && ccDark.vars.canvasBg === "#1f1e1d");
+  assert.ok(ccLight && ccLight.vars.accentColor === "#c15f3c" && ccLight.vars.canvasBg === "#faf9f5" && ccLight.mode === "light");
+  assert.ok(ccTerm && ccTerm.vars.canvasBg === "#141413");
+  assert.ok(GRADIENT_PRESETS.some((g) => g.id === "claude-ember"));
+  assert.ok(GRADIENT_PRESETS.some((g) => g.id === "claude-parchment"));
+
+  // 2) Claude Code font stacks & web font URL generation
+  assert.ok(FONT_PRESETS.ui.some((f) => f.id === "claude-sans"));
+  assert.ok(FONT_PRESETS.ui.some((f) => f.id === "claude-serif"));
+  assert.ok(FONT_PRESETS.ui.some((f) => f.id === "claude-lora"));
+  assert.ok(FONT_PRESETS.ui.some((f) => f.id === "claude-mono-ui"));
+  assert.ok(FONT_PRESETS.mono.some((f) => f.id === "claude-mono"));
+  assert.ok(FONT_PRESETS.mono.some((f) => f.id === "geist-mono"));
+
+  const wfUrl = teBuildWebFontUrl({ typography: { uiFont: "claude-sans", monoFont: "claude-mono" } });
+  assert.ok(wfUrl.startsWith("https://fonts.googleapis.com/css2?"));
+  assert.ok(wfUrl.includes("Plus+Jakarta+Sans") && wfUrl.includes("JetBrains+Mono"));
+  assert.equal(teBuildWebFontUrl({ typography: { uiFont: "system", monoFont: "system" } }), "");
+
+  const ccCss = buildThemeCss({
+    presetId: "claude-code-dark",
+    typography: { uiFont: "claude-serif", monoFont: "claude-mono" },
+  }, { hostIsLight: false });
+  assert.ok(ccCss.includes("--background: #1f1e1d;"));
+  assert.ok(ccCss.includes("--primary: #d97757;"));
+  assert.ok(ccCss.includes("--card: #262624;"));
+  assert.ok(ccCss.includes("Anthropic Serif"));
+  assert.ok(ccCss.includes("JetBrains Mono"));
+  assert.ok(ccCss.includes("optimizeLegibility"));
+
+  // 3) Studio CSS exposes Claude Code window/widget themes and editorial redesign tokens
+  const studioCss = buildStudioStyles();
+  for (const tok of [
+    '[data-studio-theme="claude-dark"]',
+    '[data-studio-theme="claude-light"]',
+    '[data-widget-theme="claude"]',
+    ".claude-spotlight",
+    ".theme-swatch-mini",
+    ".typo-preview-card",
+    ".font-pair-grid",
+    "--rx-font-ui",
+    "--rx-font-mono",
+  ]) {
+    assert.ok(studioCss.includes(tok), `Missing redesigned Studio CSS selector/token: ${tok}`);
+  }
+
+  // 4) Interactive Studio Panel: one-click Claude Code suite + font pairing syncs host & Studio
+  const { doc, win } = createMockDom();
+  const translator = createDomTranslator({ document: doc, window: win, dictionary, applyDynamicRules, initialLocale: "ru" });
+  translator.init();
+  const savedPatches = [];
+  const te = createThemeEngine({ document: doc, window: win });
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      invoke: async (ch, payload) => {
+        if (ch === "agy-studio:get-state") return { locale: "ru", settings: { viewMode: "mini" } };
+        if (ch === "agy-studio:save-settings") {
+          savedPatches.push(payload);
+          return { ok: true, settings: payload };
+        }
+        return { ok: true };
+      },
+    },
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine: te,
+  });
+
+  try {
+    panel.init();
+    panel.setOpen(true, { tab: "appearance", appSubTab: "theme", dockedRight: false });
+    const host = doc.getElementById("rudex-studio-host");
+    const root = host.shadowRoot.querySelector(".studio-root");
+    const modalMount = host.shadowRoot.querySelector(".modal-mount");
+
+    assert.ok(modalMount.innerHTML.includes("claude-spotlight"), "Appearance -> Theme must show Claude Code quick suite");
+    assert.ok(modalMount.innerHTML.includes("theme-swatch-mini"), "Theme cards must render visual mini swatches");
+    assert.equal(modalMount.innerHTML.includes("m12 3-1.9 5.8"), false, "Brand & nav must not use AI sparkle icon");
+
+    // Click one-click Claude Code Dark suite
+    const ccDarkBtn = doc.createElement("button");
+    ccDarkBtn.setAttribute("data-action", "apply-claude-suite");
+    ccDarkBtn.setAttribute("data-val", "dark");
+    root.appendChild(ccDarkBtn);
+    root.dispatchEvent({ type: "click", target: ccDarkBtn });
+
+    assert.equal(root.getAttribute("data-studio-theme"), "claude-dark");
+    assert.equal(root.style.getPropertyValue("--rx-accent"), "#d97757");
+    assert.equal(root.style.getPropertyValue("--rx-theme-bg"), "#1f1e1d");
+    assert.ok(root.style.getPropertyValue("--rx-font-ui").includes("Anthropic Sans"), "Studio UI must inherit Claude Sans font");
+    assert.ok(root.style.getPropertyValue("--rx-font-mono").includes("JetBrains Mono"), "Studio mono must inherit Claude Code Mono font");
+    assert.ok(savedPatches.some((p) => p.studioUi && p.studioUi.windowTheme === "claude-dark" && p.studioUi.widgetTheme === "claude"));
+    const fontLink = doc.getElementById("rudex-studio-fonts");
+    assert.ok(fontLink && fontLink.getAttribute("href").includes("fonts.googleapis.com"), "WebFont <link> must be injected into host document");
+
+    // Click one-click Claude Code Light suite
+    const ccLightBtn = doc.createElement("button");
+    ccLightBtn.setAttribute("data-action", "apply-claude-suite");
+    ccLightBtn.setAttribute("data-val", "light");
+    root.appendChild(ccLightBtn);
+    root.dispatchEvent({ type: "click", target: ccLightBtn });
+    assert.equal(root.getAttribute("data-theme"), "light");
+    assert.equal(root.getAttribute("data-studio-theme"), "claude-light");
+    assert.equal(root.style.getPropertyValue("--rx-accent"), "#c15f3c");
+    assert.equal(root.style.getPropertyValue("--rx-theme-bg"), "#faf9f5");
+
+    // Switch to Appearance -> Text and click Claude Editorial font pairing
+    panel.setOpen(true, { tab: "appearance", appSubTab: "text", dockedRight: false });
+    assert.ok(modalMount.innerHTML.includes("typo-preview-card"), "Text tab must render live typography preview card");
+    const pairBtn = doc.createElement("button");
+    pairBtn.setAttribute("data-action", "apply-font-pair");
+    pairBtn.setAttribute("data-id", "claude-editorial");
+    root.appendChild(pairBtn);
+    root.dispatchEvent({ type: "click", target: pairBtn });
+    assert.ok(root.style.getPropertyValue("--rx-font-ui").includes("Source Serif 4"), "Editorial pair must apply Claude Serif font to Studio");
+
+    // Verify backend sanitizer whitelists all new Claude Code IDs
+    const i18nMainText = fs.readFileSync(path.join(SCRIPTS_DIR, "i18n-main.js"), "utf8");
+    for (const id of ["claude-code-dark", "claude-code-light", "claude-terminal", "claude-sans", "claude-serif", "claude-mono", "claude-dark", "claude-light"]) {
+      assert.ok(i18nMainText.includes(`"${id}"`), `i18n-main.js sanitizer must whitelist ${id}`);
+    }
   } finally {
     panel.destroy();
     te.destroy();

@@ -22,6 +22,69 @@ const THEME_PRESETS = [
     },
   },
   {
+    id: "claude-code-dark",
+    nameRu: "Claude Code · Тёмная",
+    nameEn: "Claude Code Dark",
+    descRu: "Тёплый уголь Anthropic, мягкий крем и терракотовый акцент #D97757",
+    descEn: "Anthropic warm charcoal, cream ink, and signature #D97757 terracotta",
+    mode: "dark",
+    badge: "Claude Code",
+    vars: {
+      accentColor: "#d97757",
+      canvasBg: "#1f1e1d",
+      cardBg: "#262624",
+      sidebarBg: "#1a1918",
+      fgColor: "#faf9f5",
+      mutedColor: "#b0aea5",
+      borderColor: "#3a3935",
+      glassOpacity: 92,
+      glassBlur: 10,
+      radius: 10,
+    },
+  },
+  {
+    id: "claude-code-light",
+    nameRu: "Claude Code · Светлая",
+    nameEn: "Claude Code Light",
+    descRu: "Пергаментный крем #FAF9F5, глубокие чернила и терракота #C15F3C",
+    descEn: "Warm ivory parchment #FAF9F5, deep charcoal ink, and #C15F3C terracotta",
+    mode: "light",
+    badge: "Claude Code",
+    vars: {
+      accentColor: "#c15f3c",
+      canvasBg: "#faf9f5",
+      cardBg: "#ffffff",
+      sidebarBg: "#f0eee6",
+      fgColor: "#141413",
+      mutedColor: "#6b6961",
+      borderColor: "#e3e0d5",
+      glassOpacity: 94,
+      glassBlur: 8,
+      radius: 10,
+    },
+  },
+  {
+    id: "claude-terminal",
+    nameRu: "Claude Code · Терминал",
+    nameEn: "Claude Code Terminal",
+    descRu: "Глубокий уголь #141413 и строгий контраст терминала CLI",
+    descEn: "Deep #141413 Anthropic ink with crisp CLI terminal contrast",
+    mode: "dark",
+    badge: "CLI",
+    vars: {
+      accentColor: "#da7756",
+      canvasBg: "#141413",
+      cardBg: "#1c1c1a",
+      sidebarBg: "#111110",
+      fgColor: "#eeece2",
+      mutedColor: "#9e9b91",
+      borderColor: "#2d2c29",
+      glassOpacity: 94,
+      glassBlur: 8,
+      radius: 8,
+    },
+  },
+  {
     id: "liquid-glass",
     nameRu: "Жидкое стекло (iOS 26)",
     nameEn: "Liquid Glass (iOS 26)",
@@ -245,6 +308,8 @@ const THEME_PRESETS = [
 
 const GRADIENT_PRESETS = [
   { id: "antigravity", nameRu: "Antigravity", nameEn: "Antigravity", colors: ["#15151a", "#0d0d11", "#070708"], angle: 135 },
+  { id: "claude-ember", nameRu: "Claude Терракота", nameEn: "Claude Ember", colors: ["#2b221d", "#1f1e1d", "#141413"], angle: 135 },
+  { id: "claude-parchment", nameRu: "Claude Пергамент", nameEn: "Claude Parchment", colors: ["#faf9f5", "#f0eee6", "#e6e2d5"], angle: 145 },
   { id: "aurora", nameRu: "Аврора", nameEn: "Aurora", colors: ["#0f172a", "#1e1b4b", "#09090b"], angle: 135 },
   { id: "cosmic", nameRu: "Космос", nameEn: "Cosmic", colors: ["#090d1e", "#311042", "#0d1b2a"], angle: 125 },
   { id: "sunset", nameRu: "Закат", nameEn: "Sunset", colors: ["#1f121b", "#4a1c2d", "#171426"], angle: 145 },
@@ -282,19 +347,80 @@ const CORNER_PRESETS = [
 
 const FONT_PRESETS = {
   ui: [
-    { id: "system", label: "Системный (Default)", labelEn: "System Default", stack: "" },
-    { id: "segoe", label: "Segoe UI", labelEn: "Segoe UI", stack: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif' },
-    { id: "inter", label: "Inter", labelEn: "Inter", stack: '"Inter", "Segoe UI", system-ui, sans-serif' },
-    { id: "rubik", label: "Rubik", labelEn: "Rubik", stack: '"Rubik", "Segoe UI", system-ui, sans-serif' },
-    { id: "ibm-plex", label: "IBM Plex Sans", labelEn: "IBM Plex Sans", stack: '"IBM Plex Sans", "Segoe UI", sans-serif' },
-    { id: "georgia", label: "Georgia (Serif)", labelEn: "Georgia (Serif)", stack: 'Georgia, "Times New Roman", serif' },
+    { id: "system", label: "Системный (Default)", labelEn: "System Default", stack: "", googleQuery: "" },
+    {
+      id: "claude-sans",
+      label: "Claude Sans (Anthropic)",
+      labelEn: "Claude Sans (Anthropic)",
+      badge: "Claude",
+      stack: '"Anthropic Sans", "Styrene B", "Styrene A", "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      googleQuery: "family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700",
+    },
+    {
+      id: "claude-serif",
+      label: "Claude Editorial (Serif)",
+      labelEn: "Claude Editorial (Serif)",
+      badge: "Claude",
+      stack: '"Anthropic Serif", "Tiempos Text", "Source Serif 4", "Lora", Georgia, Cambria, serif',
+      googleQuery: "family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600",
+    },
+    {
+      id: "claude-lora",
+      label: "Claude Reading (Lora)",
+      labelEn: "Claude Reading (Lora)",
+      badge: "Claude",
+      stack: '"Lora", "Tiempos Text", Georgia, Cambria, serif',
+      googleQuery: "family=Lora:ital,wght@0,400..700;1,400..600",
+    },
+    {
+      id: "claude-mono-ui",
+      label: "Claude Code CLI (Mono)",
+      labelEn: "Claude Code CLI (Mono)",
+      badge: "Claude Code",
+      stack: '"Anthropic Mono", "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace',
+      googleQuery: "family=JetBrains+Mono:wght@400;500;600;700",
+    },
+    {
+      id: "geist",
+      label: "Geist Sans",
+      labelEn: "Geist Sans",
+      stack: '"Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      googleQuery: "family=Geist:wght@400;500;600;700&family=Inter:wght@400;500;600;700",
+    },
+    { id: "segoe", label: "Segoe UI", labelEn: "Segoe UI", stack: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', googleQuery: "" },
+    { id: "inter", label: "Inter", labelEn: "Inter", stack: '"Inter", "Segoe UI", system-ui, sans-serif', googleQuery: "family=Inter:wght@400;500;600;700" },
+    { id: "rubik", label: "Rubik", labelEn: "Rubik", stack: '"Rubik", "Segoe UI", system-ui, sans-serif', googleQuery: "family=Rubik:wght@400;500;600;700" },
+    { id: "ibm-plex", label: "IBM Plex Sans", labelEn: "IBM Plex Sans", stack: '"IBM Plex Sans", "Segoe UI", sans-serif', googleQuery: "family=IBM+Plex+Sans:wght@400;500;600;700" },
+    { id: "georgia", label: "Georgia (Serif)", labelEn: "Georgia (Serif)", stack: 'Georgia, "Times New Roman", serif', googleQuery: "" },
   ],
   mono: [
-    { id: "system", label: "Стандартный (Default)", labelEn: "System Mono", stack: "" },
-    { id: "cascadia", label: "Cascadia Code", labelEn: "Cascadia Code", stack: '"Cascadia Code", Consolas, monospace' },
-    { id: "jetbrains", label: "JetBrains Mono", labelEn: "JetBrains Mono", stack: '"JetBrains Mono", Consolas, monospace' },
-    { id: "consolas", label: "Consolas", labelEn: "Consolas", stack: 'Consolas, "Courier New", monospace' },
-    { id: "fira", label: "Fira Code", labelEn: "Fira Code", stack: '"Fira Code", Consolas, monospace' },
+    { id: "system", label: "Стандартный (Default)", labelEn: "System Mono", stack: "", googleQuery: "" },
+    {
+      id: "claude-mono",
+      label: "Claude Code Mono (JetBrains)",
+      labelEn: "Claude Code Mono (JetBrains)",
+      badge: "Claude Code",
+      stack: '"Anthropic Mono", "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace',
+      googleQuery: "family=JetBrains+Mono:wght@400;500;600;700",
+    },
+    {
+      id: "geist-mono",
+      label: "Geist Mono",
+      labelEn: "Geist Mono",
+      stack: '"Geist Mono", "JetBrains Mono", Consolas, monospace',
+      googleQuery: "family=Geist+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600",
+    },
+    {
+      id: "ibm-plex-mono",
+      label: "IBM Plex Mono",
+      labelEn: "IBM Plex Mono",
+      stack: '"IBM Plex Mono", "JetBrains Mono", Consolas, monospace',
+      googleQuery: "family=IBM+Plex+Mono:wght@400;500;600",
+    },
+    { id: "cascadia", label: "Cascadia Code", labelEn: "Cascadia Code", stack: '"Cascadia Code", Consolas, monospace', googleQuery: "" },
+    { id: "jetbrains", label: "JetBrains Mono", labelEn: "JetBrains Mono", stack: '"JetBrains Mono", Consolas, monospace', googleQuery: "family=JetBrains+Mono:wght@400;500;600;700" },
+    { id: "consolas", label: "Consolas", labelEn: "Consolas", stack: 'Consolas, "Courier New", monospace', googleQuery: "" },
+    { id: "fira", label: "Fira Code", labelEn: "Fira Code", stack: '"Fira Code", Consolas, monospace', googleQuery: "family=Fira+Code:wght@400;500;600;700" },
   ],
 };
 
@@ -400,7 +526,31 @@ function teFindFont(group, id) {
   for (let i = 0; i < list.length; i += 1) {
     if (list[i].id === id) return list[i];
   }
-  return list[0] || { id: "system", stack: "" };
+  return list[0] || { id: "system", stack: "", googleQuery: "" };
+}
+
+function teBuildWebFontUrl(rawOrNormalized) {
+  const cfg = rawOrNormalized && rawOrNormalized.typography ? rawOrNormalized : normalizeAppearance(rawOrNormalized);
+  const ty = cfg.typography || DEFAULT_APPEARANCE.typography;
+  const uiFont = teFindFont("ui", ty.uiFont);
+  const monoFont = teFindFont("mono", ty.monoFont);
+  const parts = [];
+  const seen = new Set();
+  const pushQuery = (q) => {
+    if (!q || typeof q !== "string") return;
+    const items = q.split("&");
+    for (let i = 0; i < items.length; i += 1) {
+      const tok = items[i].trim();
+      if (tok && !seen.has(tok)) {
+        seen.add(tok);
+        parts.push(tok);
+      }
+    }
+  };
+  pushQuery(uiFont.googleQuery);
+  pushQuery(monoFont.googleQuery);
+  if (parts.length === 0) return "";
+  return `https://fonts.googleapis.com/css2?${parts.join("&")}&display=swap`;
 }
 
 function teHexToRgb(hex) {
@@ -1017,6 +1167,7 @@ function buildThemeCss(rawAppearance, options) {
   const chunks = [];
 
   const isGlassTheme = cfg.presetId === "liquid-glass" || cfg.presetId === "obsidian-glass" || cfg.presetId === "midnight-neon";
+  const isClaudeTheme = cfg.presetId === "claude-code-dark" || cfg.presetId === "claude-code-light" || cfg.presetId === "claude-terminal";
   const effectiveBlurPx = Math.max(0, Math.round(teClamp(cfg.glassBlur, 0, 36, 12)));
   const opticalGlassFilter = effectiveBlurPx > 0
     ? `backdrop-filter: blur(${effectiveBlurPx}px) saturate(195%) brightness(${isLight ? "1.05" : "1.08"}) contrast(1.03); -webkit-backdrop-filter: blur(${effectiveBlurPx}px) saturate(195%) brightness(${isLight ? "1.05" : "1.08"}) contrast(1.03);`
@@ -1033,7 +1184,9 @@ function buildThemeCss(rawAppearance, options) {
   if (hasThemeOverride) {
     const cardAlpha = hasWallpaper ? Math.min(vars.glassOpacity, 88) : (isGlassTheme ? Math.min(vars.glassOpacity, 76) : Math.max(vars.glassOpacity, 90));
     const sidebarAlpha = hasWallpaper ? Math.min(vars.sidebarOpacity + 4, 94) : (isGlassTheme ? Math.min(vars.sidebarOpacity, 78) : 96);
-    const secondaryHex = teMixHex(vars.cardBg, isLight ? "#000000" : "#ffffff", 0.06);
+    const secondaryHex = isClaudeTheme
+      ? (isLight ? "#f0eee6" : (cfg.presetId === "claude-terminal" ? "#252422" : "#30302e"))
+      : teMixHex(vars.cardBg, isLight ? "#000000" : "#ffffff", 0.06);
     const cardRgba = teHexToRgba(vars.cardBg, cardAlpha);
     const sidebarRgba = teHexToRgba(vars.sidebarBg, sidebarAlpha);
 
@@ -1043,18 +1196,61 @@ function buildThemeCss(rawAppearance, options) {
   --foreground: ${vars.fgColor};
   --primary: ${vars.accentColor};
   --primary-foreground: ${primaryFg};
+  --ring: ${vars.accentColor};
   --link: ${vars.accentColor};
   --secondary: ${secondaryHex};
   --secondary-foreground: ${vars.fgColor};
+  --accent: ${secondaryHex};
+  --accent-foreground: ${vars.fgColor};
   --muted: ${secondaryHex};
   --muted-foreground: ${vars.mutedColor};
   --border: ${effectiveBorder};
+  --input: ${effectiveBorder};
   --card: ${(hasWallpaper || isGlassTheme) ? cardRgba : vars.cardBg};
+  --card-foreground: ${vars.fgColor};
   --card-border: ${effectiveBorder};
+  --popover: ${vars.cardBg};
+  --popover-foreground: ${vars.fgColor};
   --sidebar: ${(hasWallpaper || isGlassTheme) ? sidebarRgba : vars.sidebarBg};
+  --sidebar-foreground: ${vars.fgColor};
+  --sidebar-border: ${effectiveBorder};
+  --sidebar-accent: ${secondaryHex};
   --sidebar-secondary: ${secondaryHex};
 }
+::selection {
+  background-color: color-mix(in srgb, ${vars.accentColor} 28%, transparent);
+  color: ${vars.fgColor};
+}
 `);
+    if (isClaudeTheme) {
+      const codeInlineBg = isLight ? "rgba(193, 95, 60, 0.10)" : "rgba(217, 119, 87, 0.14)";
+      const codeInlineFg = isLight ? "#9e4425" : "#e89b76";
+      const codeBlockBg = isLight ? "#f4f2eb" : (cfg.presetId === "claude-terminal" ? "#10100f" : "#191817");
+      chunks.push(`
+[data-testid="agent-response"] code:not(pre code),
+[data-markdown-root] code:not(pre code) {
+  background-color: ${codeInlineBg} !important;
+  color: ${codeInlineFg} !important;
+  border: 1px solid color-mix(in srgb, ${vars.accentColor} 20%, transparent);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+:where([data-testid="agent-response"], [data-markdown-root]) pre {
+  background-color: ${codeBlockBg} !important;
+  border: 1px solid ${effectiveBorder} !important;
+}
+[data-testid="agent-response"] blockquote,
+[data-markdown-root] blockquote {
+  border-left: 2px solid ${vars.accentColor} !important;
+  color: ${vars.mutedColor};
+}
+[data-testid="agent-response"] a,
+[data-markdown-root] a {
+  color: ${vars.accentColor};
+  text-decoration-color: color-mix(in srgb, ${vars.accentColor} 45%, transparent);
+}
+`);
+    }
     if (!hasWallpaper) {
       if (cfg.presetId === "liquid-glass") {
         chunks.push(`
@@ -1363,15 +1559,14 @@ form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testi
     const agentBg = cfg.messageStyle === "solid"
       ? surfaceBg
       : (cfg.messageStyle === "minimal" ? "transparent" : "");
-    const agentBorder = cfg.messageStyle === "minimal" || cfg.borderStrength === 0
+    const agentBorder = cfg.messageStyle === "minimal" || cfg.borderStrength === 0 || (cfg.messageStyle === "glass" && cfg.borderStrength === 50)
       ? "none"
       : `1px solid ${dynamicBorderCol}`;
     chunks.push(`
 [data-testid="agent-response"] {
   border-radius: ${cRadii.messages}px !important;
-  border: ${agentBorder} !important;
+  ${agentBorder !== "none" ? `border: ${agentBorder} !important; padding: 12px 18px !important;` : "border: none !important;"}
   ${agentBg ? `background-color: ${agentBg} !important;` : ""}
-  ${cfg.messageStyle === "solid" ? "padding: 12px 18px !important;" : ""}
 }
 [data-testid="user-message-content"],
 [data-testid="user-message-bubble"],
@@ -1390,17 +1585,27 @@ form:has([contenteditable="true"]),
   }
 
   if (uiFontObj.stack) {
+    const isSerifUi = uiFontObj.id === "claude-serif" || uiFontObj.id === "claude-lora" || uiFontObj.id === "georgia";
     chunks.push(`
-body, input, textarea, button, select {
+:root, html, body {
+  --font-sans: ${uiFontObj.stack};
+  --font-body: ${uiFontObj.stack};
+}
+body, input, textarea, button, select, [data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"] {
   font-family: ${uiFontObj.stack} !important;
+  ${isSerifUi ? 'text-rendering: optimizeLegibility; font-feature-settings: "kern" 1, "liga" 1;' : ""}
 }
 `);
   }
 
   if (monoFontObj.stack) {
     chunks.push(`
-code, pre, kbd, samp {
+:root, html, body {
+  --font-mono: ${monoFontObj.stack};
+}
+code, pre, kbd, samp, [class*="font-mono"] {
   font-family: ${monoFontObj.stack} !important;
+  font-variant-ligatures: contextual;
 }
 `);
   }
@@ -1495,6 +1700,7 @@ function createThemeEngine(options = {}) {
   const resolveMediaUrl = typeof options.resolveMediaUrl === "function" ? options.resolveMediaUrl : null;
 
   const STYLE_ID = "rudex-studio-theme";
+  const FONT_LINK_ID = "rudex-studio-fonts";
   const BG_ID = "rudex-bg";
   const HOST_ID = "rudex-studio-host";
   const IGNORE_ATTR = "data-rudex-ignore";
@@ -1508,6 +1714,8 @@ function createThemeEngine(options = {}) {
 
   let currentConfig = normalizeAppearance(DEFAULT_APPEARANCE);
   let styleNode = null;
+  let fontLinkNode = null;
+  let lastFontHref = "";
   let bgLayer = null;
   let mediaChild = null;
   let gradFlowChild = null;
@@ -1969,6 +2177,42 @@ function createThemeEngine(options = {}) {
     styleNode = null;
   }
 
+  function removeFontLinkNode() {
+    if (!doc) return;
+    const found = typeof doc.getElementById === "function" ? doc.getElementById(FONT_LINK_ID) : fontLinkNode;
+    if (found && found.parentNode) {
+      found.parentNode.removeChild(found);
+    }
+    fontLinkNode = null;
+    lastFontHref = "";
+  }
+
+  function ensureFontLinkNode(href) {
+    if (!doc || typeof doc.createElement !== "function") return;
+    if (!href) {
+      removeFontLinkNode();
+      return;
+    }
+    if (href === lastFontHref && fontLinkNode && fontLinkNode.parentNode) return;
+    let node = typeof doc.getElementById === "function" ? doc.getElementById(FONT_LINK_ID) : fontLinkNode;
+    if (!node) {
+      node = doc.createElement("link");
+      node.id = FONT_LINK_ID;
+      node.setAttribute("rel", "stylesheet");
+      node.setAttribute(IGNORE_ATTR, "1");
+      const target = doc.head || doc.documentElement || doc.body;
+      if (!target) return;
+      target.appendChild(node);
+    }
+    if (typeof node.setAttribute === "function") {
+      node.setAttribute("href", href);
+    } else {
+      node.href = href;
+    }
+    fontLinkNode = node;
+    lastFontHref = href;
+  }
+
   function removeBgLayer() {
     removeVideoListeners();
     removeGradListeners();
@@ -2371,10 +2615,12 @@ function createThemeEngine(options = {}) {
       lastCssText = "";
       lastHadThemeOverride = false;
       removeStyleNode();
+      removeFontLinkNode();
       removeBgLayer();
       return currentConfig;
     }
 
+    ensureFontLinkNode(teBuildWebFontUrl(currentConfig));
     const cssText = buildThemeCss(currentConfig, { hostIsLight });
     const existingStyle = doc && typeof doc.getElementById === "function"
       ? doc.getElementById(STYLE_ID)
@@ -2439,6 +2685,7 @@ function createThemeEngine(options = {}) {
       lastHadThemeOverride = false;
       clearWallpaperShells();
       removeStyleNode();
+      removeFontLinkNode();
       removeBgLayer();
     },
   };
@@ -2454,6 +2701,9 @@ if (typeof module !== "undefined" && module.exports) {
     normalizeAppearance,
     isAppearanceNativeDefault,
     teResolveCornerRadii,
+    teFindFont,
+    teMixHex,
+    teBuildWebFontUrl,
     detectHostIsLight,
     buildThemeCss,
     createThemeEngine,

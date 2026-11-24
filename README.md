@@ -4,10 +4,10 @@
   <p><strong>Русификатор и настройка внешнего вида для Google Antigravity 2.0</strong></p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-4.3.0-0a84ff?style=flat-square" alt="Version 4.3.0" />
-    <img src="https://img.shields.io/badge/Antigravity-2.0-6366f1?style=flat-square" alt="Google Antigravity 2.0" />
-    <img src="https://img.shields.io/badge/locale-RU%20%E2%86%94%20EN-22c55e?style=flat-square" alt="RU / EN" />
-    <img src="https://img.shields.io/badge/license-MIT-94a3b8?style=flat-square" alt="MIT License" />
+    <img src="https://img.shields.io/badge/version-4.4.0-d97757?style=flat-square" alt="Version 4.4.0" />
+    <img src="https://img.shields.io/badge/Antigravity-2.0-262624?style=flat-square" alt="Google Antigravity 2.0" />
+    <img src="https://img.shields.io/badge/locale-RU%20%E2%86%94%20EN-788c5d?style=flat-square" alt="RU / EN" />
+    <img src="https://img.shields.io/badge/license-MIT-9e9b91?style=flat-square" alt="MIT License" />
   </p>
 </div>
 
@@ -31,7 +31,7 @@ irm https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.ps1 | iex
 | :-- | :--- | :--- |
 | 🇷🇺 | **Русский интерфейс** | Всё приложение на русском: меню, настройки, диалоги, трей. Переключение `RU ↔ EN` в один клик, без перезапуска. |
 | 🧠 | **Мысли агента на русском** | Агент думает и показывает свои размышления на русском языке. |
-| 🎨 | **Оформление** | Готовые темы или свои цвета, обои (картинка, видео, градиент), скругление углов, своё приветствие в новом чате. |
+| 🎨 | **Оформление и Claude Code** | Готовые темы (включая аутентичные тёмную, светлую и терминальную палитры **Claude Code / Anthropic** + шрифты **Claude Sans, Editorial Serif, Lora, JetBrains Mono**) для всего Antigravity и меню Rudex Studio, обои, скругления и масштаб. |
 | 🔍 | **Масштаб интерфейса и виджета** | Отдельный масштаб всего Antigravity (`70–150%`), окна Studio и виджета — через настройки или зажатием мышкой. |
 | 📊 | **Монитор скорости и квот** | Небольшой виджет в углу: скорость ответа (TPS) и остаток лимитов по моделям Gemini, Claude и GPT. |
 | 💬 | **Характер чата** | Для каждого чата свой стиль общения агента, соседние чаты не затрагиваются. |
@@ -51,22 +51,28 @@ irm https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.ps1 | iex
 <table>
   <tr>
     <td width="50%" align="center">
-      <strong>Монитор скорости (TPS) и контекста</strong><br /><br />
-      <img src="./docs/screenshots/studio-monitor.png" alt="Монитор скорости и контекста в Rudex Studio" />
+      <strong>Оформление и палитры Claude Code (Тёмная)</strong><br /><br />
+      <img src="./docs/screenshots/studio-appearance.png" alt="Темы оформления и стиль Claude Code Dark" />
     </td>
     <td width="50%" align="center">
-      <strong>Темы оформления, обои, углы и приветствие</strong><br /><br />
-      <img src="./docs/screenshots/studio-appearance.png" alt="Темы оформления и настройка внешнего вида" />
+      <strong>Шрифты Claude Code и светлая тема (Пергамент)</strong><br /><br />
+      <img src="./docs/screenshots/studio-typography.png" alt="Шрифты Claude Code и светлая пергаментная тема" />
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <strong>Характер чата и мысли агента на русском</strong><br /><br />
-      <img src="./docs/screenshots/studio-persona.png" alt="Настройка характера чата и мыслей агента на русском" />
+      <strong>Монитор скорости (TPS) и контекста</strong><br /><br />
+      <img src="./docs/screenshots/studio-monitor.png" alt="Монитор скорости и контекста в Rudex Studio" />
     </td>
     <td width="50%" align="center">
+      <strong>Характер чата и шаблоны</strong><br /><br />
+      <img src="./docs/screenshots/studio-persona.png" alt="Настройка характера чата" />
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
       <strong>Экспорт диалога в ZIP и лимиты моделей</strong><br /><br />
-      <img src="./docs/screenshots/studio-export-quotas.png" alt="Экспорт чата в ZIP и таблица лимитов" />
+      <img src="./docs/screenshots/studio-export-quotas.png" alt="Экспорт чата в ZIP и таблица лимитов" width="76%" />
     </td>
   </tr>
 </table>
@@ -94,8 +100,9 @@ irm https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.ps1 | iex
 
 ---
 
-## Что нового в v4.3.0
+## Что нового в v4.4.0
 
-- **Отдельный масштаб всего интерфейса и окна Rudex** — можно увеличивать и уменьшать весь Antigravity целиком (`70–150%`), а окно Rudex Studio и виджет масштабировать отдельно (`− / 100% / +`, ползунок или за уголок окна Studio).
-- **Масштаб виджета зажатием** — когда виджет закреплён, его можно просто зажать мышкой и потянуть, чтобы сделать больше или меньше.
-- **Очищены дубликаты в настройках** — «Мысли агента на русском» остались только в «Настройки → Язык и система», скругление окна Studio — в «Настройки → Дизайн окна».
+- **Полный редизайн Rudex Studio и виджета** — чистая редакционная эстетика без лишнего шума, глянцевых градиентов и вложенных рамок: геометрическая монограмма, underline-вкладки, единая панель телеметрии с hairline-разделителями, мини-превью палитр и спокойный спарклайн.
+- **Цвета Claude Code / Anthropic** — новые темы **Claude Code · Тёмная** (`#1F1E1D` / `#262624` / `#D97757`), **Claude Code · Светлая** (`#FAF9F5` / `#F0EEE6` / `#C15F3C`) и **Claude Code · Терминал** (`#141413`), отдельные темы окна Studio и виджета + быстрое переключение в 1 клик.
+- **Шрифты Claude Code** — добавлены **Claude Sans**, **Claude Editorial (Source Serif 4)**, **Claude Reading (Lora)**, **Claude Code CLI**, **Geist**, **Claude Code Mono (JetBrains Mono)** и **Geist Mono** с автоматической подгрузкой веб-шрифтов и синхронизацией между всем интерфейсом Antigravity и меню Rudex Studio.
+- **Отдельный масштаб интерфейса, окна Studio и виджета** — независимое масштабирование Antigravity (`70–150%`), окна Rudex Studio (включая плавный resize за уголок) и закреплённого виджета (удержанием мышкой).
