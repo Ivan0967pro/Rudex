@@ -102,6 +102,46 @@ const THEME_PRESETS = [
     },
   },
   {
+    id: "emerald-void",
+    nameRu: "Изумрудная ночь",
+    nameEn: "Emerald Void",
+    descRu: "Глубокий тёмно-изумрудный тон с чистыми контрастами",
+    descEn: "Deep emerald night surfaces with crisp contrast",
+    mode: "dark",
+    vars: {
+      accentColor: "#10b981",
+      canvasBg: "#071210",
+      cardBg: "#0e1d1a",
+      sidebarBg: "#0a1614",
+      fgColor: "#ecfdf5",
+      mutedColor: "#86a89e",
+      borderColor: "#1c352f",
+      glassOpacity: 76,
+      glassBlur: 14,
+      radius: 12,
+    },
+  },
+  {
+    id: "crimson-noir",
+    nameRu: "Бордовый нуар",
+    nameEn: "Crimson Noir",
+    descRu: "Тёмный винно-бордовый фон и розовый акцент",
+    descEn: "Rich crimson noir backdrop with rose accent",
+    mode: "dark",
+    vars: {
+      accentColor: "#f43f5e",
+      canvasBg: "#13090d",
+      cardBg: "#1e1016",
+      sidebarBg: "#180c11",
+      fgColor: "#fff1f2",
+      mutedColor: "#b3939c",
+      borderColor: "#381d27",
+      glassOpacity: 78,
+      glassBlur: 14,
+      radius: 12,
+    },
+  },
+  {
     id: "custom",
     nameRu: "Своя тема",
     nameEn: "Custom Theme",
@@ -153,12 +193,16 @@ const FONT_PRESETS = {
 const DEFAULT_APPEARANCE = {
   presetId: "native",
   uiPolish: true,
+  customAccent: false,
   accentColor: "#3b82f6",
   canvasBg: "#09090b",
   cardBg: "#131316",
   glassOpacity: 78,
+  sidebarOpacity: 72,
   glassBlur: 12,
   messageCardOpacity: 74,
+  messageStyle: "glass",
+  borderStrength: 50,
   highContrastText: true,
   radius: 12,
   wallpaper: {
@@ -174,7 +218,10 @@ const DEFAULT_APPEARANCE = {
     dim: 45,
     blur: 0,
     opacity: 85,
+    saturate: 100,
     scale: 100,
+    tintEnabled: false,
+    tintOpacity: 35,
     pauseWhenHidden: true,
   },
   typography: {
@@ -471,15 +518,22 @@ function normalizeAppearance(raw) {
       : "";
   const mediaUrl = teValidMediaUrl(wpSrc.mediaUrl);
 
+  const messageStyle =
+    src.messageStyle === "solid" || src.messageStyle === "minimal" ? src.messageStyle : "glass";
+
   return {
     presetId,
     uiPolish: src.uiPolish !== false,
+    customAccent: Boolean(src.customAccent),
     accentColor: teValidHex(src.accentColor, DEFAULT_APPEARANCE.accentColor),
     canvasBg: teValidHex(src.canvasBg, DEFAULT_APPEARANCE.canvasBg),
     cardBg: teValidHex(src.cardBg, DEFAULT_APPEARANCE.cardBg),
     glassOpacity: Math.round(teClamp(src.glassOpacity, 25, 100, DEFAULT_APPEARANCE.glassOpacity)),
+    sidebarOpacity: Math.round(teClamp(src.sidebarOpacity, 20, 100, DEFAULT_APPEARANCE.sidebarOpacity)),
     glassBlur: Math.round(teClamp(src.glassBlur, 0, 24, DEFAULT_APPEARANCE.glassBlur)),
     messageCardOpacity: Math.round(teClamp(src.messageCardOpacity, 0, 96, DEFAULT_APPEARANCE.messageCardOpacity)),
+    messageStyle,
+    borderStrength: Math.round(teClamp(src.borderStrength, 0, 100, DEFAULT_APPEARANCE.borderStrength)),
     highContrastText: src.highContrastText !== false,
     radius: Math.round(teClamp(src.radius, 4, 20, DEFAULT_APPEARANCE.radius)),
     wallpaper: {
@@ -495,7 +549,10 @@ function normalizeAppearance(raw) {
       dim: Math.round(teClamp(wpSrc.dim, 0, 85, DEFAULT_APPEARANCE.wallpaper.dim)),
       blur: Math.round(teClamp(wpSrc.blur, 0, 24, DEFAULT_APPEARANCE.wallpaper.blur)),
       opacity: Math.round(teClamp(wpSrc.opacity, 15, 100, DEFAULT_APPEARANCE.wallpaper.opacity)),
+      saturate: Math.round(teClamp(wpSrc.saturate, 0, 180, DEFAULT_APPEARANCE.wallpaper.saturate)),
       scale: Math.round(teClamp(wpSrc.scale, 100, 130, DEFAULT_APPEARANCE.wallpaper.scale)),
+      tintEnabled: Boolean(wpSrc.tintEnabled),
+      tintOpacity: Math.round(teClamp(wpSrc.tintOpacity, 0, 75, DEFAULT_APPEARANCE.wallpaper.tintOpacity)),
       pauseWhenHidden: wpSrc.pauseWhenHidden !== false,
     },
     typography: {
@@ -530,7 +587,11 @@ function isAppearanceNativeDefault(raw) {
   const cfg = normalizeAppearance(raw);
   return (
     cfg.presetId === "native" &&
+    !cfg.customAccent &&
     cfg.uiPolish === true &&
+    cfg.borderStrength === 50 &&
+    cfg.radius === 12 &&
+    cfg.messageStyle === "glass" &&
     cfg.wallpaper.type === "none" &&
     !teHasCustomTypography(cfg)
   );
@@ -550,14 +611,21 @@ function teResolveThemeVars(cfg) {
       mutedColor: light ? "#5c5c66" : "#9aa0b0",
       borderColor: light ? teMixHex(cfg.cardBg, "#000000", 0.12) : teMixHex(cfg.cardBg, "#ffffff", 0.12),
       glassOpacity: cfg.glassOpacity,
+      sidebarOpacity: cfg.sidebarOpacity,
       glassBlur: cfg.glassBlur,
+      borderStrength: cfg.borderStrength,
+      messageStyle: cfg.messageStyle,
       radius: cfg.radius,
     };
   }
   return Object.assign({}, preset.vars, {
     mode: preset.mode,
+    accentColor: cfg.customAccent ? cfg.accentColor : preset.vars.accentColor,
     glassOpacity: cfg.glassOpacity,
+    sidebarOpacity: cfg.sidebarOpacity,
     glassBlur: cfg.glassBlur,
+    borderStrength: cfg.borderStrength,
+    messageStyle: cfg.messageStyle,
     radius: cfg.radius,
   });
 }
@@ -573,10 +641,12 @@ function buildThemeCss(rawAppearance, options) {
   const cfg = normalizeAppearance(rawAppearance);
   const opts = options && typeof options === "object" ? options : {};
   const hasThemeOverride = cfg.presetId !== "native";
+  const hasAccentOverride = Boolean(cfg.customAccent);
   const hasWallpaper = teHasActiveWallpaper(cfg);
   const hasCustomTypo = teHasCustomTypography(cfg);
+  const hasSurfaceOverride = cfg.radius !== 12 || cfg.borderStrength !== 50 || cfg.messageStyle !== "glass";
 
-  if (!hasThemeOverride && !hasWallpaper && !hasCustomTypo && !cfg.uiPolish) {
+  if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !cfg.uiPolish) {
     return "";
   }
 
@@ -585,15 +655,18 @@ function buildThemeCss(rawAppearance, options) {
   const uiFontObj = teFindFont("ui", ty.uiFont);
   const monoFontObj = teFindFont("mono", ty.monoFont);
   const isLight = hasThemeOverride ? vars.mode === "light" : Boolean(opts.hostIsLight);
+  const borderAlpha = Math.round(teClamp(cfg.borderStrength, 0, 100, 50) * (isLight ? 0.28 : 0.26)) / 100;
+  const dynamicBorderCol = isLight ? `rgba(15, 23, 42, ${borderAlpha})` : `rgba(255, 255, 255, ${borderAlpha})`;
+  const effectiveBorder = cfg.borderStrength !== 50 ? dynamicBorderCol : vars.borderColor;
+  const primaryFg = teGetYiq(vars.accentColor) > 155 ? "#111216" : "#ffffff";
   const chunks = [];
 
   if (hasThemeOverride) {
     const cardAlpha = hasWallpaper ? Math.min(vars.glassOpacity, 88) : Math.max(vars.glassOpacity, 90);
-    const sidebarAlpha = hasWallpaper ? Math.min(vars.glassOpacity + 6, 92) : 96;
+    const sidebarAlpha = hasWallpaper ? Math.min(vars.sidebarOpacity + 4, 94) : 96;
     const secondaryHex = teMixHex(vars.cardBg, isLight ? "#000000" : "#ffffff", 0.06);
     const cardRgba = teHexToRgba(vars.cardBg, cardAlpha);
     const sidebarRgba = teHexToRgba(vars.sidebarBg, sidebarAlpha);
-    const primaryFg = teGetYiq(vars.accentColor) > 155 ? "#111216" : "#ffffff";
 
     chunks.push(`
 :root, html, body {
@@ -606,9 +679,9 @@ function buildThemeCss(rawAppearance, options) {
   --secondary-foreground: ${vars.fgColor};
   --muted: ${secondaryHex};
   --muted-foreground: ${vars.mutedColor};
-  --border: ${vars.borderColor};
+  --border: ${effectiveBorder};
   --card: ${hasWallpaper ? cardRgba : vars.cardBg};
-  --card-border: ${vars.borderColor};
+  --card-border: ${effectiveBorder};
   --sidebar: ${hasWallpaper ? sidebarRgba : vars.sidebarBg};
   --sidebar-secondary: ${secondaryHex};
 }
@@ -621,6 +694,15 @@ html, body {
 }
 `);
     }
+  } else if (hasAccentOverride || cfg.borderStrength !== 50) {
+    const nativeVars = [];
+    if (hasAccentOverride) {
+      nativeVars.push(`  --primary: ${vars.accentColor};`, `  --primary-foreground: ${primaryFg};`, `  --link: ${vars.accentColor};`);
+    }
+    if (cfg.borderStrength !== 50) {
+      nativeVars.push(`  --border: ${dynamicBorderCol};`, `  --card-border: ${dynamicBorderCol};`);
+    }
+    chunks.push(`:root, html, body {\n${nativeVars.join("\n")}\n}`);
   }
 
   let msgAlpha = 0;
@@ -629,8 +711,8 @@ html, body {
     const surfaceBg = hasThemeOverride
       ? teHexToRgba(vars.cardBg, vars.glassOpacity)
       : teHexToRgba(isLight ? "#ffffff" : "#131316", cfg.glassOpacity);
-    const sidebarAlpha = Math.min(92, Math.max(48, baseGlass - 8));
-    const headerAlpha = Math.min(88, Math.max(44, baseGlass - 12));
+    const sidebarAlpha = Math.round(teClamp(cfg.sidebarOpacity, 20, 100, 72));
+    const headerAlpha = Math.min(92, Math.max(20, baseGlass - 10));
     const sidebarGlassBg = hasThemeOverride
       ? teHexToRgba(vars.sidebarBg, sidebarAlpha)
       : teHexToRgba(isLight ? "#f4f5f8" : "#0e0e12", sidebarAlpha);
@@ -644,7 +726,9 @@ html, body {
     const glassBlurCss = blurPx > 0
       ? `backdrop-filter: blur(${blurPx}px); -webkit-backdrop-filter: blur(${blurPx}px);`
       : "";
-    msgAlpha = Math.round(teClamp(cfg.messageCardOpacity, 0, 96, 74));
+    const msgStyle = cfg.messageStyle;
+    const rawMsgAlpha = Math.round(teClamp(cfg.messageCardOpacity, 0, 96, 74));
+    msgAlpha = msgStyle === "minimal" ? 0 : (msgStyle === "solid" ? Math.max(92, rawMsgAlpha) : rawMsgAlpha);
     const agentSurfaceBg = msgAlpha <= 0
       ? "transparent"
       : (hasThemeOverride
@@ -654,20 +738,23 @@ html, body {
           : (isLight
               ? teHexToRgba("#ffffff", Math.min(96, msgAlpha + 8))
               : teHexToRgba("#0c0d12", msgAlpha)));
-    const userSurfaceBg = msgAlpha <= 0
+    const userAlpha = msgStyle === "minimal" ? Math.min(80, Math.max(28, Math.round(rawMsgAlpha * 0.48))) : Math.min(96, msgAlpha + 6);
+    const userSurfaceBg = msgStyle !== "minimal" && msgAlpha <= 0
       ? surfaceBg
       : (hasThemeOverride
           ? (isLight
-              ? teHexToRgba("#ffffff", Math.min(96, msgAlpha + 12))
-              : teHexToRgba(vars.cardBg, Math.min(96, msgAlpha + 6)))
+              ? teHexToRgba("#ffffff", Math.min(96, userAlpha + 6))
+              : teHexToRgba(vars.cardBg, userAlpha))
           : (isLight
-              ? teHexToRgba("#ffffff", Math.min(96, msgAlpha + 12))
-              : teHexToRgba("#12141c", Math.min(96, msgAlpha + 6))));
-    const msgBorderCol = isLight ? "rgba(15, 23, 42, 0.12)" : "rgba(255, 255, 255, 0.10)";
-    const msgBlurCss = msgAlpha > 0 && blurPx > 0 ? glassBlurCss : "";
+              ? teHexToRgba("#ffffff", Math.min(96, userAlpha + 6))
+              : teHexToRgba("#12141c", userAlpha)));
+    const solidBorderAlpha = msgStyle === "solid" ? Math.max(borderAlpha, 0.14) : borderAlpha;
+    const msgBorderCol = isLight ? `rgba(15, 23, 42, ${solidBorderAlpha})` : `rgba(255, 255, 255, ${solidBorderAlpha})`;
+    const msgBlurCss = msgAlpha > 0 && msgStyle !== "solid" && blurPx > 0 ? glassBlurCss : "";
     const msgShadowCss = msgAlpha > 0
-      ? (isLight ? "box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);" : "box-shadow: 0 4px 24px rgba(0, 0, 0, 0.32);")
+      ? (isLight ? "box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);" : "box-shadow: 0 4px 24px rgba(0, 0, 0, 0.34);")
       : "";
+    const hasCardBorder = cfg.borderStrength > 0 && msgAlpha > 0 && msgStyle !== "minimal";
     const msgContrastCss = cfg.highContrastText !== false
       ? (isLight
           ? `
@@ -787,7 +874,7 @@ nav[aria-label],
 }
 [data-testid="agent-response"] {
   background-color: ${agentSurfaceBg} !important;
-  border: ${msgAlpha > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
+  border: ${hasCardBorder ? `1px solid ${msgBorderCol}` : "none"} !important;
   border-radius: ${vars.radius}px !important;
   ${msgAlpha > 0 ? "padding-inline: 18px !important;" : ""}
   ${msgShadowCss}
@@ -796,16 +883,17 @@ nav[aria-label],
 }
 [data-testid="user-message-content"] {
   background-color: ${userSurfaceBg} !important;
-  border: 1px solid ${msgBorderCol} !important;
+  border: ${cfg.borderStrength > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
   border-radius: ${vars.radius}px !important;
   ${msgShadowCss}
-  ${glassBlurCss}
+  ${msgStyle !== "solid" ? glassBlurCss : ""}
 }
 ${msgContrastCss}
 form:has(textarea[placeholder]), [data-testid="composer"], .composer-container {
   background-color: ${userSurfaceBg} !important;
-  border-radius: ${vars.radius}px;
-  ${glassBlurCss}
+  border: ${cfg.borderStrength > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
+  border-radius: ${vars.radius}px !important;
+  ${msgStyle !== "solid" ? glassBlurCss : ""}
 }
 [role="dialog"],
 [role="alertdialog"],
@@ -814,6 +902,31 @@ form:has(textarea[placeholder]), [data-testid="composer"], .composer-container {
 [role="tooltip"],
 [data-radix-popper-content-wrapper] > * {
   background-color: ${popoverBg} !important;
+}
+`);
+  } else if (hasSurfaceOverride) {
+    const surfaceBg = hasThemeOverride
+      ? teHexToRgba(vars.cardBg, Math.max(85, cfg.messageCardOpacity))
+      : (isLight ? "rgba(255, 255, 255, 0.94)" : "rgba(22, 22, 28, 0.92)");
+    const agentBg = cfg.messageStyle === "solid"
+      ? surfaceBg
+      : (cfg.messageStyle === "minimal" ? "transparent" : "");
+    const agentBorder = cfg.messageStyle === "minimal" || cfg.borderStrength === 0
+      ? "none"
+      : `1px solid ${dynamicBorderCol}`;
+    chunks.push(`
+[data-testid="agent-response"] {
+  border-radius: ${vars.radius}px !important;
+  border: ${agentBorder} !important;
+  ${agentBg ? `background-color: ${agentBg} !important;` : ""}
+  ${cfg.messageStyle === "solid" ? "padding: 12px 18px !important;" : ""}
+}
+[data-testid="user-message-content"],
+form:has(textarea[placeholder]),
+[data-testid="composer"],
+.composer-container {
+  border-radius: ${vars.radius}px !important;
+  border: ${cfg.borderStrength > 0 ? `1px solid ${dynamicBorderCol}` : "none"} !important;
 }
 `);
   }
@@ -938,6 +1051,7 @@ function createThemeEngine(options = {}) {
   let bgLayer = null;
   let mediaChild = null;
   let gradFlowChild = null;
+  let tintChild = null;
   let scrimChild = null;
   let activeVideoUrl = "";
   let videoVisEl = null;
@@ -1406,6 +1520,7 @@ function createThemeEngine(options = {}) {
     bgLayer = null;
     mediaChild = null;
     gradFlowChild = null;
+    tintChild = null;
     scrimChild = null;
     activeVideoUrl = "";
   }
@@ -1476,6 +1591,34 @@ function createThemeEngine(options = {}) {
       : `rgba(6, 7, 10, ${dimAlpha})`;
   }
 
+  function removeTintChild() {
+    if (tintChild && tintChild.parentNode) {
+      tintChild.parentNode.removeChild(tintChild);
+    }
+    tintChild = null;
+  }
+
+  function ensureTintLayer(layer, wp) {
+    if (!doc || !layer || !wp.tintEnabled || wp.tintOpacity <= 0) {
+      removeTintChild();
+      return;
+    }
+    if (!tintChild || tintChild.parentNode !== layer) {
+      tintChild = doc.createElement("div");
+      tintChild.setAttribute("data-role", "bg-tint");
+      tintChild.style.position = "absolute";
+      tintChild.style.inset = "0";
+      tintChild.style.pointerEvents = "none";
+      if (scrimChild && scrimChild.parentNode === layer && typeof layer.insertBefore === "function") {
+        layer.insertBefore(tintChild, scrimChild);
+      } else {
+        layer.appendChild(tintChild);
+      }
+    }
+    tintChild.style.backgroundImage = teBuildGradientCss(wp);
+    tintChild.style.opacity = String(Math.round(teClamp(wp.tintOpacity, 0, 75, 35)) / 100);
+  }
+
   function applyWallpaper(cfg, isLight) {
     const wp = cfg.wallpaper;
     if (wp.type === "none") {
@@ -1505,7 +1648,10 @@ function createThemeEngine(options = {}) {
     wallpaperActive = true;
     ensureShellWatchers();
 
-    const filterCss = wp.blur > 0 ? `blur(${wp.blur}px)` : "none";
+    const filterParts = [];
+    if (wp.blur > 0) filterParts.push(`blur(${wp.blur}px)`);
+    if (wp.saturate !== 100) filterParts.push(`saturate(${wp.saturate}%)`);
+    const filterCss = filterParts.length > 0 ? filterParts.join(" ") : "none";
     const opacityVal = String(Math.round(teClamp(wp.opacity, 15, 100, 85)) / 100);
     const effScale = Math.max(wp.scale / 100, wp.blur > 0 ? 1.06 : 1);
     const scaleVal = effScale > 1 ? `scale(${effScale.toFixed(2)})` : "none";
@@ -1556,6 +1702,7 @@ function createThemeEngine(options = {}) {
       mediaChild.style.filter = filterCss;
       mediaChild.style.opacity = opacityVal;
       mediaChild.style.transform = scaleVal;
+      ensureTintLayer(layer, wp);
       attachVideoVisibilityOnce(mediaChild);
       ensureScrim(layer, wp.dim, isLight);
       return;
@@ -1594,10 +1741,12 @@ function createThemeEngine(options = {}) {
       mediaChild.style.filter = filterCss;
       mediaChild.style.opacity = opacityVal;
       mediaChild.style.transform = scaleVal;
+      ensureTintLayer(layer, wp);
       ensureScrim(layer, wp.dim, isLight);
       return;
     }
 
+    removeTintChild();
     if (!mediaChild || mediaChild.getAttribute("data-role") !== "bg-gradient") {
       if (mediaChild && mediaChild.parentNode) {
         if (mediaChild.tagName === "VIDEO") safePauseVideo(mediaChild);
@@ -1673,14 +1822,16 @@ function createThemeEngine(options = {}) {
   function applySync(rawAppearance) {
     currentConfig = normalizeAppearance(rawAppearance);
     const hasThemeOverride = currentConfig.presetId !== "native";
+    const hasAccentOverride = Boolean(currentConfig.customAccent);
     const hasWallpaper = teHasActiveWallpaper(currentConfig);
     const hasCustomTypo = teHasCustomTypography(currentConfig);
+    const hasSurfaceOverride = currentConfig.radius !== 12 || currentConfig.borderStrength !== 50 || currentConfig.messageStyle !== "glass";
     const hostIsLight = resolveEffectiveHostIsLight(currentConfig);
     const isLight = hasThemeOverride
       ? teResolveThemeVars(currentConfig).mode === "light"
       : hostIsLight;
 
-    if (!hasThemeOverride && !hasWallpaper && !hasCustomTypo && !currentConfig.uiPolish) {
+    if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !currentConfig.uiPolish) {
       if (wallpaperActive) {
         wallpaperActive = false;
         clearWallpaperShells();

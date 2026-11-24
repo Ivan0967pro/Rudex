@@ -41,4 +41,4 @@ irm https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.ps1 | iex
 - `Ctrl + Alt + P` — открыть / закрыть окно Rudex Studio
 - `Ctrl + Alt + E` — быстрое окно «Дополнить агента»
 - `Ctrl + Alt + L` — мгновенное переключение языка (`RU` ↔ `EN`)
-- Двойной клик по виджету — переключение между мини-капсулой и карточкой (`S` ↔ `M`)
+- Клик по мини-виджету — сразу открыть / развернуть Rudex Studio

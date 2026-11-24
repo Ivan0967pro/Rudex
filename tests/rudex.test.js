@@ -639,6 +639,32 @@ test("Theme engine handles native light/dark, oklch, contrast, blur overscan, an
   const nativeDefault = normalizeAppearance(DEFAULT_APPEARANCE);
   assert.equal(isAppearanceNativeDefault(nativeDefault), true);
   assert.equal(isAppearanceNativeDefault({ presetId: "native", uiPolish: false }), false);
+  assert.equal(isAppearanceNativeDefault({ presetId: "native", customAccent: true }), false);
+
+  const accentOnlyCss = buildThemeCss({
+    presetId: "native",
+    customAccent: true,
+    accentColor: "#f59e0b",
+  }, { hostIsLight: false });
+  assert.ok(accentOnlyCss.includes("--primary: #f59e0b"));
+  assert.equal(accentOnlyCss.includes("background-color"), false, "Accent-only mode must not override native canvas");
+
+  const combinedCss = buildThemeCss({
+    presetId: "emerald-void",
+    customAccent: true,
+    accentColor: "#f59e0b",
+    sidebarOpacity: 40,
+    borderStrength: 80,
+    messageStyle: "solid",
+    radius: 16,
+    wallpaper: {
+      type: "image",
+      mediaUrl: "rudex-media://local/wp.jpg",
+    },
+  }, { hostIsLight: false });
+  assert.ok(combinedCss.includes("--primary: #f59e0b"));
+  assert.ok(combinedCss.includes("--sidebar: rgba(10, 22, 20, 0.4)"));
+  assert.ok(combinedCss.includes("border-radius: 16px !important"));
 
   const css = buildThemeCss({
     presetId: "custom",
@@ -673,13 +699,24 @@ test("Theme engine handles native light/dark, oklch, contrast, blur overscan, an
   const te = createThemeEngine({ document: doc, window: win });
   te.apply({
     presetId: "obsidian-glass",
-    wallpaper: { type: "image", mediaUrl: "rudex-media://local/wp.jpg", blur: 12, opacity: 35 },
+    wallpaper: {
+      type: "image",
+      mediaUrl: "rudex-media://local/wp.jpg",
+      blur: 12,
+      opacity: 35,
+      saturate: 140,
+      tintEnabled: true,
+      tintOpacity: 40,
+    },
   });
   const bg = doc.getElementById("rudex-bg");
   assert.ok(bg, "#rudex-bg node should mount");
   assert.equal(bg.style.zIndex, "-1");
   const img = bg.querySelector("img");
   assert.ok(img && img.style.transform.includes("scale("), "Blurred image should get scale overscan");
+  assert.ok(img.style.filter.includes("saturate(140%)"), "Combined saturate filter should be applied");
+  const tint = bg.querySelector('[data-role="bg-tint"]');
+  assert.ok(tint && tint.style.opacity === "0.4", "Gradient tint veil should combine over photo wallpaper");
   te.destroy();
 });
 
@@ -844,6 +881,40 @@ test("Studio styles and panel UI render without layout/CSS regressions and sync 
   const sysHtmlOn = modalMount ? modalMount.innerHTML : "";
   assert.ok(sysHtmlOn.includes('class="switch is-on" role="switch" aria-checked="true" data-action="toggle-thinking-ru"'));
   assert.ok(sysHtmlOn.includes("Русский"), "Enabled thinkingInRussian must show Russian badge");
+
+  // Mini widget never exposes removed medium-card switch, and Settings -> Widget omits it
+  const widgetMount = host && host.shadowRoot ? host.shadowRoot.querySelector(".widget-wrap") : null;
+  const widgetHtml = widgetMount ? widgetMount.innerHTML : "";
+  assert.equal(widgetHtml.includes('data-action="to-medium"'), false, "Mini pill must not include removed expand button");
+  panel.setOpen(true, { tab: "settings", subTab: "widget" });
+  const widgetTabHtml = modalMount ? modalMount.innerHTML : "";
+  assert.equal(widgetTabHtml.includes("Размер виджета"), false, "Medium card size option must be removed");
+
+  // Appearance opens centered inside monolithic Studio by default, with optional right-dock button
+  panel.setOpen(true, { tab: "appearance", appSubTab: "theme", dockedRight: false });
+  const appCenteredHtml = modalMount ? modalMount.innerHTML : "";
+  assert.equal(appCenteredHtml.includes("is-appearance-live"), false, "Appearance must open centered monolithically by default");
+  assert.ok(appCenteredHtml.includes("modal-sidebar"), "Centered Appearance keeps main navigation sidebar");
+  assert.ok(appCenteredHtml.includes('data-action="toggle-appearance-dock"'), "Centered Appearance offers optional dock-right button");
+  assert.ok(appCenteredHtml.includes("layer-summary-strip"), "Combinable layer summary strip must render");
+  assert.ok(appCenteredHtml.includes('data-action="set-app-subtab" data-val="surface"'), "Combinable Surface subtab must render");
+
+  // Optional right-side live preview mode
+  panel.setOpen(true, { tab: "appearance", appSubTab: "surface", dockedRight: true });
+  const appDockedHtml = modalMount ? modalMount.innerHTML : "";
+  assert.ok(appDockedHtml.includes("is-appearance-live"), "Docked Appearance enables right-side live drawer");
+  assert.equal(appDockedHtml.includes("modal-sidebar"), false, "Docked drawer hides left sidebar for live canvas view");
+  assert.ok(appDockedHtml.includes('data-action="set-message-style"'), "Surface subtab must expose message card style options");
+
+  // Single click on unpinned mini pill opens Studio immediately (no double-click required)
+  panel.setOpen(false);
+  assert.equal(modalMount.innerHTML, "");
+  const fakePillTarget = doc.createElement("div");
+  fakePillTarget.setAttribute("data-widget-body", "1");
+  const rootEl = host && host.shadowRoot ? host.shadowRoot.querySelector(".studio-root") : null;
+  rootEl.appendChild(fakePillTarget);
+  rootEl.dispatchEvent({ type: "click", target: fakePillTarget });
+  assert.ok(modalMount.innerHTML.includes("modal-shell"), "Single click on unpinned mini pill must immediately open Rudex modal");
 
   panel.destroy();
   translator.destroy();

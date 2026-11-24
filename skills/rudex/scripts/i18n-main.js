@@ -47,9 +47,10 @@ const DEFAULT_MINI_FIELDS = {
   model: false,
   quota: false,
 };
-const VALID_APPEARANCE_PRESETS = new Set(["native", "obsidian-glass", "midnight-neon", "warm-contrast", "light-paper", "custom"]);
+const VALID_APPEARANCE_PRESETS = new Set(["native", "obsidian-glass", "midnight-neon", "warm-contrast", "light-paper", "emerald-void", "crimson-noir", "custom"]);
 const VALID_WALLPAPER_TYPES = new Set(["none", "gradient", "image", "video"]);
 const VALID_GRADIENT_PRESETS = new Set(["aurora", "cosmic", "sunset", "emerald", "cyber", "silk"]);
+const VALID_MESSAGE_STYLES = new Set(["glass", "solid", "minimal"]);
 const VALID_UI_FONTS = new Set(["system", "segoe", "inter", "rubik", "ibm-plex", "georgia"]);
 const VALID_MONO_FONTS = new Set(["system", "cascadia", "jetbrains", "consolas", "fira"]);
 const VALID_DENSITIES = new Set(["compact", "comfortable", "spacious"]);
@@ -78,12 +79,16 @@ const DEFAULT_GREETING = {
 const DEFAULT_APPEARANCE = {
   presetId: "native",
   uiPolish: true,
+  customAccent: false,
   accentColor: "#3b82f6",
   canvasBg: "#09090b",
   cardBg: "#131316",
   glassOpacity: 78,
+  sidebarOpacity: 72,
   glassBlur: 12,
   messageCardOpacity: 74,
+  messageStyle: "glass",
+  borderStrength: 50,
   highContrastText: true,
   radius: 12,
   wallpaper: {
@@ -99,7 +104,10 @@ const DEFAULT_APPEARANCE = {
     dim: 45,
     blur: 0,
     opacity: 85,
+    saturate: 100,
     scale: 100,
+    tintEnabled: false,
+    tintOpacity: 35,
     pauseWhenHidden: true,
   },
   typography: {
@@ -155,7 +163,7 @@ function sanitizeHexColor(val, fallback) {
 function sanitizeMediaUrl(val) {
   if (typeof val !== "string") return "";
   const s = val.trim();
-  if (!s || !s.startsWith("agy-media://local/")) return "";
+  if (!s || (!s.startsWith("agy-media://local/") && !s.startsWith("rudex-media://local/"))) return "";
   return s.slice(0, 240);
 }
 
@@ -195,12 +203,16 @@ function sanitizeAppearance(raw) {
   return {
     presetId,
     uiPolish: src.uiPolish !== false,
+    customAccent: Boolean(src.customAccent),
     accentColor: sanitizeHexColor(src.accentColor, DEFAULT_APPEARANCE.accentColor),
     canvasBg: sanitizeHexColor(src.canvasBg, DEFAULT_APPEARANCE.canvasBg),
     cardBg: sanitizeHexColor(src.cardBg, DEFAULT_APPEARANCE.cardBg),
     glassOpacity: Math.round(clampNum(src.glassOpacity, 25, 100, DEFAULT_APPEARANCE.glassOpacity)),
+    sidebarOpacity: Math.round(clampNum(src.sidebarOpacity, 20, 100, DEFAULT_APPEARANCE.sidebarOpacity)),
     glassBlur: Math.round(clampNum(src.glassBlur, 0, 24, DEFAULT_APPEARANCE.glassBlur)),
     messageCardOpacity: Math.round(clampNum(src.messageCardOpacity, 0, 96, DEFAULT_APPEARANCE.messageCardOpacity)),
+    messageStyle: VALID_MESSAGE_STYLES.has(src.messageStyle) ? src.messageStyle : "glass",
+    borderStrength: Math.round(clampNum(src.borderStrength, 0, 100, DEFAULT_APPEARANCE.borderStrength)),
     highContrastText: src.highContrastText !== false,
     radius: Math.round(clampNum(src.radius, 4, 20, DEFAULT_APPEARANCE.radius)),
     wallpaper: {
@@ -216,7 +228,10 @@ function sanitizeAppearance(raw) {
       dim: Math.round(clampNum(wpSrc.dim, 0, 85, 45)),
       blur: Math.round(clampNum(wpSrc.blur, 0, 24, 0)),
       opacity: Math.round(clampNum(wpSrc.opacity, 15, 100, 85)),
+      saturate: Math.round(clampNum(wpSrc.saturate, 0, 180, 100)),
       scale: Math.round(clampNum(wpSrc.scale, 100, 130, 100)),
+      tintEnabled: Boolean(wpSrc.tintEnabled),
+      tintOpacity: Math.round(clampNum(wpSrc.tintOpacity, 0, 75, 35)),
       pauseWhenHidden: wpSrc.pauseWhenHidden !== false,
     },
     typography: {
@@ -241,6 +256,7 @@ function sanitizeAppearanceProfiles(raw) {
         id: typeof item.id === "string" && item.id ? item.id.slice(0, 48) : "prof-" + idx,
         name,
         appearance: sanitizeAppearance(item.appearance),
+        greeting: item.greeting && typeof item.greeting === "object" ? sanitizeGreeting(item.greeting) : null,
         createdAt: typeof item.createdAt === "number" && Number.isFinite(item.createdAt) ? Math.round(item.createdAt) : 0,
       };
     })
@@ -314,8 +330,7 @@ function sanitizeStudioSettings(raw) {
   const rawDock = src.dockPosition;
   const dockAlias = rawDock === "top" ? "top-right" : rawDock === "middle" ? "middle-right" : rawDock === "bottom" ? "bottom-right" : rawDock;
   const validDock = dockAlias === "bottom-right" || dockAlias === "top-right" || dockAlias === "middle-right" || dockAlias === "bottom-left" || dockAlias === "hidden" ? dockAlias : "bottom-right";
-  const rawView = src.viewMode === "large" ? "medium" : src.viewMode;
-  const viewMode = rawView === "mini" || rawView === "medium" ? rawView : "mini";
+  const viewMode = "mini";
   const layoutMode = src.layoutMode === "docked" || src.layoutMode === "floating" ? src.layoutMode : "docked";
   const floatX = typeof src.floatX === "number" && Number.isFinite(src.floatX) ? Math.round(src.floatX) : null;
   const floatY = typeof src.floatY === "number" && Number.isFinite(src.floatY) ? Math.round(src.floatY) : null;

@@ -13,7 +13,7 @@ const DEFAULT_MINI_FIELDS = {
   quota: false,
 };
 
-const CURATED_ACCENTS = ["#3b82f6", "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#ef4444"];
+const CURATED_ACCENTS = ["#3b82f6", "#6366f1", "#8b5cf6", "#10b981", "#14b8a6", "#f59e0b", "#ec4899", "#ef4444"];
 
 const GREETING_QUICK_PRESETS = {
   ru: [
@@ -53,6 +53,8 @@ const ICON_PATHS = {
   bolt: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
   send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+  panelRight: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/>',
+  panelCenter: '<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/>',
 };
 
 const TEXT = {
@@ -66,7 +68,14 @@ const TEXT = {
     modalTitleMonitor: "Монитор генерации",
     modalSubMonitor: "Скорость потока (TPS) и объём контекста в активном чате",
     modalTitleAppearance: "Оформление",
-    modalSubAppearance: "Живой предпросмотр прямо на чате",
+    modalSubAppearance: "Комбинация темы, акцента, обоев и стекла",
+    appDockRightBtn: "Справа · Обзор",
+    appDockCenterBtn: "В центр",
+    appLayerTheme: "Тема",
+    appLayerAccent: "Акцент",
+    appLayerWallpaper: "Обои",
+    appLayerSurface: "Стекло",
+    appLayerGreeting: "Приветствие",
     modalTitlePersona: "Характер агента",
     modalSubPersona: "Персональная инструкция для текущего чата",
     modalTitleSupplements: "Дополнения агенту",
@@ -76,24 +85,27 @@ const TEXT = {
     backToSettings: "Назад",
     appSubTheme: "Тема",
     appSubWallpaper: "Обои",
+    appSubSurface: "Стекло",
     appSubGreeting: "Приветствие",
     appSubText: "Текст",
     setSubWidget: "Виджет",
     setSubExport: "Экспорт и лимиты",
     setSubSystem: "Система",
     appThemesTitle: "Палитра",
-    appAccentQuick: "Акцент",
+    appAccentQuick: "Независимый акцент",
+    appAccentReset: "Как в теме",
     appCustomColor: "Свой",
-    appFineTune: "Тонкая настройка",
+    appFineTune: "Тонкие цвета и скроллбары",
     appCanvasColor: "Фон окна",
     appCardColor: "Фон карточек",
     appRadius: "Скругление",
+    appBorderStrength: "Чёткость рамок",
     appPolishLabel: "Мягкие скроллбары и фокус",
     appWpNone: "Нет",
     appWpGradient: "Градиент",
     appWpImage: "Фото",
     appWpVideo: "Видео",
-    appWpNoneHint: "Используется чистый фон выбранной темы без подложки.",
+    appWpNoneHint: "Чистый фон темы без обоев. При желании выберите градиент, фото или видео — их можно сочетать с любой темой и акцентом.",
     appWpPickImage: "Выбрать фото…",
     appWpPickVideo: "Выбрать видео…",
     appWpClearMedia: "Убрать",
@@ -102,14 +114,23 @@ const TEXT = {
     appWpDim: "Затемнение",
     appWpBlur: "Размытие",
     appWpOpacity: "Яркость",
+    appWpSaturate: "Насыщенность",
     appWpScale: "Масштаб",
     appWpSpeed: "Скорость",
     appWpAngle: "Угол",
     appWpAutoPause: "Пауза видео в фоне",
+    appWpTintTitle: "Градиентная вуаль поверх обоев",
+    appWpTintDesc: "Накладывает цветовой градиент поверх фото или видео для тонировки и глубины",
+    appWpTintOpacity: "Плотность вуали",
     appWpReadability: "Читаемость и стекло",
-    appGlassOpacity: "Плотность стекла",
+    appGlassOpacity: "Плотность панелей",
+    appSidebarOpacity: "Стекло сайдбара",
     appGlassBlur: "Размытие стекла",
     appMessageCardOpacity: "Подложка сообщений",
+    appMsgStyleLabel: "Карточки сообщений",
+    appMsgStyleGlass: "Стекло",
+    appMsgStyleSolid: "Чёткие",
+    appMsgStyleMinimal: "Без рамок",
     appHighContrastText: "Высокий контраст текста",
     appColorLabels: ["Цвет 1", "Цвет 2", "Цвет 3"],
     greetMasterTitle: "Своё приветствие на главном экране",
@@ -250,7 +271,7 @@ const TEXT = {
     fieldQuota: "Лимиты (5ч / Нед.)",
     dockTitle: "Позиция на экране",
     pinLockLabel: "Закрепить виджет",
-    pinLockDesc: "Фиксирует позицию; 1 клик открывает настройки",
+    pinLockDesc: "Фиксирует позицию; клик по мини-капсуле всегда открывает Rudex",
     dockResetBtn: "К якорю",
     dockBottomRight: "Правый низ",
     dockTopRight: "Правый верх",
@@ -297,7 +318,7 @@ const TEXT = {
     hkToggleLang: "Переключить язык RU / EN",
     hkToggleModal: "Открыть / закрыть Rudex",
     hkDoubleClick: "Открыть настройки по виджету",
-    hkDoubleClickKey: "1 клик (закреплён) / 2 клика",
+    hkDoubleClickKey: "1 клик",
     hkEsc: "Закрыть окно",
     pluginInfoTitle: "О плагине Rudex",
     pluginVersion: "Версия",
@@ -328,7 +349,14 @@ const TEXT = {
     modalTitleMonitor: "Generation Monitor",
     modalSubMonitor: "Live token throughput (TPS) and active chat context",
     modalTitleAppearance: "Appearance",
-    modalSubAppearance: "Instant live preview on your real chat",
+    modalSubAppearance: "Mix and combine themes, accent, wallpaper, glass, and greeting",
+    appDockRightBtn: "Dock right",
+    appDockCenterBtn: "Center view",
+    appLayerTheme: "Theme",
+    appLayerAccent: "Accent",
+    appLayerWallpaper: "Wallpaper",
+    appLayerSurface: "Glass",
+    appLayerGreeting: "Greeting",
     modalTitlePersona: "Agent Persona",
     modalSubPersona: "Per-chat persona instruction (active from next reply)",
     modalTitleSupplements: "Agent Supplements",
@@ -338,24 +366,27 @@ const TEXT = {
     backToSettings: "Back",
     appSubTheme: "Theme",
     appSubWallpaper: "Wallpaper",
+    appSubSurface: "Glass",
     appSubGreeting: "Greeting",
     appSubText: "Text",
     setSubWidget: "Widget",
     setSubExport: "Export & Limits",
     setSubSystem: "System",
     appThemesTitle: "Palette",
-    appAccentQuick: "Accent",
+    appAccentQuick: "Independent Accent",
+    appAccentReset: "Use theme default",
     appCustomColor: "Custom",
-    appFineTune: "Fine-tune",
+    appFineTune: "Fine colors & scrollbars",
     appCanvasColor: "Window background",
     appCardColor: "Card background",
     appRadius: "Corner radius",
+    appBorderStrength: "Border sharpness",
     appPolishLabel: "Refined scrollbars & focus ring",
     appWpNone: "None",
     appWpGradient: "Gradient",
     appWpImage: "Image",
     appWpVideo: "Video",
-    appWpNoneHint: "Clean theme background with no wallpaper overlay.",
+    appWpNoneHint: "Clean theme background with no wallpaper. You can freely mix a gradient, image, or video with any theme and accent.",
     appWpPickImage: "Choose image…",
     appWpPickVideo: "Choose video…",
     appWpClearMedia: "Clear",
@@ -364,14 +395,23 @@ const TEXT = {
     appWpDim: "Dim",
     appWpBlur: "Blur",
     appWpOpacity: "Opacity",
+    appWpSaturate: "Saturation",
     appWpScale: "Scale",
     appWpSpeed: "Cycle",
     appWpAngle: "Angle",
     appWpAutoPause: "Pause video when hidden",
+    appWpTintTitle: "Gradient tint overlay",
+    appWpTintDesc: "Blends a gradient wash over image or video wallpapers",
+    appWpTintOpacity: "Tint opacity",
     appWpReadability: "Readability & glass",
-    appGlassOpacity: "Glass opacity",
+    appGlassOpacity: "Panel opacity",
+    appSidebarOpacity: "Sidebar glass",
     appGlassBlur: "Glass blur",
     appMessageCardOpacity: "Message backing",
+    appMsgStyleLabel: "Message card style",
+    appMsgStyleGlass: "Glass",
+    appMsgStyleSolid: "Solid",
+    appMsgStyleMinimal: "Borderless",
     appHighContrastText: "High-contrast message text",
     appColorLabels: ["Color 1", "Color 2", "Color 3"],
     greetMasterTitle: "Custom new-chat greeting",
@@ -512,7 +552,7 @@ const TEXT = {
     fieldQuota: "Quota (5h / Wk)",
     dockTitle: "Position",
     pinLockLabel: "Lock widget in place",
-    pinLockDesc: "Locks position; 1 click opens Rudex",
+    pinLockDesc: "Locks position; clicking the mini pill always opens Rudex",
     dockResetBtn: "Snap to anchor",
     dockBottomRight: "Bottom right",
     dockTopRight: "Top right",
@@ -559,7 +599,7 @@ const TEXT = {
     hkToggleLang: "Toggle RU / EN localization",
     hkToggleModal: "Toggle Rudex Studio",
     hkDoubleClick: "Open Rudex from widget",
-    hkDoubleClickKey: "1 click (pinned) / 2 clicks",
+    hkDoubleClickKey: "1 click",
     hkEsc: "Close dialog",
     pluginInfoTitle: "About Rudex",
     pluginVersion: "Version",
@@ -660,8 +700,8 @@ function normalizeDockPosition(rawDock) {
   return DOCK_POSITIONS.indexOf(rawDock) >= 0 ? rawDock : "bottom-right";
 }
 
-function normalizeViewMode(rawMode) {
-  return rawMode === "medium" || rawMode === "large" ? "medium" : "mini";
+function normalizeViewMode(_rawMode) {
+  return "mini";
 }
 
 function normalizeCustomPresets(list) {
@@ -704,12 +744,16 @@ function spDefaultAppearance() {
   return {
     presetId: "native",
     uiPolish: true,
+    customAccent: false,
     accentColor: "#3b82f6",
     canvasBg: "#09090b",
     cardBg: "#131316",
     glassOpacity: 78,
+    sidebarOpacity: 72,
     glassBlur: 12,
     messageCardOpacity: 74,
+    messageStyle: "glass",
+    borderStrength: 50,
     highContrastText: true,
     radius: 12,
     wallpaper: {
@@ -725,7 +769,10 @@ function spDefaultAppearance() {
       dim: 45,
       blur: 0,
       opacity: 85,
+      saturate: 100,
       scale: 100,
+      tintEnabled: false,
+      tintOpacity: 35,
       pauseWhenHidden: true,
     },
     typography: {
@@ -1211,6 +1258,7 @@ function createStudioPanel(options) {
     greetingDraft: spCloneGreeting(null),
     appearanceDirty: false,
     appearanceLivePreview: false,
+    appearanceDockedRight: false,
     newProfileName: "",
     quotaSummary: null,
     lastQuotaScrapeAt: 0,
@@ -1334,6 +1382,10 @@ function createStudioPanel(options) {
   function detectTheme() {
     const activeApp = state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance;
     if (activeApp && activeApp.presetId === "light-paper") return "light";
+    if (activeApp && activeApp.presetId === "custom") {
+      const customL = parseColorLightness(activeApp.canvasBg);
+      if (customL !== null) return customL > 0.58 ? "light" : "dark";
+    }
     if (!doc || !win) return "dark";
     try {
       const htmlEl = doc.documentElement;
@@ -1366,7 +1418,7 @@ function createStudioPanel(options) {
       rootEl.setAttribute("data-theme", next);
       const activeApp = state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance;
       const preset = spFindThemePreset(activeApp && activeApp.presetId);
-      const accent = (activeApp && activeApp.presetId === "custom")
+      const accent = (activeApp && (activeApp.customAccent || activeApp.presetId === "custom"))
         ? (activeApp.accentColor || "#3b82f6")
         : ((preset && preset.vars && preset.vars.accentColor) || (activeApp && activeApp.accentColor) || "#3b82f6");
       rootEl.style.setProperty("--rx-accent", accent);
@@ -2575,8 +2627,8 @@ function createStudioPanel(options) {
     const hasPendingLe = countPendingLiveEdits() > 0;
     const grip = `<span class="drag-grip">${iconSvg("grip", 12)}</span>`;
     const btns = isPreview
-      ? `<span class="icon-btn">${iconSvg("bolt", 12)}</span><span class="icon-btn">${iconSvg("expand", 12)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 12)}</span><span class="icon-btn is-primary">${iconSvg("gear", 12)}</span>`
-      : `<button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipSupplement)}">${iconSvg("bolt", 12)}<span class="le-dot-ind" data-live="liveEditDot"${hasPendingLe ? "" : ' style="display:none"'}></span></button><button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 12)}</button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button>`;
+      ? `<span class="icon-btn">${iconSvg("bolt", 12)}</span><span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 12)}</span><span class="icon-btn is-primary">${iconSvg("gear", 12)}</span>`
+      : `<button type="button" class="icon-btn" data-action="toggle-live-edit" data-no-drag="1" title="${escAttr(tr.tooltipSupplement)}">${iconSvg("bolt", 12)}<span class="le-dot-ind" data-live="liveEditDot"${hasPendingLe ? "" : ' style="display:none"'}></span></button><button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button>`;
 
     const bodyAttrs = isPreview ? "" : ` data-widget-body="1"${isPinned ? "" : ' data-drag-handle="1"'}`;
     return `<div class="mini-pill"${bodyAttrs}>${grip}${joined}<span class="pill-sep"></span>${btns}</div>`;
@@ -2719,20 +2771,56 @@ function createStudioPanel(options) {
     const tr = t();
     const isRu = state.locale !== "en";
     const sub = state.appearanceSubTab || "theme";
+    const draft = spNormalizeAppearance(state.appearanceDraft);
+    const gd = spNormalizeGreeting(state.greetingDraft);
+    const presetObj = spFindThemePreset(draft.presetId);
+    const wp = draft.wallpaper;
+    const grads = spGetGradientPresets();
+
     const subTabs = [
       { id: "theme", label: tr.appSubTheme },
       { id: "wallpaper", label: tr.appSubWallpaper },
+      { id: "surface", label: tr.appSubSurface },
       { id: "greeting", label: tr.appSubGreeting },
       { id: "text", label: tr.appSubText },
     ];
 
+    const themeLabel = presetObj ? (isRu ? presetObj.nameRu : presetObj.nameEn) : draft.presetId;
+    const effAccent = draft.customAccent ? draft.accentColor : ((presetObj && presetObj.vars && presetObj.vars.accentColor) || draft.accentColor);
+    const wpMap = { none: tr.appWpNone, gradient: tr.appWpGradient, image: tr.appWpImage, video: tr.appWpVideo };
+    let wpLabel = wpMap[wp.type] || tr.appWpNone;
+    if (wp.type === "gradient") {
+      const gp = grads.find((g) => g.id === wp.gradientPreset);
+      if (gp) wpLabel = isRu ? gp.nameRu : gp.nameEn;
+    } else if ((wp.type === "image" || wp.type === "video") && wp.tintEnabled) {
+      wpLabel += ` + ${tr.appWpGradient}`;
+    }
+    const styleLabelMap = { glass: tr.appMsgStyleGlass, solid: tr.appMsgStyleSolid, minimal: tr.appMsgStyleMinimal };
+    const surfaceLabel = `${styleLabelMap[draft.messageStyle] || tr.appMsgStyleGlass} · ${draft.glassOpacity}%`;
+
     let inner = "";
     if (sub === "theme") inner = renderAppearanceThemeSub(tr, isRu);
     else if (sub === "wallpaper") inner = renderAppearanceWallpaperSub(tr, isRu);
+    else if (sub === "surface") inner = renderAppearanceSurfaceSub(tr, isRu);
     else if (sub === "greeting") inner = renderAppearanceGreetingSub(tr, isRu);
     else inner = renderAppearanceTextSub(tr, isRu);
 
     return `
+      <div class="layer-summary-strip">
+        <button type="button" class="layer-pill${sub === "theme" ? " is-active" : ""}" data-action="set-app-subtab" data-val="theme">
+          <span class="layer-dot" style="background:${escAttr(effAccent)}"></span>
+          <span>${escHtml(tr.appLayerTheme)}: ${escHtml(themeLabel)}</span>
+        </button>
+        <button type="button" class="layer-pill${sub === "wallpaper" && wp.type !== "none" ? " is-active" : ""}" data-action="set-app-subtab" data-val="wallpaper">
+          <span>${escHtml(tr.appLayerWallpaper)}: ${escHtml(wpLabel)}</span>
+        </button>
+        <button type="button" class="layer-pill${sub === "surface" ? " is-active" : ""}" data-action="set-app-subtab" data-val="surface">
+          <span>${escHtml(tr.appLayerSurface)}: ${escHtml(surfaceLabel)}</span>
+        </button>
+        <button type="button" class="layer-pill${sub === "greeting" || gd.enabled ? (sub === "greeting" ? " is-active" : "") : ""}" data-action="set-app-subtab" data-val="greeting">
+          <span>${escHtml(tr.appLayerGreeting)}: ${escHtml(gd.enabled ? tr.personaActiveTag : tr.personaOffTag)}</span>
+        </button>
+      </div>
       <div class="subtab-bar">
         ${subTabs.map((st) => `
           <button type="button" class="subtab-btn${st.id === sub ? " is-active" : ""}" data-action="set-app-subtab" data-val="${st.id}">${escHtml(st.label)}</button>
@@ -2745,6 +2833,10 @@ function createStudioPanel(options) {
   function renderAppearanceThemeSub(tr, isRu) {
     const draft = spNormalizeAppearance(state.appearanceDraft);
     const presets = spGetThemePresets();
+    const curPreset = spFindThemePreset(draft.presetId);
+    const effAccent = draft.customAccent
+      ? draft.accentColor
+      : ((curPreset && curPreset.vars && curPreset.vars.accentColor) || draft.accentColor);
     const fineOpen = Boolean(state.openDisclosures.themeFine);
 
     return `
@@ -2769,15 +2861,29 @@ function createStudioPanel(options) {
       </div>
 
       <div class="section-group">
-        <span class="section-label">${escHtml(tr.appAccentQuick)}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span class="section-label">${escHtml(tr.appAccentQuick)}</span>
+          ${draft.customAccent ? `<button type="button" class="btn btn-sm btn-ghost" style="padding:2px 7px;font-size:11px" data-action="reset-custom-accent">${escHtml(tr.appAccentReset)}</button>` : ""}
+        </div>
         <div class="accent-row">
           ${CURATED_ACCENTS.map((hex) => `
-            <button type="button" class="accent-dot-btn${draft.accentColor.toLowerCase() === hex ? " is-selected" : ""}" data-action="pick-accent-dot" data-val="${hex}" style="background:${hex}" aria-label="${hex}"></button>
+            <button type="button" class="accent-dot-btn${effAccent.toLowerCase() === hex ? " is-selected" : ""}" data-action="pick-accent-dot" data-val="${hex}" style="background:${hex}" aria-label="${hex}"></button>
           `).join("")}
           <label class="color-box" style="margin-left:auto">
             <span>${escHtml(tr.appCustomColor)}</span>
-            <input type="color" class="color-input" data-app-field="accentColor" value="${escAttr(draft.accentColor)}"/>
+            <input type="color" class="color-input" data-app-field="accentColor" value="${escAttr(effAccent)}"/>
           </label>
+        </div>
+      </div>
+
+      <div class="control-grid-2">
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.appRadius)}</span><b class="num" data-live-app-val="radius">${draft.radius}px</b></div>
+          <input type="range" class="range-input" min="4" max="20" step="1" data-app-field="radius" value="${draft.radius}"/>
+        </div>
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.appBorderStrength)}</span><b class="num" data-live-app-val="borderStrength">${draft.borderStrength}%</b></div>
+          <input type="range" class="range-input" min="0" max="100" step="5" data-app-field="borderStrength" value="${draft.borderStrength}"/>
         </div>
       </div>
 
@@ -2787,10 +2893,6 @@ function createStudioPanel(options) {
           <div class="control-grid-2">
             <div class="color-box"><span>${escHtml(tr.appCanvasColor)}</span><input type="color" class="color-input" data-app-field="canvasBg" value="${escAttr(draft.canvasBg)}"/></div>
             <div class="color-box"><span>${escHtml(tr.appCardColor)}</span><input type="color" class="color-input" data-app-field="cardBg" value="${escAttr(draft.cardBg)}"/></div>
-          </div>
-          <div class="slider-box">
-            <div class="slider-head"><span>${escHtml(tr.appRadius)}</span><b class="num" data-live-app-val="radius">${draft.radius}px</b></div>
-            <input type="range" class="range-input" min="4" max="20" step="1" data-app-field="radius" value="${draft.radius}"/>
           </div>
           <div class="card">
             <div class="row-item">
@@ -2813,7 +2915,6 @@ function createStudioPanel(options) {
       { id: "image", label: tr.appWpImage },
       { id: "video", label: tr.appWpVideo },
     ];
-    const readOpen = Boolean(state.openDisclosures.wpReadability);
     const gradFineOpen = Boolean(state.openDisclosures.gradFine);
 
     let modeBody = "";
@@ -2840,6 +2941,10 @@ function createStudioPanel(options) {
           <div class="slider-box">
             <div class="slider-head"><span>${escHtml(tr.appWpOpacity)}</span><b class="num" data-live-app-val="wallpaper.opacity">${wp.opacity}%</b></div>
             <input type="range" class="range-input" min="15" max="100" step="1" data-app-field="wallpaper.opacity" value="${wp.opacity}"/>
+          </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpSaturate)}</span><b class="num" data-live-app-val="wallpaper.saturate">${wp.saturate}%</b></div>
+            <input type="range" class="range-input" min="0" max="180" step="5" data-app-field="wallpaper.saturate" value="${wp.saturate}"/>
           </div>
         </div>
         <details class="rx-details" data-disc="gradFine"${gradFineOpen ? " open" : ""}>
@@ -2882,6 +2987,18 @@ function createStudioPanel(options) {
             <div class="slider-head"><span>${escHtml(tr.appWpBlur)}</span><b class="num" data-live-app-val="wallpaper.blur">${wp.blur}px</b></div>
             <input type="range" class="range-input" min="0" max="24" step="1" data-app-field="wallpaper.blur" value="${wp.blur}"/>
           </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpOpacity)}</span><b class="num" data-live-app-val="wallpaper.opacity">${wp.opacity}%</b></div>
+            <input type="range" class="range-input" min="15" max="100" step="1" data-app-field="wallpaper.opacity" value="${wp.opacity}"/>
+          </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpSaturate)}</span><b class="num" data-live-app-val="wallpaper.saturate">${wp.saturate}%</b></div>
+            <input type="range" class="range-input" min="0" max="180" step="5" data-app-field="wallpaper.saturate" value="${wp.saturate}"/>
+          </div>
+          <div class="slider-box">
+            <div class="slider-head"><span>${escHtml(tr.appWpScale)}</span><b class="num" data-live-app-val="wallpaper.scale">${wp.scale}%</b></div>
+            <input type="range" class="range-input" min="100" max="130" step="1" data-app-field="wallpaper.scale" value="${wp.scale}"/>
+          </div>
         </div>
         ${isVid ? `
           <div class="card">
@@ -2891,46 +3008,30 @@ function createStudioPanel(options) {
             </div>
           </div>
         ` : ""}
+        <div class="card">
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${escHtml(tr.appWpTintTitle)}</span>
+              <span class="row-desc">${escHtml(tr.appWpTintDesc)}</span>
+            </div>
+            <button type="button" class="switch${wp.tintEnabled ? " is-on" : ""}" role="switch" aria-checked="${wp.tintEnabled ? "true" : "false"}" data-action="toggle-wallpaper-tint"><span class="switch-thumb"></span></button>
+          </div>
+          ${wp.tintEnabled ? `
+            <div style="padding:10px 13px;border-top:1px solid var(--rx-border);display:flex;flex-direction:column;gap:9px">
+              <div class="slider-box">
+                <div class="slider-head"><span>${escHtml(tr.appWpTintOpacity)}</span><b class="num" data-live-app-val="wallpaper.tintOpacity">${wp.tintOpacity}%</b></div>
+                <input type="range" class="range-input" min="5" max="75" step="1" data-app-field="wallpaper.tintOpacity" value="${wp.tintOpacity}"/>
+              </div>
+              <div class="grad-chips">
+                ${grads.map((g) => `
+                  <button type="button" class="grad-chip${wp.gradientPreset === g.id ? " is-selected" : ""}" data-action="select-gradient-preset" data-id="${escAttr(g.id)}" style="background:linear-gradient(${g.angle}deg, ${escAttr(g.colors[0])}, ${escAttr(g.colors[1])}, ${escAttr(g.colors[2])})">${escHtml(isRu ? g.nameRu : g.nameEn)}</button>
+                `).join("")}
+              </div>
+            </div>
+          ` : ""}
+        </div>
       `;
     }
-
-    const readabilitySection = wp.type !== "none" ? `
-      <details class="rx-details" data-disc="wpReadability"${readOpen ? " open" : ""}>
-        <summary>${escHtml(tr.appWpReadability)}</summary>
-        <div class="rx-details-body">
-          <div class="control-grid-2">
-            <div class="slider-box">
-              <div class="slider-head"><span>${escHtml(tr.appMessageCardOpacity)}</span><b class="num" data-live-app-val="messageCardOpacity">${draft.messageCardOpacity}%</b></div>
-              <input type="range" class="range-input" min="0" max="96" step="2" data-app-field="messageCardOpacity" value="${draft.messageCardOpacity}"/>
-            </div>
-            <div class="slider-box">
-              <div class="slider-head"><span>${escHtml(tr.appGlassOpacity)}</span><b class="num" data-live-app-val="glassOpacity">${draft.glassOpacity}%</b></div>
-              <input type="range" class="range-input" min="25" max="100" step="1" data-app-field="glassOpacity" value="${draft.glassOpacity}"/>
-            </div>
-            <div class="slider-box">
-              <div class="slider-head"><span>${escHtml(tr.appGlassBlur)}</span><b class="num" data-live-app-val="glassBlur">${draft.glassBlur}px</b></div>
-              <input type="range" class="range-input" min="0" max="24" step="1" data-app-field="glassBlur" value="${draft.glassBlur}"/>
-            </div>
-            ${wp.type !== "gradient" ? `
-              <div class="slider-box">
-                <div class="slider-head"><span>${escHtml(tr.appWpOpacity)}</span><b class="num" data-live-app-val="wallpaper.opacity">${wp.opacity}%</b></div>
-                <input type="range" class="range-input" min="15" max="100" step="1" data-app-field="wallpaper.opacity" value="${wp.opacity}"/>
-              </div>
-              <div class="slider-box">
-                <div class="slider-head"><span>${escHtml(tr.appWpScale)}</span><b class="num" data-live-app-val="wallpaper.scale">${wp.scale}%</b></div>
-                <input type="range" class="range-input" min="100" max="130" step="1" data-app-field="wallpaper.scale" value="${wp.scale}"/>
-              </div>
-            ` : ""}
-          </div>
-          <div class="card">
-            <div class="row-item">
-              <span class="row-title">${escHtml(tr.appHighContrastText)}</span>
-              <button type="button" class="switch${draft.highContrastText !== false ? " is-on" : ""}" role="switch" aria-checked="${draft.highContrastText !== false ? "true" : "false"}" data-action="toggle-appearance-contrast"><span class="switch-thumb"></span></button>
-            </div>
-          </div>
-        </div>
-      </details>
-    ` : "";
 
     return `
       <div class="subtab-bar">
@@ -2939,7 +3040,63 @@ function createStudioPanel(options) {
         `).join("")}
       </div>
       ${modeBody}
-      ${readabilitySection}
+    `;
+  }
+
+  function renderAppearanceSurfaceSub(tr, _isRu) {
+    const draft = spNormalizeAppearance(state.appearanceDraft);
+    const styles = [
+      { id: "glass", label: tr.appMsgStyleGlass },
+      { id: "solid", label: tr.appMsgStyleSolid },
+      { id: "minimal", label: tr.appMsgStyleMinimal },
+    ];
+
+    return `
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.appMsgStyleLabel)}</span>
+        <div class="subtab-bar">
+          ${styles.map((st) => `
+            <button type="button" class="subtab-btn${draft.messageStyle === st.id ? " is-active" : ""}" data-action="set-message-style" data-val="${st.id}">${escHtml(st.label)}</button>
+          `).join("")}
+        </div>
+      </div>
+
+      <div class="control-grid-2">
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.appGlassOpacity)}</span><b class="num" data-live-app-val="glassOpacity">${draft.glassOpacity}%</b></div>
+          <input type="range" class="range-input" min="25" max="100" step="1" data-app-field="glassOpacity" value="${draft.glassOpacity}"/>
+        </div>
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.appSidebarOpacity)}</span><b class="num" data-live-app-val="sidebarOpacity">${draft.sidebarOpacity}%</b></div>
+          <input type="range" class="range-input" min="20" max="100" step="1" data-app-field="sidebarOpacity" value="${draft.sidebarOpacity}"/>
+        </div>
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.appGlassBlur)}</span><b class="num" data-live-app-val="glassBlur">${draft.glassBlur}px</b></div>
+          <input type="range" class="range-input" min="0" max="24" step="1" data-app-field="glassBlur" value="${draft.glassBlur}"/>
+        </div>
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.appMessageCardOpacity)}</span><b class="num" data-live-app-val="messageCardOpacity">${draft.messageCardOpacity}%</b></div>
+          <input type="range" class="range-input" min="0" max="96" step="2" data-app-field="messageCardOpacity" value="${draft.messageCardOpacity}"/>
+        </div>
+      </div>
+
+      <div class="control-grid-2">
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.appBorderStrength)}</span><b class="num" data-live-app-val="borderStrength">${draft.borderStrength}%</b></div>
+          <input type="range" class="range-input" min="0" max="100" step="5" data-app-field="borderStrength" value="${draft.borderStrength}"/>
+        </div>
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(tr.appRadius)}</span><b class="num" data-live-app-val="radius">${draft.radius}px</b></div>
+          <input type="range" class="range-input" min="4" max="20" step="1" data-app-field="radius" value="${draft.radius}"/>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row-item">
+          <span class="row-title">${escHtml(tr.appHighContrastText)}</span>
+          <button type="button" class="switch${draft.highContrastText !== false ? " is-on" : ""}" role="switch" aria-checked="${draft.highContrastText !== false ? "true" : "false"}" data-action="toggle-appearance-contrast"><span class="switch-thumb"></span></button>
+        </div>
+      </div>
     `;
   }
 
@@ -3311,20 +3468,6 @@ function createStudioPanel(options) {
       </div>
 
       <div class="section-group">
-        <span class="section-label">${escHtml(tr.modeTitle)}</span>
-        <div class="segmented-2">
-          <button type="button" class="choice-card${s.viewMode === "mini" ? " is-selected" : ""}" data-action="set-view-mode" data-val="mini">
-            <span class="choice-title"><span>${escHtml(tr.modeMiniTitle)}</span>${s.viewMode === "mini" ? iconSvg("check", 13) : ""}</span>
-            <span class="choice-desc">${escHtml(tr.modeMiniDesc)}</span>
-          </button>
-          <button type="button" class="choice-card${s.viewMode === "medium" ? " is-selected" : ""}" data-action="set-view-mode" data-val="medium">
-            <span class="choice-title"><span>${escHtml(tr.modeMedTitle)}</span>${s.viewMode === "medium" ? iconSvg("check", 13) : ""}</span>
-            <span class="choice-desc">${escHtml(tr.modeMedDesc)}</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="section-group">
         <span class="section-label">${escHtml(tr.fieldsTitle)}</span>
         <div class="control-grid-2">
           ${fieldSpecs.map((f) => `
@@ -3544,7 +3687,8 @@ function createStudioPanel(options) {
       { id: "settings", label: tr.navSettings, ic: "gear", title: tr.modalTitleSettings, sub: tr.modalSubSettings },
     ];
     const current = tabs.find((x) => x.id === state.activeTab) || tabs[0];
-    const isAppearanceLive = current.id === "appearance";
+    const isAppearanceTab = current.id === "appearance";
+    const isAppearanceDrawer = isAppearanceTab && Boolean(state.appearanceDockedRight);
     let bodyHtml = "";
     if (current.id === "monitor") bodyHtml = renderMonitorTab();
     else if (current.id === "appearance") bodyHtml = renderAppearanceDrawerBody();
@@ -3553,9 +3697,9 @@ function createStudioPanel(options) {
     else bodyHtml = renderSettingsTab();
 
     return `
-      <div class="modal-backdrop${isAppearanceLive ? " is-appearance-live" : ""}" data-action="backdrop-close">
-        <div class="modal-shell${isAppearanceLive ? " is-appearance-live" : ""}" role="dialog" aria-modal="${isAppearanceLive ? "false" : "true"}" aria-label="${escAttr(tr.brandTitle)}">
-          ${isAppearanceLive ? "" : `
+      <div class="modal-backdrop${isAppearanceDrawer ? " is-appearance-live" : ""}" data-action="backdrop-close">
+        <div class="modal-shell${isAppearanceDrawer ? " is-appearance-live" : ""}" role="dialog" aria-modal="${isAppearanceDrawer ? "false" : "true"}" aria-label="${escAttr(tr.brandTitle)}">
+          ${isAppearanceDrawer ? "" : `
             <aside class="modal-sidebar">
               <div class="sidebar-brand">
                 <span class="brand-title">${escHtml(tr.brandTitle)}</span>
@@ -3580,16 +3724,24 @@ function createStudioPanel(options) {
           <section class="modal-main">
             <header class="modal-header">
               <div style="display:flex;align-items:center;gap:8px;min-width:0">
-                ${isAppearanceLive ? `<button type="button" class="icon-btn" data-action="switch-tab" data-tab="monitor" title="${escAttr(tr.backToSettings)}">${iconSvg("back", 15)}</button>` : ""}
+                ${isAppearanceDrawer ? `<button type="button" class="icon-btn" data-action="toggle-appearance-dock" title="${escAttr(tr.appDockCenterBtn)}">${iconSvg("back", 15)}</button>` : ""}
                 <div style="min-width:0">
                   <h2 class="modal-title">${escHtml(current.title)}</h2>
                   <p class="modal-sub">${escHtml(current.sub)}</p>
                 </div>
               </div>
-              <button type="button" class="icon-btn" data-action="close-modal" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 15)}</button>
+              <div class="modal-header-actions">
+                ${isAppearanceTab ? `
+                  <button type="button" class="btn btn-sm" data-action="toggle-appearance-dock">
+                    ${iconSvg(isAppearanceDrawer ? "panelCenter" : "panelRight", 13)}
+                    <span>${escHtml(isAppearanceDrawer ? tr.appDockCenterBtn : tr.appDockRightBtn)}</span>
+                  </button>
+                ` : ""}
+                <button type="button" class="icon-btn" data-action="close-modal" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 15)}</button>
+              </div>
             </header>
             <div class="modal-body">${bodyHtml}</div>
-            ${isAppearanceLive ? `
+            ${isAppearanceTab ? `
               <footer class="drawer-sticky-footer">
                 <button type="button" class="btn btn-sm btn-ghost" data-action="reset-appearance">${escHtml(tr.appResetBtn)}</button>
                 <div style="display:flex;align-items:center;gap:6px">
@@ -3935,6 +4087,7 @@ function createStudioPanel(options) {
       state.activeTab = tab;
       if (prevTab === "appearance" && tab !== "appearance") {
         state.appearanceLivePreview = false;
+        state.appearanceDockedRight = false;
         state.appearanceDraft = spCloneAppearance(state.settings.appearance);
         state.greetingDraft = spCloneGreeting(state.settings.greeting);
         state.appearanceDirty = false;
@@ -3950,6 +4103,13 @@ function createStudioPanel(options) {
         applyThemeFastToHost(state.appearanceDraft);
       }
       if (tab === "live-edits") refreshLiveEdits();
+      renderStructure();
+      return;
+    }
+    if (action === "toggle-appearance-dock") {
+      state.appearanceDockedRight = !state.appearanceDockedRight;
+      state.appearanceLivePreview = true;
+      applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
       return;
     }
@@ -3972,10 +4132,10 @@ function createStudioPanel(options) {
       renderStructure();
       return;
     }
-    if (action === "to-medium") { setViewMode("medium"); return; }
+    if (action === "to-medium") { setOpen(true); return; }
     if (action === "to-mini") { setViewMode("mini"); return; }
     if (action === "set-view-mode") {
-      setViewMode(actionEl.getAttribute("data-val") === "medium" ? "medium" : "mini");
+      setViewMode("mini");
       return;
     }
     if (action === "toggle-locale") {
@@ -4178,12 +4338,11 @@ function createStudioPanel(options) {
       const pr = spFindThemePreset(pid);
       state.appearanceDraft.presetId = pr.id;
       if (pr.id !== "custom" && pr.vars) {
-        state.appearanceDraft.accentColor = pr.vars.accentColor;
+        if (!state.appearanceDraft.customAccent) {
+          state.appearanceDraft.accentColor = pr.vars.accentColor;
+        }
         state.appearanceDraft.canvasBg = pr.vars.canvasBg;
         state.appearanceDraft.cardBg = pr.vars.cardBg;
-        state.appearanceDraft.glassOpacity = pr.vars.glassOpacity;
-        state.appearanceDraft.glassBlur = pr.vars.glassBlur;
-        state.appearanceDraft.radius = pr.vars.radius;
       }
       markAppearanceDirty();
       renderStructure();
@@ -4192,7 +4351,22 @@ function createStudioPanel(options) {
     if (action === "pick-accent-dot") {
       const hex = actionEl.getAttribute("data-val") || "#3b82f6";
       state.appearanceDraft.accentColor = hex.toLowerCase();
-      state.appearanceDraft.presetId = "custom";
+      state.appearanceDraft.customAccent = true;
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "reset-custom-accent") {
+      const pr = spFindThemePreset(state.appearanceDraft.presetId || "native");
+      state.appearanceDraft.customAccent = false;
+      state.appearanceDraft.accentColor = (pr && pr.vars && pr.vars.accentColor) || "#3b82f6";
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "set-message-style") {
+      const val = actionEl.getAttribute("data-val");
+      state.appearanceDraft.messageStyle = val === "solid" || val === "minimal" ? val : "glass";
       markAppearanceDirty();
       renderStructure();
       return;
@@ -4221,11 +4395,21 @@ function createStudioPanel(options) {
       const grads = spGetGradientPresets();
       const found = grads.find((g) => g.id === gid) || grads[0];
       if (found) {
-        state.appearanceDraft.wallpaper.type = "gradient";
+        if (state.appearanceDraft.wallpaper.type === "image" || state.appearanceDraft.wallpaper.type === "video") {
+          state.appearanceDraft.wallpaper.tintEnabled = true;
+        } else {
+          state.appearanceDraft.wallpaper.type = "gradient";
+        }
         state.appearanceDraft.wallpaper.gradientPreset = found.id;
         state.appearanceDraft.wallpaper.gradColors = found.colors.slice(0, 3);
         state.appearanceDraft.wallpaper.gradAngle = found.angle;
       }
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "toggle-wallpaper-tint") {
+      state.appearanceDraft.wallpaper.tintEnabled = !state.appearanceDraft.wallpaper.tintEnabled;
       markAppearanceDirty();
       renderStructure();
       return;
@@ -4329,8 +4513,13 @@ function createStudioPanel(options) {
       const prof = (state.settings.appearanceProfiles || []).find((p) => p.id === pid);
       if (prof && prof.appearance) {
         state.appearanceDraft = spCloneAppearance(prof.appearance);
+        const nextPatch = { appearance: spCloneAppearance(prof.appearance) };
+        if (prof.greeting && typeof prof.greeting === "object") {
+          state.greetingDraft = spCloneGreeting(prof.greeting);
+          nextPatch.greeting = spCloneGreeting(prof.greeting);
+        }
         state.appearanceDirty = false;
-        saveSettingsPatch({ appearance: spCloneAppearance(prof.appearance) });
+        saveSettingsPatch(nextPatch);
       }
       return;
     }
@@ -4348,6 +4537,7 @@ function createStudioPanel(options) {
         id,
         name,
         appearance: spCloneAppearance(state.appearanceDraft),
+        greeting: spCloneGreeting(state.greetingDraft),
         createdAt: Date.now(),
       }]).slice(-12);
       state.newProfileName = "";
@@ -4442,18 +4632,25 @@ function createStudioPanel(options) {
     let labelText = null;
     let needsRerenderDots = false;
 
-    if (field === "accentColor" || field === "canvasBg" || field === "cardBg") {
+    if (field === "accentColor") {
+      draft.accentColor = String(rawVal || "#3b82f6").toLowerCase();
+      draft.customAccent = true;
+      needsRerenderDots = true;
+    } else if (field === "canvasBg" || field === "cardBg") {
       draft[field] = String(rawVal || "#09090b").toLowerCase();
       draft.presetId = "custom";
       needsRerenderDots = true;
-    } else if (field === "glassOpacity" || field === "glassBlur" || field === "radius" || field === "messageCardOpacity") {
+    } else if (field === "glassOpacity" || field === "sidebarOpacity" || field === "glassBlur" || field === "radius" || field === "messageCardOpacity" || field === "borderStrength") {
       const n = Math.round(Number(rawVal) || 0);
       draft[field] = n;
-      if (draft.presetId === "native") draft.presetId = "custom";
-      labelText = (field === "glassOpacity" || field === "messageCardOpacity") ? `${n}%` : `${n}px`;
+      labelText = (field === "glassBlur" || field === "radius") ? `${n}px` : `${n}%`;
     } else if (field === "wallpaper.gradColor0" || field === "wallpaper.gradColor1" || field === "wallpaper.gradColor2") {
       const idx = parseInt(field.slice(-1), 10);
-      draft.wallpaper.type = "gradient";
+      if (draft.wallpaper.type === "image" || draft.wallpaper.type === "video") {
+        draft.wallpaper.tintEnabled = true;
+      } else {
+        draft.wallpaper.type = "gradient";
+      }
       draft.wallpaper.gradColors[idx] = String(rawVal || "#0f172a").toLowerCase();
     } else if (field === "wallpaper.gradAngle") {
       const n = Math.round(Number(rawVal) || 0);
@@ -4463,7 +4660,7 @@ function createStudioPanel(options) {
       const n = Math.round(Number(rawVal) || 18);
       draft.wallpaper.gradSpeed = n;
       labelText = `${n}s`;
-    } else if (field === "wallpaper.dim" || field === "wallpaper.blur" || field === "wallpaper.opacity" || field === "wallpaper.scale") {
+    } else if (field === "wallpaper.dim" || field === "wallpaper.blur" || field === "wallpaper.opacity" || field === "wallpaper.saturate" || field === "wallpaper.scale" || field === "wallpaper.tintOpacity") {
       const sub = field.split(".")[1];
       const n = Math.round(Number(rawVal) || 0);
       draft.wallpaper[sub] = n;
@@ -4595,18 +4792,8 @@ function createStudioPanel(options) {
           return;
         }
         if (target.closest('[data-widget-body="1"]') && Date.now() - lastDragEndedAt > 250) {
-          if (state.settings.pinned) {
-            lastBodyClickAt = 0;
-            setOpen(true);
-          } else {
-            const now = Date.now();
-            if (now - lastBodyClickAt <= 380) {
-              lastBodyClickAt = 0;
-              setOpen(true);
-            } else {
-              lastBodyClickAt = now;
-            }
-          }
+          lastBodyClickAt = 0;
+          setOpen(true);
           return;
         }
       }
@@ -4918,14 +5105,19 @@ function createStudioPanel(options) {
     if (next && opts && typeof opts === "object") {
       if (opts.tab) state.activeTab = String(opts.tab);
       if (opts.subTab) state.settingsSubTab = String(opts.subTab);
+      if (opts.appSubTab) state.appearanceSubTab = String(opts.appSubTab);
+      if (typeof opts.dockedRight === "boolean") state.appearanceDockedRight = opts.dockedRight;
     }
     if (!next && (state.appearanceLivePreview || state.activeTab === "appearance")) {
       state.appearanceLivePreview = false;
+      state.appearanceDockedRight = false;
       state.appearanceDraft = spCloneAppearance(state.settings.appearance);
       state.greetingDraft = spCloneGreeting(state.settings.greeting);
       state.appearanceDirty = false;
       applyThemeToHost(state.settings.appearance);
       syncTranslatorGreeting(state.settings.greeting);
+    } else if (!next) {
+      state.appearanceDockedRight = false;
     }
     state.isOpen = next;
     if (next && state.activeTab === "appearance") {
