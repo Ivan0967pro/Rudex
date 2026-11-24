@@ -1,0 +1,29 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "antigravity-ru",
+  "displayName": "Antigravity RU",
+  "version": "2.0.0",
+  "description": "Полная русификация интерфейса Antigravity 2.0 (UI, меню, трей, контекстные меню и диалоги) с переключением RU/EN по Ctrl+Alt+L и откатом.",
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "Ivan0967pro",
+    "url": "https://github.com/Ivan0967pro"
+  },
+  "homepage": "https://github.com/Ivan0967pro/antigravity-ru",
+  "repository": "https://github.com/Ivan0967pro/antigravity-ru",
+  "license": "MIT",
+  "keywords": [
+    "russian",
+    "ru",
+    "localization",
+    "i18n",
+    "translation",
+    "antigravity",
+    "ui"
+  ],
+  "suggestedPrompts": [
+    "Переведи интерфейс Antigravity на русский язык",
+    "Проверь статус русификации Antigravity",
+    "Удали русификацию и верни английский интерфейс Antigravity"
+  ]
+}
