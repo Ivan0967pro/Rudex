@@ -2276,17 +2276,19 @@ function createStudioPanel(options) {
     if (!key) return mediaUrl || "";
     const cached = mediaBlobCache.get(key);
     if (cached) return cached;
-    if (!mediaLoadInflight.has(key) && ipc && win && typeof win.Blob === "function" && win.URL && typeof win.URL.createObjectURL === "function") {
+    const BlobCtor = win && typeof win.Blob === "function" ? win.Blob : (typeof Blob === "function" ? Blob : null);
+    const UrlApi = win && win.URL && typeof win.URL.createObjectURL === "function" ? win.URL : (typeof URL !== "undefined" && typeof URL.createObjectURL === "function" ? URL : null);
+    if (!mediaLoadInflight.has(key) && ipc && BlobCtor && UrlApi) {
       mediaLoadInflight.add(key);
       invokeIpc("agy-studio:read-media", { fileName: key, mediaUrl }).then((res) => {
         mediaLoadInflight.delete(key);
         if (state.destroyed || !res || !res.ok || !res.bytes) return;
         try {
-          const blob = new win.Blob([res.bytes], { type: res.mime || "application/octet-stream" });
-          const blobUrl = win.URL.createObjectURL(blob);
+          const blob = new BlobCtor([res.bytes], { type: res.mime || "application/octet-stream" });
+          const blobUrl = UrlApi.createObjectURL(blob);
           const old = mediaBlobCache.get(key);
-          if (old && old !== blobUrl && typeof win.URL.revokeObjectURL === "function") {
-            try { win.URL.revokeObjectURL(old); } catch (_e) {}
+          if (old && old !== blobUrl && typeof UrlApi.revokeObjectURL === "function") {
+            try { UrlApi.revokeObjectURL(old); } catch (_e) {}
           }
           mediaBlobCache.set(key, blobUrl);
           if (state.mounted) {
@@ -5414,9 +5416,10 @@ function createStudioPanel(options) {
       if (keydownHandler) doc.removeEventListener("keydown", keydownHandler, true);
       if (cancelClickHandler) doc.removeEventListener("click", cancelClickHandler, true);
     }
-    if (win && win.URL && typeof win.URL.revokeObjectURL === "function") {
+    const revokeApi = win && win.URL && typeof win.URL.revokeObjectURL === "function" ? win.URL : (typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function" ? URL : null);
+    if (revokeApi) {
       mediaBlobCache.forEach((blobUrl) => {
-        try { win.URL.revokeObjectURL(blobUrl); } catch (_e) {}
+        try { revokeApi.revokeObjectURL(blobUrl); } catch (_e) {}
       });
     }
     mediaBlobCache.clear();

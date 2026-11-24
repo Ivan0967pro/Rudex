@@ -802,7 +802,7 @@ function readTranscriptStepsCached(lp, mtimeMs, size) {
   return entry;
 }
 
-function scanBrainTranscriptsQuota(weeklyStartMs, fiveHourStartMs, resetWatermarkMs) {
+function scanBrainTranscriptsQuota(minCutoffMs, resetWatermarkMs) {
   const out = new Map();
   const brainDir = path.join(os.homedir(), ".gemini", "antigravity", "brain");
   let entries;
@@ -812,7 +812,7 @@ function scanBrainTranscriptsQuota(weeklyStartMs, fiveHourStartMs, resetWatermar
   } catch {
     return out;
   }
-  const minCutoff = Math.max(resetWatermarkMs || 0, Math.min(weeklyStartMs, fiveHourStartMs));
+  const minCutoff = Math.max(resetWatermarkMs || 0, minCutoffMs || 0);
   for (let i = 0; i < entries.length; i += 1) {
     const ent = entries[i];
     if (!ent || !ent.isDirectory()) continue;
@@ -828,32 +828,11 @@ function scanBrainTranscriptsQuota(weeklyStartMs, fiveHourStartMs, resetWatermar
     }
     if (!st || !st.isFile() || st.size < 20 || st.mtimeMs < minCutoff) continue;
     const parsed = readTranscriptStepsCached(lp, st.mtimeMs, st.size);
-    let unitsWeekly = 0;
-    let units5h = 0;
-    let stepsWeekly = 0;
-    let steps5h = 0;
-    let lastTs = 0;
-    for (let s = 0; s < parsed.steps.length; s += 1) {
-      const stp = parsed.steps[s];
-      if (stp.ts < (resetWatermarkMs || 0)) continue;
-      if (stp.ts > lastTs) lastTs = stp.ts;
-      if (stp.ts >= weeklyStartMs) {
-        unitsWeekly += stp.units;
-        stepsWeekly += 1;
-      }
-      if (stp.ts >= fiveHourStartMs) {
-        units5h += stp.units;
-        steps5h += 1;
-      }
-    }
-    if (stepsWeekly > 0 || steps5h > 0) {
+    if (parsed.steps.length > 0) {
       out.set(chatId, {
         chatKey: chatId,
-        unitsWeekly,
-        units5h,
-        stepsWeekly,
-        steps5h,
-        lastTs: lastTs || Math.round(st.mtimeMs),
+        steps: parsed.steps,
+        lastTs: Math.round(st.mtimeMs),
         titleGuess: parsed.titleGuess || "",
       });
     }
@@ -879,11 +858,12 @@ function buildQuotaSummary(activeChatKey) {
   const normActive = normalizeChatKey(activeChatKey);
   const nowMs = Date.now();
   const resetWm = Math.max(store.resetAt || 0, store.families.gemini.resetAt || 0, store.families.claudeGpt.resetAt || 0);
-  const gemBounds = getFamilyCycleBounds(store.families.gemini, nowMs);
-  const claBounds = getFamilyCycleBounds(store.families.claudeGpt, nowMs);
-  const minWeeklyStart = Math.min(gemBounds.weeklyStartMs, claBounds.weeklyStartMs);
-  const minFiveStart = Math.min(gemBounds.fiveHourStartMs, claBounds.fiveHourStartMs);
-  const diskByChat = scanBrainTranscriptsQuota(minWeeklyStart, minFiveStart, resetWm);
+  const bounds = {
+    gemini: getFamilyCycleBounds(store.families.gemini, nowMs),
+    claudeGpt: getFamilyCycleBounds(store.families.claudeGpt, nowMs),
+  };
+  const minCutoffMs = Math.min(bounds.gemini.weeklyStartMs, bounds.claudeGpt.weeklyStartMs, bounds.gemini.fiveHourStartMs, bounds.claudeGpt.fiveHourStartMs);
+  const diskByChat = scanBrainTranscriptsQuota(minCutoffMs, resetWm);
 
   const allKeys = new Set(Object.keys(chats));
   for (const k of diskByChat.keys()) allKeys.add(k);
@@ -902,27 +882,47 @@ function buildQuotaSummary(activeChatKey) {
     const hasCla = rec.quota.claudeGpt.turns > 0 || (modelName && classifyModelFamily(modelName) === "claudeGpt");
     const primaryFamily = hasCla && rec.quota.claudeGpt.lastTurnAt >= rec.quota.gemini.lastTurnAt ? "claudeGpt" : "gemini";
     const famWeight = Math.max(0.4, getModelQuotaWeight(modelName));
+    const famBounds = bounds[primaryFamily];
 
     let unitsWeekly = 0;
     let units5h = 0;
     let turns = (rec.quota.gemini.turns || 0) + (rec.quota.claudeGpt.turns || 0);
+    let lastStepTs = 0;
     if (disk) {
-      unitsWeekly = Math.round(disk.unitsWeekly * famWeight);
-      units5h = Math.round(disk.units5h * famWeight);
-      turns = Math.max(turns, disk.stepsWeekly || disk.steps5h || 0);
+      let rawW = 0;
+      let raw5 = 0;
+      let stepsW = 0;
+      let steps5 = 0;
+      for (let i = 0; i < disk.steps.length; i += 1) {
+        const stp = disk.steps[i];
+        if (stp.ts < resetWm) continue;
+        if (stp.ts >= famBounds.weeklyStartMs) {
+          rawW += stp.units;
+          stepsW += 1;
+          if (stp.ts > lastStepTs) lastStepTs = stp.ts;
+        }
+        if (stp.ts >= famBounds.fiveHourStartMs) {
+          raw5 += stp.units;
+          steps5 += 1;
+          if (stp.ts > lastStepTs) lastStepTs = stp.ts;
+        }
+      }
+      unitsWeekly = Math.round(rawW * famWeight);
+      units5h = Math.round(raw5 * famWeight);
+      turns = Math.max(turns, stepsW, steps5);
     } else {
       const fqPrimary = rec.quota[primaryFamily];
       unitsWeekly = fqPrimary.weightedTokens || 0;
       const recent = Array.isArray(fqPrimary.recentTurns) ? fqPrimary.recentTurns : [];
       for (let i = 0; i < recent.length; i += 1) {
-        if (nowMs - recent[i].ts <= FIVE_HOUR_MS && recent[i].ts >= resetWm) {
+        if (recent[i].ts >= famBounds.fiveHourStartMs && recent[i].ts >= resetWm) {
           units5h += recent[i].wt || 0;
         }
       }
     }
     familyTotals[primaryFamily].unitsWeekly += unitsWeekly;
     familyTotals[primaryFamily].units5h += units5h;
-    chatMeta.set(key, { rec, disk, modelName, primaryFamily, unitsWeekly, units5h, turns });
+    chatMeta.set(key, { rec, disk, lastStepTs, modelName, primaryFamily, unitsWeekly, units5h, turns });
   }
 
   const rates = {};
@@ -952,7 +952,7 @@ function buildQuotaSummary(activeChatKey) {
   const rows = [];
   let activeChatSummary = null;
   for (const [key, info] of chatMeta.entries()) {
-    const { rec, disk, modelName, primaryFamily, unitsWeekly, units5h, turns } = info;
+    const { rec, disk, lastStepTs, modelName, primaryFamily, unitsWeekly, units5h, turns } = info;
     const rateInfo = rates[primaryFamily];
     const famState = store.families[primaryFamily];
     const fq = rec.quota[primaryFamily];
@@ -975,7 +975,7 @@ function buildQuotaSummary(activeChatKey) {
 
     const hasActivity = turns > 0 || unitsWeekly > 0 || units5h > 0 || fiveHourPct > 0 || weeklyPct > 0;
     const displayTitle = rec.title || (disk && disk.titleGuess) || modelName || key.slice(0, 12);
-    const updatedAt = Math.max(rec.updatedAt || 0, (disk && disk.lastTs) || 0, fq.lastTurnAt || 0);
+    const updatedAt = Math.max(rec.updatedAt || 0, lastStepTs || (disk && disk.lastTs) || 0, fq.lastTurnAt || 0);
     const item = {
       chatKey: key,
       title: displayTitle,

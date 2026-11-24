@@ -625,11 +625,24 @@ function createThemeEngine(options = {}) {
   const SHELL_SKIP_TESTIDS = new Set(["user-message-content", "agent-response"]);
 
   function teParseBgAlpha(bgStr) {
-    if (!bgStr || bgStr === "transparent") return 0;
-    const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i.exec(String(bgStr).trim());
-    if (!m) return 0;
-    const alpha = m[4] !== undefined ? parseFloat(m[4]) : 1;
-    return Number.isFinite(alpha) ? alpha : 0;
+    const s = String(bgStr || "").trim().toLowerCase();
+    if (!s || s === "transparent" || s === "none") return 0;
+    const slashM = /\/\s*([\d.]+)(%?)\s*\)$/.exec(s);
+    if (slashM) {
+      const a = parseFloat(slashM[1]);
+      if (!Number.isFinite(a)) return 0;
+      return slashM[2] === "%" ? a / 100 : a;
+    }
+    const commaAlphaM = /^(?:rgba|hsla)\([^,]+,[^,]+,[^,]+,\s*([\d.]+)(%?)\s*\)$/.exec(s);
+    if (commaAlphaM) {
+      const a = parseFloat(commaAlphaM[1]);
+      if (!Number.isFinite(a)) return 0;
+      return commaAlphaM[2] === "%" ? a / 100 : a;
+    }
+    if (/^(?:rgb|hsl|oklch|oklab|lab|lch|color)\(/.test(s)) {
+      return 1;
+    }
+    return 0;
   }
 
   function clearShellAttrsOnElement(el) {
