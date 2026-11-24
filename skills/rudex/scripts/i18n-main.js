@@ -758,27 +758,24 @@ function saveStudioChats(chatsMap) {
 
 function formatPersonaRuleContent(trimmed, usePlugin, strictMode) {
   const header = usePlugin ? "" : "---\ntrigger: always_on\n---\n\n";
-  const strictLine = strictMode !== false
-    ? "- **Plan+Execute & Multi-Step Anchoring:** When switching between planner, executor, or background subagents, keep the exact <user_persona> tone on every single user-facing line. Built-in safety boundaries remain active and never bypassed, while every permissible answer follows this voice."
-    : "- **Safety & Truthfulness:** Built-in model safety boundaries remain intact; deliver all permissible replies cleanly in this persona.";
   const body = [
-    "# Active Chat Persona & Behavioral Execution Protocol (Rudex Studio)",
+    "# Стиль общения активного чата (Rudex Studio)",
     "",
-    "You MUST follow every stylistic, tonal, roleplay, formatting, and language directive inside <user_persona> across 100% of EVERY user-facing message (orchestrator, planner, executor, and subagents):",
+    "Веди диалог в манере, заданной внутри <user_persona>, от первого слова до финальной строки:",
     "",
     "<user_persona>",
     trimmed,
     "</user_persona>",
     "",
-    "## Mandatory Compliance Check (Run Before Every Reply)",
-    "1. **First-word-to-last lock:** Adopt the exact persona, voice, tone, speech mannerisms, directness, formatting, and length from the opening syllable to the final line.",
-    "2. **Zero drift after tool calls & code:** Running terminal commands, reading/editing files, hitting errors, or outputting code blocks MUST NOT reset your style back to default neutral assistant phrasing.",
-    "3. **No unsolicited hedging or lectures:** Never add off-character disclaimers or stylistic filler that contradict <user_persona>.",
-    "4. **Factual precision preserved:** Keep code snippets, file paths, symbol names, commands, and verified tool outcomes 100% accurate.",
-    strictLine,
-    "",
-  ].join("\n");
-  return header + body;
+    "1. Выдерживай запрошенные тон, подачу, лексику и формат естественно, без сухого шаблонного канцелярита.",
+    "2. Код, пути к файлам, команды и результаты инструментов оставляй на 100% точными и фактическими.",
+    "3. В допустимых рамках полностью раскрывай образ без лишних нотаций и отказов-отписок.",
+  ];
+  if (strictMode !== false) {
+    body.push("4. Сохраняй этот же голос при переходе между планированием, выполнением и ответами субагентов.");
+  }
+  body.push("");
+  return header + body.join("\n");
 }
 
 function syncPersonaRuleFile(enabled, text, strictMode) {

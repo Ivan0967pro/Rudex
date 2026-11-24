@@ -2495,6 +2495,10 @@ function createStudioPanel(options) {
     return tel.isGenerating ? tel.currentTps : (tel.lastAvgTps || 0);
   }
 
+  function getDisplayedPeakTps(tel) {
+    return Math.max(tel.peakTps || 0, getDisplayedTps(tel) || 0);
+  }
+
   function getDisplayedTpsUnit(tel, tr) {
     return !tel.isGenerating && tel.lastAvgTps > 0 ? `${tr.avgPrefix} ${tr.tpsUnit}` : tr.tpsUnit;
   }
@@ -2603,7 +2607,7 @@ function createStudioPanel(options) {
               <span class="med-tps-num num" data-live="tps">${shownTps}</span>
               <span class="med-tps-unit" data-live="tpsUnit">${escHtml(shownUnit)}</span>
             </div>
-            <span class="med-peak num">${escHtml(tr.peakLabel)}: <b data-live="peak">${tel.peakTps}</b></span>
+            <span class="med-peak num">${escHtml(tr.peakLabel)}: <b data-live="peak">${getDisplayedPeakTps(tel)}</b></span>
           </div>
           <div class="med-spark-box" data-live="sparkMed">${buildSparklineMarkup(tel.samples, 260, 38, "med")}</div>
           <div class="med-stats-grid">
@@ -2658,7 +2662,7 @@ function createStudioPanel(options) {
         </div>
         <div class="kpi-card">
           <span class="kpi-label">${escHtml(tr.kpiPeak)}</span>
-          <span class="kpi-val num"><span data-live="peak">${tel.peakTps}</span><span class="kpi-unit">TPS</span></span>
+          <span class="kpi-val num"><span data-live="peak">${getDisplayedPeakTps(tel)}</span><span class="kpi-unit">TPS</span></span>
           <span class="kpi-sub">${escHtml(tr.kpiSubPeak)}</span>
         </div>
         <div class="kpi-card">
@@ -3679,7 +3683,7 @@ function createStudioPanel(options) {
       setLiveSlot(box, '[data-live="tpsUnit"]', tpsUnitText, false);
       setLiveSlot(box, '[data-live="statusText"]', statusText, false);
       setLiveSlot(box, '[data-live="phase"]', phaseText, false);
-      setLiveSlot(box, '[data-live="peak"]', String(tel.peakTps), false);
+      setLiveSlot(box, '[data-live="peak"]', String(getDisplayedPeakTps(tel)), false);
       setLiveSlot(box, '[data-live="chatBadge"]', chatBadgeText, false);
     }
 

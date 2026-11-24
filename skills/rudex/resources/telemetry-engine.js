@@ -521,9 +521,7 @@ function createTelemetryEngine(options = {}) {
         tel.lastAvgTps = avgTps;
         tel.lastDurSec = durRounded;
         tel.lastThinkingSec = snapThinking || elapsedThinking;
-        if (!singleTick) {
-          tel.peakTps = Math.max(tel.peakTps || 0, avgTps);
-        }
+        tel.peakTps = Math.max(tel.peakTps || 0, avgTps);
         if (tel.samples.length === 0 && avgTps > 0) {
           tel.samples.push(avgTps);
         }
@@ -577,7 +575,7 @@ function createTelemetryEngine(options = {}) {
       const smoothed = prevTps > 0 ? Math.round(prevTps * 0.35 + instTps * 0.65) : Math.round(instTps);
       tel.currentTps = Math.max(0, smoothed);
 
-      if (tel.growthTicks >= 2 && totalGained >= 4) {
+      if ((tel.growthTicks >= 2 && totalGained >= 4) || (tel.growthTicks === 1 && totalGained >= 6 && tel.currentTps <= 200)) {
         tel.peakTps = Math.max(tel.peakTps || 0, tel.currentTps);
       }
       if (!tel.lastSparkAt || hiNow - tel.lastSparkAt >= 350) {

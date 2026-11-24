@@ -504,25 +504,45 @@ test("Telemetry engine estimates multilingual tokens accurately and avoids phant
   assert.equal(telStream.history[0].exact, true);
   assert.equal(telStream.history[0].exactOutputTokens, 152);
 
-  // Single-tick burst (57 tok in 0.15s) must NOT inflate peakTps or produce 377 TPS spikes
-  const telBurst = createEmptyTelemetry();
+  // Normal short 1-tick reply (e.g. 46 tok in 0.15s, floored to 0.45s -> ~102 TPS) MUST sync peakTps with lastAvgTps
+  const telShort = createEmptyTelemetry();
   engine.processTick({
-    tel: telBurst,
+    tel: telShort,
     snap: { respFloatTok: 0, respCount: 1, userMsgCount: 1, isGenerating: true, hasCancelBtn: true, lastResp: b1 },
     hiNow: 1000,
   });
   engine.processTick({
-    tel: telBurst,
-    snap: { respFloatTok: 57, respCount: 1, userMsgCount: 1, isGenerating: false, hasCancelBtn: false, lastResp: b1 },
+    tel: telShort,
+    snap: { respFloatTok: 46, respCount: 1, userMsgCount: 1, isGenerating: false, hasCancelBtn: false, lastResp: b1 },
     hiNow: 1150,
   });
   engine.processTick({
-    tel: telBurst,
-    snap: { respFloatTok: 57, respCount: 1, userMsgCount: 1, isGenerating: false, hasCancelBtn: false, lastResp: b1 },
+    tel: telShort,
+    snap: { respFloatTok: 46, respCount: 1, userMsgCount: 1, isGenerating: false, hasCancelBtn: false, lastResp: b1 },
     hiNow: 1600,
   });
-  assert.equal(telBurst.peakTps, 0, "Single-tick burst must not set peakTps");
-  assert.ok(telBurst.lastAvgTps <= 200, `Single-tick TPS must stay bounded, got ${telBurst.lastAvgTps}`);
+  assert.ok(telShort.lastAvgTps > 0 && telShort.lastAvgTps <= 200, `Expected bounded short-turn TPS, got ${telShort.lastAvgTps}`);
+  assert.ok(telShort.peakTps >= telShort.lastAvgTps && telShort.peakTps > 0, `peakTps (${telShort.peakTps}) must equal or exceed lastAvgTps (${telShort.lastAvgTps})`);
+
+  // Fake huge 1-tick hydration dump (150 tok in 0.15s -> >200 TPS even floored to 0.45s) MUST be rejected completely
+  const telHydrateDump = createEmptyTelemetry();
+  engine.processTick({
+    tel: telHydrateDump,
+    snap: { respFloatTok: 0, respCount: 1, userMsgCount: 1, isGenerating: true, hasCancelBtn: true, lastResp: b2 },
+    hiNow: 1000,
+  });
+  engine.processTick({
+    tel: telHydrateDump,
+    snap: { respFloatTok: 150, respCount: 1, userMsgCount: 1, isGenerating: false, hasCancelBtn: false, lastResp: b2 },
+    hiNow: 1150,
+  });
+  engine.processTick({
+    tel: telHydrateDump,
+    snap: { respFloatTok: 150, respCount: 1, userMsgCount: 1, isGenerating: false, hasCancelBtn: false, lastResp: b2 },
+    hiNow: 1600,
+  });
+  assert.equal(telHydrateDump.lastAvgTps, 0);
+  assert.equal(telHydrateDump.peakTps, 0);
 });
 
 // =============================================================================
@@ -884,6 +904,61 @@ test("rudex-hook.js atomically claims supplements, blocks subagent stealing, and
       terminationReason: "NO_TOOL_CALL",
     });
     assert.deepEqual(stopAgainOut, {});
+  } finally {
+    fs.rmSync(tmpUserData, { recursive: true, force: true });
+  }
+});
+
+test("rudex-hook.js injects concise persona style protocol cleanly and refreshes anchor after 4 steps", () => {
+  const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-persona-hook-"));
+  const hookScript = path.join(SCRIPTS_DIR, "rudex-hook.js");
+  try {
+    const convId = "dddd4444-4444-4444-8444-444444444444";
+    fs.writeFileSync(path.join(tmpUserData, "agy_studio_persona_active.flag"), "1\n", "utf8");
+    fs.writeFileSync(path.join(tmpUserData, "agy_studio_chats.json"), JSON.stringify({
+      version: 1,
+      chats: {
+        [convId]: {
+          title: "Test Chat",
+          personaEnabled: true,
+          personaActivePreset: "custom",
+          personaText: "Отвечай кратко, по делу и дружелюбно",
+          personaStrict: true,
+          updatedAt: Date.now(),
+        },
+      },
+    }), "utf8");
+
+    const runHook = (payload) => {
+      const r = spawnSync(process.execPath, [hookScript], {
+        input: JSON.stringify(payload),
+        env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpUserData }),
+        encoding: "utf8",
+      });
+      assert.equal(r.status, 0, r.stderr);
+      return JSON.parse((r.stdout || "{}").trim() || "{}");
+    };
+
+    const startOut = runHook({
+      hookEventName: "SessionStart",
+      conversationId: convId,
+      initialNumSteps: 0,
+    });
+    assert.ok(Array.isArray(startOut.injectSteps) && startOut.injectSteps.length === 1);
+    const msg = startOut.injectSteps[0].systemMessage.systemMessage;
+    assert.ok(msg.includes("<user_persona>\nОтвечай кратко, по делу и дружелюбно\n</user_persona>"));
+    assert.equal(msg.includes("bypass safety limits"), false);
+    assert.equal(msg.includes("Mandatory Compliance Check"), false);
+
+    // Step +4 triggers concise recency reminder under strict mode
+    const midOut = runHook({
+      hookEventName: "PreInvocation",
+      conversationId: convId,
+      initialNumSteps: 4,
+      invocationNum: 1,
+    });
+    assert.ok(Array.isArray(midOut.injectSteps) && midOut.injectSteps.length === 1);
+    assert.ok(midOut.injectSteps[0].systemMessage.systemMessage.includes("Напоминание о стиле"));
   } finally {
     fs.rmSync(tmpUserData, { recursive: true, force: true });
   }

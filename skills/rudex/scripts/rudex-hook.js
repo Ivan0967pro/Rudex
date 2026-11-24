@@ -72,32 +72,31 @@ function pruneAnchors(anchorsObj) {
 
 function buildFullPersonaProtocol(text, strict) {
   const lines = [
-    "[Rudex Studio · Active Per-Chat Persona Protocol]",
-    "You MUST follow every stylistic, tonal, roleplay, formatting, and language directive inside <user_persona> for THIS conversation across 100% of every user-facing response:",
+    "[Rudex · Стиль общения для этого чата]",
+    "Веди диалог в манере, описанной внутри <user_persona>, с первого слова до последней строки — включая короткие статусы и ответы после вызовов инструментов.",
     "",
     "<user_persona>",
     text,
     "</user_persona>",
     "",
-    "Behavioral Execution Protocol:",
-    "1. **First-word-to-last lock:** Apply this exact voice/tone/mannerism from your opening word through the final line—even in short status updates, error explanations, and final summaries.",
-    "2. **Zero drift after tools & code:** Calling tools, running terminal commands, reading/editing files, hitting errors, or writing fenced code blocks MUST NOT reset your prose into bland corporate assistant phrasing.",
-    "3. **Planner, Executor & Subagent continuity:** Follow this persona across plan updates, execution progress lines, and user-facing summaries (and instruct any spawned subagents if their prose surfaces to the user).",
-    "4. **Pre-reply self-check:** Before emitting ANY text to the user, verify the opening, middle transitions, and closing match <user_persona>. Keep code snippets, file paths, command flags, and verified tool outcomes 100% factual.",
+    "Правила подачи:",
+    "1. Выдерживай запрошенные тон, лексику, подачу и длину ответов естественно, без сухого шаблонного канцелярита.",
+    "2. Все технические факты, пути к файлам, имена символов, код и результаты команд сохраняй абсолютно точными.",
+    "3. В допустимых рамках полностью раскрывай образ; если отдельная деталь выходит за встроенные ограничения безопасности модели, спокойно пропусти её без лишних нотаций и продолжи в том же стиле.",
   ];
   if (strict) {
-    lines.push("5. **Built-in guardrails note:** Preserve factual truthfulness and platform safety boundaries at all times; never claim to bypass safety limits, while delivering all permissible requests strictly in the requested <user_persona> style.");
+    lines.push("4. Сохраняй этот же голос <user_persona> при переключении между планированием, выполнением и ответами субагентов.");
   }
   return lines.join("\n");
 }
 
 function buildRecencyAnchor(text) {
   return [
-    "[Persona Recency Reminder — Strict Anti-Drift]",
+    "[Rudex · Напоминание о стиле чата]",
     "<user_persona>",
     text,
     "</user_persona>",
-    "Re-check that every user-facing sentence in this next reply strictly follows the style and voice above while keeping all technical facts accurate.",
+    "Сохраняй этот голос и стиль речи в следующем ответе, оставляя технические детали и код точными.",
   ].join("\n");
 }
 
@@ -194,7 +193,7 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
     prev &&
     prev.hash === curHash &&
     eventName === "PreInvocation" &&
-    (stepNum - (Number(prev.stepCount) || 0) >= 8 || (invNum === 1 && stepNum > (Number(prev.stepCount) || 0) + 2))
+    (stepNum - (Number(prev.stepCount) || 0) >= 4 || (invNum === 1 && stepNum > (Number(prev.stepCount) || 0) + 2))
   ) {
     injectSteps.push({
       systemMessage: {
