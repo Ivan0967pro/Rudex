@@ -625,15 +625,18 @@ html, body {
 
   let msgAlpha = 0;
   if (hasWallpaper) {
+    const baseGlass = hasThemeOverride ? vars.glassOpacity : cfg.glassOpacity;
     const surfaceBg = hasThemeOverride
       ? teHexToRgba(vars.cardBg, vars.glassOpacity)
       : teHexToRgba(isLight ? "#ffffff" : "#131316", cfg.glassOpacity);
+    const sidebarAlpha = Math.min(92, Math.max(48, baseGlass - 8));
+    const headerAlpha = Math.min(88, Math.max(44, baseGlass - 12));
     const sidebarGlassBg = hasThemeOverride
-      ? teHexToRgba(vars.sidebarBg, Math.min(100, vars.glassOpacity + 8))
-      : teHexToRgba(isLight ? "#f4f5f8" : "#0e0e12", Math.min(100, cfg.glassOpacity + 8));
+      ? teHexToRgba(vars.sidebarBg, sidebarAlpha)
+      : teHexToRgba(isLight ? "#f4f5f8" : "#0e0e12", sidebarAlpha);
     const headerGlassBg = hasThemeOverride
-      ? teHexToRgba(vars.sidebarBg, Math.min(100, vars.glassOpacity + 4))
-      : teHexToRgba(isLight ? "#f4f5f8" : "#0e0e12", Math.min(100, cfg.glassOpacity + 4));
+      ? teHexToRgba(vars.sidebarBg, headerAlpha)
+      : teHexToRgba(isLight ? "#f4f5f8" : "#0e0e12", headerAlpha);
     const popoverBg = hasThemeOverride
       ? teHexToRgba(vars.cardBg, Math.min(98, Math.max(92, vars.glassOpacity + 14)))
       : (isLight ? "rgba(255, 255, 255, 0.96)" : "rgba(22, 22, 28, 0.96)");
@@ -761,6 +764,8 @@ body {
 [data-rudex-bg-shell="1"] {
   background-color: transparent !important;
   background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
 [data-testid="chat-container"]:not([role="dialog"]),
@@ -921,11 +926,12 @@ function createThemeEngine(options = {}) {
   const HOST_ID = "rudex-studio-host";
   const IGNORE_ATTR = "data-rudex-ignore";
   const SHELL_ATTRS = ["data-rudex-bg-shell", "data-rudex-bg-sidebar", "data-rudex-bg-header"];
-  const SHELL_SCAN_THROTTLE_MS = 900;
+  const SHELL_SCAN_THROTTLE_MS = 350;
   const SHELL_SKIP_TAGS = new Set(["PRE", "CODE", "BUTTON", "INPUT", "TEXTAREA", "FORM", "SVG", "IMG", "VIDEO", "CANVAS", "SCRIPT", "STYLE"]);
   const SHELL_SKIP_ROLES = new Set(["dialog", "alertdialog", "menu", "listbox", "tooltip"]);
   const SHELL_SKIP_TESTIDS = new Set(["user-message-content", "agent-response"]);
   const MUTATION_IGNORE_SELECTOR = '[data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"], #rudex-studio-host, #rudex-bg';
+  const PROTECTED_OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper], [data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root], #rudex-studio-host, #rudex-bg';
 
   let currentConfig = normalizeAppearance(DEFAULT_APPEARANCE);
   let styleNode = null;
@@ -940,6 +946,7 @@ function createThemeEngine(options = {}) {
   let gradVisHandler = null;
   let domReadyHandler = null;
   let shellScanTimer = null;
+  let shellRescanTimers = [];
   let lastShellScanAt = 0;
   let shellObserver = null;
   let shellObservedTarget = null;
@@ -997,11 +1004,21 @@ function createThemeEngine(options = {}) {
     }
   }
 
+  function clearShellRescanTimers() {
+    if (win && typeof win.clearTimeout === "function") {
+      for (let i = 0; i < shellRescanTimers.length; i += 1) {
+        try { win.clearTimeout(shellRescanTimers[i]); } catch (_e) {}
+      }
+    }
+    shellRescanTimers = [];
+  }
+
   function clearWallpaperShells() {
     if (shellScanTimer && win && typeof win.clearTimeout === "function") {
       win.clearTimeout(shellScanTimer);
       shellScanTimer = null;
     }
+    clearShellRescanTimers();
     lastShellScanAt = 0;
     shellWatchersAttached = false;
     shellObservedTarget = null;
@@ -1045,6 +1062,29 @@ function createThemeEngine(options = {}) {
     return false;
   }
 
+  function isInsideProtectedOverlay(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (isSkippedShellNode(el)) return true;
+    if (typeof el.closest === "function") {
+      try {
+        if (el.closest(PROTECTED_OVERLAY_SELECTOR)) return true;
+      } catch (_e) {}
+    }
+    let cur = el.parentElement || el.parentNode;
+    while (cur && cur.nodeType === 1) {
+      if (isSkippedShellNode(cur)) return true;
+      cur = cur.parentElement || cur.parentNode;
+    }
+    return false;
+  }
+
+  function hasComputedBgFill(cs) {
+    if (!cs) return false;
+    if (teParseBgAlpha(cs.backgroundColor) >= 0.12) return true;
+    if (cs.backgroundImage && cs.backgroundImage !== "none") return true;
+    return false;
+  }
+
   function isIgnoredMutationTarget(node) {
     if (!node) return false;
     let cur = node.nodeType === 1 ? node : (node.parentElement || node.parentNode);
@@ -1081,44 +1121,94 @@ function createThemeEngine(options = {}) {
 
     lastShellScanAt = Date.now();
 
-    // Phase 1 (Read-only BFS): collect layout metrics and computed bg alpha
+    // Phase 1 (Read-only Pass A: Pruned BFS + Pass B: elementsFromPoint hit-test)
     const queue = [{ el: rootTarget, depth: 0 }];
     let head = 0;
     let visited = 0;
-    const maxNodes = 140;
-    const maxDepth = 6;
+    const maxNodes = 400;
+    const maxDepth = 18;
+    const visitedSet = new Set();
     const plans = [];
 
     while (head < queue.length && visited < maxNodes) {
       const item = queue[head++];
       const el = item.el;
-      if (isSkippedShellNode(el)) continue;
+      if (!el || el.nodeType !== 1 || visitedSet.has(el) || isSkippedShellNode(el)) continue;
+      visitedSet.add(el);
       visited += 1;
 
+      const tag = String(el.tagName || "").toUpperCase();
+      let attr = "";
+      let rect = null;
       if (typeof el.getBoundingClientRect === "function") {
-        const rect = el.getBoundingClientRect();
+        rect = el.getBoundingClientRect();
         if (rect && rect.width > 0 && rect.height > 0) {
-          let attr = "";
           if (rect.left <= 16 && rect.width >= 150 && rect.width <= 380 && rect.height >= vh * 0.65) {
             attr = "data-rudex-bg-sidebar";
-          } else if (rect.width >= vw * 0.5 && rect.height >= vh * 0.5) {
+          } else if (rect.width >= vw * 0.42 && rect.height >= vh * 0.42) {
             attr = "data-rudex-bg-shell";
-          } else if (rect.top <= 16 && rect.height >= 26 && rect.height <= 68 && rect.width >= vw * 0.5) {
+          } else if (rect.top <= 48 && rect.height >= 24 && rect.height <= 68 && rect.width >= vw * 0.45) {
             attr = "data-rudex-bg-header";
           }
           if (attr) {
             const cs = win.getComputedStyle(el);
-            const bgAlpha = teParseBgAlpha(cs ? cs.backgroundColor : "");
-            plans.push({ el, attr, bgAlpha });
+            plans.push({ el, attr, hasBg: hasComputedBgFill(cs) });
           } else {
-            plans.push({ el, attr: "", bgAlpha: 0 });
+            plans.push({ el, attr: "", hasBg: false });
           }
         }
       }
 
-      if (item.depth < maxDepth && el.children) {
+      // Prune non-shell subtrees (sidebars, navs, headers, and undersized leaf boxes)
+      const isSidebarOrHeader =
+        tag === "ASIDE" ||
+        tag === "NAV" ||
+        tag === "HEADER" ||
+        attr === "data-rudex-bg-sidebar" ||
+        attr === "data-rudex-bg-header";
+      const isTooSmallSubtree = Boolean(rect && rect.width > 0 && rect.height > 0 && rect.width < vw * 0.40 && rect.height < vh * 0.40);
+
+      if (!isSidebarOrHeader && !isTooSmallSubtree && item.depth < maxDepth && el.children) {
         for (let i = 0; i < el.children.length; i += 1) {
           queue.push({ el: el.children[i], depth: item.depth + 1 });
+        }
+      }
+    }
+
+    // Pass B: Point-hit scan across main chat viewport catches arbitrarily deep wrappers
+    if (typeof doc.elementsFromPoint === "function") {
+      const probePoints = [
+        [Math.round(vw * 0.55), Math.round(vh * 0.35)],
+        [Math.round(vw * 0.62), Math.round(vh * 0.65)],
+        [Math.round(vw * 0.80), Math.round(vh * 0.48)],
+      ];
+      for (let pi = 0; pi < probePoints.length; pi += 1) {
+        let hits = null;
+        try {
+          hits = doc.elementsFromPoint(probePoints[pi][0], probePoints[pi][1]);
+        } catch (_e) {
+          hits = null;
+        }
+        if (!Array.isArray(hits)) continue;
+        for (let hi = 0; hi < hits.length; hi += 1) {
+          const hitEl = hits[hi];
+          if (
+            !hitEl ||
+            hitEl.nodeType !== 1 ||
+            visitedSet.has(hitEl) ||
+            hitEl === doc.documentElement ||
+            hitEl === doc.body ||
+            isInsideProtectedOverlay(hitEl)
+          ) {
+            continue;
+          }
+          visitedSet.add(hitEl);
+          if (typeof hitEl.getBoundingClientRect !== "function") continue;
+          const r = hitEl.getBoundingClientRect();
+          if (r && r.width >= vw * 0.42 && r.height >= vh * 0.42) {
+            const cs = win.getComputedStyle(hitEl);
+            plans.push({ el: hitEl, attr: "data-rudex-bg-shell", hasBg: hasComputedBgFill(cs) });
+          }
         }
       }
     }
@@ -1126,7 +1216,7 @@ function createThemeEngine(options = {}) {
     // Phase 2 (Write-only): batch attribute updates after all reads finish
     for (let i = 0; i < plans.length; i += 1) {
       const p = plans[i];
-      if (p.attr && (p.bgAlpha >= 0.85 || (typeof p.el.hasAttribute === "function" && p.el.hasAttribute(p.attr)))) {
+      if (p.attr && (p.hasBg || (typeof p.el.hasAttribute === "function" && p.el.hasAttribute(p.attr)))) {
         setExclusiveShellAttr(p.el, p.attr);
       } else {
         clearShellAttrsOnElement(p.el);
@@ -1160,10 +1250,19 @@ function createThemeEngine(options = {}) {
       return false;
     }
 
+    const isFirstAttach = !shellWatchersAttached;
     let didScan = false;
     if (!shellWatchersAttached || (preferredRoot && shellObservedTarget !== preferredRoot)) {
       scanWallpaperShells();
       didScan = true;
+    }
+
+    if (isFirstAttach && typeof win.setTimeout === "function") {
+      clearShellRescanTimers();
+      shellRescanTimers.push(
+        win.setTimeout(() => { if (wallpaperActive) scanWallpaperShells(); }, 350),
+        win.setTimeout(() => { if (wallpaperActive) scanWallpaperShells(); }, 1200)
+      );
     }
 
     const hasMo = typeof win.MutationObserver === "function";

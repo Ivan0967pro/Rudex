@@ -651,6 +651,76 @@ test("Theme engine handles native light/dark, oklch, contrast, blur overscan, an
   te.destroy();
 });
 
+test("Wallpaper shell scan unmasks deep semi-opaque wrappers, prunes sidebar rows, and spares overlays", () => {
+  const { doc, win } = createMockDom();
+  const makeSizedEl = (tag, rect, bgCol) => {
+    const el = doc.createElement(tag);
+    el.getBoundingClientRect = () => rect;
+    if (bgCol) el.style.backgroundColor = bgCol;
+    return el;
+  };
+
+  const root = makeSizedEl("div", { left: 0, top: 0, right: 1400, bottom: 900, width: 1400, height: 900 });
+  root.id = "root";
+  doc.body.appendChild(root);
+
+  const sidebar = makeSizedEl("aside", { left: 0, top: 0, right: 260, bottom: 900, width: 260, height: 900 }, "rgb(14, 14, 18)");
+  const rows = [];
+  for (let i = 0; i < 40; i += 1) {
+    const r = makeSizedEl("div", { left: 8, top: 40 + i * 34, right: 248, bottom: 72 + i * 34, width: 240, height: 32 }, "rgb(20, 20, 24)");
+    rows.push(r);
+    sidebar.appendChild(r);
+  }
+  root.appendChild(sidebar);
+
+  // Build 10 nested wrappers inside main viewport
+  let deepParent = makeSizedEl("div", { left: 260, top: 0, right: 1400, bottom: 900, width: 1140, height: 900 });
+  root.appendChild(deepParent);
+  for (let d = 1; d < 10; d += 1) {
+    const next = makeSizedEl("div", { left: 260, top: 0, right: 1400, bottom: 900, width: 1140, height: 900 });
+    deepParent.appendChild(next);
+    deepParent = next;
+  }
+  const chatPaneDepth10 = makeSizedEl("div", { left: 260, top: 32, right: 1400, bottom: 900, width: 1140, height: 868 }, "rgba(19, 19, 22, 0.82)");
+  deepParent.appendChild(chatPaneDepth10);
+
+  // Protected overlays & message bubbles must NEVER be stripped of background
+  const agentMsg = makeSizedEl("div", { left: 300, top: 100, right: 1000, bottom: 550, width: 700, height: 450 }, "rgba(12, 13, 18, 0.90)");
+  agentMsg.setAttribute("data-testid", "agent-response");
+  chatPaneDepth10.appendChild(agentMsg);
+
+  const dialog = makeSizedEl("div", { left: 400, top: 200, right: 1000, bottom: 700, width: 600, height: 500 }, "rgb(22, 22, 28)");
+  dialog.setAttribute("role", "dialog");
+  const dialogChild = makeSizedEl("div", { left: 400, top: 200, right: 1000, bottom: 700, width: 600, height: 500 }, "rgb(24, 24, 30)");
+  dialog.appendChild(dialogChild);
+  chatPaneDepth10.appendChild(dialog);
+
+  // Depth-25 opaque wrapper detected only via elementsFromPoint safety net
+  const depth25Wrapper = makeSizedEl("div", { left: 260, top: 32, right: 1400, bottom: 900, width: 1140, height: 868 }, "rgb(18, 18, 20)");
+  doc.elementsFromPoint = () => [dialogChild, dialog, agentMsg, depth25Wrapper, chatPaneDepth10, root, doc.body, doc.documentElement];
+
+  const te = createThemeEngine({ document: doc, window: win });
+  te.apply({
+    presetId: "custom",
+    glassOpacity: 82,
+    wallpaper: { type: "image", mediaUrl: "agy-media://local/wp.jpg", blur: 0, dim: 45, opacity: 85 },
+  });
+
+  assert.equal(sidebar.getAttribute("data-rudex-bg-sidebar"), "1");
+  assert.equal(rows[0].getAttribute("data-rudex-bg-shell"), null, "Sidebar rows should be pruned");
+  assert.equal(chatPaneDepth10.getAttribute("data-rudex-bg-shell"), "1", "0.82-alpha depth-10 chat pane must become transparent shell");
+  assert.equal(depth25Wrapper.getAttribute("data-rudex-bg-shell"), "1", "elementsFromPoint depth-25 wrapper must become transparent shell");
+  assert.equal(agentMsg.getAttribute("data-rudex-bg-shell"), null, "Agent response bubble must stay intact");
+  assert.equal(dialog.getAttribute("data-rudex-bg-shell"), null, "Dialog overlay must stay intact");
+  assert.equal(dialogChild.getAttribute("data-rudex-bg-shell"), null, "Dialog descendants must stay intact");
+
+  const cssText = doc.getElementById("rudex-studio-theme").textContent;
+  assert.ok(cssText.includes("backdrop-filter: none !important"), "Shell CSS must clear backdrop-filter");
+
+  te.destroy();
+  assert.equal(chatPaneDepth10.getAttribute("data-rudex-bg-shell"), null, "destroy() must clean shell attributes");
+});
+
 test("Studio styles and panel UI render without layout/CSS regressions and sync greeting live", () => {
   const css = buildStudioStyles();
   for (const requiredClass of [
