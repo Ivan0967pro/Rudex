@@ -1094,16 +1094,15 @@ body :where(button[class*="rounded-full"]):not(#rudex-studio-host):not(#rudex-st
 ${linkedFallbackCss}
 [data-testid="agent-response"],
 [data-testid="user-message-bubble"],
-[data-testid="user-message-content"],
-[data-testid="user-message-bubble"] > div[class*="rounded"] {
+[data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
   border-radius: ${c.messages}px !important;
 }
-form:has(textarea),
-form:has([contenteditable="true"]),
-[data-testid="composer"],
-.composer-container,
-[data-testid="composer"] > div[class*="rounded"],
-div:has(> textarea[placeholder]):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"],
+form:has(textarea):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+[data-testid="composer"]:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+.composer-container:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+div:has(> textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])):not(#rudex-studio-host *) {
   border-radius: ${c.composer}px !important;
 }
 body :where(button, [role="button"], [data-slot="button"], [data-slot="toggle"], [data-testid="model-selector-trigger"], [data-testid="send-button-loading"], [data-testid="send-button-pending"], [data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([class*="rounded-full"]):not([data-rudex-ignore="1"]) {
@@ -1388,30 +1387,44 @@ header:not(#rudex-studio-host *) {
   color: ${vars.fgColor} !important;
 }
 [data-rudex-theme-composer="1"],
-form:has(textarea),
-form:has([contenteditable="true"]),
-[data-testid="composer"],
-.composer-container,
-div:has(> textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(#rudex-studio-host *),
-div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not([data-rudex-bg-shell="1"]):not(main):not(#rudex-studio-host *) {
+form:has(textarea):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+[data-testid="composer"]:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+.composer-container:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+div:has(> textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])):not(#rudex-studio-host *),
+div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])):not([data-rudex-bg-shell="1"]):not(main):not(#rudex-studio-host *) {
   background-color: ${vars.cardBg} !important;
   border-color: ${effectiveBorder} !important;
   color: ${vars.fgColor} !important;
 }
 [data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"]),
+[data-rudex-theme-composer="1"] :where(form, [data-testid="composer"], .composer-container),
 [data-rudex-theme-composer="1"] div:has(> textarea),
 [data-rudex-theme-composer="1"] div:has(> [contenteditable="true"]) {
   background-color: transparent !important;
+  background-image: none !important;
   border-color: transparent !important;
   box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   color: ${vars.fgColor} !important;
   caret-color: ${vars.accentColor} !important;
 }
 [data-testid="user-message-bubble"],
-[data-testid="user-message-content"] {
+[data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
   background-color: ${vars.cardBg} !important;
   border-color: ${effectiveBorder} !important;
   color: ${vars.fgColor} !important;
+}
+[data-testid="user-message-bubble"] [data-testid="user-message-content"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  margin-bottom: 0 !important;
 }
 [role="dialog"],
 [role="alertdialog"],
@@ -1446,7 +1459,7 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not([
 :where(div, section, button)[class*="bg-gray-800"]:not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not(pre):not(code) {
   background-color: ${secondaryHex} !important;
 }
-:where(div, section, aside, header, main, form, button, input, textarea)[class*="border"]:not(#rudex-studio-host):not(#rudex-studio-host *):not([class*="border-blue-"]):not([class*="border-primary"]) {
+:where(div, section, aside, header, main, form, button, input, textarea):where([class*="border-zinc-"], [class*="border-neutral-"], [class*="border-gray-"], [class*="border-slate-"], [class*="border-stone-"], [class*="border-white/"], [class*="border-black/"], [class*="border-border"], [class*="border-input"], [class*="border-sidebar-border"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([class*="border-transparent"]):not([class*="border-none"]):not([class*="border-0"]):not([class*="border-blue-"]):not([class*="border-primary"]) {
   border-color: ${effectiveBorder};
 }
 :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea):not(#rudex-studio-host):not(#rudex-studio-host *) {
@@ -1486,8 +1499,8 @@ header {
   box-shadow: ${glassFresnelShadow};
   ${opticalGlassFilter}
 }
-[data-testid="user-message-content"],
-[data-testid="user-message-bubble"] {
+[data-testid="user-message-bubble"],
+[data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
   background-color: ${glassCardNoWp} !important;
   background-image: ${glassSheenGrad};
   border: 1px solid ${glassSpecBorder} !important;
@@ -1495,7 +1508,21 @@ header {
   box-shadow: ${glassFresnelShadow};
   ${opticalGlassFilter}
 }
-form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testid="composer"], .composer-container {
+[data-testid="user-message-bubble"] [data-testid="user-message-content"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  margin-bottom: 0 !important;
+}
+[data-rudex-theme-composer="1"],
+form:has(textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+[data-testid="composer"]:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+.composer-container:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])) {
   background-color: ${glassCardNoWp} !important;
   background-image: ${glassSheenGrad};
   border: 1px solid ${glassSpecBorder} !important;
@@ -1745,8 +1772,8 @@ header:not(#rudex-studio-host *) {
   ${msgBlurCss}
   ${msgAlpha <= 0 && cfg.highContrastText !== false ? `text-shadow: ${isLight ? "0 1px 2px rgba(255,255,255,0.85)" : "0 1px 3px rgba(0,0,0,0.85)"};` : ""}
 }
-[data-testid="user-message-content"],
-[data-testid="user-message-bubble"] {
+[data-testid="user-message-bubble"],
+[data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
   background-color: ${userSurfaceBg} !important;
   ${msgStyle === "glass" ? `background-image: ${glassSheenGrad};` : ""}
   border: ${cfg.borderStrength > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
@@ -1754,14 +1781,24 @@ header:not(#rudex-studio-host *) {
   ${msgShadowCss}
   ${msgStyle !== "solid" ? glassBlurCss : ""}
 }
+[data-testid="user-message-bubble"] [data-testid="user-message-content"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  margin-bottom: 0 !important;
+}
 ${msgContrastCss}
 [data-rudex-theme-composer="1"],
-form:has(textarea),
-form:has([contenteditable="true"]),
-[data-testid="composer"],
-.composer-container,
-div:has(> textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(#rudex-studio-host *),
-div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not([data-rudex-bg-shell="1"]):not(main):not(#rudex-studio-host *) {
+form:has(textarea):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+[data-testid="composer"]:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+.composer-container:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+div:has(> textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])):not(#rudex-studio-host *),
+div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])):not([data-rudex-bg-shell="1"]):not(main):not(#rudex-studio-host *) {
   background-color: ${composerSurfaceBg} !important;
   ${msgStyle === "glass" ? `background-image: ${glassSheenGrad}; box-shadow: ${glassFresnelShadow};` : ""}
   border: ${cfg.borderStrength > 0 ? `1px solid ${composerBorderCol}` : "none"} !important;
@@ -1770,11 +1807,15 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not([
   ${msgStyle !== "solid" ? glassBlurCss : ""}
 }
 [data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"]),
+[data-rudex-theme-composer="1"] :where(form, [data-testid="composer"], .composer-container),
 [data-rudex-theme-composer="1"] div:has(> textarea),
 [data-rudex-theme-composer="1"] div:has(> [contenteditable="true"]) {
   background-color: transparent !important;
+  background-image: none !important;
   border-color: transparent !important;
   box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   color: ${vars.fgColor} !important;
   caret-color: ${vars.accentColor} !important;
 }
@@ -1805,14 +1846,22 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not([
   ${agentBorder !== "none" ? `border: ${agentBorder} !important; padding: 12px 18px !important;` : "border: none !important;"}
   ${agentBg ? `background-color: ${agentBg} !important;` : ""}
 }
-[data-testid="user-message-content"],
 [data-testid="user-message-bubble"],
-form:has(textarea[placeholder]),
-form:has([contenteditable="true"]),
-[data-testid="composer"],
-.composer-container {
+[data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *),
+[data-rudex-theme-composer="1"],
+form:has(textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+[data-testid="composer"]:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+.composer-container:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])) {
   border-radius: ${cRadii.composer}px !important;
   border: ${cfg.borderStrength > 0 ? `1px solid ${dynamicBorderCol}` : "none"} !important;
+}
+[data-testid="user-message-bubble"] [data-testid="user-message-content"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin-bottom: 0 !important;
 }
 `);
   }
@@ -1858,7 +1907,7 @@ code, pre, kbd, samp, [class*="font-mono"] {
 
   if (ty.chatMaxWidth >= 680) {
     chunks.push(`
-[data-testid="agent-response"], [data-testid="user-message-content"] {
+[data-testid="agent-response"], [data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
   max-width: min(100%, ${ty.chatMaxWidth}px) !important;
   margin-inline: auto !important;
 }
@@ -1867,36 +1916,46 @@ code, pre, kbd, samp, [class*="font-mono"] {
 
   if (ty.density === "compact") {
     chunks.push(`
-[data-testid="agent-response"], [data-testid="user-message-content"] {
+[data-testid="agent-response"], [data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
   padding-top: 6px !important;
   padding-bottom: 6px !important;
+  margin-bottom: 4px !important;
+}
+[data-testid="user-message-bubble"] {
   margin-bottom: 4px !important;
 }
 `);
   } else if (ty.density === "spacious") {
     chunks.push(`
-[data-testid="agent-response"], [data-testid="user-message-content"] {
+[data-testid="agent-response"], [data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
   padding-top: 18px !important;
   padding-bottom: 18px !important;
+  margin-bottom: 14px !important;
+}
+[data-testid="user-message-bubble"] {
   margin-bottom: 14px !important;
 }
 `);
   } else if (hasWallpaper) {
     if (msgAlpha > 0) {
       chunks.push(`
-[data-testid="agent-response"], [data-testid="user-message-content"] {
+[data-testid="agent-response"], [data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
   padding-top: 12px !important;
   padding-bottom: 12px !important;
+  margin-bottom: 8px !important;
+}
+[data-testid="user-message-bubble"] {
   margin-bottom: 8px !important;
 }
 `);
     } else {
       chunks.push(`
-[data-testid="user-message-content"] {
+[data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
   padding-top: 12px !important;
   padding-bottom: 12px !important;
   margin-bottom: 8px !important;
 }
+[data-testid="user-message-bubble"],
 [data-testid="agent-response"] {
   margin-bottom: 8px !important;
 }
@@ -1923,11 +1982,11 @@ code, pre, kbd, samp, [class*="font-mono"] {
 }
 [data-rudex-theme-composer="1"]:focus-within,
 textarea:focus:not([data-rudex-theme-composer="1"] *),
-form:has(textarea[placeholder]:focus-within),
-[data-testid="composer"]:focus-within,
-.composer-container:focus-within {
-  border-color: ${vars.accentColor} !important;
-  box-shadow: 0 0 0 1px color-mix(in srgb, ${vars.accentColor} 55%, transparent), 0 10px 28px -8px color-mix(in srgb, ${vars.accentColor} 28%, transparent) !important;
+form:has(textarea[placeholder]:focus-within):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+[data-testid="composer"]:focus-within:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+.composer-container:focus-within:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])) {
+  border-color: color-mix(in srgb, ${vars.accentColor} 68%, ${effectiveBorder}) !important;
+  box-shadow: 0 8px 24px -10px color-mix(in srgb, ${vars.accentColor} 22%, transparent) !important;
 }
 `);
   }

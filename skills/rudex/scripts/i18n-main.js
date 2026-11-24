@@ -3202,7 +3202,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.4",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.5",
         outPath,
       });
       return res;
