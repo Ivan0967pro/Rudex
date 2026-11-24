@@ -1602,7 +1602,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.4.3", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "4.4.4", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -3152,7 +3152,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "4.4.3";
+    const instVer = (inst && inst.version) || pluginMeta.version || "4.4.4";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -3198,9 +3198,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "4.4.3" },
+          installed: realU.installed || { version: pluginMeta.version || "4.4.4" },
           remote: {
-            version: pluginMeta.version || "4.4.3",
+            version: pluginMeta.version || "4.4.4",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -3951,12 +3951,23 @@ function createStudioPanel(options) {
 
   function cleanupTempUploadedMedia() {
     if (!Array.isArray(state.tempUploadedMediaFiles) || state.tempUploadedMediaFiles.length === 0) return;
+    const protectedFiles = new Set();
     const savedFile = state.settings.appearance && state.settings.appearance.wallpaper ? state.settings.appearance.wallpaper.mediaFile : "";
+    const draftFile = state.appearanceDraft && state.appearanceDraft.wallpaper ? state.appearanceDraft.wallpaper.mediaFile : "";
+    if (savedFile) protectedFiles.add(savedFile);
+    if (draftFile) protectedFiles.add(draftFile);
+    const profiles = Array.isArray(state.settings.appearanceProfiles) ? state.settings.appearanceProfiles : [];
+    for (let i = 0; i < profiles.length; i += 1) {
+      const pf = profiles[i] && profiles[i].appearance && profiles[i].appearance.wallpaper
+        ? profiles[i].appearance.wallpaper.mediaFile
+        : "";
+      if (pf) protectedFiles.add(pf);
+    }
     const list = state.tempUploadedMediaFiles.slice();
     state.tempUploadedMediaFiles = [];
     for (let i = 0; i < list.length; i += 1) {
       const f = list[i];
-      if (f && f !== savedFile) {
+      if (f && !protectedFiles.has(f)) {
         invokeIpc("agy-studio:delete-media", { fileName: f });
       }
     }
@@ -5514,7 +5525,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "4.4.3";
+    const ver = inst.version || pluginMeta.version || "4.4.4";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -5649,7 +5660,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.4.3")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.4.4")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
@@ -6860,15 +6871,15 @@ function createStudioPanel(options) {
     }
     if (action === "apply-appearance") {
       const newSavedFile = state.appearanceDraft.wallpaper && state.appearanceDraft.wallpaper.mediaFile;
-      state.tempUploadedMediaFiles = (state.tempUploadedMediaFiles || []).filter((f) => f === newSavedFile);
-      cleanupTempUploadedMedia();
-      state.tempUploadedMediaFiles = [];
+      state.tempUploadedMediaFiles = (state.tempUploadedMediaFiles || []).filter((f) => f && f !== newSavedFile);
       state.appearanceDirty = false;
       state.appearanceLivePreview = state.isOpen && state.activeTab === "appearance";
       saveSettingsPatch({
         appearance: spCloneAppearance(state.appearanceDraft),
         greeting: spCloneGreeting(state.greetingDraft),
       });
+      cleanupTempUploadedMedia();
+      state.tempUploadedMediaFiles = [];
       setToast(tr.appAppliedMsg, false);
       return;
     }

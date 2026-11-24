@@ -1237,6 +1237,9 @@ function buildThemeCss(rawAppearance, options) {
   --border-default: ${effectiveBorder} !important;
   --input: ${effectiveBorder} !important;
   --color-input: ${effectiveBorder} !important;
+  --input-background: ${effectiveCard} !important;
+  --bg-input: ${effectiveCard} !important;
+  --bg-composer: ${effectiveCard} !important;
   --card: ${effectiveCard} !important;
   --color-card: ${effectiveCard} !important;
   --bg-surface: ${effectiveCard} !important;
@@ -1354,6 +1357,15 @@ main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="to
   background-color: ${vars.canvasBg} !important;
   color: ${vars.fgColor};
 }
+[data-rudex-bg-fade="1"],
+[data-rudex-bg-fade="1"]::before,
+[data-rudex-bg-fade="1"]::after {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
 [data-rudex-bg-sidebar="1"],
 aside,
 nav[aria-label],
@@ -1368,6 +1380,8 @@ header:not(#rudex-studio-host *) {
   background-color: ${vars.sidebarBg} !important;
   border-color: ${effectiveBorder} !important;
   color: ${vars.fgColor};
+  z-index: 30 !important;
+  isolation: isolate;
 }
 :where([data-rudex-bg-sidebar="1"], aside, [data-testid="sidebar"]) :where([aria-current="page"], [aria-selected="true"], [data-active="true"], [data-state="active"]):not(#rudex-studio-host *) {
   background-color: ${secondaryHex} !important;
@@ -1378,11 +1392,20 @@ form:has(textarea),
 form:has([contenteditable="true"]),
 [data-testid="composer"],
 .composer-container,
-div:has(> textarea[placeholder]):not(#rudex-studio-host *),
-div:has(> [contenteditable="true"]):not([data-rudex-bg-shell="1"]):not(main):not(#rudex-studio-host *) {
+div:has(> textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(#rudex-studio-host *),
+div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not([data-rudex-bg-shell="1"]):not(main):not(#rudex-studio-host *) {
   background-color: ${vars.cardBg} !important;
   border-color: ${effectiveBorder} !important;
   color: ${vars.fgColor} !important;
+}
+[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"]),
+[data-rudex-theme-composer="1"] div:has(> textarea),
+[data-rudex-theme-composer="1"] div:has(> [contenteditable="true"]) {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: ${vars.fgColor} !important;
+  caret-color: ${vars.accentColor} !important;
 }
 [data-testid="user-message-bubble"],
 [data-testid="user-message-content"] {
@@ -1514,7 +1537,7 @@ form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testi
       ? teHexToRgba(vars.cardBg, vars.glassOpacity)
       : teHexToRgba(isLight ? "#ffffff" : "#131316", cfg.glassOpacity);
     const sidebarAlpha = Math.round(teClamp(cfg.sidebarOpacity, 20, 100, 72));
-    const headerAlpha = Math.min(92, Math.max(20, baseGlass - 10));
+    const headerAlpha = Math.min(96, Math.max(82, Math.max(sidebarAlpha - 2, baseGlass)));
     const sidebarGlassBg = hasThemeOverride
       ? teHexToRgba(vars.sidebarBg, sidebarAlpha)
       : teHexToRgba(isLight ? "#f4f5f8" : "#0e0e12", sidebarAlpha);
@@ -1548,8 +1571,13 @@ form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testi
           : (isLight
               ? teHexToRgba("#ffffff", Math.min(96, userAlpha + 6))
               : teHexToRgba("#12141c", userAlpha)));
+    const composerAlpha = Math.min(96, Math.max(82, userAlpha));
+    const composerSurfaceBg = hasThemeOverride
+      ? teHexToRgba(vars.cardBg, composerAlpha)
+      : (isLight ? teHexToRgba("#ffffff", Math.min(96, composerAlpha + 4)) : teHexToRgba("#15151a", composerAlpha));
     const solidBorderAlpha = msgStyle === "solid" ? Math.max(borderAlpha, 0.14) : borderAlpha;
     const msgBorderCol = isLight ? `rgba(15, 23, 42, ${solidBorderAlpha})` : `rgba(255, 255, 255, ${solidBorderAlpha})`;
+    const composerBorderCol = hasThemeOverride ? effectiveBorder : msgBorderCol;
     const msgBlurCss = msgAlpha > 0 && msgStyle !== "solid" && blurPx > 0 ? glassBlurCss : "";
     const msgShadowCss = msgAlpha > 0
       ? (msgStyle === "glass"
@@ -1558,24 +1586,37 @@ form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testi
       : "";
     const msgSheenCss = msgAlpha > 0 && msgStyle === "glass" ? `background-image: ${glassSheenGrad};` : "";
     const hasCardBorder = cfg.borderStrength > 0 && msgAlpha > 0 && msgStyle !== "minimal";
-    const msgContrastCss = cfg.highContrastText !== false
-      ? (isLight
+    const linkColWp = hasThemeOverride ? vars.accentColor : (isLight ? "#1d4ed8" : "#7cb3ff");
+    const wpInlineCodeCss = isClaudeTheme
+      ? ""
+      : (isLight
           ? `
-[data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root] {
-  color: #111216 !important;
-  --foreground: #111216;
-  --muted-foreground: #3f4452;
-}
-[data-testid="agent-response"] a, [data-markdown-root] a {
-  color: #1d4ed8 !important;
-}
 [data-testid="agent-response"] code:not(pre code), [data-markdown-root] code:not(pre code) {
   background-color: rgba(15, 23, 42, 0.09) !important;
   border: 1px solid rgba(15, 23, 42, 0.14);
   color: #111216 !important;
   padding: 1px 5px;
   border-radius: 5px;
+}`
+          : `
+[data-testid="agent-response"] code:not(pre code), [data-markdown-root] code:not(pre code) {
+  background-color: rgba(8, 9, 14, 0.62) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f8fafc !important;
+  padding: 1px 5px;
+  border-radius: 5px;
+}`);
+    const msgContrastCss = cfg.highContrastText !== false
+      ? (isLight
+          ? `
+[data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root] {
+  color: ${hasThemeOverride ? vars.fgColor : "#111216"} !important;
+  --foreground: ${hasThemeOverride ? vars.fgColor : "#111216"};
+  --muted-foreground: ${hasThemeOverride ? vars.mutedColor : "#3f4452"};
 }
+[data-testid="agent-response"] a, [data-markdown-root] a {
+  color: ${linkColWp} !important;
+}${wpInlineCodeCss}
 :where([data-testid="agent-response"], [data-markdown-root]) pre {
   border: 1px solid rgba(15, 23, 42, 0.14);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
@@ -1583,20 +1624,13 @@ form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testi
 }`
           : `
 [data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root] {
-  color: #f4f5f8 !important;
-  --foreground: #f4f5f8;
-  --muted-foreground: #c4c8d4;
+  color: ${hasThemeOverride ? vars.fgColor : "#f4f5f8"} !important;
+  --foreground: ${hasThemeOverride ? vars.fgColor : "#f4f5f8"};
+  --muted-foreground: ${hasThemeOverride ? vars.mutedColor : "#c4c8d4"};
 }
 [data-testid="agent-response"] a, [data-markdown-root] a {
-  color: #7cb3ff !important;
-}
-[data-testid="agent-response"] code:not(pre code), [data-markdown-root] code:not(pre code) {
-  background-color: rgba(8, 9, 14, 0.62) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #f8fafc !important;
-  padding: 1px 5px;
-  border-radius: 5px;
-}
+  color: ${linkColWp} !important;
+}${wpInlineCodeCss}
 :where([data-testid="agent-response"], [data-markdown-root]) pre {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -1624,13 +1658,19 @@ form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testi
     }
 
     chunks.push(`
-:root, html, body {
+:root, :root.dark, :root.light, html, html.dark, html.light, body, body.dark, body.light, .dark, .light {
   --background: transparent !important;
   --color-background: transparent !important;
   --canvas: transparent !important;
   --bg-canvas: transparent !important;
+  --bg-primary: transparent !important;
+  --surface-0: transparent !important;
   --sidebar: ${sidebarGlassBg} !important;
+  --sidebar-background: ${sidebarGlassBg} !important;
+  --bg-sidebar: ${sidebarGlassBg} !important;
+  --color-sidebar: ${sidebarGlassBg} !important;
   --card: ${surfaceBg} !important;
+  --color-card: ${surfaceBg} !important;
 }
 html {
   background-color: ${fallbackBg} !important;
@@ -1657,11 +1697,23 @@ body {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+[data-rudex-bg-fade="1"],
+[data-rudex-bg-fade="1"]::before,
+[data-rudex-bg-fade="1"]::after,
+:where(div, section)[class*="bg-gradient-"]:where(:not(#rudex-studio-host, #rudex-studio-host *, [role="dialog"], [role="button"], button, [data-testid="agent-response"], [data-testid="user-message-bubble"], [data-rudex-theme-composer="1"], [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"])),
+:where(div, section)[class*="bg-linear-"]:where(:not(#rudex-studio-host, #rudex-studio-host *, [role="dialog"], [role="button"], button, [data-testid="agent-response"], [data-testid="user-message-bubble"], [data-rudex-theme-composer="1"], [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"])) {
+  background-image: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-color: transparent !important;
+}
 main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
 [data-testid="chat-container"]:not([role="dialog"]),
 [data-testid="conversation-view"]:not([role="dialog"]),
-:where(div, section)[class*="bg-background"]:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [role="button"], [role="tab"], [role="switch"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-slot="badge"], [data-slot="button"], [data-rudex-ignore="1"])),
-:where(div, section).bg-black:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [role="button"], [role="tab"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-rudex-ignore="1"])) {
+:where(div, section)[class*="bg-background"]:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="switch"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-slot="badge"], [data-slot="button"], [data-rudex-ignore="1"])),
+:where(div, section).bg-black:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-rudex-ignore="1"])) {
   background-color: transparent !important;
 }
 [data-rudex-bg-sidebar="1"],
@@ -1672,12 +1724,18 @@ nav[aria-label],
   ${msgStyle === "glass" ? `background-image: ${glassSheenGrad}; box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.07);` : ""}
   ${glassBlurCss}
 }
-[data-rudex-bg-header="1"] {
+[data-rudex-bg-header="1"],
+header:not(#rudex-studio-host *) {
   background-color: ${headerGlassBg} !important;
-  ${msgStyle === "glass" ? "background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 100%);" : ""}
+  border-bottom-color: ${effectiveBorder} !important;
+  z-index: 30 !important;
+  isolation: isolate;
+  ${msgStyle === "glass" ? "background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%);" : ""}
   ${glassBlurCss}
 }
 [data-testid="agent-response"] {
+  position: relative;
+  z-index: 0;
   background-color: ${agentSurfaceBg} !important;
   ${msgSheenCss}
   border: ${hasCardBorder ? `1px solid ${msgBorderCol}` : "none"} !important;
@@ -1697,12 +1755,28 @@ nav[aria-label],
   ${msgStyle !== "solid" ? glassBlurCss : ""}
 }
 ${msgContrastCss}
-form:has(textarea[placeholder]), form:has([contenteditable="true"]), [data-testid="composer"], .composer-container {
-  background-color: ${userSurfaceBg} !important;
+[data-rudex-theme-composer="1"],
+form:has(textarea),
+form:has([contenteditable="true"]),
+[data-testid="composer"],
+.composer-container,
+div:has(> textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(#rudex-studio-host *),
+div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not([data-rudex-bg-shell="1"]):not(main):not(#rudex-studio-host *) {
+  background-color: ${composerSurfaceBg} !important;
   ${msgStyle === "glass" ? `background-image: ${glassSheenGrad}; box-shadow: ${glassFresnelShadow};` : ""}
-  border: ${cfg.borderStrength > 0 ? `1px solid ${msgBorderCol}` : "none"} !important;
+  border: ${cfg.borderStrength > 0 ? `1px solid ${composerBorderCol}` : "none"} !important;
   border-radius: ${cRadii.composer}px !important;
+  color: ${vars.fgColor} !important;
   ${msgStyle !== "solid" ? glassBlurCss : ""}
+}
+[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"]),
+[data-rudex-theme-composer="1"] div:has(> textarea),
+[data-rudex-theme-composer="1"] div:has(> [contenteditable="true"]) {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: ${vars.fgColor} !important;
+  caret-color: ${vars.accentColor} !important;
 }
 [role="dialog"],
 [role="alertdialog"],
@@ -1847,7 +1921,11 @@ code, pre, kbd, samp, [class*="font-mono"] {
 ::-webkit-scrollbar-thumb:hover {
   background: ${isLight ? "rgba(20, 20, 24, 0.36)" : "rgba(255, 255, 255, 0.28)"};
 }
-textarea:focus, form:has(textarea[placeholder]:focus-within), [data-testid="composer"]:focus-within, .composer-container:focus-within {
+[data-rudex-theme-composer="1"]:focus-within,
+textarea:focus:not([data-rudex-theme-composer="1"] *),
+form:has(textarea[placeholder]:focus-within),
+[data-testid="composer"]:focus-within,
+.composer-container:focus-within {
   border-color: ${vars.accentColor} !important;
   box-shadow: 0 0 0 1px color-mix(in srgb, ${vars.accentColor} 55%, transparent), 0 10px 28px -8px color-mix(in srgb, ${vars.accentColor} 28%, transparent) !important;
 }
@@ -1871,6 +1949,7 @@ function createThemeEngine(options = {}) {
     "data-rudex-bg-shell",
     "data-rudex-bg-sidebar",
     "data-rudex-bg-header",
+    "data-rudex-bg-fade",
     "data-rudex-theme-composer",
     "data-rudex-theme-accent-dot",
   ];
@@ -1892,6 +1971,8 @@ function createThemeEngine(options = {}) {
   let vignetteChild = null;
   let scrimChild = null;
   let activeVideoUrl = "";
+  let failedMediaUrl = "";
+  let lastAttemptedMediaSrc = "";
   let videoVisEl = null;
   let videoVisHandler = null;
   let videoPauseWhenHidden = true;
@@ -1910,6 +1991,13 @@ function createThemeEngine(options = {}) {
   let lastHadThemeOverride = false;
   let pendingFastConfig = null;
   let fastRafId = 0;
+
+  function resolveWallpaperSrc(cfg) {
+    const wp = cfg && cfg.wallpaper ? cfg.wallpaper : null;
+    if (!wp || (wp.type !== "image" && wp.type !== "video")) return "";
+    const rawMediaUrl = wp.mediaUrl;
+    return (resolveMediaUrl ? resolveMediaUrl(wp.mediaFile, rawMediaUrl) : "") || rawMediaUrl || "";
+  }
 
   function teParseBgAlpha(bgStr) {
     const s = String(bgStr || "").trim().toLowerCase();
@@ -2000,7 +2088,7 @@ function createThemeEngine(options = {}) {
     if (!doc || typeof doc.querySelectorAll !== "function") return;
     try {
       const marked = doc.querySelectorAll(
-        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-theme-composer], [data-rudex-theme-accent-dot]"
+        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-theme-composer], [data-rudex-theme-accent-dot]"
       );
       for (let i = 0; marked && i < marked.length; i += 1) {
         clearShellAttrsOnElement(marked[i]);
@@ -2093,14 +2181,59 @@ function createThemeEngine(options = {}) {
 
     lastShellScanAt = Date.now();
 
-    // Phase 1 (Read-only Pass A: Pruned BFS + Pass B: elementsFromPoint hit-test + Pass C: theme composer & accent dots)
+    // Phase 1 (Read-only Pass A: Pruned BFS + Pass B: elementsFromPoint hit-test + Pass C: composer, fade bars & accent dots)
     const queue = [{ el: rootTarget, depth: 0, regionDepth: 0 }];
     let head = 0;
     let visited = 0;
     const maxNodes = 480;
     const maxDepth = 20;
     const visitedSet = new Set();
+    const headerElSet = new Set();
     const plans = [];
+
+    const hasHeaderAncestor = (node) => {
+      let p = node && (node.parentElement || node.parentNode);
+      while (p && p.nodeType === 1) {
+        if (headerElSet.has(p)) return true;
+        p = p.parentElement || p.parentNode;
+      }
+      return false;
+    };
+
+    const isSafeHeaderBar = (node, rect, cs) => {
+      if (!node || !rect) return false;
+      const t = String(node.tagName || "").toUpperCase();
+      if (t === "MAIN" || t === "ASIDE" || t === "NAV") return false;
+      if (cs && (cs.overflowY === "auto" || cs.overflowY === "scroll")) return false;
+      if (typeof node.querySelector === "function") {
+        try {
+          if (node.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"], textarea, [contenteditable="true"]')) {
+            return false;
+          }
+        } catch (_e) {}
+      }
+      return true;
+    };
+
+    const shouldMarkHeader = (node, rect, cs, hasBg) => {
+      if (!isSafeHeaderBar(node, rect, cs)) return false;
+      if (hasHeaderAncestor(node)) return false;
+      if (hasBg) return true;
+      if (typeof node.hasAttribute === "function" && node.hasAttribute("data-rudex-bg-header")) return true;
+      if (!wallpaperActive) return false;
+      const t = String(node.tagName || "").toUpperCase();
+      if (t === "HEADER") return true;
+      if (cs && (cs.position === "sticky" || cs.position === "fixed" || cs.position === "absolute")) return true;
+      const hasBorderBottom = cs && cs.borderBottomWidth && parseFloat(cs.borderBottomWidth) > 0 && teParseBgAlpha(cs.borderBottomColor) >= 0.04;
+      if (hasBorderBottom && rect.height >= 24) return true;
+      if (rect.top >= -2 && rect.top <= 84 && rect.height >= 26 && rect.height <= 64 && rect.width >= vw * 0.42) {
+        const hasInteractive = typeof node.querySelector === "function"
+          ? Boolean(node.querySelector("button, a, [role='button'], h1, h2, h3, span"))
+          : Boolean(node.textContent && String(node.textContent).trim());
+        if (hasInteractive) return true;
+      }
+      return false;
+    };
 
     while (head < queue.length && visited < maxNodes) {
       const item = queue[head++];
@@ -2126,7 +2259,16 @@ function createThemeEngine(options = {}) {
           if (attr) {
             const cs = win.getComputedStyle(el);
             hasBg = hasComputedBgFill(cs);
-            plans.push({ el, attr, hasBg });
+            if (attr === "data-rudex-bg-header") {
+              if (shouldMarkHeader(el, rect, cs, hasBg)) {
+                headerElSet.add(el);
+                plans.push({ el, attr, hasBg: true });
+              } else {
+                plans.push({ el, attr: "", hasBg: false });
+              }
+            } else {
+              plans.push({ el, attr, hasBg });
+            }
           } else {
             plans.push({ el, attr: "", hasBg: false });
           }
@@ -2151,7 +2293,8 @@ function createThemeEngine(options = {}) {
       }
     }
 
-    // Pass B: Point-hit scan across main chat viewport, left sidebar, and top titlebar/header
+    // Pass B: Point-hit scan across main chat viewport, left sidebar, top titlebar/header, and lower chat fade zone
+    const hitPointEls = [];
     if (typeof doc.elementsFromPoint === "function") {
       const probePoints = [
         [Math.round(vw * 0.55), Math.round(vh * 0.35)],
@@ -2165,6 +2308,8 @@ function createThemeEngine(options = {}) {
         [Math.round(vw * 0.50), 14],
         [Math.round(vw * 0.50), 48],
         [Math.round(vw * 0.25), 14],
+        [Math.round(vw * 0.55), Math.max(90, vh - 125)],
+        [Math.round(vw * 0.84), Math.max(90, vh - 115)],
       ];
       for (let pi = 0; pi < probePoints.length; pi += 1) {
         let hits = null;
@@ -2179,13 +2324,14 @@ function createThemeEngine(options = {}) {
           if (
             !hitEl ||
             hitEl.nodeType !== 1 ||
-            visitedSet.has(hitEl) ||
             hitEl === doc.documentElement ||
             hitEl === doc.body ||
             isInsideProtectedOverlay(hitEl)
           ) {
             continue;
           }
+          hitPointEls.push(hitEl);
+          if (visitedSet.has(hitEl)) continue;
           visitedSet.add(hitEl);
           if (typeof hitEl.getBoundingClientRect !== "function") continue;
           const r = hitEl.getBoundingClientRect();
@@ -2200,14 +2346,22 @@ function createThemeEngine(options = {}) {
           }
           if (hitAttr) {
             const cs = win.getComputedStyle(hitEl);
-            plans.push({ el: hitEl, attr: hitAttr, hasBg: hasComputedBgFill(cs) });
+            const hitHasBg = hasComputedBgFill(cs);
+            if (hitAttr === "data-rudex-bg-header") {
+              if (shouldMarkHeader(hitEl, r, cs, hitHasBg)) {
+                headerElSet.add(hitEl);
+                plans.push({ el: hitEl, attr: hitAttr, hasBg: true });
+              }
+            } else {
+              plans.push({ el: hitEl, attr: hitAttr, hasBg: hitHasBg });
+            }
           }
         }
       }
     }
 
-    // Pass C: Theme-only semantic composer container & sidebar blue unread dot unification
-    if (themeScanActive && !wallpaperActive && typeof doc.querySelectorAll === "function") {
+    // Pass C: Semantic composer container, scroll-fade bar cleanup, and sidebar blue unread dot unification
+    if ((themeScanActive || wallpaperActive) && typeof doc.querySelectorAll === "function") {
       const isProtectedForTheme = (node) => {
         if (!node || node.nodeType !== 1) return true;
         const id = node.id || "";
@@ -2226,69 +2380,156 @@ function createThemeEngine(options = {}) {
         return false;
       };
 
+      const composerEls = new Set();
+      const composerInfos = [];
       try {
         const inputs = doc.querySelectorAll('textarea, [contenteditable="true"]');
+        const maxComposerW = Math.min(Math.round(vw * 0.78), 1080);
+        const maxComposerH = Math.min(340, Math.round(vh * 0.44));
         for (let i = 0; inputs && i < inputs.length && i < 6; i += 1) {
           const inp = inputs[i];
           if (!inp || isProtectedForTheme(inp)) continue;
           let cur = inp.parentElement;
           let depth = 0;
           let best = null;
-          while (cur && cur.nodeType === 1 && depth < 6) {
+          let bestRect = null;
+          while (cur && cur.nodeType === 1 && depth < 8) {
             if (cur === doc.body || cur === rootTarget || isProtectedForTheme(cur)) break;
+            if (typeof cur.querySelector === "function") {
+              try {
+                if (cur.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"]')) break;
+              } catch (_e) {}
+            }
             if (typeof cur.getBoundingClientRect === "function") {
               const cr = cur.getBoundingClientRect();
-              if (cr && cr.width >= 200 && cr.height >= 36 && cr.height <= Math.min(360, vh * 0.45) && cr.width <= vw * 0.85) {
+              if (cr && cr.height > Math.min(380, vh * 0.48)) break;
+              if (cr && cr.width >= 200 && cr.width <= maxComposerW && cr.height >= 36 && cr.height <= maxComposerH) {
                 const ccs = win.getComputedStyle(cur);
-                const hasBorder = ccs && ccs.borderTopWidth && parseFloat(ccs.borderTopWidth) > 0 && teParseBgAlpha(ccs.borderTopColor) >= 0.05;
-                if (hasComputedBgFill(ccs) || hasBorder) {
+                const alreadyComposer = typeof cur.hasAttribute === "function" && cur.hasAttribute("data-rudex-theme-composer");
+                const hasBorder = ccs && ccs.borderTopWidth && parseFloat(ccs.borderTopWidth) > 0 && teParseBgAlpha(ccs.borderTopColor) >= 0.04;
+                const radiusPx = ccs && ccs.borderTopLeftRadius ? parseFloat(ccs.borderTopLeftRadius) : 0;
+                if (alreadyComposer || hasComputedBgFill(ccs) || hasBorder || (Number.isFinite(radiusPx) && radiusPx >= 8)) {
                   best = cur;
+                  bestRect = cr;
                 }
-              } else if (cr && cr.height > Math.min(380, vh * 0.48)) {
-                break;
               }
             }
             cur = cur.parentElement;
             depth += 1;
           }
           if (best) {
+            composerEls.add(best);
+            composerInfos.push({ el: best, rect: bestRect });
             plans.push({ el: best, attr: "data-rudex-theme-composer", hasBg: true });
           }
         }
       } catch (_e) {}
 
+      // Remove dark scroll-fade gradient bars above/around the composer so wallpaper & custom themes stay clean
+      const isRelatedToComposer = (node) => {
+        if (composerEls.has(node)) return true;
+        for (const c of composerEls) {
+          if (typeof c.contains === "function" && c.contains(node)) return true;
+        }
+        return false;
+      };
+
       try {
-        const sideRootSet = new Set();
-        for (let i = 0; i < plans.length; i += 1) {
-          if (plans[i].attr === "data-rudex-bg-sidebar" && plans[i].hasBg) {
-            sideRootSet.add(plans[i].el);
+        const fadeChecked = new Set();
+        const tryMarkFade = (node, allowWrappingComposer) => {
+          if (!node || node.nodeType !== 1 || fadeChecked.has(node)) return;
+          fadeChecked.add(node);
+          if (node === doc.body || node === rootTarget || isProtectedForTheme(node)) return;
+          if (headerElSet.has(node) || hasHeaderAncestor(node)) return;
+          if (isRelatedToComposer(node)) return;
+          const tag = String(node.tagName || "").toUpperCase();
+          if (tag === "MAIN" || tag === "ASIDE" || tag === "NAV" || tag === "HEADER" || tag === "BUTTON" || tag === "A") return;
+          if (typeof node.querySelector === "function") {
+            try {
+              if (node.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"]')) return;
+              if (!allowWrappingComposer && node.querySelector('textarea, [contenteditable="true"]')) return;
+            } catch (_e) {}
           }
-        }
-        const domSides = doc.querySelectorAll('aside, nav, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"]');
-        for (let s = 0; domSides && s < domSides.length; s += 1) {
-          sideRootSet.add(domSides[s]);
-        }
-        const sideRoots = Array.from(sideRootSet);
-        const checkedDots = new Set();
-        for (let s = 0; s < sideRoots.length && s < 6; s += 1) {
-          const sr = sideRoots[s];
-          if (!sr || typeof sr.querySelectorAll !== "function" || isProtectedForTheme(sr)) continue;
-          const cand = sr.querySelectorAll("span, div");
-          for (let c = 0; cand && c < cand.length && c < 240; c += 1) {
-            const node = cand[c];
-            if (!node || checkedDots.has(node)) continue;
-            if ((node.children && node.children.length > 0) || (node.childNodes && node.childNodes.length > 0)) continue;
-            checkedDots.add(node);
-            if (typeof node.getBoundingClientRect !== "function") continue;
-            const nr = node.getBoundingClientRect();
-            if (!nr || nr.width < 4 || nr.width > 14 || nr.height < 4 || nr.height > 14) continue;
-            const ncs = win.getComputedStyle(node);
-            if (ncs && teIsBlueAccentColor(ncs.backgroundColor)) {
-              plans.push({ el: node, attr: "data-rudex-theme-accent-dot", hasBg: true });
+          if (typeof node.getBoundingClientRect !== "function") return;
+          const fr = node.getBoundingClientRect();
+          if (!fr || fr.width < vw * 0.32 || fr.height < 6) return;
+          if (fr.left <= 20 && fr.width <= 400 && fr.height >= vh * 0.50) return;
+          const maxFadeH = allowWrappingComposer ? Math.min(260, Math.round(vh * 0.36)) : 145;
+          if (fr.top < 58 || fr.height > maxFadeH) return;
+          const fcs = win.getComputedStyle(node);
+          if (!fcs) return;
+          const alreadyFade = typeof node.hasAttribute === "function" && node.hasAttribute("data-rudex-bg-fade");
+          const hasGradient = Boolean(fcs.backgroundImage && fcs.backgroundImage.indexOf("gradient(") >= 0);
+          const isPointerNoneOverlay = wallpaperActive && fcs.pointerEvents === "none" && (hasComputedBgFill(fcs) || (fcs.boxShadow && fcs.boxShadow !== "none"));
+          const isOpaqueWrapperUnderWp = allowWrappingComposer && wallpaperActive && hasComputedBgFill(fcs);
+          if (alreadyFade || hasGradient || isPointerNoneOverlay || isOpaqueWrapperUnderWp) {
+            plans.push({ el: node, attr: "data-rudex-bg-fade", hasBg: true });
+          }
+        };
+
+        // Check wide wrapper ancestors above the composer card (e.g. full-width bottom dock with gradient fade)
+        for (let ci = 0; ci < composerInfos.length; ci += 1) {
+          const info = composerInfos[ci];
+          let anc = info.el.parentElement;
+          let up = 0;
+          while (anc && anc.nodeType === 1 && up < 4) {
+            if (anc === doc.body || anc === rootTarget) break;
+            if (typeof anc.getBoundingClientRect === "function") {
+              const ar = anc.getBoundingClientRect();
+              if (ar && info.rect && ar.width >= Math.max(info.rect.width + 60, vw * 0.42)) {
+                tryMarkFade(anc, true);
+              }
             }
+            anc = anc.parentElement;
+            up += 1;
           }
+        }
+
+        for (let hi = 0; hi < hitPointEls.length; hi += 1) {
+          tryMarkFade(hitPointEls[hi], false);
+        }
+
+        const fadeCands = rootTarget.querySelectorAll("div, section, footer");
+        for (let fi = 0; fadeCands && fi < fadeCands.length && fi < 360; fi += 1) {
+          tryMarkFade(fadeCands[fi], false);
         }
       } catch (_e) {}
+
+      if (themeScanActive) {
+        try {
+          const sideRootSet = new Set();
+          for (let i = 0; i < plans.length; i += 1) {
+            if (plans[i].attr === "data-rudex-bg-sidebar" && plans[i].hasBg) {
+              sideRootSet.add(plans[i].el);
+            }
+          }
+          const domSides = doc.querySelectorAll('aside, nav, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"]');
+          for (let s = 0; domSides && s < domSides.length; s += 1) {
+            sideRootSet.add(domSides[s]);
+          }
+          const sideRoots = Array.from(sideRootSet);
+          const checkedDots = new Set();
+          for (let s = 0; s < sideRoots.length && s < 6; s += 1) {
+            const sr = sideRoots[s];
+            if (!sr || typeof sr.querySelectorAll !== "function" || isProtectedForTheme(sr)) continue;
+            const cand = sr.querySelectorAll("span, div");
+            for (let c = 0; cand && c < cand.length && c < 240; c += 1) {
+              const node = cand[c];
+              if (!node || checkedDots.has(node)) continue;
+              if ((node.children && node.children.length > 0) || (node.childNodes && node.childNodes.length > 0)) continue;
+              checkedDots.add(node);
+              if (typeof node.getBoundingClientRect !== "function") continue;
+              const nr = node.getBoundingClientRect();
+              if (!nr || nr.width < 4 || nr.width > 14 || nr.height < 4 || nr.height > 14) continue;
+              const alreadyDot = typeof node.hasAttribute === "function" && node.hasAttribute("data-rudex-theme-accent-dot");
+              const ncs = win.getComputedStyle(node);
+              if (alreadyDot || (ncs && teIsBlueAccentColor(ncs.backgroundColor))) {
+                plans.push({ el: node, attr: "data-rudex-theme-accent-dot", hasBg: true });
+              }
+            }
+          }
+        } catch (_e) {}
+      }
     }
 
     // Phase 2 (Write-only): batch attribute updates after all reads finish
@@ -2506,6 +2747,12 @@ function createThemeEngine(options = {}) {
   function removeBgLayer() {
     removeVideoListeners();
     removeGradListeners();
+    if (mediaChild) {
+      try {
+        mediaChild.onerror = null;
+        mediaChild.onload = null;
+      } catch (_e) {}
+    }
     if (mediaChild && mediaChild.tagName === "VIDEO") {
       safePauseVideo(mediaChild);
       if (typeof mediaChild.removeAttribute === "function") {
@@ -2663,10 +2910,7 @@ function createThemeEngine(options = {}) {
       removeBgLayer();
       return;
     }
-    const rawMediaUrl = wp.mediaUrl;
-    const resolvedSrc = (wp.type === "image" || wp.type === "video")
-      ? ((resolveMediaUrl ? resolveMediaUrl(wp.mediaFile, rawMediaUrl) : "") || rawMediaUrl)
-      : "";
+    const resolvedSrc = resolveWallpaperSrc(cfg);
     if ((wp.type === "image" || wp.type === "video") && !resolvedSrc) {
       if (wallpaperActive) {
         wallpaperActive = false;
@@ -2717,6 +2961,10 @@ function createThemeEngine(options = {}) {
       if (needNewVideo) {
         removeVideoListeners();
         if (mediaChild && mediaChild.parentNode) {
+          try {
+            mediaChild.onerror = null;
+            mediaChild.onload = null;
+          } catch (_e) {}
           if (mediaChild.tagName === "VIDEO") safePauseVideo(mediaChild);
           mediaChild.parentNode.removeChild(mediaChild);
         }
@@ -2731,6 +2979,13 @@ function createThemeEngine(options = {}) {
         vid.loop = true;
         vid.playsInline = true;
         vid.preload = "metadata";
+        const targetVideoSrc = resolvedSrc;
+        vid.onerror = () => {
+          if (activeVideoUrl === targetVideoSrc && failedMediaUrl !== targetVideoSrc) {
+            failedMediaUrl = targetVideoSrc;
+            applySync(currentConfig);
+          }
+        };
         vid.src = resolvedSrc;
         vid.style.position = "absolute";
         vid.style.inset = "0";
@@ -2776,6 +3031,10 @@ function createThemeEngine(options = {}) {
       gradFlowChild = null;
       if (!mediaChild || mediaChild.tagName !== "IMG") {
         if (mediaChild && mediaChild.parentNode) {
+          try {
+            mediaChild.onerror = null;
+            mediaChild.onload = null;
+          } catch (_e) {}
           if (mediaChild.tagName === "VIDEO") safePauseVideo(mediaChild);
           mediaChild.parentNode.removeChild(mediaChild);
         }
@@ -2794,6 +3053,19 @@ function createThemeEngine(options = {}) {
         }
         mediaChild = img;
       }
+      const targetImgSrc = resolvedSrc;
+      mediaChild.onerror = () => {
+        const curSrc = typeof mediaChild.getAttribute === "function" ? (mediaChild.getAttribute("src") || mediaChild.src) : mediaChild.src;
+        if (curSrc === targetImgSrc && failedMediaUrl !== targetImgSrc) {
+          failedMediaUrl = targetImgSrc;
+          applySync(currentConfig);
+        }
+      };
+      mediaChild.onload = () => {
+        if (failedMediaUrl === targetImgSrc) {
+          failedMediaUrl = "";
+        }
+      };
       if (mediaChild.getAttribute("src") !== resolvedSrc) {
         mediaChild.setAttribute("src", resolvedSrc);
       }
@@ -2812,6 +3084,10 @@ function createThemeEngine(options = {}) {
     removeTintChild();
     if (!mediaChild || mediaChild.getAttribute("data-role") !== "bg-gradient") {
       if (mediaChild && mediaChild.parentNode) {
+        try {
+          mediaChild.onerror = null;
+          mediaChild.onload = null;
+        } catch (_e) {}
         if (mediaChild.tagName === "VIDEO") safePauseVideo(mediaChild);
         mediaChild.parentNode.removeChild(mediaChild);
       }
@@ -2885,19 +3161,35 @@ function createThemeEngine(options = {}) {
 
   function applySync(rawAppearance) {
     currentConfig = normalizeAppearance(rawAppearance);
-    const hasThemeOverride = currentConfig.presetId !== "native";
-    const hasAccentOverride = Boolean(currentConfig.customAccent);
-    const hasWallpaper = teHasActiveWallpaper(currentConfig);
-    const hasCustomTypo = teHasCustomTypography(currentConfig);
-    const hasCornersOverride = teHasCustomCorners(currentConfig);
+    const resolvedSrcCheck = resolveWallpaperSrc(currentConfig);
+    if (resolvedSrcCheck !== lastAttemptedMediaSrc) {
+      lastAttemptedMediaSrc = resolvedSrcCheck;
+      failedMediaUrl = "";
+    }
+    const isMediaBroken = Boolean(
+      (currentConfig.wallpaper.type === "image" || currentConfig.wallpaper.type === "video") &&
+      resolvedSrcCheck &&
+      failedMediaUrl === resolvedSrcCheck
+    );
+    const effectiveConfig = isMediaBroken
+      ? Object.assign({}, currentConfig, {
+          wallpaper: Object.assign({}, currentConfig.wallpaper, { type: "none" }),
+        })
+      : currentConfig;
+
+    const hasThemeOverride = effectiveConfig.presetId !== "native";
+    const hasAccentOverride = Boolean(effectiveConfig.customAccent);
+    const hasWallpaper = teHasActiveWallpaper(effectiveConfig);
+    const hasCustomTypo = teHasCustomTypography(effectiveConfig);
+    const hasCornersOverride = teHasCustomCorners(effectiveConfig);
     const hasSurfaceOverride =
-      hasCornersOverride || currentConfig.radius !== 12 || currentConfig.borderStrength !== 50 || currentConfig.messageStyle !== "glass";
-    const hostIsLight = resolveEffectiveHostIsLight(currentConfig);
+      hasCornersOverride || effectiveConfig.radius !== 12 || effectiveConfig.borderStrength !== 50 || effectiveConfig.messageStyle !== "glass";
+    const hostIsLight = resolveEffectiveHostIsLight(effectiveConfig);
     const isLight = hasThemeOverride
-      ? teResolveThemeVars(currentConfig).mode === "light"
+      ? teResolveThemeVars(effectiveConfig).mode === "light"
       : hostIsLight;
 
-    if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !currentConfig.uiPolish) {
+    if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !effectiveConfig.uiPolish) {
       if (wallpaperActive || themeScanActive) {
         wallpaperActive = false;
         themeScanActive = false;
@@ -2911,8 +3203,8 @@ function createThemeEngine(options = {}) {
       return currentConfig;
     }
 
-    ensureFontLinkNode(teBuildWebFontUrl(currentConfig));
-    const cssText = buildThemeCss(currentConfig, { hostIsLight });
+    ensureFontLinkNode(teBuildWebFontUrl(effectiveConfig));
+    const cssText = buildThemeCss(effectiveConfig, { hostIsLight });
     const existingStyle = doc && typeof doc.getElementById === "function"
       ? doc.getElementById(STYLE_ID)
       : styleNode;
@@ -2927,7 +3219,7 @@ function createThemeEngine(options = {}) {
 
     lastHadThemeOverride = hasThemeOverride;
     themeScanActive = hasThemeOverride;
-    applyWallpaper(currentConfig, isLight);
+    applyWallpaper(effectiveConfig, isLight);
     if (themeScanActive && !wallpaperActive) {
       ensureShellWatchers();
     } else if (!themeScanActive && !wallpaperActive) {
@@ -2979,6 +3271,8 @@ function createThemeEngine(options = {}) {
       removeDomReadyListener();
       wallpaperActive = false;
       themeScanActive = false;
+      failedMediaUrl = "";
+      lastAttemptedMediaSrc = "";
       lastCssText = "";
       lastHadThemeOverride = false;
       clearWallpaperShells();

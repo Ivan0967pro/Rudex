@@ -403,7 +403,7 @@ test("Manifest & hooks.json follow Rudex v4.2.1 architecture without PostInvocat
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.4.3");
+  assert.equal(pkg.version, "4.4.4");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -3073,7 +3073,7 @@ test("Claude Code themes, fonts, Google Fonts loader, one-click suite, full UI c
 });
 
 // =============================================================================
-// 18. Windows 10 EPERM-Safe Sync & Bulletproof Post-Update Survival (v4.4.3)
+// 18. Windows 10 EPERM-Safe Sync & Bulletproof Post-Update Survival (v4.4.4)
 // =============================================================================
 test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t in detached cmd scripts, and recovers shadowed app.asar", async () => {
   const installJsText = fs.readFileSync(path.join(SCRIPTS_DIR, "install.js"), "utf8");
@@ -3105,7 +3105,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v4.4.3"), "install.ps1 banner must show v4.4.3");
+  assert.ok(ps1Text.includes("Rudex v4.4.4"), "install.ps1 banner must show v4.4.4");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -3151,8 +3151,8 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
 
     fs.writeFileSync(path.join(mockAppRoot, "version"), "44.9.1\n", "utf8");
     fs.writeFileSync(path.join(mockResDir, "app.asar"), "SHADOWING_ASAR_BYTES", "utf8");
-    fs.writeFileSync(path.join(mockAppDir, "rudex-patch-meta.json"), JSON.stringify({ stampVersion: "44.9.1", version: "4.4.3" }), "utf8");
-    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.4.3"}', "utf8");
+    fs.writeFileSync(path.join(mockAppDir, "rudex-patch-meta.json"), JSON.stringify({ stampVersion: "44.9.1", version: "4.4.4" }), "utf8");
+    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.4.4"}', "utf8");
     fs.writeFileSync(
       path.join(mockPluginDir, "skills", "rudex", "scripts", "install.js"),
       `"use strict";\nconst fs = require("fs");\nfs.writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify(process.argv.slice(2)), "utf8");\n`,
@@ -3176,5 +3176,248 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
     assert.ok(fs.existsSync(markerFile), "rudex-hook.js must trigger recovery even when stampVersion matches if app.asar still shadows resources/app");
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// =============================================================================
+// 19. Wallpaper Persistence, Header/Fade/Composer UI Integrity & Broken Media Fallback (v4.4.4)
+// =============================================================================
+test("Wallpaper persistence: apply-appearance never deletes the newly applied mediaFile and backend guards active wallpaper", () => {
+  const studioPanelText = fs.readFileSync(path.join(RES_DIR, "studio-panel.js"), "utf8");
+  const i18nMainText = fs.readFileSync(path.join(SCRIPTS_DIR, "i18n-main.js"), "utf8");
+
+  // Regression guard against the inverted filter bug that deleted the newly saved wallpaper on Apply
+  assert.equal(
+    studioPanelText.includes("tempUploadedMediaFiles.filter((f) => f === newSavedFile)"),
+    false,
+    "apply-appearance must NOT filter tempUploadedMediaFiles with === newSavedFile (that deleted the active wallpaper!)"
+  );
+  assert.ok(
+    studioPanelText.includes("(state.tempUploadedMediaFiles || []).filter((f) => f && f !== newSavedFile)"),
+    "apply-appearance must keep only unused temp uploads (!== newSavedFile) for cleanup"
+  );
+  assert.ok(
+    i18nMainText.includes("keptForActive: true"),
+    "i18n-main.js agy-studio:delete-media must refuse deleting the currently active wallpaper mediaFile"
+  );
+  assert.ok(
+    studioPanelText.includes("const protectedFiles = new Set()"),
+    "cleanupTempUploadedMedia must protect saved, draft, and profile wallpaper files"
+  );
+});
+
+test("Theme engine v4.4.4: wallpaper + Claude Code preserves terracotta accents, clears black fade bars, elevates header, styles composer, and recovers from 404 media", () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const cfg = te.normalizeAppearance({
+    presetId: "claude-terminal",
+    glassOpacity: 100,
+    sidebarOpacity: 100,
+    wallpaper: {
+      type: "image",
+      mediaFile: "image-test-wallpaper.jpg",
+      mediaUrl: "rudex-media://local/image-test-wallpaper.jpg",
+    },
+  });
+
+  const css = te.buildThemeCss(cfg, { hostIsLight: false });
+  assert.ok(
+    /:root,\s*:root\.dark,\s*:root\.light,[\s\S]*?\.dark,\s*\.light\s*\{\s*--background:\s*transparent\s*!important;/.test(css),
+    "Wallpaper mode must override --background on .dark with equal specificity so bottom scroll-fade does not turn black"
+  );
+  assert.ok(css.includes('[data-rudex-bg-fade="1"]'), "Wallpaper CSS must clear [data-rudex-bg-fade='1'] fade bars");
+  assert.ok(css.includes('[data-rudex-theme-composer="1"]'), "Wallpaper CSS must style [data-rudex-theme-composer='1']");
+  assert.ok(css.includes("z-index: 30 !important;"), "Header must stay elevated above scrolling agent responses");
+  assert.ok(css.includes("color: #da7756 !important;"), "Claude Terminal links under wallpaper must remain terracotta (#da7756)");
+  assert.equal(css.includes("color: #7cb3ff !important;"), false, "Claude Terminal under wallpaper must not revert links to blue #7cb3ff");
+  assert.equal(css.includes("color: #f8fafc !important;"), false, "Claude Terminal under wallpaper must preserve terracotta inline code");
+
+  // Mock DOM to verify Pass A/B/C scanning while wallpaperActive === true AND img.onerror recovery
+  function makeEl(tag, opts = {}) {
+    const attrs = new Map(Object.entries(opts.attrs || {}));
+    const el = {
+      nodeType: 1,
+      tagName: tag.toUpperCase(),
+      id: opts.id || "",
+      className: opts.className || "",
+      style: {},
+      children: [],
+      childNodes: [],
+      parentNode: null,
+      parentElement: null,
+      textContent: opts.textContent || "",
+      _rect: opts.rect || { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 },
+      _cs: opts.cs || { backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none", position: "static", pointerEvents: "auto" },
+      getAttribute(k) { return attrs.has(k) ? attrs.get(k) : null; },
+      setAttribute(k, v) { attrs.set(k, String(v)); if (k === "id") el.id = String(v); },
+      removeAttribute(k) { attrs.delete(k); },
+      hasAttribute(k) { return attrs.has(k); },
+      appendChild(child) {
+        child.parentNode = el;
+        child.parentElement = el;
+        el.children.push(child);
+        el.childNodes.push(child);
+        return child;
+      },
+      insertBefore(child, ref) {
+        child.parentNode = el;
+        child.parentElement = el;
+        const idx = el.children.indexOf(ref);
+        if (idx >= 0) {
+          el.children.splice(idx, 0, child);
+          el.childNodes.splice(idx, 0, child);
+        } else {
+          el.children.push(child);
+          el.childNodes.push(child);
+        }
+        return child;
+      },
+      removeChild(child) {
+        const idx = el.children.indexOf(child);
+        if (idx >= 0) el.children.splice(idx, 1);
+        const idx2 = el.childNodes.indexOf(child);
+        if (idx2 >= 0) el.childNodes.splice(idx2, 1);
+        child.parentNode = null;
+        child.parentElement = null;
+        return child;
+      },
+      getBoundingClientRect() { return el._rect; },
+      contains(other) {
+        let c = other;
+        while (c) {
+          if (c === el) return true;
+          c = c.parentNode;
+        }
+        return false;
+      },
+      closest() { return null; },
+      querySelector(sel) { return el.querySelectorAll(sel)[0] || null; },
+      querySelectorAll(sel) {
+        const res = [];
+        const parts = sel.split(",").map((s) => s.trim());
+        const matchOne = (node, p) => {
+          if (p === 'textarea') return node.tagName === "TEXTAREA";
+          if (p === '[contenteditable="true"]') return node.getAttribute("contenteditable") === "true";
+          if (p === 'div' || p === 'section' || p === 'footer' || p === 'span' || p === 'aside' || p === 'nav' || p === 'button' || p === 'a') {
+            return node.tagName === p.toUpperCase();
+          }
+          if (p === '[data-testid="sidebar"]') return node.getAttribute("data-testid") === "sidebar";
+          if (p === '[data-rudex-bg-sidebar="1"]') return node.getAttribute("data-rudex-bg-sidebar") === "1";
+          if (p === '[data-testid="agent-response"]') return node.getAttribute("data-testid") === "agent-response";
+          if (p === '[data-testid="user-message-content"]') return node.getAttribute("data-testid") === "user-message-content";
+          const attrMatch = /^\[([a-z0-9-]+)\]$/.exec(p);
+          if (attrMatch) return node.hasAttribute(attrMatch[1]);
+          return false;
+        };
+        const walk = (node) => {
+          for (const ch of node.children) {
+            if (parts.some((p) => matchOne(ch, p))) res.push(ch);
+            walk(ch);
+          }
+        };
+        walk(el);
+        return res;
+      },
+    };
+    return el;
+  }
+
+  const head = makeEl("head");
+  const body = makeEl("body", { rect: { left: 0, top: 0, width: 1440, height: 900 } });
+  const root = makeEl("div", { id: "root", rect: { left: 0, top: 0, width: 1440, height: 900 }, cs: { backgroundColor: "rgb(20, 20, 19)", backgroundImage: "none" } });
+  const sidebar = makeEl("aside", { rect: { left: 0, top: 32, width: 240, height: 868 }, cs: { backgroundColor: "rgb(18, 18, 17)", backgroundImage: "none" } });
+  const blueDot = makeEl("span", { rect: { left: 215, top: 210, width: 6, height: 6 }, cs: { backgroundColor: "rgb(59, 130, 246)", backgroundImage: "none" } });
+  sidebar.appendChild(blueDot);
+
+  const chatHeader = makeEl("div", {
+    rect: { left: 240, top: 32, width: 1200, height: 42 },
+    cs: { backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none", position: "sticky", borderBottomWidth: "1px", borderBottomColor: "rgba(255,255,255,0.08)" },
+    textContent: "antigravity-ru / Session",
+  });
+  const fadeBar = makeEl("div", {
+    rect: { left: 240, top: 720, width: 1200, height: 48 },
+    cs: { backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "linear-gradient(to top, rgb(0, 0, 0), transparent)", pointerEvents: "none" },
+  });
+  const composerCard = makeEl("div", {
+    rect: { left: 460, top: 772, width: 720, height: 96 },
+    cs: { backgroundColor: "rgb(18, 18, 22)", backgroundImage: "none", borderTopWidth: "1px", borderTopColor: "rgba(255,255,255,0.12)", borderTopLeftRadius: "16px" },
+  });
+  const composerInput = makeEl("div", {
+    attrs: { contenteditable: "true" },
+    rect: { left: 476, top: 784, width: 688, height: 40 },
+    cs: { backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none" },
+  });
+  composerCard.appendChild(composerInput);
+
+  root.appendChild(sidebar);
+  root.appendChild(chatHeader);
+  root.appendChild(fadeBar);
+  root.appendChild(composerCard);
+  body.appendChild(root);
+
+  const mockDoc = {
+    head,
+    body,
+    documentElement: makeEl("html"),
+    readyState: "complete",
+    hidden: false,
+    createElement: (tag) => makeEl(tag),
+    getElementById(id) {
+      const search = (n) => {
+        if (n.id === id) return n;
+        for (const ch of n.children) {
+          const found = search(ch);
+          if (found) return found;
+        }
+        return null;
+      };
+      return search(head) || search(body);
+    },
+    querySelector(sel) {
+      if (sel === "#root, #app") return root;
+      return body.querySelector(sel);
+    },
+    querySelectorAll(sel) { return body.querySelectorAll(sel); },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const mockWin = {
+    innerWidth: 1440,
+    innerHeight: 900,
+    getComputedStyle: (el) => el._cs || { backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none" },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+
+  const engine = te.createThemeEngine({
+    document: mockDoc,
+    window: mockWin,
+    resolveMediaUrl: (f) => (f ? `rudex-media://${f}` : ""),
+  });
+
+  try {
+    engine.apply(cfg);
+    assert.ok(mockDoc.getElementById("rudex-bg"), "Wallpaper layer #rudex-bg must be mounted initially");
+    assert.equal(chatHeader.getAttribute("data-rudex-bg-header"), "1", "Transparent sticky chat header must still be marked data-rudex-bg-header='1' under wallpaper");
+    assert.equal(fadeBar.getAttribute("data-rudex-bg-fade"), "1", "Bottom black gradient fade bar must be marked data-rudex-bg-fade='1'");
+    assert.equal(composerCard.getAttribute("data-rudex-theme-composer"), "1", "Composer card must be marked data-rudex-theme-composer='1' even when wallpaper is active");
+    assert.equal(blueDot.getAttribute("data-rudex-theme-accent-dot"), "1", "Sidebar blue unread dot must still be recolored under wallpaper");
+
+    // Simulate 404 / deleted wallpaper file on restart: img.onerror must clean up #rudex-bg (no black scrim!)
+    const bgLayer = mockDoc.getElementById("rudex-bg");
+    const bgImg = bgLayer.children.find((c) => c.tagName === "IMG");
+    assert.ok(bgImg && typeof bgImg.onerror === "function", "Background img must attach an onerror fallback handler");
+    bgImg.onerror();
+
+    assert.equal(mockDoc.getElementById("rudex-bg"), null, "Broken 404 wallpaper must remove #rudex-bg instead of leaving a black scrim screen");
+    const fallbackStyle = mockDoc.getElementById("rudex-studio-theme");
+    assert.ok(fallbackStyle && fallbackStyle.textContent.includes("--background: #141413 !important;"), "Fallback CSS must restore clean Claude Terminal canvas");
+
+    // Selecting a new valid wallpaper must clear failedMediaUrl and restore #rudex-bg
+    engine.apply(Object.assign({}, cfg, {
+      wallpaper: Object.assign({}, cfg.wallpaper, { mediaFile: "image-fresh-ok.jpg" }),
+    }));
+    assert.ok(mockDoc.getElementById("rudex-bg"), "New valid wallpaper must re-mount #rudex-bg after previous 404");
+  } finally {
+    engine.destroy();
   }
 });

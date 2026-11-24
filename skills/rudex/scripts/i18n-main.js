@@ -3137,6 +3137,10 @@ function registerI18nIpc() {
       return { ok: false, error: "INVALID_FILENAME" };
     }
     const s = loadStudioSettings();
+    const activeMediaFile = s && s.appearance && s.appearance.wallpaper ? s.appearance.wallpaper.mediaFile : "";
+    if (activeMediaFile && activeMediaFile === name) {
+      return { ok: true, keptForActive: true };
+    }
     const profs = Array.isArray(s.appearanceProfiles) ? s.appearanceProfiles : [];
     const usedInProfile = profs.some((pr) => pr && pr.appearance && pr.appearance.wallpaper && pr.appearance.wallpaper.mediaFile === name);
     if (usedInProfile) {
@@ -3198,7 +3202,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.3",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.4",
         outPath,
       });
       return res;

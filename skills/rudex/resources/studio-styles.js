@@ -981,7 +981,9 @@ function buildStudioStyles() {
     }
     .modal-shell[data-studio-layout="rail"] .nav-label { font-size: 9.5px; width: 100%; text-align: center; }
     .modal-shell[data-studio-layout="rail"] .nav-badge { position: absolute; top: 3px; right: 4px; padding: 0 4px; font-size: 9px; }
-    .modal-shell[data-studio-layout="rail"] .sidebar-foot { width: 100%; align-items: center; }
+    .modal-shell[data-studio-layout="rail"] .sidebar-foot { width: 100%; align-items: center; padding: 8px 2px 2px; }
+    .modal-shell[data-studio-layout="rail"] .sidebar-foot-row { flex-direction: column; align-items: center; gap: 6px; }
+    .modal-shell[data-studio-layout="rail"] .sidebar-quick-actions { flex-direction: column; gap: 4px; }
 
     .modal-shell[data-studio-layout="topbar"] { flex-direction: column; }
     .modal-shell[data-studio-layout="topbar"] .modal-sidebar {
@@ -1110,7 +1112,10 @@ function buildStudioStyles() {
       gap: 4px;
       border-bottom: 1px solid var(--rx-border);
       flex-shrink: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
     }
+    .subtab-bar::-webkit-scrollbar { display: none; }
     .subtab-btn {
       position: relative;
       border: none;
@@ -1122,7 +1127,11 @@ function buildStudioStyles() {
       padding: 7px 10px 8px;
       cursor: pointer;
       white-space: nowrap;
+      flex-shrink: 0;
       transition: color 0.12s ease;
+    }
+    .modal-shell.is-appearance-live .subtab-btn {
+      padding: 6px 8px 7px;
     }
     .subtab-btn:hover { color: var(--rx-fg-strong); }
     .subtab-btn.is-active {
