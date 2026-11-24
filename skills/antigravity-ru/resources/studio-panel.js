@@ -1,2013 +1,2758 @@
 "use strict";
 
-/**
- * Antigravity RU Studio — draggable, dockable 3-mode minimalist widget (mini / medium / large).
- * Pure browser-compatible JS (no Node requires) using an isolated Shadow DOM root.
- */
-
 const BUILTIN_PERSONA_PRESETS = [
   {
     id: "concise",
-    labelRu: "Кратко и по делу",
-    labelEn: "Concise",
-    text: "Отвечай максимально кратко и по существу, без лишних вступлений и воды. Приоритет — готовый код и точные команды.",
+    titleRu: "Лаконичный профи",
+    titleEn: "Concise Pro",
+    descRu: "Короткие ответы по сути, без воды и лишних вступлений",
+    descEn: "Short, direct answers with no filler",
+    body: [
+      "# Стиль ответа",
+      "- Отвечай максимально сжато и по делу, сразу к коду и решению.",
+      "- Не повторяй вопрос пользователя и не пиши длинных вступлений.",
+      "- Если есть несколько вариантов, назови лучший и кратко обоснуй.",
+    ].join("\n"),
+  },
+  {
+    id: "architect",
+    titleRu: "Сеньор-архитектор",
+    titleEn: "Senior Architect",
+    descRu: "Структурный разбор, крайние случаи, надёжность и чистота кода",
+    descEn: "Design rigor, edge cases, and clean structure",
+    body: [
+      "# Инженерный стандарт",
+      "- Перед правками оценивай влияние на архитектуру и сопутствующие модули.",
+      "- Явно фиксируй допущения, граничные случаи и потенциальные риски.",
+      "- Предпочитай простые, поддерживаемые решения без дублирования логики.",
+    ].join("\n"),
   },
   {
     id: "mentor",
-    labelRu: "Наставник",
-    labelEn: "Mentor",
-    text: "Объясняй решения шаг за шагом как дружелюбный опытный наставник: кратко поясняй, почему выбран этот подход, и приводи понятные примеры.",
+    titleRu: "Наставник",
+    titleEn: "Mentor",
+    descRu: "Понятные пошаговые объяснения, чтобы быстро разобраться в теме",
+    descEn: "Clear step-by-step explanations and takeaways",
+    body: [
+      "# Формат наставника",
+      "- Объясняй ключевые шаги простым и понятным языком с примерами.",
+      "- Поясняй не только что меняется, но и почему выбран такой подход.",
+      "- В конце давай краткую сводку, что важно запомнить.",
+    ].join("\n"),
   },
   {
-    id: "senior",
-    labelRu: "Senior-ревьюер",
-    labelEn: "Senior Reviewer",
-    text: "Проводи строгий инженерный разбор: проверяй крайние случаи, архитектуру, производительность и безопасность. Сразу указывай на слабые места.",
+    id: "strict-ru",
+    titleRu: "Строгий RU",
+    titleEn: "Strict Russian",
+    descRu: "Вся коммуникация на чистом русском, код и символы в оригинале",
+    descEn: "Russian explanations with exact code identifiers",
+    body: [
+      "# Языковой режим",
+      "- Всегда отвечай на грамотном, естественном русском языке.",
+      "- Имена файлов, функций, переменных, команд CLI и пути оставляй в точном оригинале.",
+      "- Не переводи англоязычные термины неестественными кальками, если в разработке принят оригинал.",
+    ].join("\n"),
   },
   {
-    id: "simple",
-    labelRu: "Простым языком",
-    labelEn: "Plain Language",
-    text: "Объясняй всё простым, понятным человеческим языком без перегруженного жаргона. Если используешь сложный термин — сразу поясняй его в скобках.",
-  },
-  {
-    id: "ru_only",
-    labelRu: "Всегда на русском",
-    labelEn: "Always Russian",
-    text: "Всегда отвечай на грамотном русском языке, сохраняя технические идентификаторы, пути, команды и фрагменты кода в оригинале на английском.",
+    id: "qa",
+    titleRu: "Критик и ревьюер",
+    titleEn: "Strict Reviewer",
+    descRu: "Поиск багов, регрессий, слабых мест и обязательная проверка фактов",
+    descEn: "Find bugs, regressions, and verify every claim",
+    body: [
+      "# Фокус на проверке",
+      "- Относись к любому решению скептически: ищи регрессии, утечки и ошибки обработки сбоев.",
+      "- Проверяй крайние состояния, права доступа, таймауты и пустые входные данные.",
+      "- Отделяй подтверждённые тестами факты от предположений.",
+    ].join("\n"),
   },
 ];
 
+const MAX_PERSONA_BODY_BYTES = 23500;
+const DOCK_POSITIONS = ["bottom-right", "top-right", "middle-right", "bottom-left", "hidden"];
+const MINI_FIELD_KEYS = ["status", "lang", "tps", "respTokens", "chatTokens", "model"];
+const DEFAULT_MINI_FIELDS = {
+  status: true,
+  lang: true,
+  tps: true,
+  respTokens: false,
+  chatTokens: false,
+  model: false,
+};
+
+const ICON_PATHS = {
+  grip: '<circle cx="9" cy="6" r="1.15" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.15" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.15" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.15" fill="currentColor" stroke="none"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.77 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  expand: '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>',
+  minimize: '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>',
+  pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+  sliders: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/><path d="M5 3v4"/><path d="M3 5h4"/><path d="M19 17v4"/><path d="M17 19h4"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  palette: '<circle cx="13.5" cy="6.5" r=".75" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".75" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".75" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".75" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+  reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+};
+
+const TEXT = {
+  ru: {
+    brandTitle: "Antigravity Studio",
+    brandSub: "Панель управления и телеметрия",
+    modalTitleMonitor: "Монитор генерации",
+    modalSubMonitor: "Живая оценка скорости (TPS) и расхода токенов в активном чате",
+    modalTitleWidget: "Виджет на экране",
+    modalSubWidget: "Настройте компактную капсулу, поля и привязку к краю окна",
+    modalTitlePersona: "Характер агента",
+    modalSubPersona: "Управляет глобальным правилом ~/.gemini/config/rules/antigravity-ru-persona.md",
+    modalTitleLanguage: "Язык и перевод",
+    modalSubLanguage: "Переключение интерфейса Antigravity без перезапуска и горячие клавиши",
+    modalTitleAppearance: "Оформление",
+    modalSubAppearance: "Предпросмотр возможностей Этапа 2: темы, обои чата и типографика",
+    navMonitor: "Монитор",
+    navWidget: "Виджет",
+    navPersona: "Характер агента",
+    navLanguage: "Язык и перевод",
+    navAppearance: "Оформление",
+    stage2Pill: "Этап 2",
+    statusReady: "Готов",
+    statusWriting: "Генерация",
+    phaseIdle: "Ожидание ответа",
+    phaseLive: "Идёт генерация",
+    kpiTps: "Скорость потока",
+    kpiPeak: "Пиковая скорость",
+    kpiResp: "Последний ответ",
+    kpiChat: "Объём чата",
+    tpsUnit: "TPS",
+    tokShort: "ток.",
+    peakLabel: "Пик",
+    respLabel: "Ответ",
+    chatLabel: "Чат",
+    modelUnknown: "Модель не определена",
+    sparkTitle: "График скорости (последние замеры)",
+    resetStats: "Сбросить",
+    historyTitle: "История последних ответов",
+    historyEmpty: "Пока нет завершённых замеров в этой сессии. Запустите запрос, чтобы увидеть статистику.",
+    historyOff: "Запись истории отключена в настройках виджета.",
+    turnsCount: "замеров",
+    previewTitle: "Живой предпросмотр мини-капсулы",
+    previewSub: "Показывает точный вид компактного виджета при текущих переключателях",
+    modeTitle: "Формат плавающего виджета",
+    modeMiniTitle: "Мини-капсула (S)",
+    modeMiniDesc: "Узкая полупрозрачная пилюля без лишнего шума",
+    modeMedTitle: "Карточка с графиком (M)",
+    modeMedDesc: "TPS-график, счётчики токенов и активный характер",
+    fieldsTitle: "Элементы в мини-капсуле",
+    fieldStatus: "Индикатор состояния",
+    fieldStatusDesc: "Точка активности и фаза работы агента",
+    fieldLang: "Кнопка языка RU / EN",
+    fieldLangDesc: "Мгновенное переключение перевода в один клик",
+    fieldTps: "Скорость (TPS)",
+    fieldTpsDesc: "Живая сглаженная скорость токенов в секунду",
+    fieldResp: "Токены ответа",
+    fieldRespDesc: "Оценка длины последнего ответа модели",
+    fieldChat: "Контекст / объём чата",
+    fieldChatDesc: "Индикатор контекста или оценка всего диалога",
+    fieldModel: "Название модели",
+    fieldModelDesc: "Текущая выбранная модель агента",
+    trackHistoryLabel: "Сохранять историю замеров",
+    trackHistoryDesc: "Фиксировать среднюю и пиковую скорость завершённых ответов",
+    dockTitle: "Расположение и перетаскивание",
+    dockStateDocked: "Режим: прикреплён к якорю",
+    dockStateFloating: "Режим: свободная позиция (X/Y)",
+    dockResetBtn: "Вернуть к якорю",
+    dockBottomRight: "Правый низ",
+    dockTopRight: "Правый верх",
+    dockMiddleRight: "Правая середина",
+    dockBottomLeft: "Левый низ",
+    dockHidden: "Скрыть виджет",
+    dockHiddenHint: "Даже при скрытом виджете окно настроек всегда открывается по Ctrl+Alt+P.",
+    personaMasterTitle: "Активировать глобальный характер",
+    personaMasterDesc: "Автоматически добавляет инструкцию из редактора в системный контекст всех чатов",
+    personaActiveTag: "Правило активно",
+    personaOffTag: "Отключено",
+    personaPresetsLabel: "Готовые пресеты и ваши шаблоны",
+    personaCustomLabel: "Свой",
+    personaEditorLabel: "Текст инструкции (Markdown)",
+    personaBytes: "байт",
+    personaSavePresetPlaceholder: "Название нового пресета...",
+    personaAddPresetBtn: "Сохранить пресет",
+    personaApplyBtn: "Применить и сохранить",
+    personaClearBtn: "Очистить",
+    personaRulePathLabel: "Файл правила:",
+    personaSavedMsg: "Сохранено и применено",
+    personaClearedMsg: "Инструкция очищена",
+    personaDeletedPreset: "Пресет удалён",
+    personaLimitWarn: "Близко к лимиту правила (23 500 байт)",
+    langCardsTitle: "Язык интерфейса Antigravity",
+    langRuTitle: "Русский (RU)",
+    langRuDesc: "Полный перевод меню, диалогов, панелей и настроек",
+    langEnTitle: "English (EN)",
+    langEnDesc: "Оригинальный англоязычный интерфейс по умолчанию",
+    langActiveBadge: "Активен",
+    hotkeysTitle: "Горячие клавиши и быстрые жесты",
+    hkToggleLang: "Переключить язык интерфейса RU / EN",
+    hkToggleModal: "Открыть / закрыть полное окно Studio",
+    hkDoubleClick: "Открыть полные настройки в 1 жест",
+    hkDoubleClickKey: "Двойной клик по виджету",
+    hkEsc: "Закрыть окно настроек",
+    pluginInfoTitle: "Сведения о плагине",
+    pluginVersion: "Версия плагина",
+    pluginDict: "Статических фраз в словаре",
+    pluginRules: "Динамических правил",
+    pluginRepo: "Репозиторий GitHub",
+    stage2BannerTitle: "Что появится в Этапе 2 (Визуальная студия)",
+    stage2BannerDesc: "Следующий крупный релиз расширит Studio полной кастомизацией внешнего вида всего интерфейса Antigravity с предпросмотром изменений до применения.",
+    stage2ThemesTitle: "Темы и поверхности стекла",
+    stage2ThemesDesc: "Готовые пресеты (Obsidian Glass, Midnight Neon, Compact Paper, Warm Contrast) и тонкая настройка акцента, прозрачности и рамок.",
+    stage2WallsTitle: "Студия обоев для чатов",
+    stage2WallsDesc: "Статичные изображения, многослойные анимированные градиенты, настройка размытия/затемнения и динамические видео-обои с превью-окном.",
+    stage2FontsTitle: "Типографика и плотность UI",
+    stage2FontsDesc: "Выбор шрифтов интерфейса и сообщений, межстрочного интервала и масштаба карточек чата.",
+    tooltipExpand: "Развернуть в карточку (M)",
+    tooltipMini: "Свернуть в мини-капсулу (S)",
+    tooltipSettings: "Открыть полные настройки (Ctrl+Alt+P)",
+    tooltipPinToDock: "Вернуть к краю экрана",
+    tooltipFloating: "Свободно перемещён (нажмите для привязки)",
+    tooltipLang: "Переключить RU / EN",
+    tooltipClose: "Закрыть (Esc)",
+    sidebarFooterHint: "Открыть настройки",
+    personaBadgeOn: "Характер:",
+    personaBadgeOff: "Характер выкл.",
+    customPresetTitle: "Свой текст",
+  },
+  en: {
+    brandTitle: "Antigravity Studio",
+    brandSub: "Control center & live telemetry",
+    modalTitleMonitor: "Generation Monitor",
+    modalSubMonitor: "Live token throughput (TPS) and context size estimation",
+    modalTitleWidget: "Floating Widget",
+    modalSubWidget: "Configure compact capsule fields, mode, and edge docking",
+    modalTitlePersona: "Agent Persona",
+    modalSubPersona: "Manages global rule ~/.gemini/config/rules/antigravity-ru-persona.md",
+    modalTitleLanguage: "Language & UI",
+    modalSubLanguage: "Switch Antigravity localization live without restarting",
+    modalTitleAppearance: "Appearance",
+    modalSubAppearance: "Stage 2 roadmap preview: UI themes, chat wallpapers, and fonts",
+    navMonitor: "Monitor",
+    navWidget: "Widget",
+    navPersona: "Agent Persona",
+    navLanguage: "Language & UI",
+    navAppearance: "Appearance",
+    stage2Pill: "Stage 2",
+    statusReady: "Ready",
+    statusWriting: "Writing",
+    phaseIdle: "Idle",
+    phaseLive: "Streaming response",
+    kpiTps: "Stream speed",
+    kpiPeak: "Peak speed",
+    kpiResp: "Latest reply",
+    kpiChat: "Chat context",
+    tpsUnit: "TPS",
+    tokShort: "tok",
+    peakLabel: "Peak",
+    respLabel: "Reply",
+    chatLabel: "Chat",
+    modelUnknown: "Model not detected",
+    sparkTitle: "Throughput sparkline (recent ticks)",
+    resetStats: "Reset",
+    historyTitle: "Recent turn history",
+    historyEmpty: "No completed turns recorded in this session yet.",
+    historyOff: "Turn history tracking is disabled in Widget settings.",
+    turnsCount: "turns",
+    previewTitle: "Live Mini Capsule Preview",
+    previewSub: "Updates instantaneously as you toggle capsule fields below",
+    modeTitle: "Floating widget mode",
+    modeMiniTitle: "Mini Capsule (S)",
+    modeMiniDesc: "Slim frosted pill with zero visual clutter",
+    modeMedTitle: "Telemetry Card (M)",
+    modeMedDesc: "TPS sparkline, token estimates, and persona badge",
+    fieldsTitle: "Visible Mini Capsule fields",
+    fieldStatus: "Activity status",
+    fieldStatusDesc: "Live pulse dot and generation state",
+    fieldLang: "RU / EN switch",
+    fieldLangDesc: "One-click UI language toggle",
+    fieldTps: "Speed (TPS)",
+    fieldTpsDesc: "Smoothed tokens per second readout",
+    fieldResp: "Reply tokens",
+    fieldRespDesc: "Estimated token length of latest reply",
+    fieldChat: "Chat / context tokens",
+    fieldChatDesc: "Context usage indicator or chat estimate",
+    fieldModel: "Model name",
+    fieldModelDesc: "Active agent model badge",
+    trackHistoryLabel: "Record turn history",
+    trackHistoryDesc: "Log average and peak TPS for recent completed replies",
+    dockTitle: "Position & dragging",
+    dockStateDocked: "Layout: edge-docked",
+    dockStateFloating: "Layout: free-floating (X/Y)",
+    dockResetBtn: "Snap to anchor",
+    dockBottomRight: "Bottom right",
+    dockTopRight: "Top right",
+    dockMiddleRight: "Middle right",
+    dockBottomLeft: "Bottom left",
+    dockHidden: "Hidden",
+    dockHiddenHint: "Even when hidden, press Ctrl+Alt+P anytime to open full settings.",
+    personaMasterTitle: "Enable global persona rule",
+    personaMasterDesc: "Injects instructions below into all chats as a standing Global Rule",
+    personaActiveTag: "Rule active",
+    personaOffTag: "Disabled",
+    personaPresetsLabel: "Built-in & saved presets",
+    personaCustomLabel: "Custom",
+    personaEditorLabel: "Instruction body (Markdown)",
+    personaBytes: "bytes",
+    personaSavePresetPlaceholder: "New preset name...",
+    personaAddPresetBtn: "Save preset",
+    personaApplyBtn: "Save & Apply",
+    personaClearBtn: "Clear",
+    personaRulePathLabel: "Rule file:",
+    personaSavedMsg: "Saved & applied",
+    personaClearedMsg: "Cleared",
+    personaDeletedPreset: "Preset removed",
+    personaLimitWarn: "Approaching rule size cap (23,500 bytes)",
+    langCardsTitle: "Antigravity Interface Language",
+    langRuTitle: "Русский (RU)",
+    langRuDesc: "Complete Russian localization for menus, dialogs, and workspace",
+    langEnTitle: "English (EN)",
+    langEnDesc: "Default native English Antigravity interface",
+    langActiveBadge: "Active",
+    hotkeysTitle: "Shortcuts & quick gestures",
+    hkToggleLang: "Toggle RU / EN localization",
+    hkToggleModal: "Open / close full Studio settings",
+    hkDoubleClick: "Open full settings directly",
+    hkDoubleClickKey: "Double-click widget",
+    hkEsc: "Close full settings modal",
+    pluginInfoTitle: "Plugin Diagnostics",
+    pluginVersion: "Plugin version",
+    pluginDict: "Static dictionary entries",
+    pluginRules: "Dynamic rules",
+    pluginRepo: "GitHub Repository",
+    stage2BannerTitle: "Coming in Stage 2 (Visual Studio)",
+    stage2BannerDesc: "The next release brings full visual customization of Antigravity with interactive live previews before saving.",
+    stage2ThemesTitle: "Themes & Glass Surfaces",
+    stage2ThemesDesc: "Curated presets (Obsidian Glass, Midnight Neon, Compact Paper) plus accent color, blur, and border tuning.",
+    stage2WallsTitle: "Chat Wallpaper Studio",
+    stage2WallsDesc: "Static backgrounds, multi-stop animated gradients, blur/dim sliders, and dynamic video wallpapers.",
+    stage2FontsTitle: "Typography & UI Density",
+    stage2FontsDesc: "Custom UI and message fonts, line height, and compact/relaxed spacing presets.",
+    tooltipExpand: "Expand to card (M)",
+    tooltipMini: "Collapse to mini pill (S)",
+    tooltipSettings: "Open full settings (Ctrl+Alt+P)",
+    tooltipPinToDock: "Snap back to edge anchor",
+    tooltipFloating: "Free-floating (click to snap back)",
+    tooltipLang: "Switch RU / EN",
+    tooltipClose: "Close (Esc)",
+    sidebarFooterHint: "Open Settings",
+    personaBadgeOn: "Persona:",
+    personaBadgeOff: "Persona off",
+    customPresetTitle: "Custom",
+  },
+};
+
 function estimateTokens(text) {
-  if (typeof text !== "string" || !text) return 0;
+  if (!text || typeof text !== "string") return 0;
   const trimmed = text.trim();
   if (!trimmed) return 0;
-  let cyr = 0;
-  let ascii = 0;
-  let other = 0;
-  for (let i = 0; i < trimmed.length; i++) {
-    const code = trimmed.charCodeAt(i);
-    if (code >= 0x0400 && code <= 0x04ff) cyr++;
-    else if (code <= 0x7f) ascii++;
-    else other++;
+  let nonAscii = 0;
+  for (let i = 0; i < trimmed.length; i += 1) {
+    if (trimmed.charCodeAt(i) > 127) nonAscii += 1;
   }
-  const est = Math.round(cyr / 2.4 + ascii / 3.8 + other / 1.5);
-  return Math.max(1, est);
+  const ascii = trimmed.length - nonAscii;
+  return Math.max(1, Math.round(ascii / 3.5 + nonAscii / 2.1));
 }
 
-function measureUtf8Bytes(str) {
-  const s = String(str || "");
-  if (typeof TextEncoder === "function") {
-    return new TextEncoder().encode(s).length;
+function escHtml(str) {
+  return String(str == null ? "" : str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escAttr(str) {
+  return escHtml(str).replace(/'/g, "&#39;");
+}
+
+function formatCompact(num) {
+  const n = Math.max(0, Math.round(Number(num) || 0));
+  if (n >= 10000) return (n / 1000).toFixed(0) + "k";
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+  return String(n);
+}
+
+function utf8ByteLength(str) {
+  const text = String(str || "");
+  if (typeof TextEncoder !== "undefined") {
+    try {
+      return new TextEncoder().encode(text).length;
+    } catch (_e) {}
   }
   let bytes = 0;
-  for (let i = 0; i < s.length; i++) {
-    const code = s.charCodeAt(i);
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
     if (code < 0x80) bytes += 1;
     else if (code < 0x800) bytes += 2;
-    else if (code >= 0xd800 && code <= 0xdbff) {
+    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
       bytes += 4;
-      i++;
+      i += 1;
     } else bytes += 3;
   }
   return bytes;
 }
 
-function createStudioPanel(options) {
-  const doc = options && options.document;
-  const win = (options && options.window) || (doc && doc.defaultView) || {};
-  const ipc = options && options.ipcRenderer;
-  const pluginMeta = (options && options.pluginMeta) || {};
-  const MAX_PERSONA_BYTES = 23500;
+function iconSvg(name, size) {
+  const s = size || 14;
+  const paths = ICON_PATHS[name] || ICON_PATHS.gear;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+}
 
-  let locale = options && options.initialLocale === "en" ? "en" : "ru";
-  let activeTab = "monitor"; // "monitor" | "persona" | "settings"
-  let lastCompactMode = "mini"; // "mini" | "medium"
-  let showSavePresetBar = false;
-  let personaSaveFeedback = null;
-  let personaDirty = false;
-  let initialized = false;
-  let pollTimer = null;
-  let isDragging = false;
-
-  let settings = {
-    panelEnabled: true,
-    viewMode: "mini", // "mini" | "medium" | "large"
-    layoutMode: "docked", // "docked" | "floating"
-    dockPosition: "bottom", // "top" | "middle" | "bottom" | "hidden"
-    floatX: null,
-    floatY: null,
-    miniFields: {
-      status: true,
-      lang: true,
-      tps: true,
-      respTokens: false,
-      chatTokens: false,
-      model: false,
-    },
-    trackHistory: true,
-    personaEnabled: false,
-    personaActivePreset: "custom",
-    personaText: "",
-    customPresets: [],
+function normalizeMiniFields(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  return {
+    status: src.status !== false,
+    lang: src.lang !== false,
+    tps: src.tps !== false,
+    respTokens: src.respTokens === true,
+    chatTokens: src.chatTokens === true,
+    model: src.model === true,
   };
-  let personaFileExists = false;
+}
 
-  const monitor = {
-    phase: "idle", // "idle" | "thinking" | "streaming"
-    thinkingSec: 0,
-    modelName: "",
-    contextNote: "",
-    liveTps: 0,
-    lastAvgTps: 0,
-    peakTps: 0,
-    responseTokens: 0,
-    responseChars: 0,
-    chatTokens: 0,
-    sparkline: [],
-    history: [],
-  };
+function normalizeDockPosition(rawDock) {
+  if (rawDock === "top") return "top-right";
+  if (rawDock === "middle") return "middle-right";
+  if (rawDock === "bottom") return "bottom-right";
+  return DOCK_POSITIONS.indexOf(rawDock) >= 0 ? rawDock : "bottom-right";
+}
 
-  let lastConvKey = "";
-  let activeResponseEl = null;
-  let isWorking = false;
-  let turnStartMs = 0;
-  let turnBaselineTokens = 0;
-  let turnPeakTps = 0;
-  let windowSamples = [];
-  let turnCounter = 0;
+function normalizeViewMode(rawMode) {
+  return rawMode === "medium" || rawMode === "large" ? "medium" : "mini";
+}
 
-  let hostEl = null;
-  let shadow = null;
-  let ui = {};
-
-  const I18N = {
-    ru: {
-      brand: "Antigravity RU Studio",
-      brandShort: "RU Studio",
-      tabMonitor: "Монитор",
-      tabPersona: "Характер",
-      tabSettings: "Настройки",
-      modeMini: "Мини",
-      modeMed: "Средний",
-      modeLarge: "Большой",
-      sizeTitle: "Размер окна",
-      statusIdle: "Ожидание",
-      statusThinking: "Думает…",
-      statusStreaming: "Генерация…",
-      modelUnknown: "Модель не определена",
-      tpsLabel: "Скорость (TPS)",
-      tpsUnit: "т/с",
-      peakPrefix: "Пик:",
-      respLabel: "Ответ",
-      chatLabel: "Чат",
-      tokUnit: "ток",
-      charsUnit: "симв.",
-      sparkTitle: "График скорости генерации",
-      historyTitle: "Последние ответы",
-      historyEmpty: "Отправьте сообщение, чтобы увидеть живую скорость и оценку токенов.",
-      resetStats: "Сбросить",
-      estNote: "* Оценка по потоку в DOM (±10–15%). Точный счётчик сервера в UI недоступен.",
-      personaToggle: "Включить правила характера",
-      personaActive: "Активно",
-      personaOff: "Выключено",
-      personaHint: "Сохраняется как официальное Global Rule (always_on) и действует со следующего нового чата.",
-      presetsLabel: "Пресеты",
-      personaPlaceholder: "Опишите желаемый характер, стиль ответов, формат кода или ограничения агента...",
-      saveAndApply: "Сохранить и применить",
-      addToPresets: "+ В пресеты",
-      clearText: "Очистить",
-      presetNamePlaceholder: "Название пресета...",
-      savePresetBtn: "Сохранить",
-      cancelBtn: "Отмена",
-      savedOk: "Сохранено в antigravity-ru-persona.md — применится в следующем чате",
-      disabledOk: "Правило характера отключено (файл удалён)",
-      limitErr: "Превышен лимит 23 500 байт — сократите текст",
-      bytesLabel: "байт",
-      langTitle: "Язык интерфейса",
-      dockTitle: "Привязка и позиция окна",
-      dockTop: "Правый верх",
-      dockMiddle: "По центру",
-      dockBottom: "Правый низ",
-      dockHidden: "Скрыт",
-      resetPos: "Сбросить позицию",
-      pinTipDocked: "Прикреплено справа (потяните за шапку, чтобы переместить)",
-      pinTipFloating: "Свободное окно (нажмите, чтобы закрепить справа)",
-      dragTip: "Перетащите в любое место экрана",
-      miniFieldsTitle: "Параметры в Мини-режиме",
-      mfStatus: "Индикатор статуса",
-      mfLang: "Язык (RU/EN)",
-      mfTps: "Скорость (TPS)",
-      mfRespTok: "Токены ответа",
-      mfChatTok: "Токены чата",
-      mfModel: "Название модели",
-      hotkeyHintDock: "Перетаскивайте окно за шапку. Ctrl+Alt+P — свернуть/развернуть",
-      hotkeyHintLang: "Быстрое переключение: Ctrl+Alt+L",
-      trackHistoryLabel: "Сохранять историю скорости ответов",
-      pluginInfoTitle: "О плагине",
-      infoVersion: "Версия",
-      infoDict: "Строк в словаре",
-      infoRules: "Динамических правил",
-      infoRepo: "Репозиторий на GitHub",
-      stage2Title: "Скоро в Этапе 2",
-      stage2Desc: "Режимы оформления (Стандартный / Улучшенный / Стекло / Неон / Кастом), студия обоев (фото, градиенты, видео с предпросмотром) и выбор шрифтов.",
-      collapseTip: "Свернуть (Esc)",
-      expandMedTip: "Средний вид",
-      expandLargeTip: "Открыть Studio (Ctrl+Alt+P)",
-    },
-    en: {
-      brand: "Antigravity RU Studio",
-      brandShort: "RU Studio",
-      tabMonitor: "Monitor",
-      tabPersona: "Persona",
-      tabSettings: "Settings",
-      modeMini: "Mini",
-      modeMed: "Medium",
-      modeLarge: "Large",
-      sizeTitle: "Widget Size",
-      statusIdle: "Idle",
-      statusThinking: "Thinking…",
-      statusStreaming: "Streaming…",
-      modelUnknown: "Model not detected",
-      tpsLabel: "Speed (TPS)",
-      tpsUnit: "t/s",
-      peakPrefix: "Peak:",
-      respLabel: "Response",
-      chatLabel: "Chat",
-      tokUnit: "tok",
-      charsUnit: "chars",
-      sparkTitle: "Live generation speed",
-      historyTitle: "Recent responses",
-      historyEmpty: "Send a message to see live generation speed and token estimates.",
-      resetStats: "Reset",
-      estNote: "* Estimated from live DOM stream (±10–15%). Exact server token counts are not exposed to UI.",
-      personaToggle: "Enable persona rules",
-      personaActive: "Active",
-      personaOff: "Disabled",
-      personaHint: "Saved as an official Global Rule (always_on) and takes effect starting from the next new chat.",
-      presetsLabel: "Presets",
-      personaPlaceholder: "Describe desired agent personality, tone, coding style, or constraints...",
-      saveAndApply: "Save & Apply",
-      addToPresets: "+ Save Preset",
-      clearText: "Clear",
-      presetNamePlaceholder: "Preset name...",
-      savePresetBtn: "Save",
-      cancelBtn: "Cancel",
-      savedOk: "Saved to antigravity-ru-persona.md — applies in the next new chat",
-      disabledOk: "Persona rule disabled (file removed)",
-      limitErr: "Exceeds 23,500 byte limit — please shorten the text",
-      bytesLabel: "bytes",
-      langTitle: "Interface Language",
-      dockTitle: "Position & Docking",
-      dockTop: "Top Right",
-      dockMiddle: "Center",
-      dockBottom: "Bottom Right",
-      dockHidden: "Hidden",
-      resetPos: "Reset position",
-      pinTipDocked: "Docked to right edge (drag header to float)",
-      pinTipFloating: "Floating (click to snap back to right edge)",
-      dragTip: "Drag anywhere on screen",
-      miniFieldsTitle: "Visible Fields in Mini Mode",
-      mfStatus: "Status dot",
-      mfLang: "Language (RU/EN)",
-      mfTps: "Speed (TPS)",
-      mfRespTok: "Response tokens",
-      mfChatTok: "Chat tokens",
-      mfModel: "Model name",
-      hotkeyHintDock: "Drag header to reposition. Ctrl+Alt+P toggles compact/large",
-      hotkeyHintLang: "Quick switch: Ctrl+Alt+L",
-      trackHistoryLabel: "Keep response speed history",
-      pluginInfoTitle: "Plugin Info",
-      infoVersion: "Version",
-      infoDict: "Dictionary entries",
-      infoRules: "Dynamic rules",
-      infoRepo: "GitHub Repository",
-      stage2Title: "Coming in Stage 2",
-      stage2Desc: "Theme presets (Default / Enhanced / Glass / Neon / Custom), Wallpaper Studio (images, gradients, video with live preview), and custom fonts.",
-      collapseTip: "Collapse (Esc)",
-      expandMedTip: "Medium view",
-      expandLargeTip: "Open Studio (Ctrl+Alt+P)",
-    },
-  };
-
-  function t(key) {
-    return (I18N[locale] && I18N[locale][key]) || I18N.ru[key] || key;
+function normalizeCustomPresets(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (let i = 0; i < list.length && out.length < 16; i += 1) {
+    const p = list[i];
+    if (!p || typeof p !== "object") continue;
+    const id = String(p.id || "").trim();
+    const title = String(p.title || "").trim();
+    const body = String(p.body || "");
+    if (!id || !title || !body) continue;
+    out.push({ id, title: title.slice(0, 48), body: body.slice(0, MAX_PERSONA_BODY_BYTES) });
   }
+  return out;
+}
 
-  function formatInt(n) {
-    return Math.max(0, Math.round(Number(n) || 0)).toLocaleString(locale === "ru" ? "ru-RU" : "en-US");
-  }
+function buildSparklineMarkup(samples, width, height, idPrefix) {
+  const pts = Array.isArray(samples) && samples.length > 0 ? samples.slice(-24) : [0, 0];
+  const padded = pts.length === 1 ? [pts[0], pts[0]] : pts;
+  const maxVal = Math.max(12, ...padded);
+  const padX = 4;
+  const padY = 5;
+  const innerW = Math.max(10, width - padX * 2);
+  const innerH = Math.max(10, height - padY * 2);
+  const coords = padded.map((v, idx) => {
+    const x = padX + (idx / Math.max(1, padded.length - 1)) * innerW;
+    const y = padY + innerH - (Math.max(0, v) / maxVal) * innerH;
+    return [Number(x.toFixed(1)), Number(y.toFixed(1))];
+  });
+  const lineD = coords.map((c, idx) => `${idx === 0 ? "M" : "L"}${c[0]} ${c[1]}`).join(" ");
+  const last = coords[coords.length - 1];
+  const first = coords[0];
+  const areaD = `${lineD} L${last[0]} ${(height - padY).toFixed(1)} L${first[0]} ${(height - padY).toFixed(1)} Z`;
+  const gradId = `agySparkGrad_${idPrefix}`;
+  const midY = (padY + innerH * 0.5).toFixed(1);
+  return `<svg class="spark-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--st-accent)" stop-opacity="0.34"/>
+        <stop offset="100%" stop-color="var(--st-accent)" stop-opacity="0.02"/>
+      </linearGradient>
+    </defs>
+    <line x1="${padX}" y1="${midY}" x2="${width - padX}" y2="${midY}" stroke="var(--st-border-strong)" stroke-dasharray="2.5 3" stroke-width="1"/>
+    <path d="${areaD}" fill="url(#${gradId})"/>
+    <path d="${lineD}" fill="none" stroke="var(--st-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="2.8" fill="var(--st-accent)"/>
+  </svg>`;
+}
 
-  function getStylesheet() {
-    return `
-      :host {
-        all: initial;
-        font-family: var(--font-sans, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif);
-        color: var(--foreground, #e4e4e7);
-        font-size: 12.5px;
-        line-height: 1.45;
-      }
-      * { box-sizing: border-box; }
-      button, input, textarea { font-family: inherit; color: inherit; }
-
-      .widget {
-        position: fixed;
-        z-index: 2147483000;
-        background: color-mix(in srgb, var(--background, #121215) 90%, transparent);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid var(--card-border, rgba(255,255,255,0.13));
-        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
-        color: var(--foreground, #e4e4e7);
-        transition: box-shadow 0.18s ease, border-color 0.18s ease;
-      }
-      .widget.dragging {
-        transition: none !important;
-        border-color: var(--primary, #007acc);
-        box-shadow: 0 20px 52px rgba(0, 0, 0, 0.62);
-        user-select: none;
-      }
-      .widget.mode-mini {
-        border-radius: 11px;
-        width: auto;
-        max-width: min(420px, calc(100vw - 16px));
-      }
-      .widget.mode-medium {
-        border-radius: 13px;
-        width: 264px;
-        max-width: calc(100vw - 16px);
-      }
-      .widget.mode-large {
-        border-radius: 14px;
-        width: 356px;
-        max-width: calc(100vw - 16px);
-        max-height: calc(100vh - 76px);
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      }
-
-      /* Docked snapping */
-      .widget.dock-top { top: 72px; right: 10px; }
-      .widget.dock-middle { top: 50%; right: 10px; transform: translateY(-50%); }
-      .widget.dock-bottom { bottom: 84px; right: 10px; }
-      .widget.dock-hidden.mode-mini { display: none; }
-      .widget.dock-hidden.mode-medium,
-      .widget.dock-hidden.mode-large { bottom: 84px; right: 10px; }
-
-      .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--muted-foreground, #71717a);
-        flex-shrink: 0;
-        transition: background 0.2s ease, box-shadow 0.2s ease;
-      }
-      .dot.thinking {
-        background: var(--warning, #e8975f);
-        box-shadow: 0 0 8px var(--warning, #e8975f);
-        animation: agyPulse 1.2s ease-in-out infinite;
-      }
-      .dot.streaming {
-        background: var(--success, #34d399);
-        box-shadow: 0 0 8px var(--success, #34d399);
-        animation: agyPulse 0.9s ease-in-out infinite;
-      }
-      @keyframes agyPulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.45; transform: scale(0.85); }
-      }
-
-      /* MINI VIEW */
-      .mini-bar {
-        display: none;
-        align-items: center;
-        gap: 6px;
-        padding: 5px 7px;
-        cursor: grab;
-        user-select: none;
-      }
-      .mini-bar:active { cursor: grabbing; }
-      .widget.mode-mini .mini-bar { display: flex; }
-      .grip {
-        font-size: 11px;
-        line-height: 1;
-        letter-spacing: -1px;
-        color: var(--muted-foreground, #71717a);
-        cursor: grab;
-        padding: 1px 2px;
-        flex-shrink: 0;
-      }
-      .mini-lang {
-        border: none;
-        background: var(--secondary, #27272a);
-        color: var(--foreground, #f4f4f5);
-        font-size: 10.5px;
-        font-weight: 700;
-        padding: 2px 6px;
-        border-radius: 5px;
-        cursor: pointer;
-        flex-shrink: 0;
-      }
-      .mini-lang:hover { background: var(--primary, #007acc); color: #fff; }
-      .mini-stat {
-        font-size: 11px;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-        color: var(--foreground, #e4e4e7);
-      }
-      .mini-stat.tps { color: var(--primary, #38bdf8); }
-      .mini-model {
-        font-size: 10.5px;
-        color: var(--muted-foreground, #a1a1aa);
-        max-width: 110px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .mini-actions {
-        display: inline-flex;
-        align-items: center;
-        gap: 2px;
-        margin-left: 1px;
-        padding-left: 5px;
-        border-left: 1px solid var(--card-border, rgba(255,255,255,0.1));
-      }
-      .sz-btn {
-        border: none;
-        background: transparent;
-        color: var(--muted-foreground, #a1a1aa);
-        font-size: 10.5px;
-        font-weight: 700;
-        padding: 2px 5px;
-        border-radius: 5px;
-        cursor: pointer;
-      }
-      .sz-btn:hover { background: var(--secondary, #27272a); color: var(--foreground, #fff); }
-      .sz-btn.active { background: var(--primary, #007acc); color: var(--primary-foreground, #fff); }
-
-      /* MEDIUM & LARGE SHARED HEADER */
-      .med-wrap, .large-wrap { display: none; flex-direction: column; }
-      .widget.mode-medium .med-wrap { display: flex; }
-      .widget.mode-large .large-wrap { display: flex; height: 100%; max-height: calc(100vh - 76px); }
-
-      .hdr {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 6px;
-        padding: 8px 10px;
-        border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.09));
-        background: color-mix(in srgb, var(--card, #18181b) 78%, transparent);
-        cursor: grab;
-        user-select: none;
-      }
-      .hdr:active { cursor: grabbing; }
-      .hdr-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
-      .logo-pill {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 21px;
-        height: 21px;
-        border-radius: 6px;
-        font-size: 9.5px;
-        font-weight: 800;
-        background: linear-gradient(135deg, #1d4ed8, #0284c7);
-        color: #fff;
-        flex-shrink: 0;
-      }
-      .hdr-title {
-        font-size: 12px;
-        font-weight: 650;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .hdr-ver { font-size: 10px; color: var(--muted-foreground, #8a8a93); }
-      .hdr-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-
-      .seg {
-        display: inline-flex;
-        padding: 2px;
-        border-radius: 7px;
-        background: var(--secondary, #27272a);
-        border: 1px solid var(--card-border, rgba(255,255,255,0.08));
-      }
-      .seg button {
-        border: none;
-        background: transparent;
-        padding: 2px 6px;
-        font-size: 10.5px;
-        font-weight: 650;
-        border-radius: 5px;
-        cursor: pointer;
-        color: var(--muted-foreground, #a1a1aa);
-        transition: background 0.14s ease, color 0.14s ease;
-      }
-      .seg button.active {
-        background: var(--primary, #007acc);
-        color: var(--primary-foreground, #ffffff);
-      }
-
-      .icon-btn {
-        width: 22px;
-        height: 22px;
-        border-radius: 6px;
-        border: 1px solid transparent;
-        background: transparent;
-        color: var(--muted-foreground, #a1a1aa);
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        line-height: 1;
-        padding: 0;
-      }
-      .icon-btn:hover { background: var(--secondary, #27272a); color: var(--foreground, #fff); }
-      .icon-btn.pinned { color: var(--primary, #38bdf8); }
-
-      /* MEDIUM BODY */
-      .med-body {
-        padding: 9px 10px 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      .med-metrics {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 5px;
-      }
-      .med-metric {
-        background: var(--card, #18181b);
-        border: 1px solid var(--card-border, rgba(255,255,255,0.09));
-        border-radius: 8px;
-        padding: 6px 7px;
-        min-width: 0;
-      }
-      .med-metric .metric-val { font-size: 13px; }
-      .spark-svg {
-        width: 100%;
-        height: 56px;
-        display: block;
-        border-radius: 6px;
-        background: color-mix(in srgb, var(--muted, #111113) 75%, transparent);
-      }
-      .med-spark-svg {
-        width: 100%;
-        height: 44px;
-        display: block;
-        border-radius: 6px;
-        background: color-mix(in srgb, var(--muted, #111113) 75%, transparent);
-      }
-
-      /* LARGE TABS & BODY */
-      .tabs {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 4px;
-        padding: 7px 10px 6px;
-        border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.08));
-        flex-shrink: 0;
-      }
-      .tab-btn {
-        border: 1px solid transparent;
-        background: transparent;
-        padding: 5px 6px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--muted-foreground, #a1a1aa);
-        cursor: pointer;
-      }
-      .tab-btn:hover { color: var(--foreground, #fff); background: color-mix(in srgb, var(--secondary, #27272a) 60%, transparent); }
-      .tab-btn.active { color: var(--foreground, #fff); background: var(--secondary, #27272a); border-color: var(--card-border, rgba(255,255,255,0.12)); }
-
-      .body {
-        flex: 1;
-        overflow-y: auto;
-        padding: 11px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-      .body::-webkit-scrollbar { width: 5px; }
-      .body::-webkit-scrollbar-thumb { background: var(--card-border, rgba(255,255,255,0.15)); border-radius: 999px; }
-      .pane { display: none; flex-direction: column; gap: 10px; }
-      .pane.active { display: flex; }
-
-      .card {
-        background: var(--card, #18181b);
-        border: 1px solid var(--card-border, rgba(255,255,255,0.09));
-        border-radius: 10px;
-        padding: 9px 10px;
-      }
-      .status-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-      .status-left { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 11.5px; }
-      .model-pill { font-size: 10.5px; color: var(--muted-foreground, #a1a1aa); max-width: 155px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-      .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
-      .metric {
-        background: var(--card, #18181b);
-        border: 1px solid var(--card-border, rgba(255,255,255,0.09));
-        border-radius: 10px;
-        padding: 8px 9px;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        min-width: 0;
-      }
-      .metric-lbl { font-size: 10px; color: var(--muted-foreground, #8a8a93); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .metric-val { font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--foreground, #fff); white-space: nowrap; }
-      .metric-sub { font-size: 10px; color: var(--muted-foreground, #8a8a93); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-      .spark-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-      .sec-title { font-size: 11.5px; font-weight: 600; color: var(--secondary-foreground, #d4d4d8); }
-      .link-btn { border: none; background: transparent; padding: 2px 5px; font-size: 11px; color: var(--muted-foreground, #a1a1aa); cursor: pointer; border-radius: 5px; }
-      .link-btn:hover { color: var(--foreground, #fff); background: var(--secondary, #27272a); }
-
-      .hist-list { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
-      .hist-row {
-        display: grid;
-        grid-template-columns: 28px 1fr auto auto;
-        gap: 8px;
-        align-items: center;
-        padding: 5px 7px;
-        border-radius: 7px;
-        background: color-mix(in srgb, var(--secondary, #27272a) 55%, transparent);
-        font-size: 11px;
-        font-variant-numeric: tabular-nums;
-      }
-      .hist-empty { font-size: 11.5px; color: var(--muted-foreground, #8a8a93); margin-top: 4px; }
-      .footnote { font-size: 10.5px; color: var(--muted-foreground, #8a8a93); line-height: 1.35; }
-
-      .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-      .switch-btn {
-        position: relative;
-        width: 34px;
-        height: 19px;
-        border-radius: 999px;
-        border: none;
-        background: var(--secondary, #3f3f46);
-        cursor: pointer;
-        padding: 0;
-        flex-shrink: 0;
-        transition: background 0.18s ease;
-      }
-      .switch-btn[aria-checked="true"] { background: var(--primary, #007acc); }
-      .switch-knob {
-        position: absolute;
-        top: 2px;
-        left: 2px;
-        width: 15px;
-        height: 15px;
-        border-radius: 50%;
-        background: #fff;
-        transition: transform 0.18s ease;
-      }
-      .switch-btn[aria-checked="true"] .switch-knob { transform: translateX(15px); }
-      .pill-tag { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: var(--secondary, #27272a); color: var(--muted-foreground, #a1a1aa); }
-      .pill-tag.on { background: color-mix(in srgb, var(--success, #34d399) 18%, transparent); color: var(--success, #34d399); }
-
-      .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-      .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        padding: 4px 8px;
-        border-radius: 7px;
-        border: 1px solid var(--card-border, rgba(255,255,255,0.1));
-        background: var(--secondary, #27272a);
-        color: var(--foreground, #e4e4e7);
-        font-size: 11px;
-        cursor: pointer;
-      }
-      .chip:hover { border-color: var(--primary, #007acc); }
-      .chip.active { border-color: var(--primary, #007acc); background: color-mix(in srgb, var(--primary, #007acc) 22%, var(--secondary, #27272a)); }
-      .chip-del { font-size: 12px; line-height: 1; opacity: 0.65; padding-left: 2px; }
-      .chip-del:hover { opacity: 1; color: var(--error, #de5555); }
-
-      textarea.persona-ta {
-        width: 100%;
-        min-height: 124px;
-        resize: vertical;
-        padding: 9px 10px;
-        border-radius: 9px;
-        border: 1px solid var(--card-border, rgba(255,255,255,0.14));
-        background: var(--muted, #141417);
-        color: var(--foreground, #f4f4f5);
-        font-size: 12px;
-        line-height: 1.45;
-        outline: none;
-      }
-      textarea.persona-ta:focus { border-color: var(--primary, #007acc); }
-      .meter-row { display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: var(--muted-foreground, #8a8a93); font-variant-numeric: tabular-nums; }
-      .meter-row.warn { color: var(--warning, #e8975f); }
-      .meter-row.over { color: var(--error, #de5555); font-weight: 600; }
-
-      .btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
-      .btn {
-        border: 1px solid var(--card-border, rgba(255,255,255,0.12));
-        background: var(--secondary, #27272a);
-        color: var(--foreground, #f4f4f5);
-        border-radius: 8px;
-        padding: 6px 10px;
-        font-size: 11.5px;
-        font-weight: 600;
-        cursor: pointer;
-      }
-      .btn:hover { opacity: 0.9; }
-      .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-      .btn-primary { background: var(--primary, #007acc); border-color: var(--primary, #007acc); color: var(--primary-foreground, #fff); flex: 1; }
-
-      .preset-bar { display: flex; gap: 6px; align-items: center; }
-      .preset-bar input {
-        flex: 1; min-width: 0; padding: 5px 8px; border-radius: 7px;
-        border: 1px solid var(--card-border, rgba(255,255,255,0.14));
-        background: var(--muted, #141417); font-size: 11.5px; outline: none;
-      }
-      .preset-bar input:focus { border-color: var(--primary, #007acc); }
-      .toast { font-size: 11px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--card-border, rgba(255,255,255,0.1)); }
-      .toast.ok { background: color-mix(in srgb, var(--success, #34d399) 14%, transparent); border-color: color-mix(in srgb, var(--success, #34d399) 35%, transparent); color: var(--success, #34d399); }
-      .toast.err { background: color-mix(in srgb, var(--error, #de5555) 14%, transparent); border-color: color-mix(in srgb, var(--error, #de5555) 35%, transparent); color: var(--error, #de5555); }
-
-      .info-grid { display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; font-size: 11.5px; margin-top: 6px; }
-      .info-k { color: var(--muted-foreground, #8a8a93); }
-      .info-v { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
-      .soon-card {
-        border-style: dashed;
-        border-color: color-mix(in srgb, var(--primary, #007acc) 45%, transparent);
-        background: color-mix(in srgb, var(--primary, #007acc) 6%, var(--card, #18181b));
-      }
-      .gh-link { color: var(--link, #6a9fcb); text-decoration: none; font-size: 11.5px; font-weight: 600; }
-      .gh-link:hover { text-decoration: underline; }
-    `;
-  }
-
-  function buildDom() {
-    if (!doc || !doc.createElement) return;
-    if (hostEl && hostEl.parentNode) return;
-
-    const mountTarget = doc.body || doc.documentElement;
-    if (!mountTarget || typeof mountTarget.appendChild !== "function") return;
-
-    hostEl = doc.createElement("div");
-    hostEl.id = "agy-ru-studio-host";
-    if (typeof hostEl.setAttribute === "function") {
-      hostEl.setAttribute("data-agy-ru-ignore", "1");
+function buildStyles() {
+  return `
+    :host {
+      all: initial;
+      --st-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
+      --st-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+      --st-bg: var(--background, #101010);
+      --st-sidebar: var(--sidebar, #151515);
+      --st-card: var(--card, #18181a);
+      --st-card-hover: #222327;
+      --st-glass: rgba(20, 20, 23, 0.84);
+      --st-glass-strong: rgba(16, 16, 19, 0.94);
+      --st-fg: var(--foreground, #d4d4d8);
+      --st-fg-strong: #f4f4f5;
+      --st-muted: var(--muted-foreground, #8b8d94);
+      --st-border: rgba(255, 255, 255, 0.09);
+      --st-border-strong: rgba(255, 255, 255, 0.16);
+      --st-accent: var(--primary, #007acc);
+      --st-accent-soft: rgba(0, 122, 204, 0.16);
+      --st-accent-border: rgba(0, 122, 204, 0.45);
+      --st-success: var(--success, #7aae66);
+      --st-success-soft: rgba(122, 174, 102, 0.15);
+      --st-warning: var(--warning, #e8975f);
+      --st-error: var(--error, #de5555);
+      --st-shadow: 0 12px 32px rgba(0, 0, 0, 0.48), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+      --st-modal-shadow: 0 28px 80px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      font-family: var(--st-font);
+      color-scheme: dark;
     }
 
-    shadow = typeof hostEl.attachShadow === "function" ? hostEl.attachShadow({ mode: "open" }) : hostEl;
+    .studio-root[data-theme="light"] {
+      --st-bg: #f6f7f9;
+      --st-sidebar: #eef0f4;
+      --st-card: #ffffff;
+      --st-card-hover: #f2f4f8;
+      --st-glass: rgba(255, 255, 255, 0.86);
+      --st-glass-strong: rgba(255, 255, 255, 0.96);
+      --st-fg: #27272a;
+      --st-fg-strong: #09090b;
+      --st-muted: #646973;
+      --st-border: rgba(15, 23, 42, 0.10);
+      --st-border-strong: rgba(15, 23, 42, 0.18);
+      --st-accent: #006bb3;
+      --st-accent-soft: rgba(0, 107, 179, 0.12);
+      --st-accent-border: rgba(0, 107, 179, 0.42);
+      --st-success: #2f7d32;
+      --st-success-soft: rgba(47, 125, 50, 0.12);
+      --st-shadow: 0 10px 28px rgba(15, 23, 42, 0.16), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+      --st-modal-shadow: 0 26px 70px rgba(15, 23, 42, 0.24), 0 0 0 1px rgba(15, 23, 42, 0.10);
+      color-scheme: light;
+    }
 
-    const styleEl = doc.createElement("style");
-    styleEl.textContent = getStylesheet();
-    shadow.appendChild(styleEl);
+    * { box-sizing: border-box; }
+    .num { font-variant-numeric: tabular-nums; }
+    button, input, textarea { font-family: inherit; }
 
-    const wrap = doc.createElement("div");
-    wrap.innerHTML = `
-      <div class="widget mode-mini dock-bottom" data-id="widget">
-        <!-- MINI MODE -->
-        <div class="mini-bar" data-id="miniBar">
-          <span class="grip" data-id="miniGrip">⋮⋮</span>
-          <span class="dot" data-id="miniDot"></span>
-          <button type="button" class="mini-lang" data-id="miniLang">RU</button>
-          <span class="mini-stat tps" data-id="miniTps"></span>
-          <span class="mini-stat" data-id="miniRespTok"></span>
-          <span class="mini-stat" data-id="miniChatTok"></span>
-          <span class="mini-model" data-id="miniModel"></span>
-          <span class="mini-actions">
-            <button type="button" class="sz-btn" data-id="miniToMed">M</button>
-            <button type="button" class="sz-btn" data-id="miniToLarge">L</button>
-          </span>
+    /* Floating / Docked Widget */
+    .widget-wrap {
+      position: fixed;
+      z-index: 2147483640;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+      transition: opacity 0.16s ease, transform 0.16s ease;
+    }
+    .widget-wrap.is-hidden { display: none; }
+    .widget-wrap.is-dragging { transition: none !important; opacity: 0.96; }
+
+    .widget-wrap.dock-bottom-right { right: 18px; bottom: 18px; }
+    .widget-wrap.dock-top-right { right: 18px; top: 52px; }
+    .widget-wrap.dock-middle-right { right: 18px; top: 50%; transform: translateY(-50%); }
+    .widget-wrap.dock-bottom-left { left: 18px; bottom: 18px; }
+
+    .mini-pill {
+      display: inline-flex;
+      align-items: center;
+      height: 34px;
+      gap: 6px;
+      padding: 4px 5px 4px 8px;
+      border-radius: 999px;
+      background: var(--st-glass);
+      backdrop-filter: blur(18px) saturate(150%);
+      -webkit-backdrop-filter: blur(18px) saturate(150%);
+      border: 1px solid var(--st-border-strong);
+      box-shadow: var(--st-shadow);
+      color: var(--st-fg);
+      font-size: 12px;
+      line-height: 1;
+      max-width: calc(100vw - 24px);
+    }
+
+    .drag-grip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--st-muted);
+      cursor: grab;
+      padding: 2px 1px;
+      border-radius: 4px;
+      transition: color 0.14s ease;
+    }
+    .drag-grip:hover { color: var(--st-fg-strong); }
+    .widget-wrap.is-dragging .drag-grip { cursor: grabbing; }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      color: var(--st-fg-strong);
+      white-space: nowrap;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--st-success);
+      flex-shrink: 0;
+    }
+    .status-dot.is-live {
+      background: var(--st-accent);
+      box-shadow: 0 0 0 0 rgba(0, 122, 204, 0.55);
+      animation: agyPulse 1.35s infinite;
+    }
+    @keyframes agyPulse {
+      0% { box-shadow: 0 0 0 0 rgba(0, 122, 204, 0.55); }
+      70% { box-shadow: 0 0 0 6px rgba(0, 122, 204, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 122, 204, 0); }
+    }
+
+    .pill-sep {
+      width: 1px;
+      height: 14px;
+      background: var(--st-border-strong);
+      flex-shrink: 0;
+    }
+
+    .metric-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--st-fg);
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .metric-chip b { color: var(--st-fg-strong); font-weight: 600; }
+    .metric-chip.is-muted { color: var(--st-muted); }
+    .model-badge {
+      max-width: 112px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--st-muted);
+      font-size: 11px;
+    }
+
+    .lang-pill-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      border: 1px solid var(--st-border-strong);
+      background: var(--st-accent-soft);
+      color: var(--st-fg-strong);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: background 0.14s ease, border-color 0.14s ease;
+    }
+    .lang-pill-btn:hover {
+      border-color: var(--st-accent);
+      background: var(--st-accent);
+      color: #ffffff;
+    }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--st-muted);
+      cursor: pointer;
+      padding: 0;
+      flex-shrink: 0;
+      transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+    }
+    .icon-btn:hover {
+      background: var(--st-card-hover);
+      color: var(--st-fg-strong);
+      border-color: var(--st-border);
+    }
+    .icon-btn.is-primary {
+      background: var(--st-accent-soft);
+      color: var(--st-fg-strong);
+      border-color: var(--st-accent-border);
+    }
+    .icon-btn.is-primary:hover {
+      background: var(--st-accent);
+      color: #ffffff;
+      border-color: var(--st-accent);
+    }
+    .icon-btn.is-pinned {
+      color: var(--st-accent);
+    }
+
+    /* Medium Card */
+    .med-card {
+      width: 286px;
+      border-radius: 12px;
+      background: var(--st-glass-strong);
+      backdrop-filter: blur(20px) saturate(155%);
+      -webkit-backdrop-filter: blur(20px) saturate(155%);
+      border: 1px solid var(--st-border-strong);
+      box-shadow: var(--st-shadow);
+      color: var(--st-fg);
+      overflow: hidden;
+    }
+    .med-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--st-border);
+      cursor: grab;
+    }
+    .widget-wrap.is-dragging .med-header { cursor: grabbing; }
+    .med-head-left {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+    .med-phase {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--st-fg-strong);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .med-head-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .med-body { padding: 10px 12px 11px; display: flex; flex-direction: column; gap: 9px; }
+    .med-tps-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .med-tps-hero {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+    }
+    .med-tps-num {
+      font-size: 27px;
+      line-height: 1;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--st-fg-strong);
+    }
+    .med-tps-unit {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--st-accent);
+    }
+    .med-peak {
+      font-size: 11px;
+      color: var(--st-muted);
+      white-space: nowrap;
+    }
+    .med-spark-box { height: 42px; width: 100%; }
+    .spark-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+    .med-stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .med-stat-tile {
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: var(--st-card);
+      border: 1px solid var(--st-border);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .med-stat-label { font-size: 10.5px; color: var(--st-muted); }
+    .med-stat-val { font-size: 12.5px; font-weight: 600; color: var(--st-fg-strong); }
+    .med-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-top: 2px;
+    }
+    .med-persona-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      flex: 1;
+      padding: 4px 8px;
+      border-radius: 7px;
+      border: 1px solid var(--st-border);
+      background: var(--st-card);
+      color: var(--st-fg);
+      font-size: 11px;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.14s ease, background 0.14s ease;
+    }
+    .med-persona-pill:hover { border-color: var(--st-accent-border); background: var(--st-card-hover); }
+    .med-persona-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .med-model-tag {
+      font-size: 10.5px;
+      color: var(--st-muted);
+      max-width: 96px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Full Settings Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.56);
+      backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
+      animation: agyFadeIn 0.14s ease-out;
+    }
+    @keyframes agyFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .modal-shell {
+      width: min(800px, calc(100vw - 32px));
+      height: min(580px, calc(100vh - 36px));
+      border-radius: 12px;
+      background: var(--st-bg);
+      color: var(--st-fg);
+      box-shadow: var(--st-modal-shadow);
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+      border: 1px solid var(--st-border-strong);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Sidebar */
+    .modal-sidebar {
+      width: 214px;
+      flex-shrink: 0;
+      background: var(--st-sidebar);
+      border-right: 1px solid var(--st-border);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 10px 12px;
+    }
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 8px 14px;
+    }
+    .brand-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--st-fg-strong);
+      letter-spacing: -0.01em;
+    }
+    .brand-ver {
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--st-accent-soft);
+      color: var(--st-accent);
+      border: 1px solid var(--st-accent-border);
+    }
+    .nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--st-fg);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.13s ease, color 0.13s ease, border-color 0.13s ease;
+    }
+    .nav-item:hover {
+      background: var(--st-card-hover);
+      color: var(--st-fg-strong);
+    }
+    .nav-item.is-active {
+      background: var(--st-card);
+      color: var(--st-fg-strong);
+      border-color: var(--st-border-strong);
+      font-weight: 600;
+    }
+    .nav-item .nav-ic {
+      display: inline-flex;
+      color: var(--st-muted);
+      flex-shrink: 0;
+    }
+    .nav-item.is-active .nav-ic { color: var(--st-accent); }
+    .nav-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--st-success);
+      flex-shrink: 0;
+    }
+    .nav-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: var(--st-card-hover);
+      border: 1px solid var(--st-border-strong);
+      color: var(--st-muted);
+    }
+    .sidebar-foot {
+      border-top: 1px solid var(--st-border);
+      padding: 10px 8px 2px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--st-muted);
+    }
+    .kbd {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: var(--st-card);
+      border: 1px solid var(--st-border-strong);
+      font-family: var(--st-mono);
+      font-size: 10.5px;
+      color: var(--st-fg);
+    }
+
+    /* Right Content Pane */
+    .modal-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--st-bg);
+    }
+    .modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 20px 24px 14px;
+      border-bottom: 1px solid var(--st-border);
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--st-fg-strong);
+      margin: 0 0 3px;
+      letter-spacing: -0.015em;
+    }
+    .modal-sub {
+      font-size: 12.5px;
+      color: var(--st-muted);
+      margin: 0;
+    }
+    .modal-close-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--st-muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.13s ease, color 0.13s ease, border-color 0.13s ease;
+    }
+    .modal-close-btn:hover {
+      background: var(--st-card-hover);
+      color: var(--st-fg-strong);
+      border-color: var(--st-border);
+    }
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px 24px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .modal-body::-webkit-scrollbar { width: 7px; }
+    .modal-body::-webkit-scrollbar-thumb { background: var(--st-border-strong); border-radius: 999px; }
+
+    /* Cards & Groups */
+    .section-group { display: flex; flex-direction: column; gap: 8px; }
+    .section-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--st-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .card {
+      background: var(--st-card);
+      border: 1px solid var(--st-border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .card-pad { padding: 14px 16px; }
+    .row-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 11px 15px;
+      border-bottom: 1px solid var(--st-border);
+    }
+    .row-item:last-child { border-bottom: none; }
+    .row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .row-title { font-size: 13px; font-weight: 600; color: var(--st-fg-strong); }
+    .row-desc { font-size: 11.5px; color: var(--st-muted); }
+
+    /* Antigravity Native Switch */
+    .switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      border-radius: 999px;
+      background: rgba(128, 134, 145, 0.35);
+      border: 1px solid var(--st-border-strong);
+      cursor: pointer;
+      flex-shrink: 0;
+      padding: 0;
+      transition: background 0.16s ease, border-color 0.16s ease;
+    }
+    .switch-thumb {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      transition: transform 0.16s ease;
+    }
+    .switch.is-on {
+      background: var(--st-accent);
+      border-color: var(--st-accent);
+    }
+    .switch.is-on .switch-thumb { transform: translateX(16px); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 13px;
+      border-radius: 7px;
+      border: 1px solid var(--st-border-strong);
+      background: var(--st-card-hover);
+      color: var(--st-fg-strong);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.14s ease, border-color 0.14s ease, opacity 0.14s ease;
+    }
+    .btn:hover { background: var(--st-border-strong); }
+    .btn-primary {
+      background: var(--st-accent);
+      border-color: var(--st-accent);
+      color: #ffffff;
+    }
+    .btn-primary:hover { filter: brightness(1.1); background: var(--st-accent); }
+    .btn-sm { height: 27px; padding: 0 10px; font-size: 11.5px; }
+
+    /* Monitor Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .kpi-card {
+      padding: 12px 13px;
+      border-radius: 10px;
+      background: var(--st-card);
+      border: 1px solid var(--st-border);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .kpi-label { font-size: 11.5px; color: var(--st-muted); }
+    .kpi-val { font-size: 20px; font-weight: 700; color: var(--st-fg-strong); letter-spacing: -0.02em; }
+    .kpi-sub { font-size: 11px; color: var(--st-accent); font-weight: 500; }
+    .spark-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .spark-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--st-card-hover);
+      border: 1px solid var(--st-border-strong);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--st-fg-strong);
+    }
+    .modal-spark-box { height: 92px; width: 100%; }
+    .history-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--st-border);
+      font-size: 12px;
+    }
+    .history-row:last-child { border-bottom: none; }
+    .history-model { font-weight: 600; color: var(--st-fg-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .history-meta { color: var(--st-muted); font-size: 11.5px; }
+    .history-tps { font-weight: 700; color: var(--st-accent); }
+
+    /* Widget Preview & Selectors */
+    .preview-stage {
+      padding: 18px 16px;
+      border-radius: 10px;
+      background: radial-gradient(circle at top right, var(--st-accent-soft), transparent 60%), var(--st-sidebar);
+      border: 1px solid var(--st-border-strong);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 76px;
+    }
+    .segmented-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .choice-card {
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--st-border);
+      background: var(--st-card);
+      color: var(--st-fg);
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: border-color 0.14s ease, background 0.14s ease;
+    }
+    .choice-card:hover { background: var(--st-card-hover); border-color: var(--st-border-strong); }
+    .choice-card.is-selected {
+      border-color: var(--st-accent);
+      background: var(--st-accent-soft);
+    }
+    .choice-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--st-fg-strong);
+    }
+    .choice-desc { font-size: 11.5px; color: var(--st-muted); }
+
+    .dock-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .dock-btn {
+      padding: 9px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--st-border);
+      background: var(--st-card);
+      color: var(--st-fg);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: border-color 0.14s ease, background 0.14s ease;
+    }
+    .dock-btn:hover { background: var(--st-card-hover); border-color: var(--st-border-strong); }
+    .dock-btn.is-selected {
+      border-color: var(--st-accent);
+      background: var(--st-accent-soft);
+      color: var(--st-fg-strong);
+    }
+    .dock-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 9px;
+      background: var(--st-card);
+      border: 1px solid var(--st-border);
+      font-size: 12px;
+    }
+
+    /* Persona Tab */
+    .preset-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+      gap: 8px;
+    }
+    .preset-card {
+      position: relative;
+      padding: 10px 11px;
+      border-radius: 9px;
+      border: 1px solid var(--st-border);
+      background: var(--st-card);
+      color: var(--st-fg);
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      transition: border-color 0.14s ease, background 0.14s ease;
+    }
+    .preset-card:hover { background: var(--st-card-hover); border-color: var(--st-border-strong); }
+    .preset-card.is-selected { border-color: var(--st-accent); background: var(--st-accent-soft); }
+    .preset-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+    .preset-name { font-size: 12px; font-weight: 700; color: var(--st-fg-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .preset-desc { font-size: 11px; color: var(--st-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .preset-del-btn {
+      border: none;
+      background: transparent;
+      color: var(--st-muted);
+      cursor: pointer;
+      padding: 2px;
+      border-radius: 4px;
+      display: inline-flex;
+    }
+    .preset-del-btn:hover { color: var(--st-error); background: rgba(222, 85, 85, 0.12); }
+
+    .editor-box {
+      width: 100%;
+      min-height: 158px;
+      resize: vertical;
+      padding: 11px 13px;
+      border-radius: 9px;
+      border: 1px solid var(--st-border-strong);
+      background: var(--st-sidebar);
+      color: var(--st-fg-strong);
+      font-family: var(--st-mono);
+      font-size: 12.5px;
+      line-height: 1.5;
+      outline: none;
+    }
+    .editor-box:focus { border-color: var(--st-accent); }
+    .editor-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 11.5px;
+      color: var(--st-muted);
+    }
+    .preset-add-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .text-input {
+      flex: 1;
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 7px;
+      border: 1px solid var(--st-border-strong);
+      background: var(--st-sidebar);
+      color: var(--st-fg-strong);
+      font-size: 12px;
+      outline: none;
+    }
+    .text-input:focus { border-color: var(--st-accent); }
+    .action-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .action-btns { display: flex; align-items: center; gap: 8px; }
+    .toast-text { font-size: 12px; font-weight: 600; color: var(--st-success); }
+    .toast-text.is-err { color: var(--st-error); }
+
+    /* Language & Appearance */
+    .badge-active {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: var(--st-success-soft);
+      color: var(--st-success);
+    }
+    .repo-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--st-accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 12.5px;
+    }
+    .repo-link:hover { text-decoration: underline; }
+    .roadmap-banner {
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--st-accent-soft), rgba(122, 174, 102, 0.08));
+      border: 1px solid var(--st-accent-border);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .roadmap-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .roadmap-card {
+      padding: 13px 15px;
+      border-radius: 10px;
+      background: var(--st-card);
+      border: 1px dashed var(--st-border-strong);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .roadmap-ic {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--st-accent-soft);
+      color: var(--st-accent);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 720px) {
+      .modal-shell { flex-direction: column; height: min(660px, calc(100vh - 24px)); }
+      .modal-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--st-border); padding: 10px; }
+      .nav-list { flex-direction: row; overflow-x: auto; gap: 4px; }
+      .sidebar-foot { display: none; }
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  `;
+}
+
+function createStudioPanel(options) {
+  const opts = options && typeof options === "object" ? options : {};
+  const doc = opts.document || (typeof document !== "undefined" ? document : null);
+  const win = opts.window || (typeof window !== "undefined" ? window : null);
+  const ipc = opts.ipcRenderer || null;
+  const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
+    ? opts.pluginMeta
+    : { version: "2.3.0", dictEntries: 4017, dynamicRulesCount: 471 };
+
+  const state = {
+    initialized: false,
+    destroyed: false,
+    locale: opts.initialLocale === "en" ? "en" : "ru",
+    isOpen: false,
+    activeTab: "monitor",
+    theme: "dark",
+    settings: {
+      panelEnabled: true,
+      viewMode: "mini",
+      layoutMode: "docked",
+      dockPosition: "bottom-right",
+      floatX: null,
+      floatY: null,
+      miniFields: Object.assign({}, DEFAULT_MINI_FIELDS),
+      showMiniTps: true,
+      trackHistory: true,
+      personaEnabled: false,
+      personaActivePreset: "custom",
+      personaText: "",
+      customPresets: [],
+    },
+    draftPersonaText: "",
+    draftDirty: false,
+    newPresetName: "",
+    personaFileExists: false,
+    personaFilePath: "~/.gemini/config/rules/antigravity-ru-persona.md",
+    toastMsg: "",
+    toastError: false,
+    telemetry: {
+      isGenerating: false,
+      currentTps: 0,
+      peakTps: 0,
+      respTokens: 0,
+      chatTokens: 0,
+      contextLabel: "",
+      modelName: "",
+      samples: [],
+      history: [],
+      convKey: "",
+      turnStartMs: 0,
+      turnStartTokens: 0,
+      prevTokens: 0,
+      prevSampleMs: 0,
+      tpsBuckets: [],
+      wasGenerating: false,
+    },
+  };
+
+  let hostEl = null;
+  let shadowRoot = null;
+  let styleEl = null;
+  let rootEl = null;
+  let widgetMountEl = null;
+  let modalMountEl = null;
+  let pollTimer = null;
+  let themeObserver = null;
+  let toastTimer = null;
+  let keydownHandler = null;
+  let resizeHandler = null;
+  let dragState = null;
+
+  function t() {
+    return TEXT[state.locale] || TEXT.ru;
+  }
+
+  function detectTheme() {
+    if (!doc || !win) return "dark";
+    try {
+      const htmlEl = doc.documentElement;
+      const bodyEl = doc.body;
+      if (htmlEl && ((htmlEl.classList && htmlEl.classList.contains("light")) || (typeof htmlEl.getAttribute === "function" && htmlEl.getAttribute("data-theme") === "light"))) {
+        return "light";
+      }
+      if (bodyEl && bodyEl.classList && (bodyEl.classList.contains("light") || bodyEl.classList.contains("vscode-light"))) {
+        return "light";
+      }
+      if (typeof win.getComputedStyle === "function" && htmlEl) {
+        const bgVar = win.getComputedStyle(htmlEl).getPropertyValue("--background").trim();
+        const m = bgVar.match(/^#([0-9a-f]{6})$/i);
+        if (m) {
+          const hex = m[1];
+          const r = parseInt(hex.slice(0, 2), 16);
+          const g = parseInt(hex.slice(2, 4), 16);
+          const b = parseInt(hex.slice(4, 6), 16);
+          if ((r * 299 + g * 587 + b * 114) / 1000 > 150) return "light";
+        }
+      }
+      if (typeof win.matchMedia === "function" && win.matchMedia("(prefers-color-scheme: light)").matches) {
+        if (htmlEl && htmlEl.classList && htmlEl.classList.contains("dark")) return "dark";
+      }
+    } catch (_e) {}
+    return "dark";
+  }
+
+  function syncTheme() {
+    const next = detectTheme();
+    state.theme = next;
+    if (rootEl) rootEl.setAttribute("data-theme", next);
+  }
+
+  function setToast(msg, isErr) {
+    state.toastMsg = msg || "";
+    state.toastError = Boolean(isErr);
+    if (toastTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(toastTimer);
+    }
+    const toastEl = modalMountEl ? modalMountEl.querySelector('[data-role="toast"]') : null;
+    if (toastEl) {
+      toastEl.textContent = state.toastMsg;
+      toastEl.className = "toast-text" + (state.toastError ? " is-err" : "");
+    }
+    if (msg && win && typeof win.setTimeout === "function") {
+      toastTimer = win.setTimeout(() => {
+        state.toastMsg = "";
+        const el = modalMountEl ? modalMountEl.querySelector('[data-role="toast"]') : null;
+        if (el) el.textContent = "";
+      }, 3200);
+    }
+  }
+
+  function invokeIpc(channel, payload) {
+    if (!ipc || typeof ipc.invoke !== "function") return Promise.resolve(null);
+    try {
+      return Promise.resolve(ipc.invoke(channel, payload)).catch(() => null);
+    } catch (_e) {
+      return Promise.resolve(null);
+    }
+  }
+
+  function saveSettingsPatch(patch) {
+    Object.assign(state.settings, patch);
+    if (patch.miniFields) {
+      state.settings.miniFields = normalizeMiniFields(patch.miniFields);
+    }
+    if (patch.dockPosition) {
+      state.settings.dockPosition = normalizeDockPosition(patch.dockPosition);
+    }
+    if (patch.viewMode) {
+      state.settings.viewMode = normalizeViewMode(patch.viewMode);
+    }
+    renderStructure();
+    return invokeIpc("agy-studio:save-settings", patch).then((res) => {
+      if (res && res.settings) applyRemoteState(res, true);
+      return res;
+    });
+  }
+
+  function applyRemoteState(remote, skipDraftReset) {
+    if (!remote || typeof remote !== "object") return;
+    if (remote.locale === "ru" || remote.locale === "en") {
+      state.locale = remote.locale;
+    }
+    const rawSettings = remote.settings && typeof remote.settings === "object" ? remote.settings : remote;
+    if (rawSettings && typeof rawSettings === "object") {
+      if (typeof rawSettings.panelEnabled === "boolean") state.settings.panelEnabled = rawSettings.panelEnabled;
+      if (rawSettings.viewMode) {
+        state.settings.viewMode = normalizeViewMode(rawSettings.viewMode);
+      }
+      if (rawSettings.layoutMode === "floating" || rawSettings.layoutMode === "docked") {
+        state.settings.layoutMode = rawSettings.layoutMode;
+      }
+      if (rawSettings.dockPosition) {
+        state.settings.dockPosition = normalizeDockPosition(rawSettings.dockPosition);
+      }
+      if ("floatX" in rawSettings) {
+        state.settings.floatX = typeof rawSettings.floatX === "number" && Number.isFinite(rawSettings.floatX) ? rawSettings.floatX : null;
+      }
+      if ("floatY" in rawSettings) {
+        state.settings.floatY = typeof rawSettings.floatY === "number" && Number.isFinite(rawSettings.floatY) ? rawSettings.floatY : null;
+      }
+      if (rawSettings.miniFields) {
+        state.settings.miniFields = normalizeMiniFields(rawSettings.miniFields);
+      }
+      if (typeof rawSettings.showMiniTps === "boolean") state.settings.showMiniTps = rawSettings.showMiniTps;
+      if (typeof rawSettings.trackHistory === "boolean") state.settings.trackHistory = rawSettings.trackHistory;
+      if (typeof rawSettings.personaEnabled === "boolean") state.settings.personaEnabled = rawSettings.personaEnabled;
+      if (typeof rawSettings.personaActivePreset === "string") state.settings.personaActivePreset = rawSettings.personaActivePreset || "custom";
+      if (typeof rawSettings.personaText === "string") {
+        state.settings.personaText = rawSettings.personaText;
+        if (!skipDraftReset && !state.draftDirty) {
+          state.draftPersonaText = rawSettings.personaText;
+        }
+      }
+      if (Array.isArray(rawSettings.customPresets)) {
+        state.settings.customPresets = normalizeCustomPresets(rawSettings.customPresets);
+      }
+    }
+    if (typeof remote.personaFileExists === "boolean") state.personaFileExists = remote.personaFileExists;
+    if (typeof remote.personaFilePath === "string" && remote.personaFilePath) state.personaFilePath = remote.personaFilePath;
+    renderStructure();
+  }
+
+  function detectModelName() {
+    if (!doc || typeof doc.querySelector !== "function") return "";
+    try {
+      const el = doc.querySelector('[data-testid="model-selector-trigger"]');
+      const raw = el && el.textContent ? el.textContent.replace(/\s+/g, " ").trim() : "";
+      return raw.slice(0, 40);
+    } catch (_e) {
+      return "";
+    }
+  }
+
+  function detectContextLabel() {
+    if (!doc || typeof doc.querySelector !== "function") return "";
+    try {
+      const el = doc.querySelector('[data-testid="context-usage-indicator"]');
+      return el && el.textContent ? el.textContent.replace(/\s+/g, " ").trim().slice(0, 28) : "";
+    } catch (_e) {
+      return "";
+    }
+  }
+
+  function collectDomTelemetry() {
+    if (!doc || typeof doc.querySelectorAll !== "function") {
+      return { isGenerating: false, respTokens: 0, chatTokens: 0, convKey: "none", modelName: "", contextLabel: "" };
+    }
+    try {
+      const responses = doc.querySelectorAll('[data-testid="agent-response"]');
+      const userMsgs = doc.querySelectorAll('[data-testid="user-message-content"]');
+      const lastResp = responses && responses.length > 0 ? responses[responses.length - 1] : null;
+      let isGenerating = Boolean(doc.querySelector('[data-testid="cancel-invocation-button"]'));
+      if (!isGenerating && lastResp && typeof lastResp.querySelector === "function") {
+        const sr = lastResp.querySelector("h6.sr-only");
+        if (sr && sr.textContent && /working|generating|thinking/i.test(sr.textContent)) {
+          isGenerating = true;
+        }
+      }
+      let respText = "";
+      if (lastResp) {
+        const mdRoots = typeof lastResp.querySelectorAll === "function" ? lastResp.querySelectorAll("[data-markdown-root]") : null;
+        if (mdRoots && mdRoots.length > 0) {
+          for (let i = 0; i < mdRoots.length; i += 1) {
+            respText += " " + (mdRoots[i].textContent || "");
+          }
+        } else {
+          respText = lastResp.textContent || "";
+        }
+      }
+      let chatTokens = 0;
+      if (userMsgs) {
+        for (let i = 0; i < userMsgs.length; i += 1) {
+          chatTokens += estimateTokens(userMsgs[i].textContent || "");
+        }
+      }
+      if (responses) {
+        for (let i = 0; i < responses.length; i += 1) {
+          chatTokens += estimateTokens(responses[i].textContent || "");
+        }
+      }
+      const firstUser = userMsgs && userMsgs.length > 0 ? (userMsgs[0].textContent || "").trim().slice(0, 32) : "";
+      const pathHref = win && win.location ? String(win.location.pathname || "") + String(win.location.hash || "") : "";
+      return {
+        isGenerating,
+        respTokens: estimateTokens(respText),
+        chatTokens,
+        convKey: `${pathHref}::${firstUser}`,
+        modelName: detectModelName(),
+        contextLabel: detectContextLabel(),
+      };
+    } catch (_e) {
+      return { isGenerating: false, respTokens: 0, chatTokens: 0, convKey: "err", modelName: "", contextLabel: "" };
+    }
+  }
+
+  function pollStream() {
+    if (state.destroyed) return;
+    const now = Date.now();
+    const snap = collectDomTelemetry();
+    const tel = state.telemetry;
+
+    if (tel.convKey && snap.convKey !== tel.convKey) {
+      tel.convKey = snap.convKey;
+      tel.currentTps = 0;
+      tel.peakTps = 0;
+      tel.respTokens = snap.respTokens;
+      tel.chatTokens = snap.chatTokens;
+      tel.prevTokens = snap.respTokens;
+      tel.prevSampleMs = now;
+      tel.turnStartMs = snap.isGenerating ? now : 0;
+      tel.turnStartTokens = snap.respTokens;
+      tel.tpsBuckets = [];
+      tel.samples = [];
+      tel.wasGenerating = snap.isGenerating;
+    } else {
+      tel.convKey = snap.convKey;
+    }
+
+    if (snap.modelName) tel.modelName = snap.modelName;
+    if (snap.contextLabel) tel.contextLabel = snap.contextLabel;
+    tel.chatTokens = snap.chatTokens;
+
+    if (snap.isGenerating && !tel.wasGenerating) {
+      tel.turnStartMs = now;
+      tel.turnStartTokens = snap.respTokens;
+      tel.prevTokens = snap.respTokens;
+      tel.prevSampleMs = now;
+      tel.tpsBuckets = [];
+      tel.peakTps = 0;
+      tel.currentTps = 0;
+    }
+
+    if (snap.isGenerating) {
+      const deltaTok = Math.max(0, snap.respTokens - tel.prevTokens);
+      const dt = Math.max(120, now - (tel.prevSampleMs || now));
+      tel.tpsBuckets.push({ t: now, d: deltaTok, dt });
+      tel.tpsBuckets = tel.tpsBuckets.filter((b) => now - b.t <= 1500);
+      let sumD = 0;
+      for (let i = 0; i < tel.tpsBuckets.length; i += 1) sumD += tel.tpsBuckets[i].d;
+      const oldest = tel.tpsBuckets.length > 0 ? tel.tpsBuckets[0].t : now;
+      const spanSec = Math.max(0.45, (now - oldest + 350) / 1000);
+      const rawTps = sumD / spanSec;
+      const smoothed = tel.currentTps > 0
+        ? Math.round(tel.currentTps * 0.45 + rawTps * 0.55)
+        : Math.round(rawTps);
+      tel.currentTps = Math.max(0, smoothed);
+      const gainedTotal = Math.max(0, snap.respTokens - tel.turnStartTokens);
+      if (now - tel.turnStartMs >= 400 && gainedTotal >= 3 && tel.currentTps > tel.peakTps) {
+        tel.peakTps = tel.currentTps;
+      }
+      tel.samples.push(tel.currentTps);
+      if (tel.samples.length > 24) tel.samples.shift();
+      tel.prevTokens = snap.respTokens;
+      tel.prevSampleMs = now;
+    } else if (tel.wasGenerating) {
+      const gainedTotal = Math.max(0, snap.respTokens - tel.turnStartTokens);
+      if (gainedTotal >= 2 && state.settings.trackHistory !== false) {
+        const durSec = Math.max(0.5, (now - (tel.turnStartMs || now)) / 1000);
+        const avgTps = Math.round(gainedTotal / durSec);
+        tel.history.unshift({
+          model: tel.modelName || t().modelUnknown,
+          tokens: gainedTotal,
+          avgTps,
+          peakTps: Math.max(tel.peakTps, avgTps),
+          at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        });
+        if (tel.history.length > 5) tel.history.length = 5;
+        if (state.isOpen && state.activeTab === "monitor") {
+          updateHistoryDom();
+        }
+      }
+      tel.currentTps = 0;
+      tel.tpsBuckets = [];
+    }
+
+    tel.isGenerating = snap.isGenerating;
+    tel.respTokens = snap.respTokens;
+    tel.wasGenerating = snap.isGenerating;
+
+    updateLiveDom();
+  }
+
+  function renderMiniCapsuleMarkup(isPreview) {
+    const tr = t();
+    const mf = state.settings.miniFields;
+    const tel = state.telemetry;
+    const chips = [];
+
+    if (mf.status) {
+      const label = tel.isGenerating ? tr.statusWriting : tr.statusReady;
+      chips.push(
+        `<span class="status-chip"><span class="status-dot${tel.isGenerating ? " is-live" : ""}" data-live="dot"></span><span data-live="statusText">${escHtml(label)}</span></span>`
+      );
+    }
+    if (mf.lang) {
+      const langLabel = state.locale === "en" ? "EN" : "RU";
+      if (isPreview) {
+        chips.push(`<span class="lang-pill-btn">${langLabel}</span>`);
+      } else {
+        chips.push(
+          `<button type="button" class="lang-pill-btn" data-action="toggle-locale" data-no-drag="1" title="${escAttr(tr.tooltipLang)}">${langLabel}</button>`
+        );
+      }
+    }
+    if (mf.tps) {
+      const val = tel.isGenerating ? tel.currentTps : tel.peakTps;
+      const tag = tel.isGenerating ? "TPS" : `TPS`;
+      chips.push(`<span class="metric-chip num"><b data-live="tps">${val}</b> ${tag}</span>`);
+    }
+    if (mf.respTokens) {
+      chips.push(`<span class="metric-chip is-muted num">${escHtml(tr.respLabel)}: <b data-live="resp">~${formatCompact(tel.respTokens)}</b></span>`);
+    }
+    if (mf.chatTokens) {
+      const chatText = tel.contextLabel || `~${formatCompact(tel.chatTokens)}`;
+      chips.push(`<span class="metric-chip is-muted num">${escHtml(tr.chatLabel)}: <b data-live="chat">${escHtml(chatText)}</b></span>`);
+    }
+    if (mf.model) {
+      const modelTxt = tel.modelName || "AI";
+      chips.push(`<span class="model-badge" data-live="model" title="${escAttr(modelTxt)}">${escHtml(modelTxt)}</span>`);
+    }
+
+    if (chips.length === 0) {
+      chips.push(`<span class="status-chip"><span class="status-dot${tel.isGenerating ? " is-live" : ""}" data-live="dot"></span>Studio</span>`);
+    }
+
+    const joined = chips.join('<span class="pill-sep"></span>');
+    const grip = isPreview
+      ? `<span class="drag-grip">${iconSvg("grip", 13)}</span>`
+      : `<span class="drag-grip" data-drag-handle="1">${iconSvg("grip", 13)}</span>`;
+    const btns = isPreview
+      ? `<span class="icon-btn">${iconSvg("expand", 13)}</span><span class="icon-btn is-primary">${iconSvg("gear", 13)}</span>`
+      : `<button type="button" class="icon-btn" data-action="to-medium" data-no-drag="1" title="${escAttr(tr.tooltipExpand)}">${iconSvg("expand", 13)}</button><button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 13)}</button>`;
+
+    return `<div class="mini-pill" data-dbl-settings="1">${grip}${joined}<span class="pill-sep"></span>${btns}</div>`;
+  }
+
+  function renderMediumCardMarkup() {
+    const tr = t();
+    const tel = state.telemetry;
+    const isFloating = state.settings.layoutMode === "floating";
+    const phase = tel.isGenerating ? tr.phaseLive : tr.phaseIdle;
+    const chatVal = tel.contextLabel || `~${formatCompact(tel.chatTokens)} ${tr.tokShort}`;
+    const respVal = `~${formatCompact(tel.respTokens)} ${tr.tokShort}`;
+    const personaName = findActivePresetLabel();
+    const personaLabel = state.settings.personaEnabled
+      ? `${tr.personaBadgeOn} ${personaName}`
+      : tr.personaBadgeOff;
+    const langText = state.locale === "en" ? "EN" : "RU";
+
+    return `
+      <div class="med-card" data-dbl-settings="1">
+        <div class="med-header" data-drag-handle="1">
+          <div class="med-head-left">
+            <span class="drag-grip">${iconSvg("grip", 13)}</span>
+            <span class="status-dot${tel.isGenerating ? " is-live" : ""}" data-live="dot"></span>
+            <span class="med-phase" data-live="phase">${escHtml(phase)}</span>
+          </div>
+          <div class="med-head-actions">
+            <button type="button" class="lang-pill-btn" data-action="toggle-locale" data-no-drag="1" title="${escAttr(tr.tooltipLang)}">${langText}</button>
+            <button type="button" class="icon-btn${isFloating ? "" : " is-pinned"}" data-action="snap-dock" data-no-drag="1" title="${escAttr(isFloating ? tr.tooltipFloating : tr.tooltipPinToDock)}">${iconSvg("pin", 13)}</button>
+            <button type="button" class="icon-btn" data-action="to-mini" data-no-drag="1" title="${escAttr(tr.tooltipMini)}">${iconSvg("minimize", 13)}</button>
+            <button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 13)}</button>
+          </div>
         </div>
-
-        <!-- MEDIUM MODE -->
-        <div class="med-wrap">
-          <div class="hdr" data-id="medHdr">
-            <div class="hdr-left">
-              <span class="grip">⋮⋮</span>
-              <span class="logo-pill">RU</span>
-              <span class="hdr-title" data-id="medTitle"></span>
+        <div class="med-body">
+          <div class="med-tps-row">
+            <div class="med-tps-hero">
+              <span class="med-tps-num num" data-live="tps">${tel.currentTps}</span>
+              <span class="med-tps-unit">${escHtml(tr.tpsUnit)}</span>
             </div>
-            <div class="hdr-actions">
-              <div class="seg">
-                <button type="button" class="sz-btn" data-mode="mini">S</button>
-                <button type="button" class="sz-btn active" data-mode="medium">M</button>
-                <button type="button" class="sz-btn" data-mode="large">L</button>
-              </div>
-              <button type="button" class="mini-lang" data-id="medLang">RU</button>
-              <button type="button" class="icon-btn" data-id="medPin">📌</button>
+            <span class="med-peak num">${escHtml(tr.peakLabel)}: <b data-live="peak">${tel.peakTps}</b></span>
+          </div>
+          <div class="med-spark-box" data-live="sparkMed">${buildSparklineMarkup(tel.samples, 260, 42, "med")}</div>
+          <div class="med-stats-grid">
+            <div class="med-stat-tile">
+              <span class="med-stat-label">${escHtml(tr.kpiResp)}</span>
+              <span class="med-stat-val num" data-live="resp">${escHtml(respVal)}</span>
+            </div>
+            <div class="med-stat-tile">
+              <span class="med-stat-label">${escHtml(tr.kpiChat)}</span>
+              <span class="med-stat-val num" data-live="chat">${escHtml(chatVal)}</span>
             </div>
           </div>
-          <div class="med-body">
-            <div class="status-row">
-              <div class="status-left">
-                <span class="dot" data-id="medDot"></span>
-                <span data-id="medPhase"></span>
-              </div>
-              <span class="model-pill" data-id="medModel"></span>
-            </div>
-            <div class="med-metrics">
-              <div class="med-metric">
-                <div class="metric-lbl" data-id="medLblTps"></div>
-                <div class="metric-val" data-id="medValTps">0</div>
-                <div class="metric-sub" data-id="medSubTps"></div>
-              </div>
-              <div class="med-metric">
-                <div class="metric-lbl" data-id="medLblResp"></div>
-                <div class="metric-val" data-id="medValResp">~0</div>
-                <div class="metric-sub" data-id="medSubResp"></div>
-              </div>
-              <div class="med-metric">
-                <div class="metric-lbl" data-id="medLblChat"></div>
-                <div class="metric-val" data-id="medValChat">~0</div>
-                <div class="metric-sub" data-id="medSubChat"></div>
-              </div>
-            </div>
-            <svg class="med-spark-svg" viewBox="0 0 240 44" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="agySparkGradMed" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.38"/>
-                  <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.02"/>
-                </linearGradient>
-              </defs>
-              <polygon points="" fill="url(#agySparkGradMed)" data-id="medSparkArea"></polygon>
-              <polyline points="" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-id="medSparkLine"></polyline>
-            </svg>
-          </div>
-        </div>
-
-        <!-- LARGE MODE -->
-        <div class="large-wrap">
-          <div class="hdr" data-id="largeHdr">
-            <div class="hdr-left">
-              <span class="grip">⋮⋮</span>
-              <span class="logo-pill">RU</span>
-              <div style="min-width:0">
-                <div class="hdr-title" data-id="hdrTitle"></div>
-                <div class="hdr-ver" data-id="hdrVer"></div>
-              </div>
-            </div>
-            <div class="hdr-actions">
-              <div class="seg">
-                <button type="button" class="sz-btn" data-mode="mini">S</button>
-                <button type="button" class="sz-btn" data-mode="medium">M</button>
-                <button type="button" class="sz-btn active" data-mode="large">L</button>
-              </div>
-              <button type="button" class="mini-lang" data-id="hdrLang">RU</button>
-              <button type="button" class="icon-btn" data-id="largePin">📌</button>
-              <button type="button" class="icon-btn" data-id="closeBtn">&times;</button>
-            </div>
-          </div>
-
-          <div class="tabs">
-            <button type="button" class="tab-btn active" data-tab="monitor" data-id="tabMonitor"></button>
-            <button type="button" class="tab-btn" data-tab="persona" data-id="tabPersona"></button>
-            <button type="button" class="tab-btn" data-tab="settings" data-id="tabSettings"></button>
-          </div>
-
-          <div class="body">
-            <div class="pane active" data-pane="monitor">
-              <div class="card">
-                <div class="status-row">
-                  <div class="status-left">
-                    <span class="dot" data-id="monDot"></span>
-                    <span data-id="monPhase"></span>
-                  </div>
-                  <span class="model-pill" data-id="monModel"></span>
-                </div>
-              </div>
-              <div class="metrics">
-                <div class="metric">
-                  <span class="metric-lbl" data-id="lblTps"></span>
-                  <span class="metric-val" data-id="valTps">0</span>
-                  <span class="metric-sub" data-id="subTps"></span>
-                </div>
-                <div class="metric">
-                  <span class="metric-lbl" data-id="lblResp"></span>
-                  <span class="metric-val" data-id="valResp">~0</span>
-                  <span class="metric-sub" data-id="subResp"></span>
-                </div>
-                <div class="metric">
-                  <span class="metric-lbl" data-id="lblChat"></span>
-                  <span class="metric-val" data-id="valChat">~0</span>
-                  <span class="metric-sub" data-id="subChat"></span>
-                </div>
-              </div>
-              <div class="card">
-                <div class="spark-hdr">
-                  <span class="sec-title" data-id="sparkTitle"></span>
-                  <button type="button" class="link-btn" data-id="resetStatsBtn"></button>
-                </div>
-                <svg class="spark-svg" viewBox="0 0 300 58" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="agySparkGradLarge" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.38"/>
-                      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.02"/>
-                    </linearGradient>
-                  </defs>
-                  <polygon points="" fill="url(#agySparkGradLarge)" data-id="sparkArea"></polygon>
-                  <polyline points="" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-id="sparkLine"></polyline>
-                </svg>
-              </div>
-              <div class="card" data-id="histCard">
-                <div class="sec-title" data-id="histTitle"></div>
-                <div class="hist-list" data-id="histList"></div>
-              </div>
-              <div class="footnote" data-id="estNote"></div>
-            </div>
-
-            <div class="pane" data-pane="persona">
-              <div class="card">
-                <div class="switch-row">
-                  <div style="min-width:0">
-                    <div class="sec-title" data-id="personaToggleLbl"></div>
-                  </div>
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <span class="pill-tag" data-id="personaStatusPill"></span>
-                    <button type="button" class="switch-btn" role="switch" aria-checked="false" data-id="personaSwitch">
-                      <span class="switch-knob"></span>
-                    </button>
-                  </div>
-                </div>
-                <div class="footnote" style="margin-top:6px" data-id="personaHint"></div>
-              </div>
-
-              <div class="card">
-                <div class="sec-title" data-id="presetsLbl"></div>
-                <div class="chips" data-id="presetChips"></div>
-              </div>
-
-              <div class="card" style="display:flex;flex-direction:column;gap:8px">
-                <textarea class="persona-ta" rows="6" data-id="personaTextarea"></textarea>
-                <div class="meter-row" data-id="meterRow">
-                  <span data-id="meterBytes"></span>
-                  <span data-id="meterTokens"></span>
-                </div>
-                <div class="preset-bar" data-id="presetSaveBar" style="display:none">
-                  <input type="text" maxlength="60" data-id="presetNameInput" />
-                  <button type="button" class="btn btn-primary" style="flex:0" data-id="presetConfirmBtn"></button>
-                  <button type="button" class="btn" data-id="presetCancelBtn"></button>
-                </div>
-                <div class="btn-row">
-                  <button type="button" class="btn btn-primary" data-id="savePersonaBtn"></button>
-                  <button type="button" class="btn" data-id="addPresetBtn"></button>
-                  <button type="button" class="btn" data-id="clearPersonaBtn"></button>
-                </div>
-                <div class="toast" data-id="personaToast" style="display:none"></div>
-              </div>
-            </div>
-
-            <div class="pane" data-pane="settings">
-              <div class="card" style="display:flex;flex-direction:column;gap:8px">
-                <div class="sec-title" data-id="sizeTitle"></div>
-                <div class="seg" style="width:100%;display:grid;grid-template-columns:repeat(3,1fr)">
-                  <button type="button" data-set-mode="mini" data-id="setModeMini"></button>
-                  <button type="button" data-set-mode="medium" data-id="setModeMed"></button>
-                  <button type="button" data-set-mode="large" data-id="setModeLarge"></button>
-                </div>
-              </div>
-
-              <div class="card" style="display:flex;flex-direction:column;gap:8px">
-                <div class="sec-title" data-id="miniFieldsTitle"></div>
-                <div class="switch-row"><span data-id="mfStatusLbl"></span><button type="button" class="switch-btn" role="switch" data-mf="status"><span class="switch-knob"></span></button></div>
-                <div class="switch-row"><span data-id="mfLangLbl"></span><button type="button" class="switch-btn" role="switch" data-mf="lang"><span class="switch-knob"></span></button></div>
-                <div class="switch-row"><span data-id="mfTpsLbl"></span><button type="button" class="switch-btn" role="switch" data-mf="tps"><span class="switch-knob"></span></button></div>
-                <div class="switch-row"><span data-id="mfRespLbl"></span><button type="button" class="switch-btn" role="switch" data-mf="respTokens"><span class="switch-knob"></span></button></div>
-                <div class="switch-row"><span data-id="mfChatLbl"></span><button type="button" class="switch-btn" role="switch" data-mf="chatTokens"><span class="switch-knob"></span></button></div>
-                <div class="switch-row"><span data-id="mfModelLbl"></span><button type="button" class="switch-btn" role="switch" data-mf="model"><span class="switch-knob"></span></button></div>
-              </div>
-
-              <div class="card" style="display:flex;flex-direction:column;gap:8px">
-                <div class="spark-hdr" style="margin-bottom:0">
-                  <span class="sec-title" data-id="dockTitle"></span>
-                  <button type="button" class="link-btn" data-id="resetPosBtn"></button>
-                </div>
-                <div class="seg" style="width:100%;display:grid;grid-template-columns:repeat(4,1fr)">
-                  <button type="button" data-dock="top" data-id="dockTop"></button>
-                  <button type="button" data-dock="middle" data-id="dockMiddle"></button>
-                  <button type="button" data-dock="bottom" data-id="dockBottom"></button>
-                  <button type="button" data-dock="hidden" data-id="dockHidden"></button>
-                </div>
-                <div class="footnote" data-id="hotkeyHintDock"></div>
-              </div>
-
-              <div class="card" style="display:flex;flex-direction:column;gap:8px">
-                <div class="switch-row">
-                  <span class="sec-title" data-id="langTitle"></span>
-                  <div class="seg">
-                    <button type="button" data-id="setRuBtn">Русский</button>
-                    <button type="button" data-id="setEnBtn">English</button>
-                  </div>
-                </div>
-                <div class="footnote" data-id="hotkeyHintLang"></div>
-              </div>
-
-              <div class="card">
-                <div class="switch-row">
-                  <span class="sec-title" data-id="trackHistLbl"></span>
-                  <button type="button" class="switch-btn" role="switch" aria-checked="true" data-id="trackHistSwitch">
-                    <span class="switch-knob"></span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="card">
-                <div class="sec-title" data-id="pluginInfoTitle"></div>
-                <div class="info-grid">
-                  <span class="info-k" data-id="infoVerK"></span><span class="info-v" data-id="infoVerV"></span>
-                  <span class="info-k" data-id="infoDictK"></span><span class="info-v" data-id="infoDictV"></span>
-                  <span class="info-k" data-id="infoRulesK"></span><span class="info-v" data-id="infoRulesV"></span>
-                </div>
-                <div style="margin-top:8px">
-                  <a class="gh-link" href="https://github.com/Ivan0967pro/antigravity-ru" target="_blank" rel="noopener noreferrer" data-id="repoLink"></a>
-                </div>
-              </div>
-
-              <div class="card soon-card">
-                <div class="sec-title" data-id="stage2Title"></div>
-                <div class="footnote" style="margin-top:4px" data-id="stage2Desc"></div>
-              </div>
-            </div>
+          <div class="med-footer">
+            <button type="button" class="med-persona-pill" data-action="open-persona-tab" data-no-drag="1">
+              <span class="status-dot" style="background:${state.settings.personaEnabled ? "var(--st-success)" : "var(--st-muted)"}"></span>
+              <span>${escHtml(personaLabel)}</span>
+            </button>
+            <span class="med-model-tag" data-live="model" title="${escAttr(tel.modelName || tr.modelUnknown)}">${escHtml(tel.modelName || "—")}</span>
           </div>
         </div>
       </div>
     `;
-    shadow.appendChild(wrap);
-
-    ui = {};
-    if (typeof wrap.querySelectorAll === "function") {
-      const nodes = wrap.querySelectorAll("[data-id]");
-      for (let i = 0; i < nodes.length; i++) {
-        const el = nodes[i];
-        ui[el.getAttribute("data-id")] = el;
-      }
-      ui.tabBtns = Array.from(wrap.querySelectorAll("[data-tab]"));
-      ui.panes = Array.from(wrap.querySelectorAll("[data-pane]"));
-      ui.dockPosBtns = Array.from(wrap.querySelectorAll("[data-dock]"));
-      ui.modeBtns = Array.from(wrap.querySelectorAll("[data-mode]"));
-      ui.setModeBtns = Array.from(wrap.querySelectorAll("[data-set-mode]"));
-      ui.mfSwitches = Array.from(wrap.querySelectorAll("[data-mf]"));
-    }
-
-    bindEvents();
-    mountTarget.appendChild(hostEl);
   }
 
-  function stopTypingLeak(el) {
-    if (!el || typeof el.addEventListener !== "function") return;
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") return;
-      if ((e.ctrlKey || e.metaKey) && e.altKey) return;
-      e.stopPropagation();
-    });
-  }
-
-  function getEstimatedSize() {
-    if (ui.widget && typeof ui.widget.getBoundingClientRect === "function") {
-      const r = ui.widget.getBoundingClientRect();
-      if (r && r.width > 10 && r.height > 10) {
-        return { w: r.width, h: r.height };
+  function findActivePresetLabel() {
+    const id = state.settings.personaActivePreset;
+    for (let i = 0; i < BUILTIN_PERSONA_PRESETS.length; i += 1) {
+      if (BUILTIN_PERSONA_PRESETS[i].id === id) {
+        return state.locale === "en" ? BUILTIN_PERSONA_PRESETS[i].titleEn : BUILTIN_PERSONA_PRESETS[i].titleRu;
       }
     }
-    if (settings.viewMode === "large") return { w: 356, h: 520 };
-    if (settings.viewMode === "medium") return { w: 264, h: 220 };
-    return { w: 210, h: 34 };
+    const customs = state.settings.customPresets || [];
+    for (let i = 0; i < customs.length; i += 1) {
+      if (customs[i].id === id) return customs[i].title;
+    }
+    return t().customPresetTitle;
   }
 
-  function clampPosition(x, y) {
-    const vw = typeof win.innerWidth === "number" && win.innerWidth > 0 ? win.innerWidth : 1280;
-    const vh = typeof win.innerHeight === "number" && win.innerHeight > 0 ? win.innerHeight : 800;
-    const sz = getEstimatedSize();
-    const maxX = Math.max(8, vw - sz.w - 8);
-    const maxY = Math.max(44, vh - sz.h - 8);
-    return {
-      x: Math.round(Math.max(8, Math.min(maxX, x))),
-      y: Math.round(Math.max(44, Math.min(maxY, y))),
-    };
+  function renderMonitorTab() {
+    const tr = t();
+    const tel = state.telemetry;
+    const chatVal = tel.contextLabel || `~${formatCompact(tel.chatTokens)} ${tr.tokShort}`;
+    const respVal = `~${formatCompact(tel.respTokens)} ${tr.tokShort}`;
+    const phase = tel.isGenerating ? tr.phaseLive : tr.phaseIdle;
+    return `
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <span class="kpi-label">${escHtml(tr.kpiTps)}</span>
+          <span class="kpi-val num"><span data-live="tps">${tel.currentTps}</span> <span style="font-size:12px;color:var(--st-accent)">TPS</span></span>
+          <span class="kpi-sub">${escHtml(tel.isGenerating ? tr.statusWriting : tr.statusReady)}</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">${escHtml(tr.kpiPeak)}</span>
+          <span class="kpi-val num" data-live="peak">${tel.peakTps}</span>
+          <span class="kpi-sub">TPS max</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">${escHtml(tr.kpiResp)}</span>
+          <span class="kpi-val num" data-live="resp">${escHtml(respVal)}</span>
+          <span class="kpi-sub">~estimate</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">${escHtml(tr.kpiChat)}</span>
+          <span class="kpi-val num" data-live="chat">${escHtml(chatVal)}</span>
+          <span class="kpi-sub">context</span>
+        </div>
+      </div>
+
+      <div class="card card-pad">
+        <div class="spark-panel-head">
+          <div class="spark-meta">
+            <span class="status-pill">
+              <span class="status-dot${tel.isGenerating ? " is-live" : ""}" data-live="dot"></span>
+              <span data-live="phase">${escHtml(phase)}</span>
+            </span>
+            <span class="status-pill" style="color:var(--st-muted)" data-live="model">${escHtml(tel.modelName || tr.modelUnknown)}</span>
+          </div>
+          <button type="button" class="btn btn-sm" data-action="reset-telemetry">${iconSvg("reset", 13)}${escHtml(tr.resetStats)}</button>
+        </div>
+        <div class="modal-spark-box" data-live="sparkModal">${buildSparklineMarkup(tel.samples, 520, 92, "modal")}</div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.historyTitle)}</span>
+        <div class="card" data-live="historyList">${renderHistoryInner()}</div>
+      </div>
+    `;
   }
 
-  function applyPosition() {
-    if (!ui.widget) return;
-    const mode = settings.viewMode || "mini";
-    const layout = settings.layoutMode === "floating" ? "floating" : "docked";
-    const dockPos = settings.dockPosition || "bottom";
+  function renderHistoryInner() {
+    const tr = t();
+    if (state.settings.trackHistory === false) {
+      return `<div class="card-pad" style="font-size:12.5px;color:var(--st-muted)">${escHtml(tr.historyOff)}</div>`;
+    }
+    const list = state.telemetry.history || [];
+    if (list.length === 0) {
+      return `<div class="card-pad" style="font-size:12.5px;color:var(--st-muted)">${escHtml(tr.historyEmpty)}</div>`;
+    }
+    return list.map((item) => `
+      <div class="history-row">
+        <span class="history-model">${escHtml(item.model)}</span>
+        <span class="history-meta num">${escHtml(item.at)} · ~${formatCompact(item.tokens)} ${escHtml(tr.tokShort)}</span>
+        <span class="history-tps num">${item.avgTps} TPS (${escHtml(tr.peakLabel)} ${item.peakTps})</span>
+      </div>
+    `).join("");
+  }
 
-    const cls = ["widget", "mode-" + mode];
-    if (isDragging) cls.push("dragging");
-    if (layout === "docked") {
-      cls.push("dock-" + dockPos);
-      ui.widget.style.left = "";
-      ui.widget.style.top = "";
-      ui.widget.style.right = "";
-      ui.widget.style.bottom = "";
-      ui.widget.style.transform = "";
+  function renderWidgetTab() {
+    const tr = t();
+    const s = state.settings;
+    const mf = s.miniFields;
+    const fieldSpecs = [
+      { key: "status", title: tr.fieldStatus, desc: tr.fieldStatusDesc },
+      { key: "lang", title: tr.fieldLang, desc: tr.fieldLangDesc },
+      { key: "tps", title: tr.fieldTps, desc: tr.fieldTpsDesc },
+      { key: "respTokens", title: tr.fieldResp, desc: tr.fieldRespDesc },
+      { key: "chatTokens", title: tr.fieldChat, desc: tr.fieldChatDesc },
+      { key: "model", title: tr.fieldModel, desc: tr.fieldModelDesc },
+    ];
+    const docks = [
+      { id: "bottom-right", label: tr.dockBottomRight },
+      { id: "top-right", label: tr.dockTopRight },
+      { id: "middle-right", label: tr.dockMiddleRight },
+      { id: "bottom-left", label: tr.dockBottomLeft },
+      { id: "hidden", label: tr.dockHidden },
+    ];
+    const dockStatus = s.layoutMode === "floating" ? tr.dockStateFloating : tr.dockStateDocked;
+
+    return `
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.previewTitle)}</span>
+        <div class="preview-stage" data-live="previewCapsule">${renderMiniCapsuleMarkup(true)}</div>
+        <span class="row-desc">${escHtml(tr.previewSub)}</span>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.modeTitle)}</span>
+        <div class="segmented-2">
+          <button type="button" class="choice-card${s.viewMode === "mini" ? " is-selected" : ""}" data-action="set-view-mode" data-val="mini">
+            <span class="choice-title"><span>${escHtml(tr.modeMiniTitle)}</span>${s.viewMode === "mini" ? iconSvg("check", 14) : ""}</span>
+            <span class="choice-desc">${escHtml(tr.modeMiniDesc)}</span>
+          </button>
+          <button type="button" class="choice-card${s.viewMode === "medium" ? " is-selected" : ""}" data-action="set-view-mode" data-val="medium">
+            <span class="choice-title"><span>${escHtml(tr.modeMedTitle)}</span>${s.viewMode === "medium" ? iconSvg("check", 14) : ""}</span>
+            <span class="choice-desc">${escHtml(tr.modeMedDesc)}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.fieldsTitle)}</span>
+        <div class="card">
+          ${fieldSpecs.map((f) => `
+            <div class="row-item">
+              <div class="row-info">
+                <span class="row-title">${escHtml(f.title)}</span>
+                <span class="row-desc">${escHtml(f.desc)}</span>
+              </div>
+              <button type="button" class="switch${mf[f.key] ? " is-on" : ""}" role="switch" aria-checked="${mf[f.key] ? "true" : "false"}" data-action="toggle-mini-field" data-key="${f.key}">
+                <span class="switch-thumb"></span>
+              </button>
+            </div>
+          `).join("")}
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${escHtml(tr.trackHistoryLabel)}</span>
+              <span class="row-desc">${escHtml(tr.trackHistoryDesc)}</span>
+            </div>
+            <button type="button" class="switch${s.trackHistory !== false ? " is-on" : ""}" role="switch" aria-checked="${s.trackHistory !== false ? "true" : "false"}" data-action="toggle-track-history">
+              <span class="switch-thumb"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.dockTitle)}</span>
+        <div class="dock-grid">
+          ${docks.map((d) => `
+            <button type="button" class="dock-btn${s.dockPosition === d.id && s.layoutMode !== "floating" ? " is-selected" : ""}" data-action="set-dock" data-val="${d.id}">${escHtml(d.label)}</button>
+          `).join("")}
+        </div>
+        <div class="dock-bar">
+          <span style="color:var(--st-muted)">${escHtml(dockStatus)}</span>
+          <button type="button" class="btn btn-sm" data-action="reset-position">${iconSvg("reset", 13)}${escHtml(tr.dockResetBtn)}</button>
+        </div>
+        <span class="row-desc">${escHtml(tr.dockHiddenHint)}</span>
+      </div>
+    `;
+  }
+
+  function renderPersonaTab() {
+    const tr = t();
+    const s = state.settings;
+    const bytes = utf8ByteLength(state.draftPersonaText);
+    const overWarn = bytes >= 20000;
+    const customs = s.customPresets || [];
+
+    return `
+      <div class="card">
+        <div class="row-item">
+          <div class="row-info">
+            <span class="row-title">${escHtml(tr.personaMasterTitle)}</span>
+            <span class="row-desc">${escHtml(tr.personaMasterDesc)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="${s.personaEnabled ? "badge-active" : "nav-badge"}">${escHtml(s.personaEnabled ? tr.personaActiveTag : tr.personaOffTag)}</span>
+            <button type="button" class="switch${s.personaEnabled ? " is-on" : ""}" role="switch" aria-checked="${s.personaEnabled ? "true" : "false"}" data-action="toggle-persona-enabled">
+              <span class="switch-thumb"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.personaPresetsLabel)}</span>
+        <div class="preset-strip">
+          ${BUILTIN_PERSONA_PRESETS.map((p) => {
+            const title = state.locale === "en" ? p.titleEn : p.titleRu;
+            const desc = state.locale === "en" ? p.descEn : p.descRu;
+            const selected = s.personaActivePreset === p.id;
+            return `
+              <div class="preset-card${selected ? " is-selected" : ""}" data-action="select-preset" data-id="${escAttr(p.id)}">
+                <div class="preset-head"><span class="preset-name">${escHtml(title)}</span>${selected ? iconSvg("check", 13) : ""}</div>
+                <span class="preset-desc">${escHtml(desc)}</span>
+              </div>
+            `;
+          }).join("")}
+          ${customs.map((cp) => {
+            const selected = s.personaActivePreset === cp.id;
+            return `
+              <div class="preset-card${selected ? " is-selected" : ""}" data-action="select-preset" data-id="${escAttr(cp.id)}">
+                <div class="preset-head">
+                  <span class="preset-name">${escHtml(cp.title)}</span>
+                  <button type="button" class="preset-del-btn" data-action="delete-custom-preset" data-id="${escAttr(cp.id)}" title="Delete">${iconSvg("trash", 12)}</button>
+                </div>
+                <span class="preset-desc">${escHtml(tr.personaCustomLabel)}</span>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+
+      <div class="section-group">
+        <div class="editor-meta-row">
+          <span class="section-label">${escHtml(tr.personaEditorLabel)}</span>
+          <span class="num" data-role="byteCounter" style="color:${overWarn ? "var(--st-warning)" : "var(--st-muted)"}">${bytes.toLocaleString()} / ${MAX_PERSONA_BODY_BYTES.toLocaleString()} ${escHtml(tr.personaBytes)}${overWarn ? " · " + escHtml(tr.personaLimitWarn) : ""}</span>
+        </div>
+        <textarea class="editor-box" data-role="personaEditor" spellcheck="false">${escHtml(state.draftPersonaText)}</textarea>
+      </div>
+
+      <div class="preset-add-row">
+        <input type="text" class="text-input" data-role="newPresetInput" maxlength="44" value="${escAttr(state.newPresetName)}" placeholder="${escAttr(tr.personaSavePresetPlaceholder)}"/>
+        <button type="button" class="btn btn-sm" data-action="save-custom-preset">${iconSvg("plus", 13)}${escHtml(tr.personaAddPresetBtn)}</button>
+      </div>
+
+      <div class="action-bar">
+        <div class="action-btns">
+          <button type="button" class="btn btn-primary" data-action="save-persona">${iconSvg("check", 14)}${escHtml(tr.personaApplyBtn)}</button>
+          <button type="button" class="btn" data-action="clear-persona">${escHtml(tr.personaClearBtn)}</button>
+        </div>
+        <span class="toast-text${state.toastError ? " is-err" : ""}" data-role="toast">${escHtml(state.toastMsg)}</span>
+      </div>
+
+      <div class="row-desc" style="font-family:var(--st-mono);font-size:11px;word-break:break-all">
+        ${escHtml(tr.personaRulePathLabel)} ${escHtml(state.personaFilePath)}
+      </div>
+    `;
+  }
+
+  function renderLanguageTab() {
+    const tr = t();
+    const isRu = state.locale !== "en";
+    const ver = pluginMeta.version || "2.3.0";
+    const dictCount = pluginMeta.dictEntries || 4017;
+    const dynCount = pluginMeta.dynamicRulesCount || 471;
+
+    return `
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.langCardsTitle)}</span>
+        <div class="segmented-2">
+          <button type="button" class="choice-card${isRu ? " is-selected" : ""}" data-action="set-locale" data-val="ru">
+            <span class="choice-title"><span>${escHtml(tr.langRuTitle)}</span>${isRu ? `<span class="badge-active">${escHtml(tr.langActiveBadge)}</span>` : ""}</span>
+            <span class="choice-desc">${escHtml(tr.langRuDesc)}</span>
+          </button>
+          <button type="button" class="choice-card${!isRu ? " is-selected" : ""}" data-action="set-locale" data-val="en">
+            <span class="choice-title"><span>${escHtml(tr.langEnTitle)}</span>${!isRu ? `<span class="badge-active">${escHtml(tr.langActiveBadge)}</span>` : ""}</span>
+            <span class="choice-desc">${escHtml(tr.langEnDesc)}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.hotkeysTitle)}</span>
+        <div class="card">
+          <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleLang)}</span><span class="kbd">Ctrl + Alt + L</span></div>
+          <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleModal)}</span><span class="kbd">Ctrl + Alt + P</span></div>
+          <div class="row-item"><span class="row-title">${escHtml(tr.hkDoubleClick)}</span><span class="kbd">${escHtml(tr.hkDoubleClickKey)}</span></div>
+          <div class="row-item"><span class="row-title">${escHtml(tr.hkEsc)}</span><span class="kbd">Esc</span></div>
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(tr.pluginInfoTitle)}</span>
+        <div class="card">
+          <div class="row-item"><span class="row-title">${escHtml(tr.pluginVersion)}</span><span class="kbd num">v${escHtml(ver)}</span></div>
+          <div class="row-item"><span class="row-title">${escHtml(tr.pluginDict)}</span><span class="row-title num">${Number(dictCount).toLocaleString()}</span></div>
+          <div class="row-item"><span class="row-title">${escHtml(tr.pluginRules)}</span><span class="row-title num">${Number(dynCount).toLocaleString()}</span></div>
+          <div class="row-item">
+            <span class="row-title">${escHtml(tr.pluginRepo)}</span>
+            <a class="repo-link" href="https://github.com/Ivan0967pro/antigravity-ru" target="_blank" rel="noopener noreferrer">Ivan0967pro/antigravity-ru ${iconSvg("external", 13)}</a>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAppearanceTab() {
+    const tr = t();
+    const cards = [
+      { ic: "palette", title: tr.stage2ThemesTitle, desc: tr.stage2ThemesDesc },
+      { ic: "sparkles", title: tr.stage2WallsTitle, desc: tr.stage2WallsDesc },
+      { ic: "sliders", title: tr.stage2FontsTitle, desc: tr.stage2FontsDesc },
+    ];
+    return `
+      <div class="roadmap-banner">
+        <span class="row-title" style="font-size:14px">${escHtml(tr.stage2BannerTitle)}</span>
+        <span class="row-desc" style="color:var(--st-fg)">${escHtml(tr.stage2BannerDesc)}</span>
+      </div>
+      <div class="roadmap-grid">
+        ${cards.map((c) => `
+          <div class="roadmap-card">
+            <span class="roadmap-ic">${iconSvg(c.ic, 16)}</span>
+            <div class="row-info">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="row-title">${escHtml(c.title)}</span>
+                <span class="nav-badge">${escHtml(tr.stage2Pill)}</span>
+              </div>
+              <span class="row-desc">${escHtml(c.desc)}</span>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderModalShell() {
+    if (!state.isOpen) return "";
+    const tr = t();
+    const tabs = [
+      { id: "monitor", label: tr.navMonitor, ic: "activity", title: tr.modalTitleMonitor, sub: tr.modalSubMonitor },
+      { id: "widget", label: tr.navWidget, ic: "sliders", title: tr.modalTitleWidget, sub: tr.modalSubWidget },
+      { id: "persona", label: tr.navPersona, ic: "sparkles", title: tr.modalTitlePersona, sub: tr.modalSubPersona, dot: state.settings.personaEnabled },
+      { id: "language", label: tr.navLanguage, ic: "globe", title: tr.modalTitleLanguage, sub: tr.modalSubLanguage },
+      { id: "appearance", label: tr.navAppearance, ic: "palette", title: tr.modalTitleAppearance, sub: tr.modalSubAppearance, badge: tr.stage2Pill },
+    ];
+    const current = tabs.find((x) => x.id === state.activeTab) || tabs[0];
+    let bodyHtml = "";
+    if (current.id === "monitor") bodyHtml = renderMonitorTab();
+    else if (current.id === "widget") bodyHtml = renderWidgetTab();
+    else if (current.id === "persona") bodyHtml = renderPersonaTab();
+    else if (current.id === "language") bodyHtml = renderLanguageTab();
+    else bodyHtml = renderAppearanceTab();
+
+    return `
+      <div class="modal-backdrop" data-action="backdrop-close">
+        <div class="modal-shell" role="dialog" aria-modal="true" aria-label="${escAttr(tr.brandTitle)}">
+          <aside class="modal-sidebar">
+            <div class="sidebar-brand">
+              <span class="brand-title">${escHtml(tr.brandTitle)}</span>
+              <span class="brand-ver num">v${escHtml(pluginMeta.version || "2.3.0")}</span>
+            </div>
+            <nav class="nav-list">
+              ${tabs.map((tb) => `
+                <button type="button" class="nav-item${tb.id === current.id ? " is-active" : ""}" data-action="switch-tab" data-tab="${tb.id}">
+                  <span class="nav-ic">${iconSvg(tb.ic, 15)}</span>
+                  <span class="nav-label">${escHtml(tb.label)}</span>
+                  ${tb.dot ? '<span class="nav-dot"></span>' : ""}
+                  ${tb.badge ? `<span class="nav-badge">${escHtml(tb.badge)}</span>` : ""}
+                </button>
+              `).join("")}
+            </nav>
+            <div class="sidebar-foot">
+              <span>${escHtml(tr.sidebarFooterHint)}</span>
+              <span class="kbd">Ctrl+Alt+P</span>
+            </div>
+          </aside>
+          <section class="modal-main">
+            <header class="modal-header">
+              <div>
+                <h2 class="modal-title">${escHtml(current.title)}</h2>
+                <p class="modal-sub">${escHtml(current.sub)}</p>
+              </div>
+              <button type="button" class="modal-close-btn" data-action="close-modal" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 16)}</button>
+            </header>
+            <div class="modal-body">${bodyHtml}</div>
+          </section>
+        </div>
+      </div>
+    `;
+  }
+
+  function applyWidgetPosition() {
+    if (!widgetMountEl) return;
+    const s = state.settings;
+    const dock = normalizeDockPosition(s.dockPosition);
+    const shouldHide = dock === "hidden";
+    widgetMountEl.className = "widget-wrap" + (shouldHide ? " is-hidden" : "");
+
+    if (shouldHide) {
+      widgetMountEl.style.left = "";
+      widgetMountEl.style.top = "";
+      widgetMountEl.style.right = "";
+      widgetMountEl.style.bottom = "";
+      return;
+    }
+
+    if (s.layoutMode === "floating" && typeof s.floatX === "number" && typeof s.floatY === "number") {
+      widgetMountEl.style.right = "";
+      widgetMountEl.style.bottom = "";
+      widgetMountEl.style.left = `${Math.max(8, Math.round(s.floatX))}px`;
+      widgetMountEl.style.top = `${Math.max(8, Math.round(s.floatY))}px`;
+      clampWidgetToViewport();
     } else {
-      const vw = typeof win.innerWidth === "number" && win.innerWidth > 0 ? win.innerWidth : 1280;
-      const vh = typeof win.innerHeight === "number" && win.innerHeight > 0 ? win.innerHeight : 800;
-      const sz = getEstimatedSize();
-      const rawX = typeof settings.floatX === "number" ? settings.floatX : vw - sz.w - 16;
-      const rawY = typeof settings.floatY === "number" ? settings.floatY : vh - sz.h - 84;
-      const clamped = clampPosition(rawX, rawY);
-      settings.floatX = clamped.x;
-      settings.floatY = clamped.y;
-      ui.widget.style.left = clamped.x + "px";
-      ui.widget.style.top = clamped.y + "px";
-      ui.widget.style.right = "auto";
-      ui.widget.style.bottom = "auto";
-      ui.widget.style.transform = "none";
+      widgetMountEl.style.left = "";
+      widgetMountEl.style.top = "";
+      widgetMountEl.style.right = "";
+      widgetMountEl.style.bottom = "";
+      widgetMountEl.className = `widget-wrap dock-${dock}`;
     }
-    ui.widget.className = cls.join(" ");
   }
 
-  function attachDrag(handleEl) {
-    if (!handleEl || typeof handleEl.addEventListener !== "function") return;
-    handleEl.addEventListener("pointerdown", (e) => {
-      if (e.button !== undefined && e.button !== 0) return;
-      const target = e.target;
-      if (target && typeof target.closest === "function" && target.closest("button, a, input, textarea")) {
-        return;
+  function clampWidgetToViewport() {
+    if (!widgetMountEl || !win || state.settings.layoutMode !== "floating") return;
+    try {
+      const vw = Number(win.innerWidth) || 0;
+      const vh = Number(win.innerHeight) || 0;
+      if (vw <= 40 || vh <= 40) return;
+      const rect = typeof widgetMountEl.getBoundingClientRect === "function"
+        ? widgetMountEl.getBoundingClientRect()
+        : null;
+      const w = rect && rect.width ? rect.width : 240;
+      const h = rect && rect.height ? rect.height : 40;
+      const maxX = Math.max(8, vw - w - 8);
+      const maxY = Math.max(8, vh - h - 8);
+      const curX = typeof state.settings.floatX === "number" ? state.settings.floatX : 18;
+      const curY = typeof state.settings.floatY === "number" ? state.settings.floatY : 18;
+      const nextX = Math.min(maxX, Math.max(8, Math.round(curX)));
+      const nextY = Math.min(maxY, Math.max(8, Math.round(curY)));
+      state.settings.floatX = nextX;
+      state.settings.floatY = nextY;
+      widgetMountEl.style.left = `${nextX}px`;
+      widgetMountEl.style.top = `${nextY}px`;
+    } catch (_e) {}
+  }
+
+  function setLiveSlot(container, selector, val, isHtml) {
+    if (!container || typeof container.querySelectorAll !== "function") return;
+    const els = container.querySelectorAll(selector);
+    for (let i = 0; i < els.length; i += 1) {
+      if (isHtml) els[i].innerHTML = val;
+      else els[i].textContent = val;
+    }
+  }
+
+  function updateHistoryDom() {
+    if (!modalMountEl) return;
+    setLiveSlot(modalMountEl, '[data-live="historyList"]', renderHistoryInner(), true);
+  }
+
+  function updateLiveDom() {
+    const tr = t();
+    const tel = state.telemetry;
+    const tpsText = String(state.settings.viewMode === "mini" && !tel.isGenerating ? tel.peakTps : tel.currentTps);
+    const respText = `~${formatCompact(tel.respTokens)} ${tr.tokShort}`;
+    const miniRespText = `~${formatCompact(tel.respTokens)}`;
+    const chatText = tel.contextLabel || `~${formatCompact(tel.chatTokens)}`;
+    const fullChatText = tel.contextLabel || `~${formatCompact(tel.chatTokens)} ${tr.tokShort}`;
+    const statusText = tel.isGenerating ? tr.statusWriting : tr.statusReady;
+    const phaseText = tel.isGenerating ? tr.phaseLive : tr.phaseIdle;
+    const modelText = tel.modelName || tr.modelUnknown;
+
+    const containers = [widgetMountEl, modalMountEl].filter(Boolean);
+    for (let i = 0; i < containers.length; i += 1) {
+      const box = containers[i];
+      if (typeof box.querySelectorAll !== "function") continue;
+      const dots = box.querySelectorAll('[data-live="dot"]');
+      for (let d = 0; d < dots.length; d += 1) {
+        dots[d].className = "status-dot" + (tel.isGenerating ? " is-live" : "");
       }
-      if (!ui.widget || typeof win.addEventListener !== "function") return;
+      setLiveSlot(box, '[data-live="statusText"]', statusText, false);
+      setLiveSlot(box, '[data-live="phase"]', phaseText, false);
+      setLiveSlot(box, '[data-live="peak"]', String(tel.peakTps), false);
+    }
 
-      const rect = typeof ui.widget.getBoundingClientRect === "function"
-        ? ui.widget.getBoundingClientRect()
-        : { left: settings.floatX || 900, top: settings.floatY || 500 };
+    if (widgetMountEl) {
+      setLiveSlot(widgetMountEl, '[data-live="tps"]', tpsText, false);
+      setLiveSlot(widgetMountEl, '[data-live="resp"]', state.settings.viewMode === "mini" ? miniRespText : respText, false);
+      setLiveSlot(widgetMountEl, '[data-live="chat"]', state.settings.viewMode === "mini" ? chatText : fullChatText, false);
+      setLiveSlot(widgetMountEl, '[data-live="model"]', tel.modelName || (state.settings.viewMode === "mini" ? "AI" : "—"), false);
+      setLiveSlot(widgetMountEl, '[data-live="sparkMed"]', buildSparklineMarkup(tel.samples, 260, 42, "med"), true);
+    }
 
-      const startClientX = e.clientX || 0;
-      const startClientY = e.clientY || 0;
-      const startLeft = rect.left;
-      const startTop = rect.top;
-      let moved = false;
-
-      const onMove = (ev) => {
-        const dx = (ev.clientX || 0) - startClientX;
-        const dy = (ev.clientY || 0) - startClientY;
-        if (!moved && Math.hypot(dx, dy) < 4) return;
-        moved = true;
-        isDragging = true;
-        settings.layoutMode = "floating";
-        const clamped = clampPosition(startLeft + dx, startTop + dy);
-        settings.floatX = clamped.x;
-        settings.floatY = clamped.y;
-        applyPosition();
-      };
-
-      const onUp = () => {
-        if (typeof win.removeEventListener === "function") {
-          win.removeEventListener("pointermove", onMove);
-          win.removeEventListener("pointerup", onUp);
-          win.removeEventListener("pointercancel", onUp);
-        }
-        if (moved) {
-          isDragging = false;
-          applyPosition();
-          saveSettings({
-            layoutMode: "floating",
-            floatX: settings.floatX,
-            floatY: settings.floatY,
-          });
-        }
-      };
-
-      win.addEventListener("pointermove", onMove);
-      win.addEventListener("pointerup", onUp);
-      win.addEventListener("pointercancel", onUp);
-    });
+    if (modalMountEl && state.isOpen) {
+      setLiveSlot(modalMountEl, '[data-live="tps"]', String(tel.currentTps), false);
+      setLiveSlot(modalMountEl, '[data-live="resp"]', respText, false);
+      setLiveSlot(modalMountEl, '[data-live="chat"]', fullChatText, false);
+      setLiveSlot(modalMountEl, '[data-live="model"]', modelText, false);
+      setLiveSlot(modalMountEl, '[data-live="sparkModal"]', buildSparklineMarkup(tel.samples, 520, 92, "modal"), true);
+      if (state.activeTab === "widget") {
+        setLiveSlot(modalMountEl, '[data-live="previewCapsule"]', renderMiniCapsuleMarkup(true), true);
+      }
+    }
   }
 
-  function bindEvents() {
-    if (!ui.widget) return;
-
-    attachDrag(ui.miniBar);
-    attachDrag(ui.medHdr);
-    attachDrag(ui.largeHdr);
-
-    ui.miniToMed.addEventListener("click", () => setViewMode("medium"));
-    ui.miniToLarge.addEventListener("click", () => setViewMode("large"));
-    ui.closeBtn.addEventListener("click", () => setViewMode(lastCompactMode));
-
-    for (const btn of ui.modeBtns || []) {
-      btn.addEventListener("click", () => setViewMode(btn.getAttribute("data-mode") || "mini"));
+  function renderStructure() {
+    if (!rootEl || state.destroyed) return;
+    syncTheme();
+    if (widgetMountEl) {
+      widgetMountEl.innerHTML = state.settings.viewMode === "medium"
+        ? renderMediumCardMarkup()
+        : renderMiniCapsuleMarkup(false);
+      applyWidgetPosition();
     }
-    for (const btn of ui.setModeBtns || []) {
-      btn.addEventListener("click", () => setViewMode(btn.getAttribute("data-set-mode") || "mini"));
+    if (modalMountEl) {
+      modalMountEl.innerHTML = state.isOpen ? renderModalShell() : "";
     }
+  }
 
-    const togglePin = () => {
-      if (settings.layoutMode === "floating") {
-        saveSettings({ layoutMode: "docked" });
+  function selectPreset(id) {
+    let body = null;
+    for (let i = 0; i < BUILTIN_PERSONA_PRESETS.length; i += 1) {
+      if (BUILTIN_PERSONA_PRESETS[i].id === id) {
+        body = BUILTIN_PERSONA_PRESETS[i].body;
+        break;
+      }
+    }
+    if (body === null) {
+      const customs = state.settings.customPresets || [];
+      for (let i = 0; i < customs.length; i += 1) {
+        if (customs[i].id === id) {
+          body = customs[i].body;
+          break;
+        }
+      }
+    }
+    if (body === null) return;
+    state.settings.personaActivePreset = id;
+    state.draftPersonaText = body;
+    state.draftDirty = true;
+    renderStructure();
+  }
+
+  function persistPersona(enabledOverride) {
+    const nextEnabled = typeof enabledOverride === "boolean" ? enabledOverride : state.settings.personaEnabled;
+    const tr = t();
+    return invokeIpc("agy-studio:save-persona", {
+      personaEnabled: nextEnabled,
+      personaText: state.draftPersonaText,
+      personaActivePreset: state.settings.personaActivePreset || "custom",
+      customPresets: state.settings.customPresets || [],
+    }).then((res) => {
+      state.draftDirty = false;
+      if (res && res.state) applyRemoteState(res.state, false);
+      if (res && res.ok === false) {
+        setToast(res.error || "Error", true);
       } else {
-        const rect = typeof ui.widget.getBoundingClientRect === "function" ? ui.widget.getBoundingClientRect() : { left: 900, top: 400 };
-        saveSettings({ layoutMode: "floating", floatX: Math.round(rect.left), floatY: Math.round(rect.top) });
+        setToast(state.draftPersonaText.trim() ? tr.personaSavedMsg : tr.personaClearedMsg, false);
       }
-    };
-    ui.medPin.addEventListener("click", togglePin);
-    ui.largePin.addEventListener("click", togglePin);
+      return res;
+    });
+  }
 
-    ui.miniLang.addEventListener("click", () => switchLocale(locale === "ru" ? "en" : "ru"));
-    ui.medLang.addEventListener("click", () => switchLocale(locale === "ru" ? "en" : "ru"));
-    ui.hdrLang.addEventListener("click", () => switchLocale(locale === "ru" ? "en" : "ru"));
-    ui.setRuBtn.addEventListener("click", () => switchLocale("ru"));
-    ui.setEnBtn.addEventListener("click", () => switchLocale("en"));
+  function handleActionClick(targetEl) {
+    if (!targetEl || typeof targetEl.closest !== "function") return;
+    const actionEl = targetEl.closest("[data-action]");
+    if (!actionEl) return;
+    const action = actionEl.getAttribute("data-action");
+    const tr = t();
 
-    for (const btn of ui.tabBtns || []) {
-      btn.addEventListener("click", () => {
-        activeTab = btn.getAttribute("data-tab") || "monitor";
-        renderTabs();
-      });
+    if (action === "backdrop-close") {
+      if (targetEl === actionEl) setOpen(false);
+      return;
     }
-
-    for (const btn of ui.dockPosBtns || []) {
-      btn.addEventListener("click", () => {
-        const pos = btn.getAttribute("data-dock") || "bottom";
-        saveSettings({ layoutMode: "docked", dockPosition: pos });
-      });
+    if (action === "close-modal") {
+      setOpen(false);
+      return;
     }
-
-    ui.resetPosBtn.addEventListener("click", () => {
-      saveSettings({ layoutMode: "docked", dockPosition: "bottom", floatX: null, floatY: null });
-    });
-
-    for (const sw of ui.mfSwitches || []) {
-      sw.addEventListener("click", () => {
-        const key = sw.getAttribute("data-mf");
-        if (!key) return;
-        const nextMini = Object.assign({}, settings.miniFields, { [key]: !settings.miniFields[key] });
-        saveSettings({ miniFields: nextMini });
-      });
+    if (action === "open-settings") {
+      setOpen(true);
+      return;
     }
-
-    ui.trackHistSwitch.addEventListener("click", () => {
-      saveSettings({ trackHistory: !settings.trackHistory });
-    });
-
-    ui.resetStatsBtn.addEventListener("click", () => {
-      monitor.liveTps = 0;
-      monitor.lastAvgTps = 0;
-      monitor.peakTps = 0;
-      monitor.sparkline = [];
-      monitor.history = [];
-      turnCounter = 0;
-      renderMonitor();
-    });
-
-    ui.personaSwitch.addEventListener("click", () => {
-      settings.personaEnabled = !settings.personaEnabled;
-      savePersonaNow();
-    });
-
-    stopTypingLeak(ui.personaTextarea);
-    stopTypingLeak(ui.presetNameInput);
-
-    ui.personaTextarea.addEventListener("input", () => {
-      settings.personaText = ui.personaTextarea.value;
-      settings.personaActivePreset = "custom";
-      personaDirty = true;
-      renderPersona();
-    });
-
-    ui.savePersonaBtn.addEventListener("click", () => {
-      if (String(settings.personaText || "").trim().length > 0) {
-        settings.personaEnabled = true;
+    if (action === "open-persona-tab") {
+      state.activeTab = "persona";
+      setOpen(true);
+      return;
+    }
+    if (action === "switch-tab") {
+      const tab = actionEl.getAttribute("data-tab") || "monitor";
+      state.activeTab = tab;
+      renderStructure();
+      return;
+    }
+    if (action === "to-medium") {
+      setViewMode("medium");
+      return;
+    }
+    if (action === "to-mini") {
+      setViewMode("mini");
+      return;
+    }
+    if (action === "set-view-mode") {
+      setViewMode(actionEl.getAttribute("data-val") === "medium" ? "medium" : "mini");
+      return;
+    }
+    if (action === "toggle-locale") {
+      const next = state.locale === "ru" ? "en" : "ru";
+      setLocale(next);
+      invokeIpc("agy-i18n:set-locale", next);
+      return;
+    }
+    if (action === "set-locale") {
+      const next = actionEl.getAttribute("data-val") === "en" ? "en" : "ru";
+      if (next !== state.locale) {
+        setLocale(next);
+        invokeIpc("agy-i18n:set-locale", next);
       }
-      savePersonaNow();
-    });
-
-    ui.clearPersonaBtn.addEventListener("click", () => {
-      settings.personaText = "";
-      settings.personaActivePreset = "custom";
-      settings.personaEnabled = false;
-      personaDirty = false;
-      savePersonaNow();
-    });
-
-    ui.addPresetBtn.addEventListener("click", () => {
-      showSavePresetBar = !showSavePresetBar;
-      renderPersona();
-      if (showSavePresetBar && ui.presetNameInput && typeof ui.presetNameInput.focus === "function") {
-        ui.presetNameInput.value = "";
-        ui.presetNameInput.focus();
+      return;
+    }
+    if (action === "toggle-mini-field") {
+      const key = actionEl.getAttribute("data-key");
+      if (MINI_FIELD_KEYS.indexOf(key) >= 0) {
+        const nextFields = Object.assign({}, state.settings.miniFields);
+        nextFields[key] = !nextFields[key];
+        saveSettingsPatch({ miniFields: nextFields });
       }
-    });
-
-    ui.presetCancelBtn.addEventListener("click", () => {
-      showSavePresetBar = false;
-      renderPersona();
-    });
-
-    ui.presetConfirmBtn.addEventListener("click", () => {
-      const name = String((ui.presetNameInput && ui.presetNameInput.value) || "").trim();
-      const text = String(settings.personaText || "").trim();
-      if (!name || !text) return;
+      return;
+    }
+    if (action === "toggle-track-history") {
+      saveSettingsPatch({ trackHistory: state.settings.trackHistory === false });
+      return;
+    }
+    if (action === "set-dock") {
+      const dock = normalizeDockPosition(actionEl.getAttribute("data-val"));
+      saveSettingsPatch({ dockPosition: dock, layoutMode: "docked", floatX: null, floatY: null });
+      return;
+    }
+    if (action === "snap-dock" || action === "reset-position") {
+      const dock = state.settings.dockPosition === "hidden" ? "bottom-right" : state.settings.dockPosition;
+      saveSettingsPatch({ dockPosition: dock, layoutMode: "docked", floatX: null, floatY: null });
+      return;
+    }
+    if (action === "reset-telemetry") {
+      state.telemetry.currentTps = 0;
+      state.telemetry.peakTps = 0;
+      state.telemetry.samples = [];
+      state.telemetry.history = [];
+      updateLiveDom();
+      updateHistoryDom();
+      return;
+    }
+    if (action === "toggle-persona-enabled") {
+      const next = !state.settings.personaEnabled;
+      state.settings.personaEnabled = next;
+      renderStructure();
+      persistPersona(next);
+      return;
+    }
+    if (action === "select-preset") {
+      if (targetEl.closest && targetEl.closest('[data-action="delete-custom-preset"]')) return;
+      selectPreset(actionEl.getAttribute("data-id") || "");
+      return;
+    }
+    if (action === "delete-custom-preset") {
+      const id = actionEl.getAttribute("data-id");
+      const next = (state.settings.customPresets || []).filter((p) => p.id !== id);
+      const nextActive = state.settings.personaActivePreset === id ? "custom" : state.settings.personaActivePreset;
+      saveSettingsPatch({ customPresets: next, personaActivePreset: nextActive });
+      setToast(tr.personaDeletedPreset, false);
+      return;
+    }
+    if (action === "save-custom-preset") {
+      const title = String(state.newPresetName || "").trim().slice(0, 44);
+      const body = String(state.draftPersonaText || "").trim();
+      if (!title || !body) return;
       const id = "custom-" + Date.now();
-      const nextPresets = (settings.customPresets || []).concat([{ id, name, text }]).slice(-20);
-      settings.customPresets = nextPresets;
-      settings.personaActivePreset = id;
-      showSavePresetBar = false;
-      saveSettings({ customPresets: nextPresets, personaActivePreset: id });
-      renderPersona();
-    });
-
-    if (typeof win.addEventListener === "function") {
-      win.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && settings.viewMode === "large") {
-          setViewMode(lastCompactMode);
-        }
-      });
-      win.addEventListener("resize", () => {
-        if (settings.layoutMode === "floating") {
-          applyPosition();
-        }
-      });
-    }
-  }
-
-  function setViewMode(nextMode) {
-    const mode = nextMode === "large" || nextMode === "medium" || nextMode === "mini" ? nextMode : "mini";
-    if (mode === "mini" || mode === "medium") {
-      lastCompactMode = mode;
-    }
-    settings.viewMode = mode;
-    renderAll();
-    if (typeof win.requestAnimationFrame === "function") {
-      win.requestAnimationFrame(() => applyPosition());
-    }
-    if (ipc && typeof ipc.invoke === "function") {
-      try {
-        ipc.invoke("agy-studio:save-settings", { viewMode: mode }).catch(() => {});
-      } catch {}
-    }
-  }
-
-  function switchLocale(next) {
-    const normalized = next === "en" ? "en" : "ru";
-    if (normalized === locale) return;
-    locale = normalized;
-    renderAll();
-    if (ipc && typeof ipc.invoke === "function") {
-      try {
-        ipc.invoke("agy-i18n:set-locale", normalized).catch(() => {});
-      } catch {}
-    }
-  }
-
-  function saveSettings(patch) {
-    const pObj = patch && typeof patch === "object" ? Object.assign({}, patch) : {};
-    if (pObj.miniFields && typeof pObj.miniFields === "object") {
-      pObj.miniFields = Object.assign({}, settings.miniFields, pObj.miniFields);
-    }
-    settings = Object.assign({}, settings, pObj);
-    if (settings.viewMode === "mini" || settings.viewMode === "medium") {
-      lastCompactMode = settings.viewMode;
-    }
-    renderAll();
-    if (ipc && typeof ipc.invoke === "function") {
-      try {
-        ipc
-          .invoke("agy-studio:save-settings", pObj)
-          .then((st) => {
-            if (st) applyRemoteState(st);
-          })
-          .catch(() => {});
-      } catch {}
-    }
-  }
-
-  function savePersonaNow() {
-    const bytes = measureUtf8Bytes(String(settings.personaText || "").trim());
-    if (settings.personaEnabled && bytes > MAX_PERSONA_BYTES) {
-      personaSaveFeedback = { ok: false, msg: t("limitErr") };
-      renderPersona();
+      const next = (state.settings.customPresets || []).concat([{ id, title, body }]).slice(-16);
+      state.newPresetName = "";
+      state.settings.personaActivePreset = id;
+      saveSettingsPatch({ customPresets: next, personaActivePreset: id });
       return;
     }
-    personaDirty = false;
-    renderPersona();
-    if (ipc && typeof ipc.invoke === "function") {
-      try {
-        ipc
-          .invoke("agy-studio:save-persona", {
-            personaEnabled: settings.personaEnabled,
-            personaText: settings.personaText,
-            personaActivePreset: settings.personaActivePreset,
-            customPresets: settings.customPresets,
-          })
-          .then((res) => {
-            if (res && res.state) applyRemoteState(res.state);
-            if (res && res.ok) {
-              personaSaveFeedback = { ok: true, msg: res.exists ? t("savedOk") : t("disabledOk") };
-            } else {
-              personaSaveFeedback = {
-                ok: false,
-                msg: (res && res.error === "EXCEEDS_BYTE_LIMIT" ? t("limitErr") : res && res.error) || "Error",
-              };
-            }
-            renderPersona();
-          })
-          .catch((err) => {
-            personaSaveFeedback = { ok: false, msg: err && err.message ? err.message : "Error" };
-            renderPersona();
-          });
-      } catch {}
+    if (action === "save-persona") {
+      persistPersona(state.settings.personaEnabled);
+      return;
+    }
+    if (action === "clear-persona") {
+      state.draftPersonaText = "";
+      state.draftDirty = true;
+      state.settings.personaActivePreset = "custom";
+      renderStructure();
+      persistPersona(false);
     }
   }
 
-  function renderTabs() {
-    if (!ui.tabBtns || !ui.panes) return;
-    for (const btn of ui.tabBtns) {
-      btn.className = btn.getAttribute("data-tab") === activeTab ? "tab-btn active" : "tab-btn";
-    }
-    for (const pane of ui.panes) {
-      pane.className = pane.getAttribute("data-pane") === activeTab ? "pane active" : "pane";
-    }
-  }
+  function handlePointerDown(e) {
+    if (!widgetMountEl || !e || e.button !== 0) return;
+    const tEl = e.target;
+    if (!tEl || typeof tEl.closest !== "function") return;
+    if (tEl.closest('[data-no-drag="1"]') || tEl.closest("button")) return;
+    const handle = tEl.closest('[data-drag-handle="1"]');
+    if (!handle) return;
 
-  function renderChrome() {
-    if (!ui.widget) return;
-    applyPosition();
-
-    const mf = settings.miniFields || {};
-    const dotClass =
-      monitor.phase === "streaming" ? "dot streaming" : monitor.phase === "thinking" ? "dot thinking" : "dot";
-    const shownTps = monitor.phase === "streaming" ? monitor.liveTps : monitor.lastAvgTps;
-
-    // Mini view
-    ui.miniGrip.title = t("dragTip");
-    ui.miniDot.className = dotClass;
-    ui.miniDot.style.display = mf.status !== false ? "inline-block" : "none";
-    ui.miniLang.style.display = mf.lang !== false ? "inline-block" : "none";
-    ui.miniLang.textContent = locale.toUpperCase();
-
-    ui.miniTps.style.display = mf.tps !== false ? "inline" : "none";
-    ui.miniTps.textContent = `${shownTps} ${t("tpsUnit")}`;
-
-    ui.miniRespTok.style.display = mf.respTokens ? "inline" : "none";
-    ui.miniRespTok.textContent = `R:~${formatInt(monitor.responseTokens)}`;
-
-    ui.miniChatTok.style.display = mf.chatTokens ? "inline" : "none";
-    ui.miniChatTok.textContent = `C:~${formatInt(monitor.chatTokens)}`;
-
-    ui.miniModel.style.display = mf.model ? "inline" : "none";
-    ui.miniModel.textContent = monitor.modelName || t("modelUnknown");
-
-    ui.miniToMed.title = t("expandMedTip");
-    ui.miniToLarge.title = t("expandLargeTip");
-
-    // Medium & Large headers
-    ui.medTitle.textContent = t("brandShort");
-    ui.medLang.textContent = locale.toUpperCase();
-    ui.hdrTitle.textContent = t("brand");
-    ui.hdrVer.textContent = "v" + (pluginMeta.version || "2.2.1");
-    ui.hdrLang.textContent = locale.toUpperCase();
-    ui.closeBtn.title = t("collapseTip");
-
-    const isFloat = settings.layoutMode === "floating";
-    ui.medPin.className = isFloat ? "icon-btn" : "icon-btn pinned";
-    ui.largePin.className = isFloat ? "icon-btn" : "icon-btn pinned";
-    ui.medPin.title = isFloat ? t("pinTipFloating") : t("pinTipDocked");
-    ui.largePin.title = isFloat ? t("pinTipFloating") : t("pinTipDocked");
-
-    for (const btn of ui.modeBtns || []) {
-      btn.className = btn.getAttribute("data-mode") === settings.viewMode ? "sz-btn active" : "sz-btn";
-    }
-
-    ui.tabMonitor.textContent = t("tabMonitor");
-    ui.tabPersona.textContent = t("tabPersona");
-    ui.tabSettings.textContent = t("tabSettings");
-  }
-
-  function buildSparkPoints(pts, w, h, padY) {
-    if (!pts || pts.length === 0) return { line: "", area: "" };
-    const maxVal = Math.max(20, ...pts);
-    const coords = pts.map((v, idx) => {
-      const x = pts.length === 1 ? w : Math.round((idx / (pts.length - 1)) * w * 10) / 10;
-      const y = Math.round((h - padY - (v / maxVal) * (h - padY * 2)) * 10) / 10;
-      return `${x},${y}`;
-    });
-    return {
-      line: coords.join(" "),
-      area: `0,${h} ${coords.join(" ")} ${w},${h}`,
+    const rect = typeof widgetMountEl.getBoundingClientRect === "function"
+      ? widgetMountEl.getBoundingClientRect()
+      : { left: 16, top: 16, width: 220, height: 36 };
+    dragState = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origLeft: rect.left,
+      origTop: rect.top,
+      width: rect.width || 220,
+      height: rect.height || 36,
+      lastX: rect.left,
+      lastY: rect.top,
+      moved: false,
     };
   }
 
-  function renderMonitor() {
-    if (!ui.monPhase) return;
-    const dotClass =
-      monitor.phase === "streaming" ? "dot streaming" : monitor.phase === "thinking" ? "dot thinking" : "dot";
-    ui.monDot.className = dotClass;
-    ui.medDot.className = dotClass;
+  function handlePointerMove(e) {
+    if (!dragState || !widgetMountEl) return;
+    const dx = e.clientX - dragState.startX;
+    const dy = e.clientY - dragState.startY;
+    if (!dragState.moved && Math.hypot(dx, dy) < 4) return;
 
-    let phaseTxt = t("statusIdle");
-    if (monitor.phase === "streaming") phaseTxt = t("statusStreaming");
-    else if (monitor.phase === "thinking") {
-      phaseTxt = monitor.thinkingSec > 0 ? `${t("statusThinking")} ${monitor.thinkingSec}${locale === "ru" ? " с" : "s"}` : t("statusThinking");
+    if (!dragState.moved) {
+      dragState.moved = true;
+      widgetMountEl.className = "widget-wrap is-dragging";
+      widgetMountEl.style.right = "";
+      widgetMountEl.style.bottom = "";
     }
-    ui.monPhase.textContent = phaseTxt;
-    ui.medPhase.textContent = phaseTxt;
+    const vw = win && win.innerWidth ? win.innerWidth : 1280;
+    const vh = win && win.innerHeight ? win.innerHeight : 800;
+    const maxX = Math.max(8, vw - dragState.width - 8);
+    const maxY = Math.max(8, vh - dragState.height - 8);
+    const nextX = Math.min(maxX, Math.max(8, Math.round(dragState.origLeft + dx)));
+    const nextY = Math.min(maxY, Math.max(8, Math.round(dragState.origTop + dy)));
+    dragState.lastX = nextX;
+    dragState.lastY = nextY;
+    widgetMountEl.style.left = `${nextX}px`;
+    widgetMountEl.style.top = `${nextY}px`;
+  }
 
-    const modelTxt = monitor.modelName || t("modelUnknown");
-    ui.monModel.textContent = modelTxt;
-    ui.monModel.title = monitor.modelName || "";
-    ui.medModel.textContent = modelTxt;
-    ui.medModel.title = monitor.modelName || "";
+  function handlePointerUp() {
+    if (!dragState) return;
+    const wasMoved = dragState.moved;
+    const finalX = dragState.lastX;
+    const finalY = dragState.lastY;
+    dragState = null;
+    if (wasMoved && widgetMountEl) {
+      if (widgetMountEl.classList && typeof widgetMountEl.classList.remove === "function") {
+        widgetMountEl.classList.remove("is-dragging");
+      }
+      saveSettingsPatch({ layoutMode: "floating", floatX: finalX, floatY: finalY });
+    }
+  }
 
-    const mainTps = monitor.phase === "streaming" ? monitor.liveTps : monitor.lastAvgTps;
-    const tpsVal = `${mainTps} ${t("tpsUnit")}`;
-    const peakSub = `${t("peakPrefix")} ${monitor.peakTps} ${t("tpsUnit")}`;
-    const respVal = `~${formatInt(monitor.responseTokens)} ${t("tokUnit")}`;
-    const respSub = `${formatInt(monitor.responseChars)} ${t("charsUnit")}`;
-    const chatVal = `~${formatInt(monitor.chatTokens)} ${t("tokUnit")}`;
-
-    ui.lblTps.textContent = t("tpsLabel");
-    ui.valTps.textContent = tpsVal;
-    ui.subTps.textContent = peakSub;
-    ui.lblResp.textContent = t("respLabel");
-    ui.valResp.textContent = respVal;
-    ui.subResp.textContent = respSub;
-    ui.lblChat.textContent = t("chatLabel");
-    ui.valChat.textContent = chatVal;
-    ui.subChat.textContent = monitor.contextNote || "";
-
-    ui.medLblTps.textContent = "TPS";
-    ui.medValTps.textContent = tpsVal;
-    ui.medSubTps.textContent = peakSub;
-    ui.medLblResp.textContent = t("respLabel");
-    ui.medValResp.textContent = respVal;
-    ui.medSubResp.textContent = respSub;
-    ui.medLblChat.textContent = t("chatLabel");
-    ui.medValChat.textContent = chatVal;
-    ui.medSubChat.textContent = monitor.contextNote || "";
-
-    ui.sparkTitle.textContent = t("sparkTitle");
-    ui.resetStatsBtn.textContent = t("resetStats");
-
-    const largeSpark = buildSparkPoints(monitor.sparkline, 300, 58, 5);
-    ui.sparkLine.setAttribute("points", largeSpark.line);
-    ui.sparkArea.setAttribute("points", largeSpark.area);
-
-    const medSpark = buildSparkPoints(monitor.sparkline, 240, 44, 4);
-    ui.medSparkLine.setAttribute("points", medSpark.line);
-    ui.medSparkArea.setAttribute("points", medSpark.area);
-
-    ui.histCard.style.display = settings.trackHistory ? "block" : "none";
-    ui.histTitle.textContent = t("historyTitle");
-    if (ui.histList) {
-      ui.histList.innerHTML = "";
-      if (!monitor.history.length) {
-        const emp = doc.createElement("div");
-        emp.className = "hist-empty";
-        emp.textContent = t("historyEmpty");
-        ui.histList.appendChild(emp);
-      } else {
-        for (const item of monitor.history) {
-          const row = doc.createElement("div");
-          row.className = "hist-row";
-          const c1 = doc.createElement("span");
-          c1.style.color = "var(--muted-foreground, #8a8a93)";
-          c1.textContent = `#${item.idx}`;
-          const c2 = doc.createElement("span");
-          c2.textContent = `~${formatInt(item.tokens)} ${t("tokUnit")}`;
-          const c3 = doc.createElement("span");
-          c3.style.color = "var(--muted-foreground, #8a8a93)";
-          c3.textContent = `${item.durSec.toFixed(1)}${locale === "ru" ? "с" : "s"}`;
-          const c4 = doc.createElement("span");
-          c4.style.fontWeight = "600";
-          c4.style.color = "var(--primary, #38bdf8)";
-          c4.textContent = `${item.avgTps} ${t("tpsUnit")}`;
-          row.appendChild(c1);
-          row.appendChild(c2);
-          row.appendChild(c3);
-          row.appendChild(c4);
-          ui.histList.appendChild(row);
+  function attachDomEvents() {
+    if (!rootEl) return;
+    rootEl.addEventListener("click", (e) => handleActionClick(e.target));
+    rootEl.addEventListener("dblclick", (e) => {
+      const target = e.target;
+      if (!target || typeof target.closest !== "function") return;
+      if (target.closest("button") || target.closest('[data-no-drag="1"]')) return;
+      if (target.closest('[data-dbl-settings="1"]')) {
+        setOpen(true);
+      }
+    });
+    rootEl.addEventListener("input", (e) => {
+      const target = e.target;
+      if (!target || typeof target.getAttribute !== "function") return;
+      const role = target.getAttribute("data-role");
+      if (role === "personaEditor") {
+        state.draftPersonaText = target.value || "";
+        state.draftDirty = true;
+        const counter = modalMountEl ? modalMountEl.querySelector('[data-role="byteCounter"]') : null;
+        if (counter) {
+          const bytes = utf8ByteLength(state.draftPersonaText);
+          const warn = bytes >= 20000;
+          const tr = t();
+          counter.textContent = `${bytes.toLocaleString()} / ${MAX_PERSONA_BODY_BYTES.toLocaleString()} ${tr.personaBytes}${warn ? " · " + tr.personaLimitWarn : ""}`;
+          counter.style.color = warn ? "var(--st-warning)" : "var(--st-muted)";
         }
+      } else if (role === "newPresetInput") {
+        state.newPresetName = target.value || "";
       }
+    });
+    if (widgetMountEl) {
+      widgetMountEl.addEventListener("mousedown", handlePointerDown);
     }
-    ui.estNote.textContent = t("estNote");
-  }
-
-  function renderPersona() {
-    if (!ui.personaSwitch) return;
-    ui.personaToggleLbl.textContent = t("personaToggle");
-    ui.personaSwitch.setAttribute("aria-checked", settings.personaEnabled ? "true" : "false");
-
-    const isActiveOnDisk = settings.personaEnabled && personaFileExists;
-    ui.personaStatusPill.className = isActiveOnDisk ? "pill-tag on" : "pill-tag";
-    ui.personaStatusPill.textContent = isActiveOnDisk ? t("personaActive") : t("personaOff");
-    ui.personaHint.textContent = t("personaHint");
-    ui.presetsLbl.textContent = t("presetsLabel");
-
-    if (ui.presetChips) {
-      ui.presetChips.innerHTML = "";
-      for (const p of BUILTIN_PERSONA_PRESETS) {
-        const chip = doc.createElement("button");
-        chip.type = "button";
-        chip.className = settings.personaActivePreset === p.id ? "chip active" : "chip";
-        chip.textContent = locale === "ru" ? p.labelRu : p.labelEn;
-        chip.addEventListener("click", () => {
-          settings.personaText = p.text;
-          settings.personaActivePreset = p.id;
-          personaDirty = true;
-          renderPersona();
-        });
-        ui.presetChips.appendChild(chip);
-      }
-      for (const cp of settings.customPresets || []) {
-        const chip = doc.createElement("button");
-        chip.type = "button";
-        chip.className = settings.personaActivePreset === cp.id ? "chip active" : "chip";
-        const lbl = doc.createElement("span");
-        lbl.textContent = cp.name;
-        const del = doc.createElement("span");
-        del.className = "chip-del";
-        del.textContent = "×";
-        del.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const next = (settings.customPresets || []).filter((x) => x.id !== cp.id);
-          saveSettings({
-            customPresets: next,
-            personaActivePreset: settings.personaActivePreset === cp.id ? "custom" : settings.personaActivePreset,
-          });
-        });
-        chip.appendChild(lbl);
-        chip.appendChild(del);
-        chip.addEventListener("click", () => {
-          settings.personaText = cp.text;
-          settings.personaActivePreset = cp.id;
-          personaDirty = true;
-          renderPersona();
-        });
-        ui.presetChips.appendChild(chip);
-      }
+    if (win && typeof win.addEventListener === "function") {
+      win.addEventListener("mousemove", handlePointerMove);
+      win.addEventListener("mouseup", handlePointerUp);
+      resizeHandler = () => clampWidgetToViewport();
+      win.addEventListener("resize", resizeHandler);
     }
-
-    if (ui.personaTextarea.value !== settings.personaText) {
-      ui.personaTextarea.value = settings.personaText || "";
-    }
-    ui.personaTextarea.placeholder = t("personaPlaceholder");
-
-    const trimmed = String(settings.personaText || "").trim();
-    const bytes = measureUtf8Bytes(trimmed);
-    const estTok = estimateTokens(trimmed);
-    ui.meterBytes.textContent = `${formatInt(bytes)} / ${formatInt(MAX_PERSONA_BYTES)} ${t("bytesLabel")}`;
-    ui.meterTokens.textContent = `~${formatInt(estTok)} ${t("tokUnit")}`;
-    ui.meterRow.className = bytes > MAX_PERSONA_BYTES ? "meter-row over" : bytes > 20000 ? "meter-row warn" : "meter-row";
-
-    ui.savePersonaBtn.textContent = t("saveAndApply");
-    ui.savePersonaBtn.disabled = bytes > MAX_PERSONA_BYTES;
-    ui.addPresetBtn.textContent = t("addToPresets");
-    ui.clearPersonaBtn.textContent = t("clearText");
-
-    ui.presetSaveBar.style.display = showSavePresetBar ? "flex" : "none";
-    ui.presetNameInput.placeholder = t("presetNamePlaceholder");
-    ui.presetConfirmBtn.textContent = t("savePresetBtn");
-    ui.presetCancelBtn.textContent = t("cancelBtn");
-
-    if (personaSaveFeedback) {
-      ui.personaToast.style.display = "block";
-      ui.personaToast.className = personaSaveFeedback.ok ? "toast ok" : "toast err";
-      ui.personaToast.textContent = personaSaveFeedback.msg;
-    } else {
-      ui.personaToast.style.display = "none";
-    }
-  }
-
-  function renderSettingsTab() {
-    if (!ui.sizeTitle) return;
-    ui.sizeTitle.textContent = t("sizeTitle");
-    ui.setModeMini.textContent = "S " + t("modeMini");
-    ui.setModeMed.textContent = "M " + t("modeMed");
-    ui.setModeLarge.textContent = "L " + t("modeLarge");
-    for (const btn of ui.setModeBtns || []) {
-      btn.className = btn.getAttribute("data-set-mode") === settings.viewMode ? "active" : "";
-    }
-
-    ui.miniFieldsTitle.textContent = t("miniFieldsTitle");
-    ui.mfStatusLbl.textContent = t("mfStatus");
-    ui.mfLangLbl.textContent = t("mfLang");
-    ui.mfTpsLbl.textContent = t("mfTps");
-    ui.mfRespLbl.textContent = t("mfRespTok");
-    ui.mfChatLbl.textContent = t("mfChatTok");
-    ui.mfModelLbl.textContent = t("mfModel");
-    for (const sw of ui.mfSwitches || []) {
-      const k = sw.getAttribute("data-mf");
-      sw.setAttribute("aria-checked", settings.miniFields && settings.miniFields[k] ? "true" : "false");
-    }
-
-    ui.dockTitle.textContent = t("dockTitle");
-    ui.resetPosBtn.textContent = t("resetPos");
-    ui.dockTop.textContent = t("dockTop");
-    ui.dockMiddle.textContent = t("dockMiddle");
-    ui.dockBottom.textContent = t("dockBottom");
-    ui.dockHidden.textContent = t("dockHidden");
-    for (const btn of ui.dockPosBtns || []) {
-      const pos = btn.getAttribute("data-dock");
-      btn.className = settings.layoutMode === "docked" && pos === settings.dockPosition ? "active" : "";
-    }
-    ui.hotkeyHintDock.textContent = t("hotkeyHintDock");
-
-    ui.langTitle.textContent = t("langTitle");
-    ui.setRuBtn.className = locale === "ru" ? "active" : "";
-    ui.setEnBtn.className = locale === "en" ? "active" : "";
-    ui.hotkeyHintLang.textContent = t("hotkeyHintLang");
-
-    ui.trackHistLbl.textContent = t("trackHistoryLabel");
-    ui.trackHistSwitch.setAttribute("aria-checked", settings.trackHistory ? "true" : "false");
-
-    ui.pluginInfoTitle.textContent = t("pluginInfoTitle");
-    ui.infoVerK.textContent = t("infoVersion");
-    ui.infoVerV.textContent = "v" + (pluginMeta.version || "2.2.1");
-    ui.infoDictK.textContent = t("infoDict");
-    ui.infoDictV.textContent = formatInt(pluginMeta.dictEntries || 0);
-    ui.infoRulesK.textContent = t("infoRules");
-    ui.infoRulesV.textContent = formatInt(pluginMeta.dynamicRulesCount || 0);
-    ui.repoLink.textContent = t("infoRepo") + " ↗";
-
-    ui.stage2Title.textContent = t("stage2Title");
-    ui.stage2Desc.textContent = t("stage2Desc");
-  }
-
-  function renderAll() {
-    renderChrome();
-    renderTabs();
-    renderMonitor();
-    renderPersona();
-    renderSettingsTab();
-  }
-
-  function readLatestResponseState() {
-    if (!doc || typeof doc.querySelectorAll !== "function") {
-      return { latestResp: null, text: "", working: false, modelName: "", chatTokens: 0, contextNote: "" };
-    }
-
-    let modelName = "";
-    const modelBtn = doc.querySelector('[data-testid="model-selector-trigger"]');
-    if (modelBtn && modelBtn.textContent) {
-      modelName = modelBtn.textContent.replace(/\s+/g, " ").trim();
-    }
-
-    let chatTokens = 0;
-    const userMsgs = doc.querySelectorAll('[data-testid="user-message-content"]');
-    for (let i = 0; i < userMsgs.length; i++) {
-      chatTokens += estimateTokens(userMsgs[i].textContent || "");
-    }
-
-    const resps = doc.querySelectorAll('[data-testid="agent-response"]');
-    let latestResp = null;
-    let latestRespText = "";
-    for (let i = 0; i < resps.length; i++) {
-      const r = resps[i];
-      const mds = r.querySelectorAll ? r.querySelectorAll("[data-markdown-root]") : [];
-      let respTxt = "";
-      if (mds && mds.length > 0) {
-        for (let j = 0; j < mds.length; j++) {
-          respTxt += (mds[j].textContent || "") + "\n";
+    if (doc && typeof doc.addEventListener === "function") {
+      keydownHandler = (e) => {
+        if (e && e.key === "Escape" && state.isOpen) {
+          setOpen(false);
         }
-      } else {
-        respTxt = r.textContent || "";
-      }
-      chatTokens += estimateTokens(respTxt);
-      if (i === resps.length - 1) {
-        latestResp = r;
-        latestRespText = respTxt;
-      }
+      };
+      doc.addEventListener("keydown", keydownHandler, true);
     }
-
-    let working = false;
-    if (latestResp && typeof latestResp.querySelector === "function") {
-      const sr = latestResp.querySelector("h6");
-      if (sr && sr.textContent && /working|работает/i.test(sr.textContent)) {
-        working = true;
-      }
-    }
-    if (!working && doc.querySelector) {
-      const cancelBtn = doc.querySelector('[data-testid="cancel-invocation-button"]');
-      if (cancelBtn) working = true;
-    }
-
-    let thinkingSec = 0;
-    if (working && latestResp && latestResp.textContent) {
-      const m = /(?:Thinking|Думаю)[^0-9]*(\d+)\s*(?:s|с)/i.exec(latestResp.textContent);
-      if (m) thinkingSec = Number(m[1]) || 0;
-    }
-
-    let contextNote = "";
-    if (doc.querySelector) {
-      const ctxEl = doc.querySelector('[data-testid="context-usage-indicator"]');
-      if (ctxEl && ctxEl.textContent) {
-        contextNote = ctxEl.textContent.replace(/\s+/g, " ").trim();
-      }
-    }
-
-    return { latestResp, text: latestRespText, working, thinkingSec, modelName, chatTokens, contextNote };
-  }
-
-  function pollStream() {
-    const now = Date.now();
-    const convKey = win && win.location ? `${win.location.pathname || ""}${win.location.search || ""}${win.location.hash || ""}` : "";
-    const snap = readLatestResponseState();
-
-    monitor.modelName = snap.modelName;
-    monitor.chatTokens = snap.chatTokens;
-    monitor.contextNote = snap.contextNote;
-
-    const curChars = snap.text.trim().length;
-    const curTokens = estimateTokens(snap.text);
-
-    if (convKey !== lastConvKey) {
-      lastConvKey = convKey;
-      activeResponseEl = snap.latestResp;
-      isWorking = false;
-      turnStartMs = 0;
-      turnBaselineTokens = curTokens;
-      turnPeakTps = 0;
-      windowSamples = [];
-      monitor.phase = snap.working ? (curTokens > 0 ? "streaming" : "thinking") : "idle";
-      monitor.thinkingSec = snap.thinkingSec;
-      monitor.liveTps = 0;
-      monitor.responseTokens = curTokens;
-      monitor.responseChars = curChars;
-      if (snap.working) {
-        isWorking = true;
-        turnStartMs = now;
-      }
-      renderChrome();
-      if (settings.viewMode === "medium" || (settings.viewMode === "large" && activeTab === "monitor")) {
-        renderMonitor();
-      }
-      return;
-    }
-
-    if (snap.latestResp !== activeResponseEl) {
-      if (isWorking && turnStartMs > 0) {
-        const prevGained = Math.max(0, monitor.responseTokens - turnBaselineTokens);
-        if (prevGained > 0) {
-          const durSec = Math.max(0.25, (now - turnStartMs) / 1000);
-          const avgTps = Math.round(prevGained / durSec);
-          monitor.lastAvgTps = avgTps;
-          if (settings.trackHistory) {
-            monitor.history = [{ idx: ++turnCounter, tokens: prevGained, durSec, avgTps, peakTps: turnPeakTps }].concat(monitor.history).slice(0, 5);
-          }
-        }
-      }
-      activeResponseEl = snap.latestResp;
-      windowSamples = [];
-      turnPeakTps = 0;
-      if (snap.working) {
-        isWorking = true;
-        turnStartMs = now;
-        turnBaselineTokens = 0;
-      } else {
-        isWorking = false;
-        turnStartMs = 0;
-        turnBaselineTokens = curTokens;
-      }
-    }
-
-    if (snap.working && !isWorking) {
-      isWorking = true;
-      turnStartMs = now;
-      turnBaselineTokens = curTokens;
-      turnPeakTps = 0;
-      windowSamples = [{ t: now, tokens: curTokens }];
-    }
-
-    if (isWorking && snap.working) {
-      windowSamples.push({ t: now, tokens: curTokens });
-      while (windowSamples.length > 1 && now - windowSamples[0].t > 1500) {
-        windowSamples.shift();
-      }
-      const oldest = windowSamples[0];
-      const dtSec = (now - oldest.t) / 1000;
-      const gainedInWin = Math.max(0, curTokens - oldest.tokens);
-      const gainedTotal = Math.max(0, curTokens - turnBaselineTokens);
-      if (dtSec >= 0.35 && gainedInWin > 0) {
-        monitor.liveTps = Math.round(gainedInWin / dtSec);
-      } else if (gainedTotal === 0) {
-        monitor.liveTps = 0;
-      }
-      if ((now - turnStartMs) >= 400 && gainedTotal >= 3 && monitor.liveTps > turnPeakTps) {
-        turnPeakTps = monitor.liveTps;
-      }
-      if (turnPeakTps > monitor.peakTps) {
-        monitor.peakTps = turnPeakTps;
-      }
-      monitor.phase = gainedTotal > 0 || curTokens > 0 ? "streaming" : "thinking";
-      monitor.thinkingSec = snap.thinkingSec;
-      if (monitor.phase === "streaming") {
-        monitor.sparkline = monitor.sparkline.concat([monitor.liveTps]).slice(-40);
-      }
-    } else if (isWorking && !snap.working) {
-      isWorking = false;
-      const gained = Math.max(0, curTokens - turnBaselineTokens);
-      if (gained > 0 && turnStartMs > 0) {
-        const durSec = Math.max(0.25, (now - turnStartMs) / 1000);
-        const avgTps = Math.round(gained / durSec);
-        monitor.lastAvgTps = avgTps;
-        if (avgTps > monitor.peakTps) monitor.peakTps = avgTps;
-        if (settings.trackHistory) {
-          monitor.history = [{ idx: ++turnCounter, tokens: gained, durSec, avgTps, peakTps: Math.max(turnPeakTps, avgTps) }].concat(monitor.history).slice(0, 5);
-        }
-      }
-      monitor.phase = "idle";
-      monitor.liveTps = 0;
-      windowSamples = [];
-    } else {
-      monitor.phase = "idle";
-    }
-
-    monitor.responseTokens = curTokens;
-    monitor.responseChars = curChars;
-    renderChrome();
-    if (settings.viewMode === "medium" || (settings.viewMode === "large" && activeTab === "monitor")) {
-      renderMonitor();
-    }
-  }
-
-  function setOpen(next) {
-    setViewMode(next ? "large" : lastCompactMode);
-  }
-
-  function toggleOpen() {
-    setViewMode(settings.viewMode === "large" ? lastCompactMode : "large");
-  }
-
-  function setLocale(next) {
-    const normalized = next === "en" ? "en" : "ru";
-    if (normalized === locale) return;
-    locale = normalized;
-    renderAll();
-  }
-
-  function applyRemoteState(state) {
-    if (!state || typeof state !== "object") return;
-    if (state.locale === "ru" || state.locale === "en") {
-      locale = state.locale;
-    }
-    if (state.settings && typeof state.settings === "object") {
-      const prevText = settings.personaText;
-      const mergedMini = Object.assign({}, settings.miniFields, state.settings.miniFields || {});
-      settings = Object.assign({}, settings, state.settings, { miniFields: mergedMini });
-      if (settings.viewMode === "mini" || settings.viewMode === "medium") {
-        lastCompactMode = settings.viewMode;
-      }
-      if (personaDirty) {
-        settings.personaText = prevText;
-      }
-    }
-    personaFileExists = Boolean(state.personaFileExists);
-    renderAll();
   }
 
   function init() {
-    if (initialized) return;
-    initialized = true;
-    buildDom();
+    if (state.initialized || state.destroyed || !doc) return;
+    const mountTarget = doc.body || doc.documentElement;
+    if (!mountTarget || typeof doc.createElement !== "function") return;
 
-    const snap = readLatestResponseState();
-    lastConvKey = win && win.location ? `${win.location.pathname || ""}${win.location.search || ""}${win.location.hash || ""}` : "";
-    activeResponseEl = snap.latestResp;
-    turnBaselineTokens = estimateTokens(snap.text);
-    monitor.responseTokens = turnBaselineTokens;
-    monitor.responseChars = snap.text.trim().length;
-    monitor.chatTokens = snap.chatTokens;
-    monitor.modelName = snap.modelName;
-    monitor.contextNote = snap.contextNote;
+    const existing = typeof doc.getElementById === "function" ? doc.getElementById("agy-ru-studio-host") : null;
+    if (existing && existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
 
-    renderAll();
+    hostEl = doc.createElement("div");
+    hostEl.id = "agy-ru-studio-host";
+    hostEl.setAttribute("data-agy-ru-ignore", "1");
+    mountTarget.appendChild(hostEl);
 
-    if (ipc && typeof ipc.invoke === "function") {
+    if (typeof hostEl.attachShadow === "function") {
+      shadowRoot = hostEl.attachShadow({ mode: "open" });
+    } else {
+      shadowRoot = hostEl;
+    }
+
+    styleEl = doc.createElement("style");
+    styleEl.textContent = buildStyles();
+    rootEl = doc.createElement("div");
+    rootEl.className = "studio-root";
+    widgetMountEl = doc.createElement("div");
+    widgetMountEl.className = "widget-wrap";
+    modalMountEl = doc.createElement("div");
+    modalMountEl.className = "modal-mount";
+
+    rootEl.appendChild(widgetMountEl);
+    rootEl.appendChild(modalMountEl);
+    shadowRoot.appendChild(styleEl);
+    shadowRoot.appendChild(rootEl);
+
+    attachDomEvents();
+    state.initialized = true;
+    renderStructure();
+
+    if (win && typeof win.setInterval === "function") {
+      pollTimer = win.setInterval(() => pollStream(), 350);
+    }
+
+    if (typeof win !== "undefined" && typeof win.MutationObserver === "function" && doc.documentElement) {
       try {
-        ipc
-          .invoke("agy-studio:get-state")
-          .then((st) => {
-            if (st) applyRemoteState(st);
-          })
-          .catch(() => {});
-      } catch {}
+        themeObserver = new win.MutationObserver(() => syncTheme());
+        themeObserver.observe(doc.documentElement, { attributes: true, attributeFilter: ["class", "data-theme", "style"] });
+      } catch (_e) {}
     }
 
-    if (typeof win.setInterval === "function") {
-      pollTimer = win.setInterval(pollStream, 250);
-    } else if (typeof setInterval === "function") {
-      pollTimer = setInterval(pollStream, 250);
-    }
+    invokeIpc("agy-studio:get-state").then((remote) => {
+      if (remote) applyRemoteState(remote, false);
+    });
+  }
+
+  function setOpen(nextOpen) {
+    state.isOpen = Boolean(nextOpen);
+    renderStructure();
+  }
+
+  function toggleOpen() {
+    setOpen(!state.isOpen);
+  }
+
+  function setViewMode(mode) {
+    saveSettingsPatch({ viewMode: normalizeViewMode(mode) });
+  }
+
+  function setLocale(nextLocale) {
+    state.locale = nextLocale === "en" ? "en" : "ru";
+    renderStructure();
   }
 
   function destroy() {
-    if (pollTimer !== null) {
-      if (typeof win.clearInterval === "function") win.clearInterval(pollTimer);
-      else if (typeof clearInterval === "function") clearInterval(pollTimer);
+    state.destroyed = true;
+    if (pollTimer && win && typeof win.clearInterval === "function") {
+      win.clearInterval(pollTimer);
       pollTimer = null;
     }
-    if (hostEl && hostEl.parentNode && typeof hostEl.parentNode.removeChild === "function") {
+    if (toastTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(toastTimer);
+      toastTimer = null;
+    }
+    if (themeObserver && typeof themeObserver.disconnect === "function") {
+      themeObserver.disconnect();
+      themeObserver = null;
+    }
+    if (win && typeof win.removeEventListener === "function") {
+      win.removeEventListener("mousemove", handlePointerMove);
+      win.removeEventListener("mouseup", handlePointerUp);
+      if (resizeHandler) win.removeEventListener("resize", resizeHandler);
+    }
+    if (doc && typeof doc.removeEventListener === "function" && keydownHandler) {
+      doc.removeEventListener("keydown", keydownHandler, true);
+    }
+    if (hostEl && hostEl.parentNode) {
       hostEl.parentNode.removeChild(hostEl);
     }
     hostEl = null;
-    shadow = null;
-    initialized = false;
+    shadowRoot = null;
+    rootEl = null;
+    widgetMountEl = null;
+    modalMountEl = null;
   }
 
   return {
@@ -2024,5 +2769,9 @@ function createStudioPanel(options) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { createStudioPanel, estimateTokens, BUILTIN_PERSONA_PRESETS };
+  module.exports = {
+    createStudioPanel,
+    estimateTokens,
+    BUILTIN_PERSONA_PRESETS,
+  };
 }

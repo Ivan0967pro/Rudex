@@ -60,7 +60,7 @@ const DEFAULT_STUDIO_SETTINGS = {
   panelEnabled: true,
   viewMode: "mini",
   layoutMode: "docked",
-  dockPosition: "bottom",
+  dockPosition: "bottom-right",
   floatX: null,
   floatY: null,
   miniFields: DEFAULT_MINI_FIELDS,
@@ -82,9 +82,11 @@ function getPersonaRulePath() {
 
 function sanitizeStudioSettings(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
-  const dock = src.dockPosition;
-  const validDock = dock === "top" || dock === "middle" || dock === "bottom" || dock === "hidden" ? dock : "bottom";
-  const viewMode = src.viewMode === "mini" || src.viewMode === "medium" || src.viewMode === "large" ? src.viewMode : "mini";
+  const rawDock = src.dockPosition;
+  const dockAlias = rawDock === "top" ? "top-right" : rawDock === "middle" ? "middle-right" : rawDock === "bottom" ? "bottom-right" : rawDock;
+  const validDock = dockAlias === "bottom-right" || dockAlias === "top-right" || dockAlias === "middle-right" || dockAlias === "bottom-left" || dockAlias === "hidden" ? dockAlias : "bottom-right";
+  const rawView = src.viewMode === "large" ? "medium" : src.viewMode;
+  const viewMode = rawView === "mini" || rawView === "medium" ? rawView : "mini";
   const layoutMode = src.layoutMode === "docked" || src.layoutMode === "floating" ? src.layoutMode : "docked";
   const floatX = typeof src.floatX === "number" && Number.isFinite(src.floatX) ? Math.round(src.floatX) : null;
   const floatY = typeof src.floatY === "number" && Number.isFinite(src.floatY) ? Math.round(src.floatY) : null;
