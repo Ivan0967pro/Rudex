@@ -142,7 +142,7 @@ function Restart-AntigravityDetached([string]$ExePath) {
   }
 }
 
-Write-Host "Rudex v4.1.1 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
+Write-Host "Rudex v4.1.2 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
 
 if ($IsLocalRepo) {
   $InstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"

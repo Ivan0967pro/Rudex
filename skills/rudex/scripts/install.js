@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const vm = require("vm");
-const { spawnSync } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const { patchElectronShell } = require("./electron-shell.js");
 const { readZipEocdComment, extractCommitShaFromText, readGitHeadMeta } = require("./updater-core.js");
 
@@ -401,7 +401,7 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "4.1.1",
+    version: pkg.version || "4.1.2",
     dictEntries,
     dynamicRulesCount,
     commitSha: commitMeta.commitSha,
@@ -616,7 +616,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "4.1.1";
+    let pkgVer = "4.1.2";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {
@@ -830,6 +830,74 @@ function writeApplyRestartCmd(info, opts = {}) {
   }
 }
 
+/**
+ * Passive Windows exit watcher: NEVER kills Antigravity.exe.
+ * Waits until Antigravity exits cleanly on its own, then removes the unlocked stale app.asar.
+ */
+function writeOnExitActivateCmd(info, opts = {}) {
+  if (process.platform !== "win32" || !info || !info.resourcesDir) return "";
+  const outPath = opts.outPath || path.join(os.tmpdir(), "rudex-on-exit-activate.cmd");
+  const lockPath = opts.lockPath || path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
+  const lines = [
+    "@echo off",
+    "chcp 65001 >nul",
+    `set "RES_DIR=${info.resourcesDir}"`,
+    `set "LOCK_FILE=${lockPath}"`,
+    "setlocal EnableDelayedExpansion",
+    "for /L %%I in (1,1,3600) do (",
+    '  if not exist "!RES_DIR!\\app.asar" goto cleanup',
+    '  tasklist /FI "IMAGENAME eq Antigravity.exe" 2>nul | find /I "Antigravity.exe" >nul',
+    "  if errorlevel 1 goto unlock",
+    "  timeout /t 2 /nobreak >nul",
+    ")",
+    "goto cleanup",
+    ":unlock",
+    "timeout /t 1 /nobreak >nul",
+    'if exist "!RES_DIR!\\app.asar.orig-*" if exist "!RES_DIR!\\app\\rudex-patch-meta.json" (',
+    '  del /F /Q "!RES_DIR!\\app.asar" >nul 2>&1',
+    ")",
+    ":cleanup",
+    'if exist "!LOCK_FILE!" del /F /Q "!LOCK_FILE!" >nul 2>&1',
+    'del "%~f0" >nul 2>&1',
+    "",
+  ];
+  try {
+    fs.writeFileSync(outPath, lines.join("\r\n"), "utf8");
+    return outPath;
+  } catch (_e) {
+    return "";
+  }
+}
+
+function spawnOnExitActivatorIfNeeded(info) {
+  if (process.platform !== "win32" || !info || !info.resourcesDir) return false;
+  const lockPath = path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
+  try {
+    if (fs.existsSync(lockPath)) {
+      const st = fs.statSync(lockPath);
+      if (Date.now() - st.mtimeMs < 90 * 60 * 1000) {
+        return true;
+      }
+    }
+  } catch (_e) {}
+
+  try {
+    fs.writeFileSync(lockPath, String(Date.now()), "utf8");
+    const cmdPath = writeOnExitActivateCmd(info, { lockPath });
+    if (!cmdPath || !fs.existsSync(cmdPath)) return false;
+    const child = spawn("cmd.exe", ["/c", `"${cmdPath}"`], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+      windowsVerbatimArguments: true,
+    });
+    if (child && typeof child.unref === "function") child.unref();
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
 function runInstall(options = {}) {
   if (options.syncPlugin !== false) {
     syncPluginToGlobalConfig(PLUGIN_ROOT);
@@ -899,6 +967,9 @@ function runInstall(options = {}) {
         console.log(`ACTIVATOR_PATH=${cmdPath}`);
         if (options.writeRestartCmd) console.log(`RESTART_CMD=${cmdPath}`);
       }
+      if (options.onExitActivate && spawnOnExitActivatorIfNeeded(info)) {
+        console.log("ON_EXIT_ACTIVATOR=ARMED");
+      }
       console.log("STATUS=LOCKED_NEEDS_ACTIVATOR");
     } else {
       if (options.writeRestartCmd) {
@@ -956,10 +1027,12 @@ function main() {
   } else if (args.has("--plugin-only")) {
     syncPluginToGlobalConfig(PLUGIN_ROOT);
     console.log("STATUS=PLUGIN_ONLY");
-  } else if (args.has("--sync-plugin")) {
-    runInstall({ syncPlugin: true, writeRestartCmd: args.has("--write-restart-cmd") });
   } else {
-    runInstall({ syncPlugin: true, writeRestartCmd: args.has("--write-restart-cmd") });
+    runInstall({
+      syncPlugin: !args.has("--no-sync-plugin"),
+      onExitActivate: args.has("--on-exit-activate"),
+      writeRestartCmd: args.has("--write-restart-cmd"),
+    });
   }
 }
 
@@ -977,4 +1050,5 @@ module.exports = {
   buildPreloadSnippet,
   syncPluginToGlobalConfig,
   readPluginMeta,
+  writeOnExitActivateCmd,
 };

@@ -1212,7 +1212,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.1.1", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "4.1.2", dictEntries: 4048, dynamicRulesCount: 474 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -2590,7 +2590,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "4.1.1";
+    const instVer = (inst && inst.version) || pluginMeta.version || "4.1.2";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -4291,7 +4291,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "4.1.1";
+    const ver = inst.version || pluginMeta.version || "4.1.2";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -4401,7 +4401,7 @@ function createStudioPanel(options) {
             <aside class="modal-sidebar">
               <div class="sidebar-brand">
                 <span class="brand-title">${escHtml(tr.brandTitle)}</span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.1.1")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.1.2")}</span>
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `

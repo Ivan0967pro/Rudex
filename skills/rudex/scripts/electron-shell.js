@@ -52,6 +52,24 @@ function patchMainJs(src, stampVersion, warnings) {
         if (_fs.existsSync(_verPath) && _fs.existsSync(_appDir) && _fs.existsSync(_path.join(_resDir, "app.asar"))) {
             const _cur = _fs.readFileSync(_verPath, "utf8").trim();
             if (_cur && _cur !== _STAMP) {
+                const _homeDir = _os.homedir();
+                const _installJs = _path.join(_homeDir, ".gemini", "config", "plugins", "rudex", "skills", "rudex", "scripts", "install.js");
+                let _repatched = false;
+                if (_fs.existsSync(_installJs)) {
+                    try {
+                        const _r = require("child_process").spawnSync(process.execPath, [_installJs, "--no-sync-plugin"], {
+                            env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }),
+                            timeout: 30000,
+                            windowsHide: true,
+                        });
+                        if (_r && _r.status === 0) _repatched = true;
+                    } catch {}
+                }
+                if (_repatched) {
+                    _app.relaunch();
+                    _app.exit(0);
+                    return;
+                }
                 try {
                     _fs.renameSync(_appDir, _appDir + ".rudex-outdated-" + _STAMP);
                     _app.relaunch();
@@ -553,6 +571,28 @@ i18nMain_1.onLocaleChange(() => updateMenuState(currentStep));`,
                 buttons: ['OK'],
             };`,
         "updater.js no updates dialog",
+        warns
+      ).text;
+      out = tryReplaceExact(
+        out,
+        `            const { killLanguageServer } = await Promise.resolve().then(() => __importStar(require('./languageServer')));
+            await killLanguageServer();
+            electron_updater_1.autoUpdater.quitAndInstall(isSilent, true);`,
+        `            try { if (typeof i18nMain_1.schedulePostAppUpdateRepatch === 'function') i18nMain_1.schedulePostAppUpdateRepatch(); } catch {}
+            const { killLanguageServer } = await Promise.resolve().then(() => __importStar(require('./languageServer')));
+            await killLanguageServer();
+            electron_updater_1.autoUpdater.quitAndInstall(isSilent, true);`,
+        "updater.js quitAndInstall win32 watcher",
+        warns
+      ).text;
+      out = tryReplaceExact(
+        out,
+        `    electron_updater_1.autoUpdater.quitAndInstall(isSilent, true);
+}`,
+        `    try { if (typeof i18nMain_1.schedulePostAppUpdateRepatch === 'function') i18nMain_1.schedulePostAppUpdateRepatch(); } catch {}
+    electron_updater_1.autoUpdater.quitAndInstall(isSilent, true);
+}`,
+        "updater.js quitAndInstall fallback watcher",
         warns
       ).text;
       return out;
@@ -1697,4 +1737,5 @@ module.exports = {
   I18N_MAIN_SOURCE,
   patchElectronShell,
   patchMainJs,
+  patchUpdaterJs,
 };

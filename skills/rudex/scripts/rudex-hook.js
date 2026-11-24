@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { spawn } = require("child_process");
 
 const MAX_ITEM_AGE_MS = 10 * 60 * 1000;
 const FALLBACK_MAX_AGE_MS = 90 * 1000;
@@ -541,15 +542,132 @@ function runLiveEditsEngine(userDataDir, payload, injectSteps) {
   return { injectedPre: true };
 }
 
+function detectAntigravityResourcesFast() {
+  const candidates = [];
+  if (process.env.ANTIGRAVITY_RESOURCES_DIR && process.env.ANTIGRAVITY_RESOURCES_DIR.trim()) {
+    candidates.push(path.resolve(process.env.ANTIGRAVITY_RESOURCES_DIR.trim()));
+  }
+  if (process.platform === "win32") {
+    const localApp = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+    const progFiles = process.env.ProgramFiles || "C:\\Program Files";
+    const progFiles86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+    candidates.push(
+      path.join(localApp, "Programs", "antigravity", "resources"),
+      path.join(localApp, "Programs", "Antigravity", "resources"),
+      path.join(localApp, "Antigravity", "resources"),
+      path.join(progFiles, "antigravity", "resources"),
+      path.join(progFiles, "Antigravity", "resources"),
+      path.join(progFiles86, "antigravity", "resources")
+    );
+  } else if (process.platform === "darwin") {
+    candidates.push(
+      "/Applications/Antigravity.app/Contents/Resources",
+      path.join(os.homedir(), "Applications", "Antigravity.app", "Contents", "Resources")
+    );
+  } else {
+    candidates.push(
+      "/usr/share/antigravity/resources",
+      "/opt/Antigravity/resources",
+      "/opt/antigravity/resources",
+      path.join(os.homedir(), ".local", "share", "antigravity", "resources")
+    );
+  }
+  const seen = new Set();
+  for (let i = 0; i < candidates.length; i += 1) {
+    const raw = candidates[i];
+    if (!raw) continue;
+    const resolved = path.resolve(raw);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    if (!fs.existsSync(resolved)) continue;
+    const asarPath = path.join(resolved, "app.asar");
+    const appDir = path.join(resolved, "app");
+    if (!fs.existsSync(asarPath) && !fs.existsSync(appDir)) continue;
+    return {
+      resourcesDir: resolved,
+      asarPath,
+      appDir,
+      versionPath: path.join(path.dirname(resolved), "version"),
+    };
+  }
+  return null;
+}
+
+function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
+  if (process.env.RUDEX_SKIP_AUTO_REPATCH === "1") return;
+  const eventName = String(payload && payload.hookEventName ? payload.hookEventName : "");
+  if (eventName !== "SessionStart" && eventName !== "PreInvocation") return;
+
+  const rudexDir = process.env.RUDEX_PLUGIN_DIR && process.env.RUDEX_PLUGIN_DIR.trim()
+    ? path.resolve(process.env.RUDEX_PLUGIN_DIR.trim())
+    : path.join(os.homedir(), ".gemini", "config", "plugins", "rudex");
+  const pluginJsonPath = path.join(rudexDir, "plugin.json");
+  const installJsPath = path.join(rudexDir, "skills", "rudex", "scripts", "install.js");
+  if (!fs.existsSync(pluginJsonPath) || !fs.existsSync(installJsPath)) return;
+
+  const info = detectAntigravityResourcesFast();
+  if (!info || !fs.existsSync(info.asarPath)) return;
+
+  let curVer = "unknown";
+  try {
+    if (fs.existsSync(info.versionPath)) {
+      const txt = fs.readFileSync(info.versionPath, "utf8").trim();
+      if (txt) curVer = txt;
+    }
+  } catch {}
+
+  const metaPath = path.join(info.appDir, "rudex-patch-meta.json");
+  let meta = null;
+  try {
+    if (fs.existsSync(metaPath)) {
+      meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+    }
+  } catch {}
+  if (meta && meta.stampVersion && meta.stampVersion === curVer) {
+    return;
+  }
+
+  let asarSize = 0;
+  try {
+    asarSize = fs.statSync(info.asarPath).size || 0;
+  } catch {}
+  if (!asarSize) return;
+
+  const sig = `${curVer}:${asarSize}`;
+  const cooldownPath = path.join(userDataDir, "rudex_auto_repatch.json");
+  const prev = readJsonSafe(cooldownPath);
+  const now = Date.now();
+  if (prev && prev.sig === sig && now - (Number(prev.at) || 0) < 10 * 60 * 1000) {
+    return;
+  }
+  try {
+    safeWriteJsonAtomic(cooldownPath, { sig, at: now, version: curVer });
+  } catch {}
+
+  try {
+    const child = spawn(process.execPath, [installJsPath, "--no-sync-plugin", "--on-exit-activate"], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+      env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }),
+    });
+    if (child && typeof child.unref === "function") child.unref();
+    injectSteps.push({
+      systemMessage: {
+        systemMessage: "[Rudex · Восстановление после обновления Antigravity] Переустановка патча Rudex запущена автоматически в фоне (--on-exit-activate).",
+        metadata: {
+          user_markdown: "🔄 *После обновления Antigravity Rudex автоматически восстановил интерфейс и хотбар — перезапустите Antigravity для применения*",
+        },
+      },
+    });
+  } catch {}
+}
+
 function main() {
   const userDataDir = getUserDataDir();
   const leFlagPath = path.join(userDataDir, "studio_live_edits", "pending.flag");
   const personaFlagPath = path.join(userDataDir, "agy_studio_persona_active.flag");
   const thinkingFlagPath = path.join(userDataDir, "agy_studio_thinking_ru.flag");
-
-  if (!fs.existsSync(leFlagPath) && !fs.existsSync(personaFlagPath) && !fs.existsSync(thinkingFlagPath)) {
-    outAndExit({});
-  }
 
   const payload = readStdinSyncSafe();
   const eventName = String(payload.hookEventName || "");
@@ -567,6 +685,17 @@ function main() {
   }
 
   const injectSteps = [];
+  runAutoRepatchGuard(userDataDir, payload, injectSteps);
+
+  if (
+    injectSteps.length === 0 &&
+    !fs.existsSync(leFlagPath) &&
+    !fs.existsSync(personaFlagPath) &&
+    !fs.existsSync(thinkingFlagPath)
+  ) {
+    outAndExit({});
+  }
+
   runPersonaEngine(userDataDir, payload, injectSteps);
   runThinkingLanguageEngine(userDataDir, payload, injectSteps);
   runLiveEditsEngine(userDataDir, payload, injectSteps);

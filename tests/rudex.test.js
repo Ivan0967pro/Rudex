@@ -46,8 +46,9 @@ const {
   compareSemver,
   stripCjsPrologueEpilogue,
   buildPreloadSnippet,
+  writeOnExitActivateCmd,
 } = require(path.join(SCRIPTS_DIR, "install.js"));
-const { patchMainJs } = require(path.join(SCRIPTS_DIR, "electron-shell.js"));
+const { patchMainJs, patchUpdaterJs } = require(path.join(SCRIPTS_DIR, "electron-shell.js"));
 const {
   evaluateUpdateAvailability,
   readZipEocdComment,
@@ -391,11 +392,11 @@ function createMockDom() {
 // =============================================================================
 // 1. Metadata, Hooks Schema & Installer Helpers
 // =============================================================================
-test("Manifest & hooks.json follow Rudex v4.1.1 architecture without PostInvocation", () => {
+test("Manifest & hooks.json follow Rudex v4.1.2 architecture without PostInvocation", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.1.1");
+  assert.equal(pkg.version, "4.1.2");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.equal(typeof dictionary, "object");
@@ -988,7 +989,7 @@ test("rudex-hook.js atomically claims supplements, blocks subagent stealing, and
     const runHook = (payload) => {
       const r = spawnSync(process.execPath, [hookScript], {
         input: JSON.stringify(payload),
-        env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpUserData }),
+        env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpUserData, RUDEX_SKIP_AUTO_REPATCH: "1" }),
         encoding: "utf8",
       });
       assert.equal(r.status, 0, r.stderr);
@@ -1062,7 +1063,7 @@ test("rudex-hook.js injects concise persona style protocol cleanly and refreshes
     const runHook = (payload) => {
       const r = spawnSync(process.execPath, [hookScript], {
         input: JSON.stringify(payload),
-        env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpUserData }),
+        env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpUserData, RUDEX_SKIP_AUTO_REPATCH: "1" }),
         encoding: "utf8",
       });
       assert.equal(r.status, 0, r.stderr);
@@ -1108,7 +1109,7 @@ test("rudex-hook.js injects Russian thinking directive, refreshes after 6 steps,
     const runHook = (payload) => {
       const r = spawnSync(process.execPath, [hookScript], {
         input: JSON.stringify(payload),
-        env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpUserData }),
+        env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpUserData, RUDEX_SKIP_AUTO_REPATCH: "1" }),
         encoding: "utf8",
       });
       assert.equal(r.status, 0, r.stderr);
@@ -2132,5 +2133,144 @@ test("Thinking translator protects inline code/paths, skips Russian, falls back 
   } finally {
     panel.destroy();
     translator.destroy();
+  }
+});
+
+// =============================================================================
+// 13. Antigravity Update Survival (3-Layer Auto-Repatch & On-Exit Activator)
+// =============================================================================
+test("Antigravity update survival: versionGuard auto-repatches, updater.js hooks quitAndInstall, and rudex-hook.js auto-recovers stripped resources/app", async () => {
+  // 1) patchMainJs emits synchronous spawnSync auto-repatch in versionGuard with .rudex-outdated-* fallback
+  const minMain = [
+    `"use strict";`,
+    `const menu_1 = require("./menu");`,
+    `const electron_1 = require("electron");`,
+    `    const ipc = (0, ipcHandlers_1.registerIpcHandlers)(storageManager, {`,
+  ].join("\n");
+  const patchedMain = patchMainJs(minMain, "44.9.1", []);
+  assert.ok(patchedMain.includes('"--no-sync-plugin"'), "versionGuard must auto-repatch with --no-sync-plugin when app version changes");
+  assert.ok(patchedMain.includes(".rudex-outdated-"), "versionGuard must retain safe fallback if auto-repatch cannot complete");
+
+  // 2) patchUpdaterJs wires schedulePostAppUpdateRepatch() into both quitAndInstall branches cleanly with 0 warnings
+  const mockUpdaterSrc = [
+    `const utils_1 = require("./utils");`,
+    `exports.updateActions = {`,
+    `    [MenuUpdateStep.CheckForUpdates]: () => checkForUpdates(true),`,
+    `    [MenuUpdateStep.CheckingForUpdates]: undefined,`,
+    `    [MenuUpdateStep.DownloadingUpdate]: undefined,`,
+    `    [MenuUpdateStep.RestartToUpdate]: () => void quitAndInstall(),`,
+    `};`,
+    `function updateMenuState(step) {`,
+    `    const menu = electron_1.Menu.getApplicationMenu();`,
+    `    if (menu) {`,
+    `        const item = menu.getMenuItemById('check-for-updates');`,
+    `        if (item) {`,
+    `            item.label = step;`,
+    `            item.enabled = exports.updateActions[step] !== undefined;`,
+    `        }`,
+    `    }`,
+    `}`,
+    `function showNoUpdates() {`,
+    `            const options = {`,
+    `                type: 'info',`,
+    `                title: 'Check for Updates',`,
+    `                message: 'No updates available',`,
+    `                buttons: ['OK'],`,
+    `            };`,
+    `}`,
+    `async function quitAndInstall(isSilent = false) {`,
+    `    if (process.platform === 'win32' && updater.installerPath) {`,
+    `        try {`,
+    `            const { killLanguageServer } = await Promise.resolve().then(() => __importStar(require('./languageServer')));`,
+    `            await killLanguageServer();`,
+    `            electron_updater_1.autoUpdater.quitAndInstall(isSilent, true);`,
+    `        } finally {}`,
+    `        return;`,
+    `    }`,
+    `    electron_updater_1.autoUpdater.quitAndInstall(isSilent, true);`,
+    `}`,
+    `exports.applyHostUpdate = applyHostUpdate;`,
+  ].join("\n");
+  const updWarnings = [];
+  const patchedUpd = patchUpdaterJs(mockUpdaterSrc, updWarnings);
+  assert.equal(updWarnings.length, 0, "patchUpdaterJs must succeed with 0 warnings: " + updWarnings.join("; "));
+  const hookMatches = patchedUpd.match(/schedulePostAppUpdateRepatch/g) || [];
+  assert.ok(hookMatches.length >= 2, "Both quitAndInstall paths must invoke schedulePostAppUpdateRepatch()");
+
+  // 3) writeOnExitActivateCmd generates a safe passive watcher (never taskkill, guarded before deleting app.asar)
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-survive-test-"));
+  try {
+    const mockResDir = path.join(tmpDir, "antigravity", "resources");
+    const mockAppRoot = path.dirname(mockResDir);
+    const mockPluginDir = path.join(tmpDir, "plugin-rudex");
+    const mockUserData = path.join(tmpDir, "userData");
+    const markerFile = path.join(tmpDir, "repatch-called.txt");
+    fs.mkdirSync(mockResDir, { recursive: true });
+    fs.mkdirSync(path.join(mockPluginDir, "skills", "rudex", "scripts"), { recursive: true });
+    fs.mkdirSync(mockUserData, { recursive: true });
+
+    if (process.platform === "win32") {
+      const cmdPath = path.join(tmpDir, "on-exit.cmd");
+      const lockPath = path.join(tmpDir, "on-exit.lock");
+      const out = writeOnExitActivateCmd({ resourcesDir: mockResDir }, { outPath: cmdPath, lockPath });
+      assert.equal(out, cmdPath);
+      const bat = fs.readFileSync(cmdPath, "utf8");
+      assert.equal(/taskkill/i.test(bat), false, "Passive on-exit activator must NEVER invoke taskkill");
+      assert.ok(bat.includes("rudex-patch-meta.json"), "On-exit activator must verify staged rudex-patch-meta.json");
+      assert.ok(bat.includes("app.asar.orig-*"), "On-exit activator must verify clean backup exists before unlinking app.asar");
+    }
+
+    // 4) rudex-hook.js auto-repatch recovers stripped resources/app even when all 3 feature flags are OFF
+    fs.writeFileSync(path.join(mockAppRoot, "version"), "44.10.0\n", "utf8");
+    fs.writeFileSync(path.join(mockResDir, "app.asar"), "STOCK_44_10_ASAR", "utf8");
+    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"4.1.2"}', "utf8");
+    fs.writeFileSync(
+      path.join(mockPluginDir, "skills", "rudex", "scripts", "install.js"),
+      `"use strict";\nconst fs = require("fs");\nfs.writeFileSync(${JSON.stringify(markerFile)}, JSON.stringify(process.argv.slice(2)), "utf8");\n`,
+      "utf8"
+    );
+
+    const hookScript = path.join(SCRIPTS_DIR, "rudex-hook.js");
+    const r1 = spawnSync(process.execPath, [hookScript], {
+      input: JSON.stringify({ hookEventName: "SessionStart", conversationId: "ffff1111-1111-4111-8111-111111111111" }),
+      env: Object.assign({}, process.env, {
+        AGY_STUDIO_USER_DATA: mockUserData,
+        ANTIGRAVITY_RESOURCES_DIR: mockResDir,
+        RUDEX_PLUGIN_DIR: mockPluginDir,
+        RUDEX_SKIP_AUTO_REPATCH: "0",
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(r1.status, 0, r1.stderr);
+    const out1 = JSON.parse((r1.stdout || "{}").trim() || "{}");
+    assert.ok(Array.isArray(out1.injectSteps) && out1.injectSteps.length === 1, "Hook must report background recovery step");
+    assert.ok(out1.injectSteps[0].systemMessage.metadata.user_markdown.includes("автоматически восстановил"));
+
+    // Wait briefly for detached stub installer to write marker file
+    for (let i = 0; i < 40 && !fs.existsSync(markerFile); i += 1) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    assert.ok(fs.existsSync(markerFile), "Hook must spawn install.js automatically in background");
+    const argvRecorded = JSON.parse(fs.readFileSync(markerFile, "utf8"));
+    assert.deepEqual(argvRecorded, ["--no-sync-plugin", "--on-exit-activate"]);
+
+    // Second invocation within 10-min cooldown must NOT re-trigger
+    fs.unlinkSync(markerFile);
+    const r2 = spawnSync(process.execPath, [hookScript], {
+      input: JSON.stringify({ hookEventName: "PreInvocation", conversationId: "ffff1111-1111-4111-8111-111111111111" }),
+      env: Object.assign({}, process.env, {
+        AGY_STUDIO_USER_DATA: mockUserData,
+        ANTIGRAVITY_RESOURCES_DIR: mockResDir,
+        RUDEX_PLUGIN_DIR: mockPluginDir,
+        RUDEX_SKIP_AUTO_REPATCH: "0",
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.deepEqual(JSON.parse((r2.stdout || "{}").trim() || "{}"), {});
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(fs.existsSync(markerFile), false, "Cooldown must prevent duplicate repatch spawns");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });

@@ -28,6 +28,7 @@ let updateBootTimer = null;
 let updateIntervalTimer = null;
 let updateCheckInflight = null;
 let updateInstallInflight = null;
+let postAppUpdateScheduled = false;
 let updateStatusState = {
   status: "idle",
   available: false,
@@ -1782,7 +1783,7 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.1.1");
+  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.1.2");
   const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
   const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
   const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
@@ -1944,6 +1945,76 @@ function startPeriodicUpdateChecks() {
     } catch {}
   }, intervalMs);
   if (updateIntervalTimer && typeof updateIntervalTimer.unref === "function") updateIntervalTimer.unref();
+}
+
+function writePostAppUpdateWatcherScript(opts = {}) {
+  if (process.platform !== "win32") return "";
+  const resDir = opts.resDir || process.resourcesPath || path.resolve(__dirname, "..", "..");
+  const exePath = opts.exePath || process.execPath || "";
+  const installJs = opts.installJs || path.join(getPluginsBaseDir(), "rudex", "skills", "rudex", "scripts", "install.js");
+  if (!resDir || !exePath || !installJs) return "";
+  const ts = Date.now();
+  const outPath = opts.outPath || path.join(os.tmpdir(), `rudex-post-app-update-${ts}.cmd`);
+  const logPath = path.join(os.tmpdir(), `rudex-post-app-update-${ts}.log`);
+  const lines = [
+    "@echo off",
+    "chcp 65001 >nul",
+    `set "RES_DIR=${resDir}"`,
+    `set "AGY_EXE=${exePath}"`,
+    `set "INSTALL_JS=${installJs}"`,
+    `set "LOG_FILE=${logPath}"`,
+    "setlocal EnableDelayedExpansion",
+    "for /L %%I in (1,1,90) do (",
+    "  timeout /t 2 /nobreak >nul",
+    '  if exist "!RES_DIR!\\app.asar" if not exist "!RES_DIR!\\app\\rudex-patch-meta.json" goto repatch',
+    ")",
+    "goto done",
+    ":repatch",
+    "timeout /t 2 /nobreak >nul",
+    'if not exist "!INSTALL_JS!" goto done',
+    'if not exist "!AGY_EXE!" goto done',
+    'set "ELECTRON_RUN_AS_NODE=1"',
+    '"!AGY_EXE!" "!INSTALL_JS!" --no-sync-plugin > "!LOG_FILE!" 2>&1',
+    'set "ACT_PATH="',
+    'if exist "!LOG_FILE!" (',
+    '  for /f "tokens=1,* delims==" %%A in (\'findstr /B /C:"ACTIVATOR_PATH=" "!LOG_FILE!"\') do set "ACT_PATH=%%B"',
+    '  del /F /Q "!LOG_FILE!" >nul 2>&1',
+    ")",
+    'if defined ACT_PATH if exist "!ACT_PATH!" (',
+    '  call "!ACT_PATH!"',
+    ")",
+    ":done",
+    'del "%~f0" >nul 2>&1',
+    "",
+  ];
+  try {
+    fs.writeFileSync(outPath, lines.join("\r\n"), "utf8");
+    return outPath;
+  } catch (_e) {
+    return "";
+  }
+}
+
+function schedulePostAppUpdateRepatch() {
+  if (postAppUpdateScheduled || process.platform !== "win32" || globalThis.__RUDEX_DISABLED__) return false;
+  const installJs = path.join(getPluginsBaseDir(), "rudex", "skills", "rudex", "scripts", "install.js");
+  if (!fs.existsSync(installJs)) return false;
+  const scriptPath = writePostAppUpdateWatcherScript({ installJs });
+  if (!scriptPath || !fs.existsSync(scriptPath)) return false;
+  postAppUpdateScheduled = true;
+  try {
+    const child = spawn("cmd.exe", ["/c", `"${scriptPath}"`], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+      windowsVerbatimArguments: true,
+    });
+    if (child && typeof child.unref === "function") child.unref();
+    return true;
+  } catch (_e) {
+    postAppUpdateScheduled = false;
+    return false;
+  }
 }
 
 function makeSafeExportFilename(title, chatKey) {
@@ -2838,7 +2909,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.1.1",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.1.2",
         outPath,
       });
       return res;
@@ -3263,3 +3334,5 @@ exports.registerI18nIpc = registerI18nIpc;
 exports.registerStudioMediaProtocol = registerStudioMediaProtocol;
 exports.handleStudioMediaProtocolRequest = handleStudioMediaProtocolRequest;
 exports.translateUiString = translateUiString;
+exports.schedulePostAppUpdateRepatch = schedulePostAppUpdateRepatch;
+exports.writePostAppUpdateWatcherScript = writePostAppUpdateWatcherScript;
