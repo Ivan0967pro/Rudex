@@ -1360,8 +1360,12 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg [stroke]:not([stroke="none"]) {
   stroke: currentColor !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) :where(div, span)[class*="bg-"] {
-  background-color: currentColor !important;
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) :where(div, span) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):hover {
   background-color: ${hoverBg} !important;
