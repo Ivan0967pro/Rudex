@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const { app, ipcMain, webContents, dialog, shell, protocol, BrowserWindow } = require("electron");
+const { app, ipcMain, webContents, dialog, shell, protocol, BrowserWindow, clipboard, nativeImage } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -87,8 +87,34 @@ const VALID_WALLPAPER_FITS = new Set(["cover", "contain", "fill"]);
 const VALID_TINT_BLENDS = new Set(["normal", "multiply", "screen", "overlay", "soft-light"]);
 const VALID_MESSAGE_STYLES = new Set(["glass", "solid", "minimal"]);
 const VALID_BORDER_PRESETS = new Set(["airy", "crisp", "contrast"]);
-const VALID_UI_FONTS = new Set(["system", "custom", "claude-sans", "claude-serif", "claude-lora", "claude-mono-ui", "geist", "segoe", "inter", "rubik", "ibm-plex", "georgia"]);
-const VALID_MONO_FONTS = new Set(["system", "custom", "claude-mono", "geist-mono", "ibm-plex-mono", "cascadia", "jetbrains", "consolas", "fira"]);
+const VALID_UI_STYLE_PARTS = new Set(["antigravity", "claude-code", "codex", "opencode"]);
+const DEFAULT_UI_STYLE = {
+  preset: "antigravity",
+  composer: "antigravity",
+  chat: "antigravity",
+  modelSelector: "antigravity",
+  composerRadius: 0,
+  composerMaxWidth: 0,
+  composerPadY: 0,
+  composerShadow: "preset",
+  userBubbleAlign: "preset",
+  userBubbleMaxWidth: 0,
+  chatGap: 0,
+  agentAccentBar: "preset",
+  modelBtnStyle: "preset",
+  modelMenuDensity: "preset",
+};
+const VALID_UI_FONTS = new Set([
+  "system", "custom", "chatgpt-sans", "opencode-mono",
+  "claude-sans", "claude-serif", "claude-lora", "claude-mono-ui",
+  "geist", "golos", "onest", "manrope", "plus-jakarta",
+  "segoe", "inter", "rubik", "nunito", "ibm-plex", "georgia",
+]);
+const VALID_MONO_FONTS = new Set([
+  "system", "custom", "opencode-mono", "claude-mono",
+  "geist-mono", "fira", "ibm-plex-mono", "source-code-pro",
+  "space-mono", "ubuntu-mono", "cascadia", "jetbrains", "consolas",
+]);
 const VALID_ANY_SLOT_FONTS = new Set(["inherit", "custom", ...VALID_UI_FONTS, ...VALID_MONO_FONTS]);
 const SAFE_FONT_NAME_RE = /[^a-zA-Zа-яА-ЯёЁ0-9 _\-().]/g;
 const VALID_DENSITIES = new Set(["compact", "comfortable", "spacious"]);
@@ -103,6 +129,9 @@ const DEFAULT_STUDIO_UI = {
   widgetScale: "md",
   widgetRadius: 999,
   widgetOpacity: 88,
+  widgetFont: "inherit",
+  widgetFontCustom: "",
+  widgetFontSize: 12,
   studioRadius: 16,
   studioBlur: 20,
   appScale: 100,
@@ -217,6 +246,7 @@ const DEFAULT_APPEARANCE = {
     chatMaxWidth: 0,
     density: "comfortable",
   },
+  uiStyle: Object.assign({}, DEFAULT_UI_STYLE),
 };
 
 function writeFileAtomic(filePath, content) {
@@ -287,6 +317,7 @@ function sanitizeCustomFontName(raw) {
 function sanitizeElementOverrides(raw) {
   if (!Array.isArray(raw)) return [];
   const out = [];
+  const hasNum = (v) => v !== "" && v !== null && v !== undefined && Number.isFinite(Number(v));
   for (let i = 0; i < raw.length && out.length < 80; i += 1) {
     const it = raw[i];
     if (!it || typeof it !== "object") continue;
@@ -303,18 +334,19 @@ function sanitizeElementOverrides(raw) {
       styles: {
         fontFamily: typeof st.fontFamily === "string" ? st.fontFamily.trim().slice(0, 64) : "",
         fontFamilyCustom: sanitizeCustomFontName(st.fontFamilyCustom),
-        fontSize: Number.isFinite(Number(st.fontSize)) && Number(st.fontSize) > 0 ? Math.round(clampNum(st.fontSize, 9, 42, 0)) : 0,
-        fontWeight: Number.isFinite(Number(st.fontWeight)) && Number(st.fontWeight) > 0 ? Math.round(clampNum(st.fontWeight, 300, 900, 0)) : 0,
-        lineHeight: Number.isFinite(Number(st.lineHeight)) && Number(st.lineHeight) > 0 ? Math.round(clampNum(st.lineHeight, 1.0, 2.4, 0) * 100) / 100 : 0,
+        fontSize: hasNum(st.fontSize) && Number(st.fontSize) > 0 ? Math.round(clampNum(st.fontSize, 8, 64, 0)) : 0,
+        fontWeight: hasNum(st.fontWeight) && Number(st.fontWeight) > 0 ? Math.round(clampNum(st.fontWeight, 300, 900, 0)) : 0,
+        lineHeight: hasNum(st.lineHeight) && Number(st.lineHeight) > 0 ? Math.round(clampNum(st.lineHeight, 1.0, 2.4, 0) * 100) / 100 : 0,
         color: sanitizeHexColor(st.color, ""),
         bgColor: sanitizeHexColor(st.bgColor, ""),
-        bgOpacity: Number.isFinite(Number(st.bgOpacity)) ? Math.round(clampNum(st.bgOpacity, 0, 100, 100)) : 100,
+        bgOpacity: hasNum(st.bgOpacity) ? Math.round(clampNum(st.bgOpacity, 0, 100, 100)) : 100,
+        opacity: hasNum(st.opacity) && Number(st.opacity) >= 0 ? Math.round(clampNum(st.opacity, 5, 100, -1)) : -1,
         borderColor: sanitizeHexColor(st.borderColor, ""),
-        borderWidth: Number.isFinite(Number(st.borderWidth)) && Number(st.borderWidth) >= 0 ? Math.round(clampNum(st.borderWidth, 0, 6, -1)) : -1,
-        borderRadius: Number.isFinite(Number(st.borderRadius)) && Number(st.borderRadius) >= 0 ? Math.round(clampNum(st.borderRadius, 0, 40, -1)) : -1,
-        padding: Number.isFinite(Number(st.padding)) && Number(st.padding) >= 0 ? Math.round(clampNum(st.padding, 0, 48, -1)) : -1,
-        width: Number.isFinite(Number(st.width)) && Number(st.width) > 0 ? Math.round(clampNum(st.width, 40, 1600, 0)) : 0,
-        minHeight: Number.isFinite(Number(st.minHeight)) && Number(st.minHeight) > 0 ? Math.round(clampNum(st.minHeight, 18, 600, 0)) : 0,
+        borderWidth: hasNum(st.borderWidth) && Number(st.borderWidth) >= 0 ? Math.round(clampNum(st.borderWidth, 0, 8, -1)) : -1,
+        borderRadius: hasNum(st.borderRadius) && Number(st.borderRadius) >= 0 ? Math.round(clampNum(st.borderRadius, 0, 64, -1)) : -1,
+        padding: hasNum(st.padding) && Number(st.padding) >= 0 ? Math.round(clampNum(st.padding, 0, 64, -1)) : -1,
+        width: hasNum(st.width) && Number(st.width) > 0 ? Math.round(clampNum(st.width, 24, 1800, 0)) : 0,
+        minHeight: hasNum(st.minHeight) && Number(st.minHeight) > 0 ? Math.round(clampNum(st.minHeight, 16, 800, 0)) : 0,
         hidden: Boolean(st.hidden),
       },
     });
@@ -341,6 +373,42 @@ function sanitizeCustomLabels(raw) {
     });
   }
   return out;
+}
+
+function sanitizeUiStyle(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const basePreset = VALID_UI_STYLE_PARTS.has(src.preset) ? src.preset : "antigravity";
+  const composer = VALID_UI_STYLE_PARTS.has(src.composer) ? src.composer : basePreset;
+  const chat = VALID_UI_STYLE_PARTS.has(src.chat) ? src.chat : basePreset;
+  const modelSelector = VALID_UI_STYLE_PARTS.has(src.modelSelector) ? src.modelSelector : basePreset;
+  const preset = composer === chat && chat === modelSelector ? composer : "custom";
+  const normOptRange = (val, min, max) => {
+    const n = Number(val);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.round(clampNum(n, min, max, 0));
+  };
+  return {
+    preset,
+    composer,
+    chat,
+    modelSelector,
+    composerRadius: normOptRange(src.composerRadius, 4, 32),
+    composerMaxWidth: normOptRange(src.composerMaxWidth, 560, 1120),
+    composerPadY: normOptRange(src.composerPadY, 6, 24),
+    composerShadow: src.composerShadow === "none" || src.composerShadow === "soft" || src.composerShadow === "elevated" ? src.composerShadow : "preset",
+    userBubbleAlign: src.userBubbleAlign === "right" || src.userBubbleAlign === "left" || src.userBubbleAlign === "full" ? src.userBubbleAlign : "preset",
+    userBubbleMaxWidth: normOptRange(src.userBubbleMaxWidth, 45, 100),
+    chatGap: normOptRange(src.chatGap, 4, 28),
+    agentAccentBar: src.agentAccentBar === "on" || src.agentAccentBar === "off" ? src.agentAccentBar : "preset",
+    modelBtnStyle:
+      src.modelBtnStyle === "ghost" ||
+      src.modelBtnStyle === "pill" ||
+      src.modelBtnStyle === "bordered" ||
+      src.modelBtnStyle === "mono"
+        ? src.modelBtnStyle
+        : "preset",
+    modelMenuDensity: src.modelMenuDensity === "compact" || src.modelMenuDensity === "comfortable" ? src.modelMenuDensity : "preset",
+  };
 }
 
 function sanitizeAppearance(raw) {
@@ -467,6 +535,7 @@ function sanitizeAppearance(raw) {
       chatMaxWidth,
       density: VALID_DENSITIES.has(tySrc.density) ? tySrc.density : "comfortable",
     },
+    uiStyle: sanitizeUiStyle(src.uiStyle),
   };
 }
 
@@ -485,6 +554,9 @@ function sanitizeStudioUi(raw) {
     widgetScale: legacyScale,
     widgetRadius,
     widgetOpacity: Math.round(clampNum(src.widgetOpacity, 45, 100, DEFAULT_STUDIO_UI.widgetOpacity)),
+    widgetFont: VALID_ANY_SLOT_FONTS.has(src.widgetFont) ? src.widgetFont : DEFAULT_STUDIO_UI.widgetFont,
+    widgetFontCustom: sanitizeCustomFontName(src.widgetFontCustom),
+    widgetFontSize: Math.round(clampNum(src.widgetFontSize, 10, 18, DEFAULT_STUDIO_UI.widgetFontSize)),
     studioRadius: Math.round(clampNum(src.studioRadius, 8, 26, DEFAULT_STUDIO_UI.studioRadius)),
     studioBlur: Math.round(clampNum(src.studioBlur, 0, 32, DEFAULT_STUDIO_UI.studioBlur)),
     appScale: Math.round(clampNum(src.appScale, 70, 150, DEFAULT_STUDIO_UI.appScale)),
@@ -542,19 +614,50 @@ function applyAppScaleToWindows(scalePct, targetWc) {
 
 const PRESET_CURTAIN_BG = {
   "claude-code-dark": "#1f1e1d",
-  "claude-code-light": "#faf9f5",
+  "claude-code-light": "#f5f3ec",
   "claude-terminal": "#141413",
   "liquid-glass": "#080c16",
   "obsidian-glass": "#090a0f",
   "midnight-neon": "#070913",
   "warm-contrast": "#110f0d",
-  "light-paper": "#f5f6f9",
-  "emerald-void": "#060e0c",
-  "crimson-noir": "#0f070a",
-  "tokyo-night": "#131521",
-  "sakura-dusk": "#140c14",
-  "nordic-frost": "#0c1118",
+  "light-paper": "#f2f1ec",
+  "emerald-void": "#071210",
+  "crimson-noir": "#13090d",
+  "tokyo-night": "#0b0e18",
+  "sakura-dusk": "#140b12",
+  "nordic-frost": "#edf2f7",
 };
+
+const PRESET_TITLEBAR_CHROME = {
+  native: { color: "#0d0d11", symbolColor: "#ececef" },
+  "claude-code-dark": { color: "#1a1918", symbolColor: "#faf9f5" },
+  "claude-code-light": { color: "#ebe8de", symbolColor: "#1b1a18" },
+  "claude-terminal": { color: "#111110", symbolColor: "#eeece2" },
+  "liquid-glass": { color: "#0d111d", symbolColor: "#f5f7ff" },
+  "obsidian-glass": { color: "#0d0d11", symbolColor: "#f1f2f6" },
+  "midnight-neon": { color: "#0b0d1b", symbolColor: "#eef2ff" },
+  "warm-contrast": { color: "#161310", symbolColor: "#f5f1ea" },
+  "light-paper": { color: "#e8e6df", symbolColor: "#1c1c20" },
+  "emerald-void": { color: "#0a1614", symbolColor: "#ecfdf5" },
+  "crimson-noir": { color: "#180c11", symbolColor: "#fff1f2" },
+  "tokyo-night": { color: "#0e1220", symbolColor: "#e2e8f0" },
+  "sakura-dusk": { color: "#190e17", symbolColor: "#fdf2f8" },
+  "nordic-frost": { color: "#e2e8f0", symbolColor: "#142033" },
+};
+
+function resolveTitleBarChromeForAppearance(appearanceCfg) {
+  const appCfg = sanitizeAppearance(appearanceCfg);
+  if (appCfg.presetId === "custom") {
+    const bg = appCfg.canvasBg || "#09090b";
+    const h = bg.slice(1);
+    const r = parseInt(h.slice(0, 2), 16) || 0;
+    const g = parseInt(h.slice(2, 4), 16) || 0;
+    const b = parseInt(h.slice(4, 6), 16) || 0;
+    const isLight = (r * 299 + g * 587 + b * 114) / 1000 > 145;
+    return { color: bg, symbolColor: isLight ? "#141418" : "#f1f2f6" };
+  }
+  return PRESET_TITLEBAR_CHROME[appCfg.presetId] || PRESET_TITLEBAR_CHROME.native;
+}
 
 function applyThemeCurtainToWindows(appearanceCfg) {
   try {
@@ -565,19 +668,29 @@ function applyThemeCurtainToWindows(appearanceCfg) {
     } else if (appCfg.presetId && appCfg.presetId !== "native") {
       bgColor = PRESET_CURTAIN_BG[appCfg.presetId] || "";
     }
-    if (!bgColor) return;
+    const chrome = resolveTitleBarChromeForAppearance(appCfg);
     const utils = require("./utils");
     const wins = utils && typeof utils.getHubWindows === "function"
       ? utils.getHubWindows()
       : (BrowserWindow && typeof BrowserWindow.getAllWindows === "function" ? BrowserWindow.getAllWindows() : []);
     for (const w of wins) {
       if (!w || w.__isWebviewPopupWindow || (typeof w.isDestroyed === "function" && w.isDestroyed())) continue;
-      try {
-        if (utils && typeof utils.setHubCurtainColor === "function") utils.setHubCurtainColor(w, bgColor);
-      } catch {}
-      try {
-        if (typeof w.setBackgroundColor === "function") w.setBackgroundColor(bgColor);
-      } catch {}
+      if (bgColor) {
+        try {
+          if (utils && typeof utils.setHubCurtainColor === "function") utils.setHubCurtainColor(w, bgColor);
+        } catch {}
+        try {
+          if (typeof w.setBackgroundColor === "function") w.setBackgroundColor(bgColor);
+        } catch {}
+      }
+      if (process.platform !== "darwin" && chrome && chrome.color && typeof w.setTitleBarOverlay === "function") {
+        try {
+          const hasCustomCtrls = Boolean(utils && typeof utils.hasCustomWindowControls === "function" && utils.hasCustomWindowControls(w));
+          if (!hasCustomCtrls) {
+            w.setTitleBarOverlay({ color: chrome.color, symbolColor: chrome.symbolColor });
+          }
+        } catch {}
+      }
     }
   } catch {}
 }
@@ -613,14 +726,16 @@ function getThinkingRuFlagPath() {
   return path.join(app.getPath("userData"), "agy_studio_thinking_ru.flag");
 }
 
-function syncThinkingRuFlag(enabled, opts = {}) {
+function syncThinkingRuFlag(_enabled, _opts = {}) {
+  // Agent thinking translation now runs 100% client-side via free DOM translator (0 Antigravity tokens/quota).
+  // Clean up legacy hook flag & anchor store if present from older Rudex versions.
   const flagPath = getThinkingRuFlagPath();
   try {
-    if (enabled) {
-      writeFileAtomic(flagPath, "1\n");
-    } else if (opts.wasEnabled) {
-      writeFileAtomic(flagPath, "0\n");
-    }
+    if (fs.existsSync(flagPath)) fs.unlinkSync(flagPath);
+  } catch {}
+  try {
+    const anchorsPath = path.join(app.getPath("userData"), "studio_thinking_anchors.json");
+    if (fs.existsSync(anchorsPath)) fs.unlinkSync(anchorsPath);
   } catch {}
 }
 
@@ -666,18 +781,19 @@ const DEFAULT_LIMITS_WIDGET = {
   enabled: false,
   onlyLimitsMode: false,
   layout: "bars", // "pill" | "bars" | "card" | "inline-header"
-  position: "top-right", // "top-right" | "top-left" | "bottom-right" | "bottom-left" | "floating"
+  position: "top-right", // "top-right" | "top-left" | "bottom-right" | "bottom-left" | "sidebar-bottom" | "inline-header" | "floating"
   floatX: null,
   floatY: null,
-  pinned: false,
+  pinned: true,
+  width: 0, // 0 = auto, or 180..420 px
   fontFamily: "inherit",
   fontFamilyCustom: "",
   fontSize: 12,
   bgColor: "",
-  bgOpacity: 88,
+  bgOpacity: 90,
   textColor: "",
   borderColor: "",
-  borderRadius: 12,
+  borderRadius: 11,
   blur: 14,
   scale: 100,
   trafficLight: true,
@@ -705,6 +821,7 @@ const DEFAULT_KEYBINDINGS = {
   openTabDesign: "",
   openTabLimits: "",
   openTabWorkshop: "",
+  openAnnotator: "Ctrl+Alt+S",
   emergencyResetOverrides: "Ctrl+Alt+Shift+R",
 };
 
@@ -712,6 +829,7 @@ const DEFAULT_LIVE_EDIT_INLINE = {
   enabled: true,
   sendKey: "enter", // "enter" | "ctrl+enter" | "button-only"
   urgentIntercept: false,
+  showChatDock: true,
 };
 
 const DEFAULT_AGENT_PROFILE = {
@@ -732,7 +850,7 @@ const DEFAULT_AGENT_PROFILE = {
 };
 
 const VALID_LIMITS_LAYOUTS = new Set(["pill", "bars", "card", "inline-header"]);
-const VALID_LIMITS_POSITIONS = new Set(["top-right", "top-left", "bottom-right", "bottom-left", "floating"]);
+const VALID_LIMITS_POSITIONS = new Set(["top-right", "top-left", "bottom-right", "bottom-left", "inline-header", "floating"]);
 const VALID_LIMITS_FAMILIES = new Set(["active", "both", "gemini", "claudeGpt"]);
 const VALID_AGENT_SUBAGENTS = new Set(["off", "auto", "parallel"]);
 const VALID_AGENT_WEB = new Set(["off", "auto", "always"]);
@@ -743,6 +861,8 @@ const VALID_AGENT_SAFETY = new Set(["normal", "cautious", "readonly"]);
 
 function sanitizeLimitsWidget(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
+  const rawW = Number(src.width);
+  const width = Number.isFinite(rawW) && rawW >= 180 ? Math.round(clampNum(rawW, 180, 420, 0)) : 0;
   return {
     enabled: Boolean(src.enabled),
     onlyLimitsMode: Boolean(src.onlyLimitsMode),
@@ -750,17 +870,18 @@ function sanitizeLimitsWidget(raw) {
     position: VALID_LIMITS_POSITIONS.has(src.position) ? src.position : DEFAULT_LIMITS_WIDGET.position,
     floatX: typeof src.floatX === "number" && Number.isFinite(src.floatX) ? Math.round(src.floatX) : null,
     floatY: typeof src.floatY === "number" && Number.isFinite(src.floatY) ? Math.round(src.floatY) : null,
-    pinned: Boolean(src.pinned),
+    pinned: src.pinned !== false,
+    width,
     fontFamily: VALID_ANY_SLOT_FONTS.has(src.fontFamily) ? src.fontFamily : "inherit",
     fontFamilyCustom: sanitizeCustomFontName(src.fontFamilyCustom),
-    fontSize: Math.round(clampNum(src.fontSize, 10, 20, DEFAULT_LIMITS_WIDGET.fontSize)),
+    fontSize: Math.round(clampNum(src.fontSize, 10, 22, DEFAULT_LIMITS_WIDGET.fontSize)),
     bgColor: sanitizeHexColor(src.bgColor, ""),
     bgOpacity: Math.round(clampNum(src.bgOpacity, 20, 100, DEFAULT_LIMITS_WIDGET.bgOpacity)),
     textColor: sanitizeHexColor(src.textColor, ""),
     borderColor: sanitizeHexColor(src.borderColor, ""),
     borderRadius: Math.round(clampNum(src.borderRadius, 0, 28, DEFAULT_LIMITS_WIDGET.borderRadius)),
     blur: Math.round(clampNum(src.blur, 0, 32, DEFAULT_LIMITS_WIDGET.blur)),
-    scale: Math.round(clampNum(src.scale, 75, 150, DEFAULT_LIMITS_WIDGET.scale)),
+    scale: Math.round(clampNum(src.scale, 70, 160, DEFAULT_LIMITS_WIDGET.scale)),
     trafficLight: src.trafficLight !== false,
     barColor: sanitizeHexColor(src.barColor, ""),
     families: VALID_LIMITS_FAMILIES.has(src.families) ? src.families : DEFAULT_LIMITS_WIDGET.families,
@@ -811,11 +932,19 @@ function sanitizeKeybindings(raw) {
 
 function sanitizeLiveEditInline(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
-  const sendKey = src.sendKey === "ctrl+enter" || src.sendKey === "button-only" ? src.sendKey : "enter";
+  const sendKey = src.sendKey === "ctrl+enter" ? "ctrl+enter" : "enter";
+  const chatBubbleStyle = src.chatBubbleStyle === "accent" || src.chatBubbleStyle === "subtle" ? src.chatBubbleStyle : "native";
+  const chatBubblePos = src.chatBubblePos === "after-agent" ? "after-agent" : "after-user";
   return {
     enabled: src.enabled !== false,
     sendKey,
     urgentIntercept: Boolean(src.urgentIntercept),
+    showChatDock: src.showChatDock !== false,
+    showInChat: src.showInChat !== false,
+    showDeliveredBadge: src.showDeliveredBadge !== false,
+    showQueueStrip: Boolean(src.showQueueStrip),
+    chatBubbleStyle,
+    chatBubblePos,
   };
 }
 
@@ -884,16 +1013,24 @@ function profileHasToolPolicy(prof) {
   );
 }
 
-function syncAgentProfileFlags(settingsArg, chatsArg) {
+function syncAgentProfileFlags(settingsArg, chatsArg, storeArg) {
   try {
     const userDataDir = app.getPath("userData");
     const agentFlag = path.join(userDataDir, "agy_studio_agent_profile.flag");
     const policyFlag = path.join(userDataDir, "agy_studio_tool_policy.flag");
     const s = settingsArg || loadStudioSettings();
-    const chats = chatsArg || loadStudioChats();
+    const store = storeArg || loadStudioChatsStore();
+    const chats = chatsArg || (store && store.chats) || {};
     const defProf = s && s.agentProfileDefault ? s.agentProfileDefault : null;
     let needAgent = Boolean(defProf && defProf.enabled && defProf.applyToNewChats);
     let needPolicy = Boolean(defProf && defProf.applyToNewChats && profileHasToolPolicy(defProf));
+    const pendingAp = store && store.pendingNewChatAgentProfile && store.pendingNewChatAgentProfile.profile
+      ? store.pendingNewChatAgentProfile.profile
+      : null;
+    if (pendingAp && pendingAp.enabled) {
+      needAgent = true;
+      if (profileHasToolPolicy(pendingAp)) needPolicy = true;
+    }
     if (chats && typeof chats === "object") {
       for (const k of Object.keys(chats)) {
         const c = chats[k];
@@ -933,7 +1070,7 @@ function sanitizeStudioSettings(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const rawDock = src.dockPosition;
   const dockAlias = rawDock === "top" ? "top-right" : rawDock === "middle" ? "middle-right" : rawDock === "bottom" ? "bottom-right" : rawDock;
-  const validDock = dockAlias === "bottom-right" || dockAlias === "top-right" || dockAlias === "middle-right" || dockAlias === "bottom-left" || dockAlias === "hidden" ? dockAlias : "bottom-right";
+  const validDock = dockAlias === "bottom-right" || dockAlias === "top-right" || dockAlias === "top-left" || dockAlias === "middle-right" || dockAlias === "bottom-left" || dockAlias === "inline-header" || dockAlias === "hidden" ? dockAlias : "bottom-right";
   const rawView = src.viewMode === "large" ? "medium" : src.viewMode;
   const viewMode = rawView === "mini" || rawView === "medium" ? rawView : "mini";
   const layoutMode = src.layoutMode === "docked" || src.layoutMode === "floating" ? src.layoutMode : "docked";
@@ -969,7 +1106,7 @@ function sanitizeStudioSettings(raw) {
     : [];
   return {
     panelEnabled: src.panelEnabled !== false,
-    pinned: Boolean(src.pinned),
+    pinned: src.pinned !== false,
     viewMode,
     layoutMode,
     dockPosition: validDock,
@@ -982,7 +1119,9 @@ function sanitizeStudioSettings(raw) {
     personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
     personaText: typeof src.personaText === "string" ? src.personaText : "",
     personaStrictMode: src.personaStrictMode !== false,
-    thinkingInRussian: Boolean(src.thinkingInRussian),
+    thinkingInRussian: src.thinkingInRussian !== false,
+    composerDraftsEnabled: src.composerDraftsEnabled !== false,
+    inputHistoryEnabled: src.inputHistoryEnabled !== false,
     autoCheckUpdates: src.autoCheckUpdates !== false,
     customPresets: presets,
     appearance: sanitizeAppearance(src.appearance),
@@ -1063,10 +1202,6 @@ function saveStudioSettings(patch) {
   }
   if (pObj.appearance || pObj.appearanceProfiles) {
     schedulePruneOrphanedMedia(next);
-  }
-  if (Object.prototype.hasOwnProperty.call(pObj, "thinkingInRussian")) {
-    syncThinkingRuFlag(Boolean(next.thinkingInRussian), { wasEnabled: Boolean(current.thinkingInRussian) });
-    resyncActiveChatRuleFile();
   }
   if (pObj.autoCheckUpdates === true && current.autoCheckUpdates === false) {
     if (Date.now() - (updateStatusState.lastCheckedAt || 0) > 30 * 60 * 1000) {
@@ -1372,6 +1507,16 @@ function loadStudioChatsStore() {
             claimedBy: typeof rawPending.claimedBy === "string" ? rawPending.claimedBy : "",
           }
         : null;
+      const rawPendingAp = parsed && parsed.pendingNewChatAgentProfile && typeof parsed.pendingNewChatAgentProfile === "object"
+        ? parsed.pendingNewChatAgentProfile
+        : null;
+      const pendingNewChatAgentProfile = rawPendingAp && rawPendingAp.profile && typeof rawPendingAp.profile === "object" && rawPendingAp.profile.enabled
+        ? {
+            profile: sanitizeAgentProfile(rawPendingAp.profile),
+            updatedAt: toNonNegInt(rawPendingAp.updatedAt),
+            claimedBy: typeof rawPendingAp.claimedBy === "string" ? rawPendingAp.claimedBy : "",
+          }
+        : null;
       const activeAgentsMdChatKey = parsed && typeof parsed.activeAgentsMdChatKey === "string"
         ? parsed.activeAgentsMdChatKey.trim()
         : "";
@@ -1380,6 +1525,7 @@ function loadStudioChatsStore() {
         version: 1,
         chats: out,
         pendingNewChatPersona,
+        pendingNewChatAgentProfile,
         activeAgentsMdChatKey,
       };
       return studioChatsCache;
@@ -1389,6 +1535,7 @@ function loadStudioChatsStore() {
     version: 1,
     chats: {},
     pendingNewChatPersona: null,
+    pendingNewChatAgentProfile: null,
     activeAgentsMdChatKey: "",
   };
   studioChatsMtimeMs = -1;
@@ -1411,6 +1558,7 @@ function saveStudioChatsStore(storeObj) {
     version: 1,
     chats: pruned,
     pendingNewChatPersona: s.pendingNewChatPersona || null,
+    pendingNewChatAgentProfile: s.pendingNewChatAgentProfile || null,
     activeAgentsMdChatKey: typeof s.activeAgentsMdChatKey === "string" ? s.activeAgentsMdChatKey : "",
   };
   studioChatsCache = payload;
@@ -1436,17 +1584,7 @@ function saveStudioChats(chatsMap) {
   return saveStudioChatsStore(cur).chats;
 }
 
-function formatThinkingRuRuleBlock() {
-  return [
-    "# Язык внутренних размышлений агента (Rudex Studio)",
-    "",
-    "MANDATORY: Write ALL internal reasoning / thinking / chain-of-thought exclusively in Russian (на русском языке).",
-    "Веди ВСЁ внутреннее рассуждение (thinking / chain-of-thought / этап размышления) целиком на **русском языке**.",
-    "- Preserve file paths, code identifiers, symbols, and terminal commands verbatim (в точном оригинальном виде).",
-  ].join("\n");
-}
-
-function formatPersonaRuleContent(trimmed, usePlugin, strictMode, thinkingInRussian) {
+function formatPersonaRuleContent(trimmed, usePlugin, strictMode) {
   const header = usePlugin ? "" : "---\ntrigger: always_on\n---\n\n";
   const sections = [];
   if (trimmed) {
@@ -1468,9 +1606,6 @@ function formatPersonaRuleContent(trimmed, usePlugin, strictMode, thinkingInRuss
     }
     sections.push(body.join("\n"));
   }
-  if (thinkingInRussian) {
-    sections.push(formatThinkingRuRuleBlock());
-  }
   return header + sections.join("\n\n") + "\n";
 }
 
@@ -1486,8 +1621,7 @@ function syncPersonaRuleFile(enabled, text, strictMode) {
   }
 
   const trimmed = enabled ? String(text || "").trim() : "";
-  const thinkingRu = Boolean(loadStudioSettings().thinkingInRussian);
-  if (!trimmed && !thinkingRu) {
+  if (!trimmed) {
     try {
       if (fs.existsSync(rulePath)) fs.unlinkSync(rulePath);
     } catch (err) {
@@ -1499,7 +1633,7 @@ function syncPersonaRuleFile(enabled, text, strictMode) {
   if (trimmed && bodyBytes > MAX_PERSONA_BODY_BYTES) {
     return { ok: false, exists: fs.existsSync(rulePath), byteLength: bodyBytes, error: "EXCEEDS_BYTE_LIMIT", rulePath };
   }
-  const content = formatPersonaRuleContent(trimmed, usePlugin, strictMode !== false, thinkingRu);
+  const content = formatPersonaRuleContent(trimmed, usePlugin, strictMode !== false);
   try {
     writeFileAtomic(rulePath, content);
     const verified = fs.existsSync(rulePath);
@@ -1554,8 +1688,8 @@ function defaultQuotaFamilyState(famId) {
     updatedAt: 0,
     resetAt: 0,
     calibrated: false,
-    tokensPer1Pct5h: isClaude ? 40000 : 50000,
-    tokensPer1PctWeekly: isClaude ? 180000 : 225000,
+    tokensPer1Pct5h: isClaude ? 45000 : 60000,
+    tokensPer1PctWeekly: isClaude ? 200000 : 260000,
     pending5hByChat: {},
     pendingWeeklyByChat: {},
   };
@@ -1593,8 +1727,8 @@ function sanitizeQuotaFamilyState(famId, raw) {
     updatedAt: toNonNegInt(src.updatedAt),
     resetAt: toNonNegInt(src.resetAt),
     calibrated: Boolean(src.calibrated),
-    tokensPer1Pct5h: Number.isFinite(t5) && t5 >= 5000 && t5 <= 1000000 ? Math.round(t5) : def.tokensPer1Pct5h,
-    tokensPer1PctWeekly: Number.isFinite(tw) && tw >= 20000 && tw <= 5000000 ? Math.round(tw) : def.tokensPer1PctWeekly,
+    tokensPer1Pct5h: Number.isFinite(t5) && t5 >= 20000 && t5 <= 1500000 ? Math.round(t5) : def.tokensPer1Pct5h,
+    tokensPer1PctWeekly: Number.isFinite(tw) && tw >= 80000 && tw <= 6000000 ? Math.round(tw) : def.tokensPer1PctWeekly,
     pending5hByChat: sanitizePendingMap(src.pending5hByChat),
     pendingWeeklyByChat: sanitizePendingMap(src.pendingWeeklyByChat),
   };
@@ -1772,43 +1906,80 @@ function readTranscriptStepsCached(lp, mtimeMs, size) {
   let titleGuess = "";
   let lastModel = "";
   try {
-    const { head, tail } = readTranscriptHeadAndTail(lp, size);
-    const parseBlock = (blockText, collectTitle) => {
-      const lines = blockText.split(/\r?\n/);
-      let runningCtxTok = 0;
-      for (let i = 0; i < lines.length; i += 1) {
-        const line = lines[i];
-        if (!line) continue;
-        let o;
-        try { o = JSON.parse(line); } catch { continue; }
-        const ts = o.created_at ? Date.parse(o.created_at) : 0;
-        const contentStr = typeof o.content === "string" ? o.content : "";
-        const thinkStr = typeof o.thinking === "string" ? o.thinking : "";
-        const toolsStr = Array.isArray(o.tool_calls) ? JSON.stringify(o.tool_calls) : "";
-        if (collectTitle && !titleGuess && o.type === "USER_INPUT" && contentStr.trim()) {
-          const cleanU = contentStr.replace(/\s+/g, " ").trim();
-          if (cleanU && !cleanU.startsWith("<")) {
-            titleGuess = cleanU.slice(0, 60);
-          }
+    // Scan full file up to 16MB (skipping non-PLANNER_RESPONSE lines without JSON.parse for ~3-5ms speed)
+    // so long coding sessions NEVER drop pre-snapshot calibration history!
+    const FULL_CAP = 16 * 1024 * 1024;
+    let rawText = "";
+    if (size <= FULL_CAP) {
+      rawText = fs.readFileSync(lp, "utf8");
+    } else {
+      const fd = fs.openSync(lp, "r");
+      try {
+        const headBuf = Buffer.alloc(32 * 1024);
+        const hRead = fs.readSync(fd, headBuf, 0, headBuf.length, 0);
+        const headLines = headBuf.slice(0, hRead).toString("utf8").split(/\r?\n/);
+        for (let hi = 0; hi < headLines.length; hi += 1) {
+          const hl = headLines[hi];
+          if (!hl || hl.indexOf('"USER_INPUT"') === -1) continue;
+          try {
+            const ho = JSON.parse(hl);
+            if (ho && ho.type === "USER_INPUT" && typeof ho.content === "string") {
+              const cleanU = ho.content.replace(/\s+/g, " ").trim();
+              if (cleanU && !cleanU.startsWith("<")) { titleGuess = cleanU.slice(0, 60); break; }
+            }
+          } catch {}
         }
-        const outTok = typeof o.output_tokens === "number" && o.output_tokens > 0
-          ? Math.round(o.output_tokens)
-          : Math.max(20, Math.round((contentStr.length + thinkStr.length + toolsStr.length) / 3.5));
-        if (o.type === "PLANNER_RESPONSE") {
-          if (typeof o.model === "string" && o.model.trim()) lastModel = o.model.trim();
-          const realCtx = (typeof o.input_tokens === "number" ? o.input_tokens : 0) + (typeof o.cache_read_tokens === "number" ? o.cache_read_tokens : 0);
-          const ctxTok = realCtx > 0 ? realCtx : Math.min(120000, 10000 + runningCtxTok);
-          const stepUnits = Math.round(outTok + ctxTok * 0.10);
-          const fam = classifyModelFamily(o.model || lastModel || "");
-          steps.push({ ts: Number.isFinite(ts) && ts > 0 ? ts : mtimeMs, units: stepUnits, family: fam });
-        }
-        runningCtxTok = Math.min(180000, runningCtxTok + Math.round((contentStr.length + toolsStr.length) / 3.5));
+        const tailBuf = Buffer.alloc(FULL_CAP);
+        const tRead = fs.readSync(fd, tailBuf, 0, FULL_CAP, Math.max(0, size - FULL_CAP));
+        rawText = tailBuf.slice(0, tRead).toString("utf8");
+        const firstNl = rawText.indexOf("\n");
+        if (firstNl !== -1) rawText = rawText.slice(firstNl + 1);
+      } finally {
+        fs.closeSync(fd);
       }
-    };
-    parseBlock(head, true);
-    if (tail) {
-      steps.length = 0;
-      parseBlock(tail, false);
+    }
+    const lines = rawText.split(/\r?\n/);
+    let runningCtxTok = 0;
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (!line) continue;
+      if (!titleGuess && line.indexOf('"USER_INPUT"') !== -1) {
+        try {
+          const uo = JSON.parse(line);
+          if (uo && uo.type === "USER_INPUT" && typeof uo.content === "string") {
+            const cleanU = uo.content.replace(/\s+/g, " ").trim();
+            if (cleanU && !cleanU.startsWith("<")) titleGuess = cleanU.slice(0, 60);
+          }
+        } catch {}
+        continue;
+      }
+      if (line.indexOf('"PLANNER_RESPONSE"') === -1) continue;
+      let o;
+      try { o = JSON.parse(line); } catch { continue; }
+      if (!o || o.type !== "PLANNER_RESPONSE") continue;
+      const ts = o.created_at ? Date.parse(o.created_at) : 0;
+      const contentStr = typeof o.content === "string" ? o.content : "";
+      const thinkStr = typeof o.thinking === "string" ? o.thinking : "";
+      const toolsStr = Array.isArray(o.tool_calls) ? JSON.stringify(o.tool_calls) : "";
+      const outTok = typeof o.output_tokens === "number" && o.output_tokens > 0
+        ? Math.round(o.output_tokens)
+        : Math.max(20, Math.round((contentStr.length + thinkStr.length + toolsStr.length) / 3.5));
+      if (typeof o.model === "string" && o.model.trim()) lastModel = o.model.trim();
+      const hasRealIn = typeof o.input_tokens === "number" && o.input_tokens > 0;
+      const hasRealCache = typeof o.cache_read_tokens === "number" && o.cache_read_tokens > 0;
+      let stepUnits;
+      if (hasRealIn || hasRealCache) {
+        // Realistic billing weight: output 1.0x, uncached input 0.20x, prompt cache read 0.02x
+        const inTok = hasRealIn ? o.input_tokens : 0;
+        const cacheTok = hasRealCache ? o.cache_read_tokens : 0;
+        stepUnits = Math.round(outTok + inTok * 0.20 + cacheTok * 0.02);
+      } else {
+        const ctxTok = Math.min(120000, 10000 + runningCtxTok);
+        stepUnits = Math.round(outTok + ctxTok * 0.04);
+      }
+      const fam = classifyModelFamily(o.model || lastModel || "");
+      steps.push({ ts: Number.isFinite(ts) && ts > 0 ? ts : mtimeMs, units: Math.max(20, stepUnits), family: fam });
+      runningCtxTok = Math.min(180000, runningCtxTok + Math.round((contentStr.length + toolsStr.length) / 3.5));
     }
   } catch {}
   const entry = { steps, titleGuess, lastModel, mtimeMs };
@@ -1862,22 +2033,58 @@ function scanBrainTranscriptsQuota(minCutoffMs, resetWatermarkMs) {
   return out;
 }
 
-function getFamilyCycleBounds(famState, nowMs) {
-  const wkRemMs = parseResetDurationMs(famState.weeklyReset);
-  const fhRemMs = parseResetDurationMs(famState.fiveHourReset);
-  const weeklyStartMs = wkRemMs > 0 && wkRemMs <= SEVEN_DAY_MS
-    ? nowMs - (SEVEN_DAY_MS - wkRemMs)
-    : nowMs - SEVEN_DAY_MS;
-  const fiveHourStartMs = fhRemMs > 0 && fhRemMs <= FIVE_HOUR_MS
-    ? nowMs - (FIVE_HOUR_MS - fhRemMs)
-    : nowMs - FIVE_HOUR_MS;
-  return { weeklyStartMs, fiveHourStartMs };
+function formatLiveResetRemaining(rawResetStr, updatedAtMs, nowMs, locale) {
+  const raw = typeof rawResetStr === "string" ? rawResetStr.trim() : "";
+  if (!raw) return { text: "", expired: false, resetAtMs: 0, remainingMs: 0 };
+  const origMs = parseResetDurationMs(raw);
+  if (origMs <= 0) return { text: raw, expired: false, resetAtMs: 0, remainingMs: 0 };
+  const upd = Number(updatedAtMs) || 0;
+  const elapsed = upd > 0 && nowMs > upd ? nowMs - upd : 0;
+  const remMs = origMs - elapsed;
+  if (remMs <= 0) {
+    return { text: "", expired: true, resetAtMs: upd > 0 ? upd + origMs : nowMs, remainingMs: 0 };
+  }
+  const ru = locale !== "en";
+  const totalMin = Math.max(1, Math.ceil(remMs / 60000));
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const mins = totalMin % 60;
+  let text = "";
+  if (days > 0) {
+    text = ru
+      ? (hours > 0 ? `${days} д ${hours} ч` : `${days} д`)
+      : (hours > 0 ? `${days}d ${hours}h` : `${days}d`);
+  } else if (hours > 0) {
+    text = ru
+      ? (mins > 0 ? `${hours} ч ${mins} мин` : `${hours} ч`)
+      : (mins > 0 ? `${hours}h ${mins}m` : `${hours}h`);
+  } else {
+    text = ru ? `${mins} мин` : `${mins}m`;
+  }
+  return { text, expired: false, resetAtMs: upd > 0 ? upd + origMs : nowMs + remMs, remainingMs: remMs };
 }
 
-function buildQuotaSummary(activeChatKey, forceFresh) {
+function getFamilyCycleBounds(famState, nowMs) {
+  const wkLive = formatLiveResetRemaining(famState.weeklyReset, famState.updatedAt, nowMs, "en");
+  const fhLive = formatLiveResetRemaining(famState.fiveHourReset, famState.updatedAt, nowMs, "en");
+  const weeklyStartMs = wkLive.expired
+    ? wkLive.resetAtMs
+    : (wkLive.remainingMs > 0 && wkLive.remainingMs <= SEVEN_DAY_MS
+        ? nowMs - (SEVEN_DAY_MS - wkLive.remainingMs)
+        : nowMs - SEVEN_DAY_MS);
+  const fiveHourStartMs = fhLive.expired
+    ? fhLive.resetAtMs
+    : (fhLive.remainingMs > 0 && fhLive.remainingMs <= FIVE_HOUR_MS
+        ? nowMs - (FIVE_HOUR_MS - fhLive.remainingMs)
+        : nowMs - FIVE_HOUR_MS);
+  return { weeklyStartMs, fiveHourStartMs, wkLive, fhLive };
+}
+
+function buildQuotaSummary(activeChatKey, forceFresh, opts) {
   const normActive = normalizeChatKey(activeChatKey || lastActiveChatKey);
-  const nowMs = Date.now();
-  if (!forceFresh && quotaSummaryCache.value && quotaSummaryCache.key === normActive && nowMs - quotaSummaryCache.at < 4000) {
+  const nowMs = opts && typeof opts.nowMs === "number" && Number.isFinite(opts.nowMs) ? opts.nowMs : Date.now();
+  const locale = getLocale();
+  if (!forceFresh && !opts && quotaSummaryCache.value && quotaSummaryCache.key === normActive && nowMs - quotaSummaryCache.at < 4000) {
     return quotaSummaryCache.value;
   }
 
@@ -1888,15 +2095,35 @@ function buildQuotaSummary(activeChatKey, forceFresh) {
     gemini: getFamilyCycleBounds(store.families.gemini, nowMs),
     claudeGpt: getFamilyCycleBounds(store.families.claudeGpt, nowMs),
   };
+  const liveResetInfo = {
+    gemini: {
+      fiveHour: formatLiveResetRemaining(store.families.gemini.fiveHourReset, store.families.gemini.updatedAt, nowMs, locale),
+      weekly: formatLiveResetRemaining(store.families.gemini.weeklyReset, store.families.gemini.updatedAt, nowMs, locale),
+    },
+    claudeGpt: {
+      fiveHour: formatLiveResetRemaining(store.families.claudeGpt.fiveHourReset, store.families.claudeGpt.updatedAt, nowMs, locale),
+      weekly: formatLiveResetRemaining(store.families.claudeGpt.weeklyReset, store.families.claudeGpt.updatedAt, nowMs, locale),
+    },
+  };
+  const sinceSnapCutoff = {
+    gemini: {
+      fiveHour: liveResetInfo.gemini.fiveHour.expired ? liveResetInfo.gemini.fiveHour.resetAtMs : (store.families.gemini.updatedAt || 0),
+      weekly: liveResetInfo.gemini.weekly.expired ? liveResetInfo.gemini.weekly.resetAtMs : (store.families.gemini.updatedAt || 0),
+    },
+    claudeGpt: {
+      fiveHour: liveResetInfo.claudeGpt.fiveHour.expired ? liveResetInfo.claudeGpt.fiveHour.resetAtMs : (store.families.claudeGpt.updatedAt || 0),
+      weekly: liveResetInfo.claudeGpt.weekly.expired ? liveResetInfo.claudeGpt.weekly.resetAtMs : (store.families.claudeGpt.updatedAt || 0),
+    },
+  };
   const minCutoffMs = Math.min(bounds.gemini.weeklyStartMs, bounds.claudeGpt.weeklyStartMs, bounds.gemini.fiveHourStartMs, bounds.claudeGpt.fiveHourStartMs);
-  const diskByChat = scanBrainTranscriptsQuota(minCutoffMs, resetWm);
+  const diskByChat = opts && opts.diskByChat instanceof Map ? opts.diskByChat : scanBrainTranscriptsQuota(minCutoffMs, resetWm);
 
   const allKeys = new Set(Object.keys(chats));
   for (const k of diskByChat.keys()) allKeys.add(k);
 
   const familyTotals = {
-    gemini: { unitsWeekly: 0, units5h: 0 },
-    claudeGpt: { unitsWeekly: 0, units5h: 0 },
+    gemini: { unitsWeekly: 0, units5h: 0, unitsWeeklyBeforeSnap: 0, units5hBeforeSnap: 0, unitsWeeklySinceSnap: 0, units5hSinceSnap: 0 },
+    claudeGpt: { unitsWeekly: 0, units5h: 0, unitsWeeklyBeforeSnap: 0, units5hBeforeSnap: 0, unitsWeeklySinceSnap: 0, units5hSinceSnap: 0 },
   };
   const chatMeta = new Map();
 
@@ -1907,7 +2134,6 @@ function buildQuotaSummary(activeChatKey, forceFresh) {
     const modelName = (rec.telemetry && rec.telemetry.modelName) || (rec.quota.claudeGpt.lastModel) || (rec.quota.gemini.lastModel) || (disk && disk.lastModel) || "";
     const diskLastFam = disk && disk.steps.length > 0 ? disk.steps[disk.steps.length - 1].family : "";
     const hasCla = rec.quota.claudeGpt.turns > 0 || (modelName && classifyModelFamily(modelName) === "claudeGpt") || diskLastFam === "claudeGpt";
-    const primaryFamily = hasCla && (rec.quota.claudeGpt.lastTurnAt >= rec.quota.gemini.lastTurnAt || diskLastFam === "claudeGpt") ? "claudeGpt" : "gemini";
     const famWeight = Math.max(0.4, getModelQuotaWeight(modelName));
 
     const unitsWeeklyByFam = { gemini: 0, claudeGpt: 0 };
@@ -1918,6 +2144,10 @@ function buildQuotaSummary(activeChatKey, forceFresh) {
     if (disk) {
       const rawWByFam = { gemini: 0, claudeGpt: 0 };
       const raw5ByFam = { gemini: 0, claudeGpt: 0 };
+      const rawWBeforeByFam = { gemini: 0, claudeGpt: 0 };
+      const raw5BeforeByFam = { gemini: 0, claudeGpt: 0 };
+      const rawWSinceByFam = { gemini: 0, claudeGpt: 0 };
+      const raw5SinceByFam = { gemini: 0, claudeGpt: 0 };
       const stepsWByFam = { gemini: 0, claudeGpt: 0 };
       const steps5ByFam = { gemini: 0, claudeGpt: 0 };
       for (let i = 0; i < disk.steps.length; i += 1) {
@@ -1925,20 +2155,33 @@ function buildQuotaSummary(activeChatKey, forceFresh) {
         if (stp.ts < resetWm) continue;
         const fam = stp.family === "claudeGpt" ? "claudeGpt" : "gemini";
         const famBounds = bounds[fam];
+        const snapCut = sinceSnapCutoff[fam];
         if (stp.ts >= famBounds.weeklyStartMs) {
           rawWByFam[fam] += stp.units;
           stepsWByFam[fam] += 1;
           if (stp.ts > lastStepTs) lastStepTs = stp.ts;
+          if (snapCut.weekly > 0) {
+            if (stp.ts > snapCut.weekly) rawWSinceByFam[fam] += stp.units;
+            else rawWBeforeByFam[fam] += stp.units;
+          }
         }
         if (stp.ts >= famBounds.fiveHourStartMs) {
           raw5ByFam[fam] += stp.units;
           steps5ByFam[fam] += 1;
           if (stp.ts > lastStepTs) lastStepTs = stp.ts;
+          if (snapCut.fiveHour > 0) {
+            if (stp.ts > snapCut.fiveHour) raw5SinceByFam[fam] += stp.units;
+            else raw5BeforeByFam[fam] += stp.units;
+          }
         }
       }
       for (const fam of ["gemini", "claudeGpt"]) {
         unitsWeeklyByFam[fam] = Math.round(rawWByFam[fam] * famWeight);
         units5hByFam[fam] = Math.round(raw5ByFam[fam] * famWeight);
+        familyTotals[fam].unitsWeeklyBeforeSnap += Math.round(rawWBeforeByFam[fam] * famWeight);
+        familyTotals[fam].units5hBeforeSnap += Math.round(raw5BeforeByFam[fam] * famWeight);
+        familyTotals[fam].unitsWeeklySinceSnap += Math.round(rawWSinceByFam[fam] * famWeight);
+        familyTotals[fam].units5hSinceSnap += Math.round(raw5SinceByFam[fam] * famWeight);
         turnsByFam[fam] = Math.max(rec.quota[fam].turns || 0, stepsWByFam[fam], steps5ByFam[fam]);
       }
     } else {
@@ -1978,14 +2221,16 @@ function buildQuotaSummary(activeChatKey, forceFresh) {
     const fam = store.families[famId];
     const totW = familyTotals[famId].unitsWeekly;
     const tot5 = familyTotals[famId].units5h;
+    const calW = familyTotals[famId].unitsWeeklyBeforeSnap > 0 ? familyTotals[famId].unitsWeeklyBeforeSnap : totW;
+    const cal5 = familyTotals[famId].units5hBeforeSnap > 0 ? familyTotals[famId].units5hBeforeSnap : tot5;
     const usedW = fam.weeklyRem !== null ? Math.max(0, 100 - fam.weeklyRem) : null;
     const used5 = fam.fiveHourRem !== null ? Math.max(0, 100 - fam.fiveHourRem) : null;
-    const impliedW = usedW !== null && usedW >= 0.5 && totW > 0
-      ? Math.round(clampNum(totW / usedW, 25000, 3000000, fam.tokensPer1PctWeekly))
+    const impliedW = usedW !== null && usedW >= 0.5 && calW > 0
+      ? Math.round(clampNum(calW / usedW, 80000, 6000000, fam.tokensPer1PctWeekly))
       : fam.tokensPer1PctWeekly;
-    const implied5 = used5 !== null && used5 >= 0.5 && tot5 > 0
-      ? Math.round(clampNum(tot5 / used5, 8000, 800000, fam.tokensPer1Pct5h))
-      : Math.max(15000, Math.round(impliedW * 0.22));
+    const implied5 = used5 !== null && used5 >= 0.5 && cal5 > 0
+      ? Math.round(clampNum(cal5 / used5, 20000, 1500000, fam.tokensPer1Pct5h))
+      : Math.max(25000, Math.round(impliedW * 0.24));
     rates[famId] = {
       usedWeeklyReal: usedW,
       used5hReal: used5,
@@ -2075,33 +2320,65 @@ function buildQuotaSummary(activeChatKey, forceFresh) {
     return (b.updatedAt || 0) - (a.updatedAt || 0);
   });
 
+  const sumPending = (mapObj) => {
+    if (!mapObj || typeof mapObj !== "object") return 0;
+    let total = 0;
+    for (const k of Object.keys(mapObj)) total += Math.max(0, Number(mapObj[k]) || 0);
+    return total;
+  };
+  const buildFamilyDisplay = (famId) => {
+    const fam = store.families[famId];
+    const r = rates[famId];
+    const lr5 = liveResetInfo[famId].fiveHour;
+    const lrW = liveResetInfo[famId].weekly;
+    const pend5 = sumPending(fam.pending5hByChat);
+    const pendW = sumPending(fam.pendingWeeklyByChat);
+    const diskSince5 = familyTotals[famId].units5hSinceSnap || 0;
+    const diskSinceW = familyTotals[famId].unitsWeeklySinceSnap || 0;
+
+    const base5 = fam.fiveHourRem !== null ? (lr5.expired ? 100 : fam.fiveHourRem) : null;
+    const baseW = fam.weeklyRem !== null ? (lrW.expired ? 100 : fam.weeklyRem) : null;
+    // Prefer same-scale transcript.jsonl delta when available; only fall back to DOM pending turns when disk has no steps yet
+    const effPend5 = lr5.expired ? diskSince5 : (diskSince5 > 0 ? diskSince5 : pend5);
+    const effPendW = lrW.expired ? diskSinceW : (diskSinceW > 0 ? diskSinceW : pendW);
+
+    const estDrop5 = base5 !== null && effPend5 > 0 ? effPend5 / Math.max(20000, r.unitsPer1Pct5h) : 0;
+    const estDropW = baseW !== null && effPendW > 0 ? effPendW / Math.max(80000, r.unitsPer1PctWeekly) : 0;
+    // Never falsely drop an *estimated* value all the way to 0% while the last official snapshot was > 0%
+    const minEst5 = base5 !== null && base5 > 0 && estDrop5 > 0 ? 1 : 0;
+    const minEstW = baseW !== null && baseW > 0 && estDropW > 0 ? 1 : 0;
+    const live5 = base5 !== null ? Math.max(minEst5, Math.min(100, Math.round(base5 - estDrop5))) : null;
+    const liveW = baseW !== null ? Math.max(minEstW, Math.min(100, Math.round(baseW - estDropW))) : null;
+    return {
+      weeklyRem: liveW,
+      fiveHourRem: live5,
+      weeklyRawRem: fam.weeklyRem,
+      fiveHourRawRem: fam.fiveHourRem,
+      weeklyEstimated: (estDropW >= 0.5 && liveW !== fam.weeklyRem) || (lrW.expired && liveW !== fam.weeklyRem),
+      fiveHourEstimated: (estDrop5 >= 0.5 && live5 !== fam.fiveHourRem) || (lr5.expired && live5 !== fam.fiveHourRem),
+      weeklyReset: lrW.text,
+      fiveHourReset: lr5.text,
+      fiveHourWindowResetDetected: Boolean(lr5.expired),
+      weeklyWindowResetDetected: Boolean(lrW.expired),
+      updatedAt: fam.updatedAt,
+      liveUpdatedAt: nowMs,
+      calibrated: r.calibrated,
+      tokensPer1Pct5h: r.unitsPer1Pct5h,
+      tokensPer1PctWeekly: r.unitsPer1PctWeekly,
+    };
+  };
+
   const result = {
     families: {
-      gemini: {
-        weeklyRem: store.families.gemini.weeklyRem,
-        fiveHourRem: store.families.gemini.fiveHourRem,
-        weeklyReset: store.families.gemini.weeklyReset,
-        fiveHourReset: store.families.gemini.fiveHourReset,
-        updatedAt: store.families.gemini.updatedAt,
-        calibrated: rates.gemini.calibrated,
-        tokensPer1Pct5h: rates.gemini.unitsPer1Pct5h,
-        tokensPer1PctWeekly: rates.gemini.unitsPer1PctWeekly,
-      },
-      claudeGpt: {
-        weeklyRem: store.families.claudeGpt.weeklyRem,
-        fiveHourRem: store.families.claudeGpt.fiveHourRem,
-        weeklyReset: store.families.claudeGpt.weeklyReset,
-        fiveHourReset: store.families.claudeGpt.fiveHourReset,
-        updatedAt: store.families.claudeGpt.updatedAt,
-        calibrated: rates.claudeGpt.calibrated,
-        tokensPer1Pct5h: rates.claudeGpt.unitsPer1Pct5h,
-        tokensPer1PctWeekly: rates.claudeGpt.unitsPer1PctWeekly,
-      },
+      gemini: buildFamilyDisplay("gemini"),
+      claudeGpt: buildFamilyDisplay("claudeGpt"),
     },
     activeChat: activeChatSummary,
     chats: rows.slice(0, 40),
   };
-  quotaSummaryCache = { key: normActive, at: nowMs, value: result };
+  if (!opts) {
+    quotaSummaryCache = { key: normActive, at: nowMs, value: result };
+  }
   return result;
 }
 
@@ -2471,6 +2748,17 @@ function getPublicUpdateState() {
     installed: updateStatusState.installed || getInstalledRudexMeta(),
     remote: updateStatusState.remote || null,
   };
+}
+
+function broadcastQuotaSummary(summary) {
+  if (!summary || typeof summary !== "object") return;
+  try {
+    for (const wc of webContents.getAllWebContents()) {
+      if (wc && !wc.isDestroyed()) {
+        wc.send("agy-studio:quota-updated", summary);
+      }
+    }
+  } catch {}
 }
 
 function broadcastUpdateStatus() {
@@ -3016,7 +3304,7 @@ function promotePendingLiveEditsChatKey(oldKeys, newUuid) {
 
 function saveLiveEditImagePayload(imgObj, idx) {
   if (!imgObj || typeof imgObj !== "object") return null;
-  const maxBytes = 15 * 1024 * 1024;
+  const maxBytes = 20 * 1024 * 1024;
   const mediaDir = getLiveEditsMediaDir();
   fs.mkdirSync(mediaDir, { recursive: true });
   const extFromMime = (mime) => {
@@ -3068,6 +3356,507 @@ function saveLiveEditImagePayload(imgObj, idx) {
     };
   }
   return null;
+}
+
+function saveLiveEditFilePayload(fileObj, idx) {
+  if (!fileObj || typeof fileObj !== "object") return null;
+  const maxBytes = 20 * 1024 * 1024;
+  const mediaDir = getLiveEditsMediaDir();
+  fs.mkdirSync(mediaDir, { recursive: true });
+  const rawName = typeof fileObj.name === "string" && fileObj.name.trim() ? path.basename(fileObj.name.trim()) : `attachment-${idx + 1}.bin`;
+  const cleanName = rawName.replace(/[^a-zA-Z0-9._\u0400-\u04FF-]/g, "_").replace(/^\.+/, "").slice(0, 72) || `attachment-${idx + 1}.bin`;
+
+  if (typeof fileObj.dataUrl === "string" && fileObj.dataUrl.startsWith("data:")) {
+    const commaIdx = fileObj.dataUrl.indexOf(",");
+    if (commaIdx <= 0) return null;
+    const header = fileObj.dataUrl.slice(0, commaIdx);
+    const b64 = fileObj.dataUrl.slice(commaIdx + 1);
+    if (!/;base64$/i.test(header)) return null;
+    const buf = Buffer.from(b64, "base64");
+    if (!buf || buf.length === 0 || buf.length > maxBytes) return null;
+    const mimeMatch = /^data:([^;,]+)/i.exec(header);
+    const mime = mimeMatch ? mimeMatch[1].toLowerCase() : (typeof fileObj.mime === "string" ? fileObj.mime : "application/octet-stream");
+    const destName = `le-file-${Date.now()}-${idx}-${cleanName}`;
+    const destPath = path.join(mediaDir, destName);
+    fs.writeFileSync(destPath, buf);
+    return {
+      name: cleanName,
+      mime,
+      path: destPath,
+      sizeBytes: buf.length,
+    };
+  }
+  return null;
+}
+
+const MAX_COMPOSER_DRAFTS = 40;
+const MAX_DRAFT_ATTACHMENTS = 8;
+const MAX_INPUT_HISTORY_ITEMS = 20;
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const DRAFT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function getComposerDraftsPath() {
+  return path.join(app.getPath("userData"), "agy_studio_drafts.json");
+}
+
+function getComposerDraftsMediaDir() {
+  return path.join(app.getPath("userData"), "studio_drafts_media");
+}
+
+function getInputHistoryPath() {
+  return path.join(app.getPath("userData"), "agy_studio_input_history.json");
+}
+
+function getInputHistoryMediaDir() {
+  return path.join(app.getPath("userData"), "studio_history_media");
+}
+
+function sanitizeAttachmentFileName(rawName, fallbackName) {
+  const base = typeof rawName === "string" && rawName.trim() ? path.basename(rawName.trim()) : fallbackName;
+  return base.replace(/[^a-zA-Z0-9._\u0400-\u04FF-]/g, "_").replace(/^\.+/, "").slice(0, 72) || fallbackName;
+}
+
+function saveAttachmentPayloadToDir(attObj, dirPath, prefix, idx, reuseDirs) {
+  if (!attObj || typeof attObj !== "object") return null;
+  fs.mkdirSync(dirPath, { recursive: true });
+  const fallbackName = `attachment-${idx + 1}.bin`;
+  const cleanName = sanitizeAttachmentFileName(attObj.name, fallbackName);
+
+  // 1. Reuse existing file already persisted inside dirPath (or copy from an allowed sibling media dir)
+  const existingName = typeof attObj.fileName === "string" ? path.basename(attObj.fileName.trim()) : "";
+  if (existingName && existingName === attObj.fileName.trim()) {
+    const ownPath = path.join(dirPath, existingName);
+    if (fs.existsSync(ownPath)) {
+      try {
+        const st = fs.statSync(ownPath);
+        if (st.isFile() && st.size > 0 && st.size <= MAX_ATTACHMENT_BYTES) {
+          const mime = typeof attObj.mime === "string" && attObj.mime ? attObj.mime.toLowerCase() : "application/octet-stream";
+          const isImage = Boolean(attObj.isImage || mime.startsWith("image/"));
+          return {
+            id: typeof attObj.id === "string" && attObj.id ? attObj.id : `att-${Date.now()}-${idx}`,
+            name: cleanName,
+            mime,
+            isImage,
+            fileName: existingName,
+            sizeBytes: st.size,
+          };
+        }
+      } catch {}
+    }
+    const copySources = Array.isArray(reuseDirs) ? reuseDirs : [];
+    for (let s = 0; s < copySources.length; s += 1) {
+      const srcPath = path.join(copySources[s], existingName);
+      if (fs.existsSync(srcPath)) {
+        try {
+          const st = fs.statSync(srcPath);
+          if (st.isFile() && st.size > 0 && st.size <= MAX_ATTACHMENT_BYTES) {
+            const destName = `${prefix}-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}-${cleanName}`;
+            const destPath = path.join(dirPath, destName);
+            fs.copyFileSync(srcPath, destPath);
+            const mime = typeof attObj.mime === "string" && attObj.mime ? attObj.mime.toLowerCase() : "application/octet-stream";
+            const isImage = Boolean(attObj.isImage || mime.startsWith("image/"));
+            return {
+              id: typeof attObj.id === "string" && attObj.id ? attObj.id : `att-${Date.now()}-${idx}`,
+              name: cleanName,
+              mime,
+              isImage,
+              fileName: destName,
+              sizeBytes: st.size,
+            };
+          }
+        } catch {}
+      }
+    }
+  }
+
+  // 2. Decode base64 data URL
+  if (typeof attObj.dataUrl === "string" && attObj.dataUrl.startsWith("data:")) {
+    const commaIdx = attObj.dataUrl.indexOf(",");
+    if (commaIdx <= 0) return null;
+    const header = attObj.dataUrl.slice(0, commaIdx);
+    const b64 = attObj.dataUrl.slice(commaIdx + 1);
+    if (!/;base64$/i.test(header)) return null;
+    const buf = Buffer.from(b64, "base64");
+    if (!buf || buf.length === 0 || buf.length > MAX_ATTACHMENT_BYTES) return null;
+    const mimeMatch = /^data:([^;,]+)/i.exec(header);
+    const mime = mimeMatch ? mimeMatch[1].toLowerCase() : (typeof attObj.mime === "string" && attObj.mime ? attObj.mime.toLowerCase() : "application/octet-stream");
+    const isImage = Boolean(attObj.isImage || mime.startsWith("image/"));
+    let finalName = cleanName;
+    if (isImage && !/\.(?:png|jpe?g|webp|gif|bmp)$/i.test(finalName)) {
+      const ext = mime.includes("jpeg") || mime.includes("jpg") ? ".jpg" : mime.includes("webp") ? ".webp" : mime.includes("gif") ? ".gif" : ".png";
+      finalName = (finalName.replace(/\.[^.]+$/, "") || "screenshot") + ext;
+    }
+    const destName = `${prefix}-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}-${finalName}`;
+    const destPath = path.join(dirPath, destName);
+    fs.writeFileSync(destPath, buf);
+    return {
+      id: typeof attObj.id === "string" && attObj.id ? attObj.id : `att-${Date.now()}-${idx}`,
+      name: finalName,
+      mime,
+      isImage,
+      fileName: destName,
+      sizeBytes: buf.length,
+    };
+  }
+  return null;
+}
+
+function pruneOrphanedFilesInDir(dirPath, keepSet) {
+  try {
+    if (!fs.existsSync(dirPath)) return;
+    const files = fs.readdirSync(dirPath);
+    for (let i = 0; i < files.length; i += 1) {
+      const f = files[i];
+      if (!keepSet.has(f)) {
+        try { fs.unlinkSync(path.join(dirPath, f)); } catch {}
+      }
+    }
+  } catch {}
+}
+
+function loadComposerDraftsStore() {
+  try {
+    const p = getComposerDraftsPath();
+    if (fs.existsSync(p)) {
+      const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+      if (parsed && typeof parsed === "object" && parsed.drafts && typeof parsed.drafts === "object") {
+        return { version: 1, drafts: parsed.drafts };
+      }
+    }
+  } catch {}
+  return { version: 1, drafts: {} };
+}
+
+function persistComposerDraftsStore(store) {
+  const now = Date.now();
+  const entries = Object.entries(store.drafts || {}).filter(([, v]) => {
+    if (!v || typeof v !== "object") return false;
+    const hasTxt = typeof v.text === "string" && v.text.trim().length > 0;
+    const hasAtt = Array.isArray(v.attachments) && v.attachments.length > 0;
+    if (!hasTxt && !hasAtt) return false;
+    if (v.updatedAt && now - v.updatedAt > DRAFT_TTL_MS) return false;
+    return true;
+  });
+  entries.sort((a, b) => (Number(b[1].updatedAt) || 0) - (Number(a[1].updatedAt) || 0));
+  const kept = entries.slice(0, MAX_COMPOSER_DRAFTS);
+  const nextDrafts = {};
+  const keepFiles = new Set();
+  for (let i = 0; i < kept.length; i += 1) {
+    const [k, v] = kept[i];
+    nextDrafts[k] = v;
+    const atts = Array.isArray(v.attachments) ? v.attachments : [];
+    for (let j = 0; j < atts.length; j += 1) {
+      if (atts[j] && atts[j].fileName) keepFiles.add(atts[j].fileName);
+    }
+  }
+  const out = { version: 1, drafts: nextDrafts };
+  try {
+    writeJsonAtomic(getComposerDraftsPath(), out);
+  } catch {}
+  pruneOrphanedFilesInDir(getComposerDraftsMediaDir(), keepFiles);
+  return out;
+}
+
+function saveComposerDraft(payload) {
+  const settings = loadStudioSettings();
+  if (settings.composerDraftsEnabled === false) {
+    return { ok: true, disabled: true, draft: null };
+  }
+  const p = payload && typeof payload === "object" ? payload : {};
+  const key = normalizeChatKey(p.chatKey);
+  const text = typeof p.text === "string" ? p.text.slice(0, 64000) : "";
+  const rawAtts = Array.isArray(p.attachments) ? p.attachments.slice(0, MAX_DRAFT_ATTACHMENTS) : [];
+  const mediaDir = getComposerDraftsMediaDir();
+  const savedAtts = [];
+  for (let i = 0; i < rawAtts.length; i += 1) {
+    const saved = saveAttachmentPayloadToDir(rawAtts[i], mediaDir, "dr", i, []);
+    if (saved) savedAtts.push(saved);
+  }
+  const store = loadComposerDraftsStore();
+  if (!text.trim() && savedAtts.length === 0) {
+    if (Object.prototype.hasOwnProperty.call(store.drafts, key)) {
+      delete store.drafts[key];
+      persistComposerDraftsStore(store);
+    }
+    return { ok: true, draft: null };
+  }
+  const draft = {
+    chatKey: key,
+    title: typeof p.title === "string" ? p.title.trim().slice(0, 96) : "",
+    text,
+    attachments: savedAtts,
+    updatedAt: Date.now(),
+  };
+  store.drafts[key] = draft;
+  persistComposerDraftsStore(store);
+  return { ok: true, draft };
+}
+
+function getComposerDraftWithData(chatKey) {
+  const settings = loadStudioSettings();
+  if (settings.composerDraftsEnabled === false) {
+    return { ok: true, disabled: true, draft: null };
+  }
+  const key = normalizeChatKey(chatKey);
+  const store = loadComposerDraftsStore();
+  const raw = store.drafts[key];
+  if (!raw || typeof raw !== "object") {
+    return { ok: true, draft: null };
+  }
+  const mediaDir = getComposerDraftsMediaDir();
+  const attsWithData = [];
+  const rawAtts = Array.isArray(raw.attachments) ? raw.attachments : [];
+  for (let i = 0; i < rawAtts.length; i += 1) {
+    const a = rawAtts[i];
+    if (!a || !a.fileName) continue;
+    const safeName = path.basename(String(a.fileName));
+    const fullPath = path.join(mediaDir, safeName);
+    if (!fs.existsSync(fullPath)) continue;
+    try {
+      const buf = fs.readFileSync(fullPath);
+      if (!buf || buf.length === 0 || buf.length > MAX_ATTACHMENT_BYTES) continue;
+      const mime = a.mime || "application/octet-stream";
+      attsWithData.push({
+        id: a.id || `att-${i}`,
+        name: a.name || safeName,
+        mime,
+        isImage: Boolean(a.isImage || String(mime).startsWith("image/")),
+        fileName: safeName,
+        sizeBytes: buf.length,
+        dataUrl: `data:${mime};base64,${buf.toString("base64")}`,
+      });
+    } catch {}
+  }
+  if (!String(raw.text || "").trim() && attsWithData.length === 0) {
+    return { ok: true, draft: null };
+  }
+  return {
+    ok: true,
+    draft: {
+      chatKey: key,
+      title: raw.title || "",
+      text: typeof raw.text === "string" ? raw.text : "",
+      attachments: attsWithData,
+      updatedAt: Number(raw.updatedAt) || 0,
+    },
+  };
+}
+
+function clearComposerDraft(payload) {
+  const p = payload && typeof payload === "object" ? payload : {};
+  const store = loadComposerDraftsStore();
+  if (p.all) {
+    store.drafts = {};
+    persistComposerDraftsStore(store);
+    return { ok: true, draftCount: 0 };
+  }
+  const key = normalizeChatKey(p.chatKey);
+  if (Object.prototype.hasOwnProperty.call(store.drafts, key)) {
+    delete store.drafts[key];
+    persistComposerDraftsStore(store);
+  }
+  return { ok: true, draftCount: Object.keys(store.drafts || {}).length };
+}
+
+function loadInputHistoryStore() {
+  try {
+    const p = getInputHistoryPath();
+    if (fs.existsSync(p)) {
+      const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+      if (parsed && typeof parsed === "object" && Array.isArray(parsed.items)) {
+        return { version: 1, items: parsed.items };
+      }
+    }
+  } catch {}
+  return { version: 1, items: [] };
+}
+
+function persistInputHistoryStore(store) {
+  const items = Array.isArray(store.items) ? store.items.slice(0, MAX_INPUT_HISTORY_ITEMS) : [];
+  const keepFiles = new Set();
+  for (let i = 0; i < items.length; i += 1) {
+    const atts = Array.isArray(items[i] && items[i].attachments) ? items[i].attachments : [];
+    for (let j = 0; j < atts.length; j += 1) {
+      if (atts[j] && atts[j].fileName) keepFiles.add(atts[j].fileName);
+    }
+  }
+  const out = { version: 1, items };
+  try {
+    writeJsonAtomic(getInputHistoryPath(), out);
+  } catch {}
+  pruneOrphanedFilesInDir(getInputHistoryMediaDir(), keepFiles);
+  return out;
+}
+
+function recordInputHistoryItem(payload) {
+  const settings = loadStudioSettings();
+  if (settings.inputHistoryEnabled === false) {
+    return { ok: true, disabled: true };
+  }
+  const p = payload && typeof payload === "object" ? payload : {};
+  const text = typeof p.text === "string" ? p.text.trim().slice(0, 32000) : "";
+  const rawAtts = Array.isArray(p.attachments) ? p.attachments.slice(0, MAX_DRAFT_ATTACHMENTS) : [];
+  const store = loadInputHistoryStore();
+  const now = Date.now();
+
+  // Deduplicate rapid double-capture (e.g. Enter + click or live-edit) within 2.5s
+  const head = store.items[0];
+  if (head && now - (Number(head.createdAt) || 0) < 2500) {
+    const sameText = String(head.text || "") === text;
+    const headNames = (Array.isArray(head.attachments) ? head.attachments : []).map((a) => a.name).join("|");
+    const newNames = rawAtts.map((a) => sanitizeAttachmentFileName(a && a.name, "")).join("|");
+    if (sameText && (headNames === newNames || (!headNames && !newNames))) {
+      return { ok: true, deduplicated: true, item: head };
+    }
+  }
+
+  const histDir = getInputHistoryMediaDir();
+  const draftDir = getComposerDraftsMediaDir();
+  const savedAtts = [];
+  for (let i = 0; i < rawAtts.length; i += 1) {
+    const saved = saveAttachmentPayloadToDir(rawAtts[i], histDir, "ih", i, [draftDir]);
+    if (saved) savedAtts.push(saved);
+  }
+  if (!text && savedAtts.length === 0) {
+    return { ok: false, error: "EMPTY_HISTORY_ITEM" };
+  }
+  const entry = {
+    id: `ih-${now}-${Math.random().toString(36).slice(2, 7)}`,
+    chatKey: normalizeChatKey(p.chatKey),
+    chatTitle: typeof p.title === "string" ? p.title.trim().slice(0, 96) : "",
+    text,
+    source: p.source === "live-edit" ? "live-edit" : "chat",
+    attachments: savedAtts,
+    createdAt: now,
+  };
+  store.items.unshift(entry);
+  persistInputHistoryStore(store);
+  return { ok: true, item: entry, total: Math.min(store.items.length, MAX_INPUT_HISTORY_ITEMS) };
+}
+
+function buildThumbnailDataUrl(fullPath, mime) {
+  try {
+    if (nativeImage && typeof nativeImage.createFromPath === "function") {
+      const img = nativeImage.createFromPath(fullPath);
+      if (img && !(typeof img.isEmpty === "function" && img.isEmpty())) {
+        const sz = typeof img.getSize === "function" ? img.getSize() : { width: 0, height: 0 };
+        const resized = sz.width > 200 && typeof img.resize === "function" ? img.resize({ width: 200 }) : img;
+        if (typeof resized.toDataURL === "function") return resized.toDataURL();
+      }
+    }
+  } catch {}
+  try {
+    const st = fs.statSync(fullPath);
+    if (st.size <= 160 * 1024) {
+      return `data:${mime || "image/png"};base64,${fs.readFileSync(fullPath).toString("base64")}`;
+    }
+  } catch {}
+  return "";
+}
+
+function getInputHistoryForUi() {
+  const settings = loadStudioSettings();
+  const store = loadInputHistoryStore();
+  const draftsStore = loadComposerDraftsStore();
+  const histDir = getInputHistoryMediaDir();
+  const items = (store.items || []).slice(0, MAX_INPUT_HISTORY_ITEMS).map((it) => {
+    const atts = (Array.isArray(it.attachments) ? it.attachments : []).map((a) => {
+      if (!a || !a.fileName) return null;
+      const safeName = path.basename(String(a.fileName));
+      const fullPath = path.join(histDir, safeName);
+      const exists = fs.existsSync(fullPath);
+      return {
+        id: a.id || safeName,
+        name: a.name || safeName,
+        mime: a.mime || "application/octet-stream",
+        isImage: Boolean(a.isImage || String(a.mime || "").startsWith("image/")),
+        fileName: safeName,
+        sizeBytes: Number(a.sizeBytes) || 0,
+        exists,
+        previewDataUrl: exists && (a.isImage || String(a.mime || "").startsWith("image/"))
+          ? buildThumbnailDataUrl(fullPath, a.mime)
+          : "",
+      };
+    }).filter(Boolean);
+    return {
+      id: it.id,
+      chatKey: it.chatKey || "__new__",
+      chatTitle: it.chatTitle || "",
+      text: it.text || "",
+      source: it.source || "chat",
+      attachments: atts,
+      createdAt: Number(it.createdAt) || 0,
+    };
+  });
+  return {
+    ok: true,
+    enabled: settings.inputHistoryEnabled !== false,
+    draftsEnabled: settings.composerDraftsEnabled !== false,
+    draftCount: Object.keys(draftsStore.drafts || {}).length,
+    items,
+  };
+}
+
+function deleteInputHistoryItem(id) {
+  const targetId = typeof id === "string" ? id.trim() : "";
+  const store = loadInputHistoryStore();
+  if (!targetId) return { ok: false };
+  store.items = (store.items || []).filter((it) => it && it.id !== targetId);
+  persistInputHistoryStore(store);
+  return getInputHistoryForUi();
+}
+
+function clearInputHistory() {
+  persistInputHistoryStore({ version: 1, items: [] });
+  return getInputHistoryForUi();
+}
+
+function copyFileToWindowsClipboard(fullPath) {
+  return new Promise((resolve) => {
+    if (process.platform !== "win32") {
+      try {
+        if (clipboard && typeof clipboard.writeText === "function") clipboard.writeText(fullPath);
+      } catch {}
+      resolve({ ok: true, fallbackPath: true });
+      return;
+    }
+    try {
+      const ps = spawn(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-STA",
+          "-Command",
+          "Add-Type -AssemblyName System.Windows.Forms; $c = New-Object System.Collections.Specialized.StringCollection; [void]$c.Add($env:RUDEX_CLIP_FILE); [System.Windows.Forms.Clipboard]::SetFileDropList($c)",
+        ],
+        {
+          env: Object.assign({}, process.env, { RUDEX_CLIP_FILE: fullPath }),
+          windowsHide: true,
+          stdio: "ignore",
+        }
+      );
+      let settled = false;
+      const done = (ok) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (!ok) {
+          try { if (clipboard && typeof clipboard.writeText === "function") clipboard.writeText(fullPath); } catch {}
+        }
+        resolve({ ok: true, fileDrop: ok });
+      };
+      const timer = setTimeout(() => {
+        try { ps.kill(); } catch {}
+        done(false);
+      }, 4000);
+      ps.on("exit", (code) => done(code === 0));
+      ps.on("error", () => done(false));
+    } catch {
+      try { if (clipboard && typeof clipboard.writeText === "function") clipboard.writeText(fullPath); } catch {}
+      resolve({ ok: true, fileDrop: false });
+    }
+  });
 }
 
 function normalizeUiPunct(str) {
@@ -3253,12 +4042,18 @@ function registerI18nIpc() {
   }
   console.log("[Rudex] Active localization loaded (locale=" + getLocale() + ", store=" + getStorePath() + ")");
   syncPersonaActiveFlag(loadStudioChatsStore());
-  const bootThinkingRu = Boolean(loadStudioSettings().thinkingInRussian);
-  syncThinkingRuFlag(bootThinkingRu, { boot: true });
-  if (bootThinkingRu && !fs.existsSync(getPersonaRulePath())) {
-    resyncActiveChatRuleFile();
-  }
+  syncThinkingRuFlag(false, { boot: true });
+  try {
+    const rp = getPersonaRulePath();
+    if (fs.existsSync(rp)) {
+      const existingRule = fs.readFileSync(rp, "utf8");
+      if (existingRule.includes("Язык внутренних размышлений агента")) {
+        resyncActiveChatRuleFile();
+      }
+    }
+  } catch {}
   const bootSettings = loadStudioSettings();
+  syncAgentProfileFlags(bootSettings);
   const bootAppScale = bootSettings.studioUi.appScale;
   if (bootSettings.appearance && bootSettings.appearance.presetId !== "native") {
     applyThemeCurtainToWindows(bootSettings.appearance);
@@ -3282,7 +4077,17 @@ function registerI18nIpc() {
             if (win.__isWebviewPopupWindow) return;
             const curS = loadStudioSettings();
             if (curS.studioUi.appScale !== 100) applyAppScaleToWindows(curS.studioUi.appScale, win.webContents);
-            if (curS.appearance && curS.appearance.presetId !== "native") applyThemeCurtainToWindows(curS.appearance);
+            if (curS.appearance && curS.appearance.presetId !== "native") {
+              applyThemeCurtainToWindows(curS.appearance);
+              setTimeout(() => {
+                try {
+                  const latestS = loadStudioSettings();
+                  if (latestS.appearance && latestS.appearance.presetId !== "native") {
+                    applyThemeCurtainToWindows(latestS.appearance);
+                  }
+                } catch {}
+              }, 1100);
+            }
           } catch {}
         };
         win.webContents.on("dom-ready", applyCur);
@@ -3310,6 +4115,16 @@ function registerI18nIpc() {
     broadcastStudioSettings(state);
     return state;
   });
+  ipcMain.handle("agy-studio:sync-titlebar-overlay", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    if (p.appearance && typeof p.appearance === "object") {
+      applyThemeCurtainToWindows(p.appearance);
+      return { ok: true };
+    }
+    const curS = loadStudioSettings();
+    if (curS && curS.appearance) applyThemeCurtainToWindows(curS.appearance);
+    return { ok: true };
+  });
   ipcMain.handle("agy-studio:activate-chat", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
     const key = normalizeChatKey(p.chatKey);
@@ -3318,14 +4133,18 @@ function registerI18nIpc() {
     const store = loadStudioChatsStore();
     if (key === "__new__") {
       const dp = p.draftPersona && typeof p.draftPersona === "object" ? p.draftPersona : null;
-      const rec = dp && dp.personaEnabled && typeof dp.personaText === "string" && dp.personaText.trim()
-        ? sanitizeChatRecord({
-            personaEnabled: true,
-            personaActivePreset: typeof dp.personaActivePreset === "string" ? dp.personaActivePreset : "custom",
-            personaText: dp.personaText,
-            personaStrict: dp.personaStrict !== false,
-          })
-        : defaultChatRecord("");
+      const dap = p.draftAgentProfile && typeof p.draftAgentProfile === "object" ? sanitizeAgentProfile(p.draftAgentProfile) : null;
+      const existingPendingAp = store.pendingNewChatAgentProfile && !store.pendingNewChatAgentProfile.claimedBy && store.pendingNewChatAgentProfile.profile
+        ? sanitizeAgentProfile(store.pendingNewChatAgentProfile.profile)
+        : null;
+      const effNewAp = dap && dap.enabled ? dap : (p.draftAgentProfile === null ? null : existingPendingAp);
+      const rec = sanitizeChatRecord({
+        personaEnabled: Boolean(dp && dp.personaEnabled && typeof dp.personaText === "string" && dp.personaText.trim()),
+        personaActivePreset: dp && typeof dp.personaActivePreset === "string" ? dp.personaActivePreset : "custom",
+        personaText: dp && typeof dp.personaText === "string" ? dp.personaText : "",
+        personaStrict: dp ? dp.personaStrict !== false : true,
+        agentProfile: effNewAp,
+      });
       store.pendingNewChatPersona = rec.personaEnabled && rec.personaText.trim()
         ? {
             enabled: true,
@@ -3336,8 +4155,16 @@ function registerI18nIpc() {
             claimedBy: "",
           }
         : null;
+      store.pendingNewChatAgentProfile = effNewAp && effNewAp.enabled
+        ? {
+            profile: effNewAp,
+            updatedAt: Date.now(),
+            claimedBy: "",
+          }
+        : null;
       store.activeAgentsMdChatKey = rec.personaEnabled && rec.personaText.trim() ? "__new__" : "";
       saveStudioChatsStore(store);
+      syncAgentProfileFlags(loadStudioSettings(), store.chats, store);
       const syncRes = syncPersonaRuleFile(Boolean(rec.personaEnabled), rec.personaText || "", rec.personaStrict !== false);
       return { ok: true, chatKey: "__new__", chat: rec, personaFileExists: syncRes.exists, personaFilePath: syncRes.rulePath, quotaSummary: buildQuotaSummary("__new__") };
     }
@@ -3354,8 +4181,21 @@ function registerI18nIpc() {
       changed = true;
     } else if (!chats[key] && p.promoteFromNew && typeof p.promoteFromNew === "object") {
       const promo = p.promoteFromNew;
+      const pendingAp = store.pendingNewChatAgentProfile && store.pendingNewChatAgentProfile.profile && (!store.pendingNewChatAgentProfile.claimedBy || store.pendingNewChatAgentProfile.claimedBy === key)
+        ? store.pendingNewChatAgentProfile.profile
+        : null;
       chats[key] = sanitizeChatRecord(Object.assign({}, promo, {
         title: titleStr || (typeof promo.title === "string" ? promo.title : ""),
+        agentProfile: promo.agentProfile || pendingAp || null,
+        updatedAt: Date.now(),
+      }));
+      if (store.pendingNewChatAgentProfile) {
+        store.pendingNewChatAgentProfile = Object.assign({}, store.pendingNewChatAgentProfile, { claimedBy: key });
+      }
+      changed = true;
+    } else if (chats[key] && p.promoteFromNew && p.promoteFromNew.agentProfile && !chats[key].agentProfile) {
+      chats[key] = sanitizeChatRecord(Object.assign({}, chats[key], {
+        agentProfile: p.promoteFromNew.agentProfile,
         updatedAt: Date.now(),
       }));
       changed = true;
@@ -3392,7 +4232,10 @@ function registerI18nIpc() {
       store.activeAgentsMdChatKey = nextOwner;
       changed = true;
     }
-    if (changed) saveStudioChatsStore(store);
+    if (changed) {
+      saveStudioChatsStore(store);
+      syncAgentProfileFlags(loadStudioSettings(), store.chats, store);
+    }
     const syncRes = syncPersonaRuleFile(Boolean(rec.personaEnabled), rec.personaText || "", rec.personaStrict !== false);
     return { ok: true, chatKey: key, chat: rec, personaFileExists: syncRes.exists, personaFilePath: syncRes.rulePath, quotaSummary: buildQuotaSummary(key) };
   });
@@ -3482,7 +4325,13 @@ function registerI18nIpc() {
   });
   ipcMain.handle("agy-studio:get-turn-metrics", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
-    return readLatestTurnMetrics(p.chatKey);
+    const res = readLatestTurnMetrics(p.chatKey);
+    if (res && res.ok) {
+      try {
+        broadcastQuotaSummary(buildQuotaSummary(p.chatKey || lastActiveChatKey, true));
+      } catch {}
+    }
+    return res;
   });
   ipcMain.handle("agy-studio:pick-media", async (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
@@ -3690,13 +4539,13 @@ function registerI18nIpc() {
     const contextTok = toNonNegInt(p.contextTokens);
     const famId = classifyModelFamily(modelName);
     const weight = getModelQuotaWeight(modelName);
-    const wt = Math.max(100, Math.round((Math.max(20, outputTok) + 4500 + contextTok * 0.25) * weight));
+    const wt = Math.max(100, Math.round((Math.max(20, outputTok) + 1500 + contextTok * 0.03) * weight));
     const now = Date.now();
 
     const store = loadQuotaStore();
     const famState = store.families[famId];
-    const inc5h = wt / Math.max(5000, famState.tokensPer1Pct5h);
-    const incWeek = wt / Math.max(20000, famState.tokensPer1PctWeekly);
+    const inc5h = wt / Math.max(20000, famState.tokensPer1Pct5h);
+    const incWeek = wt / Math.max(80000, famState.tokensPer1PctWeekly);
 
     const chats = loadStudioChats();
     const prev = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(titleStr);
@@ -3724,7 +4573,9 @@ function registerI18nIpc() {
     famState.pendingWeeklyByChat[key] = (famState.pendingWeeklyByChat[key] || 0) + wt;
     saveQuotaStore(store);
 
-    return { ok: true, chatKey: key, chatQuota: chats[key].quota, summary: buildQuotaSummary(key, true) };
+    const nextSummary = buildQuotaSummary(key, true);
+    broadcastQuotaSummary(nextSummary);
+    return { ok: true, chatKey: key, chatQuota: chats[key].quota, summary: nextSummary };
   });
   ipcMain.handle("agy-studio:sync-quota-snapshot", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
@@ -3745,9 +4596,9 @@ function registerI18nIpc() {
         if (famState.fiveHourRem !== null && next5h < famState.fiveHourRem) {
           const drop5h = Math.round((famState.fiveHourRem - next5h) * 100) / 100;
           const res5h = applyQuotaDropForWindow(famId, drop5h, famState.pending5hByChat, chats, activeKey, false);
-          if (res5h.distributed && res5h.totalPending > 0 && drop5h >= 0.5) {
+          if (res5h.distributed && res5h.totalPending >= 15000 && drop5h >= 0.5) {
             const observedRate = res5h.totalPending / Math.max(0.2, drop5h);
-            famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * 0.65 + observedRate * 0.35, 5000, 1000000, famState.tokensPer1Pct5h));
+            famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * 0.65 + observedRate * 0.35, 20000, 1500000, famState.tokensPer1Pct5h));
             famState.calibrated = true;
           }
           famState.pending5hByChat = {};
@@ -3760,17 +4611,24 @@ function registerI18nIpc() {
               chatsDirty = true;
             }
           }
+        } else {
+          famState.pending5hByChat = {};
         }
         famState.fiveHourRem = next5h;
+      } else if (nextWeek !== null) {
+        // Antigravity rendered this family in 1-bucket mode (weekly only, no active 5h bucket): clear stale 5h value so it never shows fake 100%
+        famState.fiveHourRem = null;
+        famState.fiveHourReset = "";
+        famState.pending5hByChat = {};
       }
 
       if (nextWeek !== null) {
         if (famState.weeklyRem !== null && nextWeek < famState.weeklyRem) {
           const dropWeek = Math.round((famState.weeklyRem - nextWeek) * 100) / 100;
           const resW = applyQuotaDropForWindow(famId, dropWeek, famState.pendingWeeklyByChat, chats, activeKey, true);
-          if (resW.distributed && resW.totalPending > 0 && dropWeek >= 0.5) {
+          if (resW.distributed && resW.totalPending >= 25000 && dropWeek >= 0.5) {
             const observedRateW = resW.totalPending / Math.max(0.2, dropWeek);
-            famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * 0.65 + observedRateW * 0.35, 20000, 5000000, famState.tokensPer1PctWeekly));
+            famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * 0.65 + observedRateW * 0.35, 80000, 6000000, famState.tokensPer1PctWeekly));
             famState.calibrated = true;
           }
           famState.pendingWeeklyByChat = {};
@@ -3783,6 +4641,8 @@ function registerI18nIpc() {
               chatsDirty = true;
             }
           }
+        } else {
+          famState.pendingWeeklyByChat = {};
         }
         famState.weeklyRem = nextWeek;
       }
@@ -3802,11 +4662,13 @@ function registerI18nIpc() {
 
     if (chatsDirty) saveStudioChats(chats);
     saveQuotaStore(store);
-    return { ok: true, summary: buildQuotaSummary(activeKey, true) };
+    const nextSummary = buildQuotaSummary(activeKey, true);
+    broadcastQuotaSummary(nextSummary);
+    return { ok: true, summary: nextSummary };
   });
   ipcMain.handle("agy-studio:get-quota-summary", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
-    return buildQuotaSummary(p.chatKey || lastActiveChatKey);
+    return buildQuotaSummary(p.chatKey || lastActiveChatKey, Boolean(p.forceFresh));
   });
   ipcMain.handle("agy-studio:reset-quota-stats", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
@@ -3848,7 +4710,13 @@ function registerI18nIpc() {
       const saved = saveLiveEditImagePayload(rawImgs[i], i);
       if (saved) savedImgs.push(saved);
     }
-    if (!text && savedImgs.length === 0) {
+    const rawFiles = Array.isArray(p.files) ? p.files.slice(0, 6) : [];
+    const savedFiles = [];
+    for (let i = 0; i < rawFiles.length; i += 1) {
+      const saved = saveLiveEditFilePayload(rawFiles[i], i);
+      if (saved) savedFiles.push(saved);
+    }
+    if (!text && savedImgs.length === 0 && savedFiles.length === 0) {
       return { ok: false, error: "EMPTY_LIVE_EDIT" };
     }
     const now = Date.now();
@@ -3859,9 +4727,13 @@ function registerI18nIpc() {
       title: typeof p.title === "string" ? p.title.trim().slice(0, 80) : "",
       text,
       images: savedImgs,
+      files: savedFiles,
       status: "pending",
       urgent: Boolean(p.urgent),
       fallbackAny: Boolean(p.fallbackAny || key === "__new__" || key.startsWith("chat-")),
+      anchorRespIdx: typeof p.anchorRespIdx === "number" && Number.isFinite(p.anchorRespIdx) && p.anchorRespIdx >= 0 ? Math.floor(p.anchorRespIdx) : -1,
+      anchorUserCount: typeof p.anchorUserCount === "number" && Number.isFinite(p.anchorUserCount) && p.anchorUserCount >= 0 ? Math.floor(p.anchorUserCount) : -1,
+      anchorUserText: typeof p.anchorUserText === "string" ? p.anchorUserText.replace(/\s+/g, " ").trim().slice(0, 140) : "",
       createdAt: now,
       deliveredAt: 0,
       deliveredConversationId: "",
@@ -4104,19 +4976,25 @@ function registerI18nIpc() {
     if (p.setAsDefault === true || prof.applyToNewChats === true) {
       saveStudioSettings({ agentProfileDefault: Object.assign({}, prof, { applyToNewChats: Boolean(prof.applyToNewChats) }) });
     }
+    const store = loadStudioChatsStore();
     if (key !== "__new__") {
-      const chats = loadStudioChats();
-      const prev = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(p.title || "");
-      chats[key] = sanitizeChatRecord(Object.assign({}, prev, {
+      const prev = store.chats[key] ? sanitizeChatRecord(store.chats[key]) : defaultChatRecord(p.title || "");
+      store.chats[key] = sanitizeChatRecord(Object.assign({}, prev, {
         title: typeof p.title === "string" && p.title.trim() ? p.title.trim().slice(0, 80) : prev.title,
         agentProfile: prof,
         updatedAt: Date.now(),
       }));
-      saveStudioChats(chats);
-      syncAgentProfileFlags(loadStudioSettings(), chats);
     } else {
-      syncAgentProfileFlags(loadStudioSettings(), loadStudioChats());
+      store.pendingNewChatAgentProfile = prof.enabled
+        ? {
+            profile: prof,
+            updatedAt: Date.now(),
+            claimedBy: "",
+          }
+        : null;
     }
+    saveStudioChatsStore(store);
+    syncAgentProfileFlags(loadStudioSettings(), store.chats, store);
     const state = getStudioState(key);
     broadcastStudioSettings(state);
     return { ok: true, chatKey: key, agentProfile: prof, state };
@@ -4203,6 +5081,174 @@ function registerI18nIpc() {
       return { ok: false, error: err && err.message ? err.message : "OPEN_FAILED" };
     }
   });
+  ipcMain.handle("agy-studio:capture-window-screenshot", async (event) => {
+    try {
+      const wc = event && event.sender && typeof event.sender.capturePage === "function"
+        ? event.sender
+        : (getHubZoomTargets()[0] || null);
+      if (!wc || typeof wc.capturePage !== "function") return { ok: false, error: "CAPTURE_UNAVAILABLE" };
+      const img = await wc.capturePage();
+      if (!img || (typeof img.isEmpty === "function" && img.isEmpty())) return { ok: false, error: "EMPTY_CAPTURE" };
+      return { ok: true, dataUrl: img.toDataURL() };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "CAPTURE_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:read-clipboard-image", () => {
+    try {
+      if (!clipboard || typeof clipboard.readImage !== "function") return { ok: false, error: "CLIPBOARD_UNAVAILABLE" };
+      const img = clipboard.readImage();
+      if (!img || (typeof img.isEmpty === "function" && img.isEmpty())) return { ok: false, empty: true };
+      return { ok: true, dataUrl: img.toDataURL() };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "CLIPBOARD_READ_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:write-clipboard-image", (_event, payload) => {
+    try {
+      const dataUrl = payload && typeof payload.dataUrl === "string" ? payload.dataUrl : "";
+      if (!dataUrl.startsWith("data:image/") || !clipboard || !nativeImage || typeof nativeImage.createFromDataURL !== "function") {
+        return { ok: false, error: "INVALID_IMAGE" };
+      }
+      const img = nativeImage.createFromDataURL(dataUrl);
+      if (!img || (typeof img.isEmpty === "function" && img.isEmpty())) return { ok: false, error: "EMPTY_IMAGE" };
+      clipboard.writeImage(img);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "CLIPBOARD_WRITE_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:clear-focused-input", (event) => {
+    try {
+      const wc = event && event.sender;
+      if (!wc || (typeof wc.isDestroyed === "function" && wc.isDestroyed())) return { ok: false };
+      if (typeof wc.selectAll === "function") wc.selectAll();
+      if (typeof wc.delete === "function") wc.delete();
+      return { ok: true };
+    } catch (_err) {
+      return { ok: false };
+    }
+  });
+  ipcMain.handle("agy-studio:insert-text-into-focused", async (event, payload) => {
+    try {
+      const text = payload && typeof payload.text === "string" ? payload.text : "";
+      if (!text) return { ok: false };
+      const wc = event && event.sender;
+      if (!wc || (typeof wc.isDestroyed === "function" && wc.isDestroyed()) || typeof wc.insertText !== "function") {
+        return { ok: false };
+      }
+      await wc.insertText(text);
+      return { ok: true };
+    } catch (_err) {
+      return { ok: false };
+    }
+  });
+  ipcMain.handle("agy-studio:save-composer-draft", (_event, payload) => {
+    try {
+      return saveComposerDraft(payload);
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "DRAFT_SAVE_FAILED" };
+    }
+  });
+  ipcMain.on("agy-studio:save-composer-draft-sync", (_event, payload) => {
+    try {
+      saveComposerDraft(payload);
+    } catch {}
+  });
+  ipcMain.handle("agy-studio:get-composer-draft", (_event, payload) => {
+    try {
+      const p = payload && typeof payload === "object" ? payload : {};
+      return getComposerDraftWithData(p.chatKey);
+    } catch (err) {
+      return { ok: false, draft: null, error: err && err.message ? err.message : "DRAFT_READ_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:clear-composer-draft", (_event, payload) => {
+    try {
+      return clearComposerDraft(payload);
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "DRAFT_CLEAR_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:record-input-history", (_event, payload) => {
+    try {
+      return recordInputHistoryItem(payload);
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "HISTORY_RECORD_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:get-input-history", () => {
+    try {
+      return getInputHistoryForUi();
+    } catch (err) {
+      return { ok: false, items: [], error: err && err.message ? err.message : "HISTORY_READ_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:delete-input-history-item", (_event, payload) => {
+    try {
+      const p = payload && typeof payload === "object" ? payload : {};
+      return deleteInputHistoryItem(p.id);
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "HISTORY_DELETE_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:clear-input-history", () => {
+    try {
+      return clearInputHistory();
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "HISTORY_CLEAR_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:copy-history-text", (_event, payload) => {
+    try {
+      const text = payload && typeof payload.text === "string" ? payload.text : "";
+      if (!text || !clipboard || typeof clipboard.writeText !== "function") return { ok: false };
+      clipboard.writeText(text);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "CLIPBOARD_WRITE_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:copy-history-file", async (_event, payload) => {
+    try {
+      const p = payload && typeof payload === "object" ? payload : {};
+      const safeName = typeof p.fileName === "string" ? path.basename(p.fileName.trim()) : "";
+      if (!safeName || safeName !== String(p.fileName || "").trim()) return { ok: false, error: "INVALID_FILE" };
+      const histDir = getInputHistoryMediaDir();
+      const fullPath = path.resolve(path.join(histDir, safeName));
+      if (!fullPath.startsWith(path.resolve(histDir) + path.sep) || !fs.existsSync(fullPath)) {
+        return { ok: false, error: "FILE_NOT_FOUND" };
+      }
+      const mode = p.mode || "clipboard";
+      const mime = typeof p.mime === "string" && p.mime ? p.mime.toLowerCase() : "application/octet-stream";
+      const isImage = Boolean(p.isImage || mime.startsWith("image/") || /\.(?:png|jpe?g|webp|gif|bmp)$/i.test(safeName));
+      if (mode === "reveal") {
+        if (shell && typeof shell.showItemInFolder === "function") shell.showItemInFolder(fullPath);
+        return { ok: true };
+      }
+      if (mode === "dataUrl") {
+        const buf = fs.readFileSync(fullPath);
+        return {
+          ok: true,
+          name: typeof p.name === "string" && p.name ? p.name : safeName,
+          mime,
+          isImage,
+          dataUrl: `data:${mime};base64,${buf.toString("base64")}`,
+        };
+      }
+      if (isImage && clipboard && nativeImage && typeof nativeImage.createFromPath === "function") {
+        const img = nativeImage.createFromPath(fullPath);
+        if (img && !(typeof img.isEmpty === "function" && img.isEmpty())) {
+          clipboard.writeImage(img);
+          return { ok: true, copiedAs: "image" };
+        }
+      }
+      const res = await copyFileToWindowsClipboard(fullPath);
+      return Object.assign({ ok: true, copiedAs: "file" }, res);
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "COPY_FILE_FAILED" };
+    }
+  });
   ipcMain.handle("agy-studio:export-config-json", async () => {
     if (!dialog || typeof dialog.showSaveDialog !== "function") return { ok: false, error: "DIALOG_UNAVAILABLE" };
     const parentWin = getFocusedOrFirstWindow();
@@ -4269,4 +5315,18 @@ exports.translateUiString = translateUiString;
 exports.schedulePostAppUpdateRepatch = schedulePostAppUpdateRepatch;
 exports.writePostAppUpdateWatcherScript = writePostAppUpdateWatcherScript;
 exports.sanitizeStudioUi = sanitizeStudioUi;
+exports.sanitizeStudioSettings = sanitizeStudioSettings;
+exports.sanitizeAppearance = sanitizeAppearance;
+exports.sanitizeUiStyle = sanitizeUiStyle;
+exports.formatLiveResetRemaining = formatLiveResetRemaining;
+exports.buildQuotaSummary = buildQuotaSummary;
+exports.saveQuotaStore = saveQuotaStore;
+exports.loadQuotaStore = loadQuotaStore;
 exports.applyAppScaleToWindows = applyAppScaleToWindows;
+exports.saveComposerDraft = saveComposerDraft;
+exports.getComposerDraftWithData = getComposerDraftWithData;
+exports.clearComposerDraft = clearComposerDraft;
+exports.recordInputHistoryItem = recordInputHistoryItem;
+exports.getInputHistoryForUi = getInputHistoryForUi;
+exports.deleteInputHistoryItem = deleteInputHistoryItem;
+exports.clearInputHistory = clearInputHistory;

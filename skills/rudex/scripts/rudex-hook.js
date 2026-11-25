@@ -108,8 +108,8 @@ function loadChatsStore(userDataDir) {
   const chatsPath = path.join(userDataDir, "agy_studio_chats.json");
   const storeRaw = readJsonSafe(chatsPath);
   const store = storeRaw && typeof storeRaw === "object"
-    ? Object.assign({ version: 1, chats: {}, pendingNewChatPersona: null, activeAgentsMdChatKey: "" }, storeRaw)
-    : { version: 1, chats: {}, pendingNewChatPersona: null, activeAgentsMdChatKey: "" };
+    ? Object.assign({ version: 1, chats: {}, pendingNewChatPersona: null, pendingNewChatAgentProfile: null, activeAgentsMdChatKey: "" }, storeRaw)
+    : { version: 1, chats: {}, pendingNewChatPersona: null, pendingNewChatAgentProfile: null, activeAgentsMdChatKey: "" };
   if (!store.chats || typeof store.chats !== "object") store.chats = {};
   return { chatsPath, store };
 }
@@ -184,7 +184,6 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
     injectSteps.push({
       systemMessage: {
         systemMessage: buildFullPersonaProtocol(text, strict),
-        metadata: { user_markdown: "🎭 *Характер чата активен*" },
       },
     });
     if (convId) {
@@ -202,7 +201,6 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
     injectSteps.push({
       systemMessage: {
         systemMessage: buildRecencyAnchor(text),
-        metadata: { user_markdown: "\u200B" },
       },
     });
     if (convId) {
@@ -213,7 +211,6 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
     injectSteps.push({
       systemMessage: {
         systemMessage: "The user disabled the chat persona. Immediately drop the previous persona voice and return to your default neutral style for all upcoming responses.",
-        metadata: { user_markdown: "🎭 *Характер чата отключён*" },
       },
     });
     if (convId) {
@@ -235,7 +232,6 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
       injectSteps.push({
         systemMessage: {
           systemMessage: "Ignore any <user_persona> block in rules/AGENTS.md for this conversation — custom persona is OFF for this chat. Respond in your normal style.",
-          metadata: { user_markdown: "\u200B" },
         },
       });
       anchors[convId] = { hash: "OFF", enabled: false, neutralizedFor: activeAgentsOwner, stepCount: stepNum, updatedAt: now };
@@ -249,98 +245,17 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
   }
 }
 
-function buildThinkingRuDirective() {
-  return [
-    "[Rudex · Язык внутренних размышлений / Thinking Language]",
-    "MANDATORY: Write ALL internal reasoning / thinking / chain-of-thought exclusively in Russian (на русском языке).",
-    "Веди ВСЁ внутреннее рассуждение (thinking / chain-of-thought / этап размышления) исключительно на русском языке.",
-    "Preserve file paths, code identifiers, symbols, and terminal commands verbatim (в точном оригинальном виде).",
-  ].join("\n");
-}
-
-function buildThinkingRuRecency() {
-  return "[Rudex · Reminder] Keep ALL internal reasoning / thinking strictly in Russian (веди внутреннее рассуждение целиком на русском языке), keeping file paths, code, and commands verbatim.";
-}
-
-function runThinkingLanguageEngine(userDataDir, payload, injectSteps) {
-  const eventName = String(payload.hookEventName || "");
-  if (eventName !== "SessionStart" && eventName !== "PreInvocation") {
-    return;
-  }
-
+function runThinkingLanguageEngine(userDataDir, _payload, _injectSteps) {
+  // Thinking translation runs 100% client-side via free DOM translator (0 Antigravity tokens / 0 quota).
+  // Never inject prompt directives into agent reasoning; clean up legacy flag/anchor files if present.
   const thinkingFlagPath = path.join(userDataDir, "agy_studio_thinking_ru.flag");
-  if (!fs.existsSync(thinkingFlagPath)) {
-    return;
-  }
-
-  const settings = readJsonSafe(path.join(userDataDir, "agy_studio_settings.json"));
-  const enabled = Boolean(settings && settings.thinkingInRussian === true);
-
-  const anchorsPath = path.join(userDataDir, "studio_thinking_anchors.json");
-  const anchorsRaw = readJsonSafe(anchorsPath);
-  const anchorsStore = anchorsRaw && typeof anchorsRaw === "object" && anchorsRaw.anchors && typeof anchorsRaw.anchors === "object"
-    ? anchorsRaw
-    : { version: 1, anchors: {} };
-  const anchors = anchorsStore.anchors;
-
-  const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
-  const prev = convId ? (anchors[convId] || null) : null;
-  const stepNum = Number(payload.initialNumSteps) || 0;
-  const now = Date.now();
-  let anchorsDirty = false;
-
-  if (enabled && (!prev || prev.enabled !== true)) {
-    injectSteps.push({
-      systemMessage: {
-        systemMessage: buildThinkingRuDirective(),
-        metadata: { user_markdown: "\u200B" },
-      },
-    });
-    if (convId) {
-      anchors[convId] = { enabled: true, stepCount: stepNum, updatedAt: now };
-      anchorsDirty = true;
-    }
-  } else if (
-    enabled &&
-    prev &&
-    prev.enabled === true &&
-    eventName === "PreInvocation" &&
-    (stepNum - (Number(prev.stepCount) || 0) >= 6)
-  ) {
-    injectSteps.push({
-      systemMessage: {
-        systemMessage: buildThinkingRuRecency(),
-        metadata: { user_markdown: "\u200B" },
-      },
-    });
-    if (convId) {
-      anchors[convId] = Object.assign({}, prev, { stepCount: stepNum, updatedAt: now });
-      anchorsDirty = true;
-    }
-  } else if (!enabled && prev && prev.enabled === true) {
-    injectSteps.push({
-      systemMessage: {
-        systemMessage: "The user reset the agent thinking language back to default. Return to your default internal reasoning language for upcoming turns.",
-        metadata: { user_markdown: "\u200B" },
-      },
-    });
-    if (convId) {
-      anchors[convId] = { enabled: false, stepCount: stepNum, updatedAt: now };
-      anchorsDirty = true;
-    }
-  }
-
-  if (anchorsDirty) {
-    anchorsStore.anchors = pruneAnchors(anchors);
-    try { safeWriteJsonAtomic(anchorsPath, anchorsStore); } catch {}
-  }
-
-  if (!enabled) {
-    const anyActive = Object.values(anchorsStore.anchors || {}).some((a) => a && a.enabled === true);
-    if (!anyActive) {
-      try { if (fs.existsSync(thinkingFlagPath)) fs.unlinkSync(thinkingFlagPath); } catch {}
-    }
-  }
+  try {
+    if (fs.existsSync(thinkingFlagPath)) fs.unlinkSync(thinkingFlagPath);
+  } catch {}
+  try {
+    const anchorsPath = path.join(userDataDir, "studio_thinking_anchors.json");
+    if (fs.existsSync(anchorsPath)) fs.unlinkSync(anchorsPath);
+  } catch {}
 }
 
 function formatSupplementInstruction(matched) {
@@ -353,10 +268,19 @@ function formatSupplementInstruction(matched) {
     }
     const imgs = Array.isArray(it.images) ? it.images : [];
     if (imgs.length > 0) {
-      parts.push("Прикреплённые фото (обязательно изучи через read_file):");
+      parts.push("Прикреплённые фото/скриншоты (обязательно изучи через read_file):");
       for (let j = 0; j < imgs.length; j += 1) {
         const imgPath = imgs[j] && imgs[j].path ? String(imgs[j].path) : "";
         if (imgPath) parts.push(`- ${imgPath}`);
+      }
+    }
+    const files = Array.isArray(it.files) ? it.files : [];
+    if (files.length > 0) {
+      parts.push("Прикреплённые файлы (обязательно изучи через read_file):");
+      for (let j = 0; j < files.length; j += 1) {
+        const fp = files[j] && files[j].path ? String(files[j].path) : "";
+        const fn = files[j] && files[j].name ? String(files[j].name) : "";
+        if (fp) parts.push(fn ? `- ${fn}: ${fp}` : `- ${fp}`);
       }
     }
     blocks.push(parts.join("\n"));
@@ -369,7 +293,7 @@ function formatSupplementInstruction(matched) {
     "",
     "Правила обработки дополнения:",
     "1. НЕ прерывай, НЕ отменяй и НЕ забрасывай основную выполняемую задачу.",
-    "2. Коротко подтверди получение дополнения (1–2 предложения), изучи все прикреплённые фото через read_file и сразу учти указания в текущей работе.",
+    "2. Коротко подтверди получение дополнения (1–2 предложения), изучи все прикреплённые фото и файлы через read_file и сразу учти указания в текущей работе.",
     "3. Если дополнение независимо от текущего шага — можешь делегировать его субагенту (invoke_subagent) параллельно, продолжая основную задачу без остановки.",
   ].join("\n");
 }
@@ -537,9 +461,6 @@ function runLiveEditsEngine(userDataDir, payload, injectSteps) {
   injectSteps.push({
     systemMessage: {
       systemMessage: instruction,
-      metadata: {
-        user_markdown: buildUserMarkdownSummary(matched),
-      },
     },
   });
   return { injectedPre: true };
@@ -649,9 +570,6 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
     injectSteps.push({
       systemMessage: {
         systemMessage: "[Rudex · Восстановление после обновления Antigravity] Переустановка патча Rudex запущена автоматически в фоне (--on-exit-activate).",
-        metadata: {
-          user_markdown: "🔄 *После обновления Antigravity Rudex автоматически восстановил интерфейс и хотбар — перезапустите Antigravity для применения*",
-        },
       },
     });
   } catch {}
@@ -659,34 +577,34 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
 
 function buildAgentProfileDirective(prof) {
   const lines = [
-    "[Rudex · Профиль возможностей агента]",
-    "Следуй активной конфигурации инструментов и стратегии для этого чата с первого шага:",
+    "[Rudex · Активные тумблеры инструментов для этого чата]",
+    "ОБЯЗАТЕЛЬНО соблюдай настройки инструментов, заданные пользователем для этого чата, с первого шага:",
   ];
   if (prof.subagents === "parallel") {
-    lines.push("- СУБАГЕНТЫ (АКТИВНО): сразу разбивай сложные и многокомпонентные задачи на независимые потоки и параллельно делегируй их через invoke_subagent (research / self), не откладывая.");
+    lines.push("- СУБАГЕНТЫ (ВКЛ): сразу разбивай сложные и многокомпонентные задачи на независимые потоки и параллельно делегируй их через invoke_subagent (research / self), не откладывая.");
   } else if (prof.subagents === "off") {
-    lines.push("- СУБАГЕНТЫ (ВЫКЛ): выполняй задачу самостоятельно без запуска субагентов.");
+    lines.push("- СУБАГЕНТЫ (СТРОГО ВЫКЛ): НЕ запускай субагентов (invoke_subagent запрещён политикой чата). Выполняй задачу самостоятельно.");
   }
   if (prof.webSearch === "always") {
-    lines.push("- ВЕБ-ПОИСК (АКТИВНО): проверяй актуальную документацию, версии и факты через search_web перед принятием решений.");
+    lines.push("- ВЕБ-ПОИСК (ВКЛ): проверяй актуальную документацию, версии и факты через search_web перед принятием решений.");
   } else if (prof.webSearch === "off") {
-    lines.push("- ВЕБ-ПОИСК (ВЫКЛ): работай строго офлайн, не используй search_web.");
+    lines.push("- ВЕБ-ПОИСК (СТРОГО ВЫКЛ): search_web и read_url_content ЗАБЛОКИРОВАНЫ пользователем для этого чата. Работай строго офлайн, не пытайся искать в сети и явно скажи пользователю, если для ответа нужен интернет.");
   }
   if (prof.browser === "verify") {
-    lines.push("- БРАУЗЕР (АВТОПРОВЕРКА): после изменений в UI/веб-страницах проверяй визуальный результат через браузерного субагента или Chrome DevTools.");
+    lines.push("- БРАУЗЕР (ВКЛ): после изменений в UI/веб-страницах проверяй визуальный результат через браузерного субагента или Chrome DevTools.");
   } else if (prof.browser === "off") {
-    lines.push("- БРАУЗЕР (ВЫКЛ): не используй браузерного субагента и Chrome DevTools.");
+    lines.push("- БРАУЗЕР (СТРОГО ВЫКЛ): браузерный субагент и Chrome DevTools ЗАБЛОКИРОВАНЫ пользователем для этого чата.");
   }
   if (prof.planFirst === "strict") {
-    lines.push("- ПЛАНИРОВАНИЕ: перед правками обязательно составь краткий чёткий план и веди живой чеклист через update_steps.");
+    lines.push("- ПЛАНИРОВАНИЕ (ВКЛ): перед правками обязательно составь краткий чёткий план и веди живой чеклист через update_steps.");
   } else if (prof.planFirst === "skip") {
-    lines.push("- БЫСТРЫЙ СТАРТ: без длинных планов и лишних вступлений сразу переходи к действиям и решению.");
+    lines.push("- ПЛАНИРОВАНИЕ (ВЫКЛ): без длинных планов и вступлений сразу переходи к действиям и решению.");
   }
   if (prof.autoVerify) {
-    lines.push("- АВТОПРОВЕРКА: перед завершением ответа обязательно запускай релевантные тесты, сборку или проверку синтаксиса.");
+    lines.push("- АВТОПРОВЕРКА (ВКЛ): перед завершением ответа обязательно запускай релевантные тесты, сборку или проверку синтаксиса.");
   }
   if (prof.deepMode) {
-    lines.push("- РЕЖИМ «ДО КОНЦА»: не останавливайся на полпути и не задавай лишних вопросов на очевидных шагах — доводи задачу до полностью готового рабочего состояния.");
+    lines.push("- РЕЖИМ «ДО КОНЦА» (ВКЛ): не останавливайся на полпути и не задавай лишних вопросов на очевидных шагах — доводи задачу до полностью готового рабочего состояния.");
   }
   if (prof.conciseness === "short") {
     lines.push("- ФОРМАТ ОТВЕТА: отвечай максимально кратко, сжато и по делу.");
@@ -694,7 +612,7 @@ function buildAgentProfileDirective(prof) {
     lines.push("- ФОРМАТ ОТВЕТА: давай подробные, структурированные объяснения решений и компромиссов.");
   }
   if (prof.safetyMode === "readonly") {
-    lines.push("- РЕЖИМ ТОЛЬКО ЧТЕНИЕ: изменение файлов и выполнение команд терминала запрещены политикой чата. Проводи только анализ, поиск и аудит.");
+    lines.push("- РЕЖИМ ТОЛЬКО ЧТЕНИЕ (СТРОГО ВКЛ): изменение файлов и выполнение модифицирующих команд терминала ЗАПРЕЩЕНЫ политикой чата. Проводи только анализ, чтение и планирование.");
   } else if (prof.safetyMode === "cautious") {
     lines.push("- ОСТОРОЖНЫЙ РЕЖИМ: объясняй каждый запуск команды терминала и избегай рискованных операций без явной причины.");
   }
@@ -707,7 +625,7 @@ function buildAgentProfileDirective(prof) {
   return lines.join("\n");
 }
 
-function resolveEffectiveAgentProfile(userDataDir, convId) {
+function resolveEffectiveAgentProfile(userDataDir, convId, parentConvId, isSubagent) {
   const { chatsPath, store } = loadChatsStore(userDataDir);
   const settings = readJsonSafe(path.join(userDataDir, "agy_studio_settings.json"));
   const defaultProf = settings && settings.agentProfileDefault && typeof settings.agentProfileDefault === "object"
@@ -715,12 +633,44 @@ function resolveEffectiveAgentProfile(userDataDir, convId) {
     : null;
   let rec = convId ? (store.chats[convId] || null) : null;
   let prof = rec && rec.agentProfile && typeof rec.agentProfile === "object" ? rec.agentProfile : null;
-  if (!prof && defaultProf && defaultProf.applyToNewChats === true && defaultProf.enabled === true) {
+
+  // Inherit parent conversation's tool policy for subagents
+  if (!prof && parentConvId && store.chats[parentConvId] && store.chats[parentConvId].agentProfile) {
+    prof = store.chats[parentConvId].agentProfile;
+  }
+
+  // Claim pending profile configured in a brand-new chat ("__new__") before the first message was sent
+  const pendingAp = store.pendingNewChatAgentProfile && typeof store.pendingNewChatAgentProfile === "object"
+    ? store.pendingNewChatAgentProfile
+    : null;
+  const now = Date.now();
+  if (
+    !prof &&
+    !isSubagent &&
+    pendingAp &&
+    pendingAp.profile &&
+    typeof pendingAp.profile === "object" &&
+    pendingAp.profile.enabled === true &&
+    now - (Number(pendingAp.updatedAt) || 0) < MAX_ITEM_AGE_MS &&
+    (!pendingAp.claimedBy || (convId && String(pendingAp.claimedBy).trim().toLowerCase() === convId))
+  ) {
+    prof = Object.assign({}, pendingAp.profile);
+    if (convId) {
+      store.chats[convId] = Object.assign({}, rec || { title: "" }, {
+        agentProfile: prof,
+        updatedAt: now,
+      });
+      store.pendingNewChatAgentProfile = Object.assign({}, pendingAp, { claimedBy: convId });
+      try { safeWriteJsonAtomic(chatsPath, store); } catch {}
+    }
+  }
+
+  if (!prof && !isSubagent && defaultProf && defaultProf.applyToNewChats === true && defaultProf.enabled === true) {
     prof = Object.assign({}, defaultProf);
     if (convId) {
       store.chats[convId] = Object.assign({}, rec || { title: "" }, {
         agentProfile: prof,
-        updatedAt: Date.now(),
+        updatedAt: now,
       });
       try { safeWriteJsonAtomic(chatsPath, store); } catch {}
     }
@@ -736,7 +686,9 @@ function runAgentProfileEngine(userDataDir, payload, injectSteps) {
   if (!fs.existsSync(flagPath)) return;
 
   const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
-  const prof = resolveEffectiveAgentProfile(userDataDir, convId);
+  const parentConvId = typeof payload.parentConversationId === "string" ? payload.parentConversationId.trim().toLowerCase() : "";
+  const isSubagent = Boolean(payload.isSubagent || parentConvId);
+  const prof = resolveEffectiveAgentProfile(userDataDir, convId, parentConvId, isSubagent);
   const anchorsPath = path.join(userDataDir, "studio_agent_anchors.json");
   const anchorsRaw = readJsonSafe(anchorsPath);
   const anchorsStore = anchorsRaw && typeof anchorsRaw === "object" && anchorsRaw.anchors && typeof anchorsRaw.anchors === "object"
@@ -755,7 +707,6 @@ function runAgentProfileEngine(userDataDir, payload, injectSteps) {
       injectSteps.push({
         systemMessage: {
           systemMessage: directive,
-          metadata: { user_markdown: `⚡ *Профиль агента активен${prof.presetLabel ? `: ${prof.presetLabel}` : ""}*` },
         },
       });
       if (convId) {
@@ -766,7 +717,6 @@ function runAgentProfileEngine(userDataDir, payload, injectSteps) {
       injectSteps.push({
         systemMessage: {
           systemMessage: `[Rudex · Напоминание профиля агента]\n${directive}`,
-          metadata: { user_markdown: "\u200B" },
         },
       });
       if (convId) {
@@ -778,7 +728,6 @@ function runAgentProfileEngine(userDataDir, payload, injectSteps) {
     injectSteps.push({
       systemMessage: {
         systemMessage: "The user disabled the custom Rudex agent profile for this chat. Return to standard tool and workflow behavior.",
-        metadata: { user_markdown: "⚡ *Профиль агента отключён*" },
       },
     });
     if (convId) {
@@ -862,7 +811,9 @@ function runPreToolUseEngine(userDataDir, payload) {
   if (!fs.existsSync(policyFlagPath)) return null;
 
   const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
-  const prof = resolveEffectiveAgentProfile(userDataDir, convId);
+  const parentConvId = typeof payload.parentConversationId === "string" ? payload.parentConversationId.trim().toLowerCase() : "";
+  const isSubagent = Boolean(payload.isSubagent || parentConvId);
+  const prof = resolveEffectiveAgentProfile(userDataDir, convId, parentConvId, isSubagent);
   if (!prof) return null;
 
   if (prof.safetyMode === "readonly" && MUTATING_TOOLS.has(toolName)) {
@@ -877,10 +828,10 @@ function runPreToolUseEngine(userDataDir, payload) {
       reason: "[Rudex · Осторожный режим] Требуется подтверждение пользователя перед запуском команды терминала.",
     };
   }
-  if (prof.webSearch === "off" && (toolName === "search_web" || toolName === "read_url_content")) {
+  if (prof.webSearch === "off" && (toolName === "search_web" || toolName === "read_url_content" || toolName === "web_search")) {
     return {
       decision: "deny",
-      reason: `[Rudex] Инструмент "${toolName}" отключён в профиле этого чата (Веб-поиск выключен).`,
+      reason: `[Rudex] Инструмент "${toolName}" отключён пользователем (Веб-поиск: Выкл). Не ищи в интернете — ответь без веб-поиска и сообщи, что поиск в сети отключён.`,
     };
   }
   if (prof.browser === "off") {
@@ -914,6 +865,8 @@ function runPreToolUseEngine(userDataDir, payload) {
   return null;
 }
 
+let currentHookEventName = "";
+
 function main() {
   const userDataDir = getUserDataDir();
   const leFlagPath = path.join(userDataDir, "studio_live_edits", "pending.flag");
@@ -924,13 +877,15 @@ function main() {
 
   const payload = readStdinSyncSafe();
   const eventName = String(payload.hookEventName || "");
+  currentHookEventName = eventName;
 
   if (eventName === "PreToolUse") {
+    // Always return explicit decision ("allow" or "deny") — never {} which Antigravity treats as deny!
     if (!fs.existsSync(toolPolicyFlagPath) && !fs.existsSync(leFlagPath)) {
-      outAndExit({});
+      outAndExit({ decision: "allow" });
     }
     const toolRes = runPreToolUseEngine(userDataDir, payload);
-    outAndExit(toolRes || {});
+    outAndExit(toolRes || { decision: "allow" });
   }
 
   if (eventName === "Stop") {
@@ -966,7 +921,6 @@ function main() {
   if (injectSteps.length > 0) {
     outAndExit({
       injectSteps,
-      terminationBehavior: "",
     });
   }
 
@@ -977,7 +931,7 @@ try {
   main();
 } catch {
   try {
-    process.stdout.write("{}");
+    process.stdout.write(currentHookEventName === "PreToolUse" ? '{"decision":"allow"}' : "{}");
   } catch {}
   process.exit(0);
 }

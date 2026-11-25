@@ -399,7 +399,7 @@ function createMockDom() {
 // =============================================================================
 // 1. Metadata, Hooks Schema & Installer Helpers
 // =============================================================================
-test("Manifest & hooks.json follow Rudex v5.0 architecture with PreToolUse and without PostInvocation", () => {
+test("Manifest & hooks.json follow Rudex v5.0 safe hook architecture (no global PreToolUse / no PostInvocation)", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
@@ -407,6 +407,7 @@ test("Manifest & hooks.json follow Rudex v5.0 architecture with PreToolUse and w
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "agy-workshop.js")), "agy-workshop.js must exist");
+  assert.ok(fs.existsSync(path.join(RES_DIR, "rudex-annotator.js")), "rudex-annotator.js must exist");
   assert.equal(typeof dictionary, "object");
   assert.ok(Object.keys(dictionary).length >= 4000);
   assert.equal(DYNAMIC_RULES.length, 479);
@@ -417,6 +418,9 @@ test("Manifest & hooks.json follow Rudex v5.0 architecture with PreToolUse and w
   assert.ok(Array.isArray(group.SessionStart) && group.SessionStart.length === 1);
   assert.ok(Array.isArray(group.PreInvocation) && group.PreInvocation.length === 1);
   assert.ok(Array.isArray(group.PreToolUse) && group.PreToolUse.length === 1);
+  assert.notEqual(group.PreToolUse[0].matcher, "*", "PreToolUse must use a targeted matcher, never global '*'");
+  assert.ok(group.PreToolUse[0].matcher.includes("search_web"), "Targeted PreToolUse matcher must gate search_web");
+  assert.equal(group.PreToolUse[0].matcher.includes("run_command"), false, "PreToolUse matcher must NOT intercept native run_command prompts");
   assert.ok(Array.isArray(group.Stop) && group.Stop.length === 1);
   assert.equal(group.PostInvocation, undefined, "PostInvocation must NOT exist (causes silent live-edit loss)");
 
@@ -874,91 +878,93 @@ test("Studio styles and panel UI render without layout/CSS regressions and sync 
     themeEngine: createThemeEngine({ document: doc, window: win }),
   });
 
-  panel.init();
-  panel.setOpen(true);
-  const host = doc.getElementById("rudex-studio-host");
-  const modalMount = host && host.shadowRoot ? host.shadowRoot.querySelector(".modal-mount") : null;
-  const modalHtml = modalMount ? modalMount.innerHTML : "";
-  assert.ok(modalHtml.includes('data-live="respNum"'), "Monitor should render clean respNum KPI slot");
-  assert.ok(modalHtml.includes('data-live="chatNum"'), "Monitor should render clean chatNum KPI slot");
-  assert.ok(modalHtml.includes('data-live="sparkFootMeta"'), "Monitor should render sparkline footer slot");
-  assert.equal(modalHtml.includes("historyList"), false, "TPS history section must be removed");
-  assert.equal(modalHtml.includes("История ответов"), false, "TPS history heading must be removed");
+  try {
+    panel.init();
+    panel.setOpen(true, { tab: "settings", subTab: "export" });
+    const host = doc.getElementById("rudex-studio-host");
+    const modalMount = host && host.shadowRoot ? host.shadowRoot.querySelector(".modal-mount") : null;
+    const modalHtml = modalMount ? modalMount.innerHTML : "";
+    assert.ok(modalHtml.includes('data-live="respNum"'), "Monitor should render clean respNum KPI slot");
+    assert.ok(modalHtml.includes('data-live="chatNum"'), "Monitor should render clean chatNum KPI slot");
+    assert.ok(modalHtml.includes('data-live="sparkFootMeta"'), "Monitor should render sparkline footer slot");
+    assert.equal(modalHtml.includes("historyList"), false, "TPS history section must be removed");
+    assert.equal(modalHtml.includes("История ответов"), false, "TPS history heading must be removed");
 
-  panel.setLocale("en");
-  panel.applyRemoteState({
-    locale: "ru",
-    settings: {
-      thinkingInRussian: false,
-      greeting: { enabled: true, mode: "custom", title: "Привет от панели!", subtitle: "" },
-    },
-  });
-  assert.equal(translator.getGreetingConfig().title, "Привет от панели!");
+    panel.setLocale("en");
+    panel.applyRemoteState({
+      locale: "ru",
+      settings: {
+        thinkingInRussian: false,
+        greeting: { enabled: true, mode: "custom", title: "Привет от панели!", subtitle: "" },
+      },
+    });
+    assert.equal(translator.getGreetingConfig().title, "Привет от панели!");
 
-  // Verify Persona tab does NOT duplicate thinkingInRussian toggle while Settings -> Language & System exposes it once
-  panel.setOpen(true, { tab: "persona" });
-  const personaHtml = modalMount ? modalMount.innerHTML : "";
-  assert.equal(personaHtml.includes('data-action="toggle-thinking-ru"'), false, "Persona tab must NOT duplicate thinkingInRussian toggle");
+    // Verify Persona tab does NOT duplicate thinkingInRussian toggle while Settings -> Language & System exposes it once
+    panel.setOpen(true, { tab: "persona" });
+    const personaHtml = modalMount ? modalMount.innerHTML : "";
+    assert.equal(personaHtml.includes('data-action="toggle-thinking-ru"'), false, "Persona tab must NOT duplicate thinkingInRussian toggle");
 
-  panel.setOpen(true, { tab: "settings" });
-  const sysHtmlOff = modalMount ? modalMount.innerHTML : "";
-  assert.ok(sysHtmlOff.includes('data-action="toggle-thinking-ru"'), "Settings default subtab (Language & System) must render thinkingInRussian toggle");
-  assert.ok(sysHtmlOff.includes('data-action="toggle-auto-updates"'), "Settings -> Language & System must render autoCheckUpdates toggle");
-  assert.ok(sysHtmlOff.includes("По умолчанию"), "Disabled thinkingInRussian must show default badge");
+    panel.setOpen(true, { tab: "settings", subTab: "system" });
+    const sysHtmlOff = modalMount ? modalMount.innerHTML : "";
+    assert.ok(sysHtmlOff.includes('data-action="toggle-thinking-ru"'), "Settings default subtab (Language & System) must render thinkingInRussian toggle");
+    assert.ok(sysHtmlOff.includes('data-action="toggle-auto-updates"'), "Settings -> Language & System must render autoCheckUpdates toggle");
+    assert.ok(sysHtmlOff.includes("По умолчанию"), "Disabled thinkingInRussian must show default badge");
 
-  panel.applyRemoteState({
-    locale: "ru",
-    settings: { thinkingInRussian: true },
-  });
-  const sysHtmlOn = modalMount ? modalMount.innerHTML : "";
-  assert.ok(sysHtmlOn.includes('class="switch is-on" role="switch" aria-checked="true" data-action="toggle-thinking-ru"'));
-  assert.ok(sysHtmlOn.includes("Русский"), "Enabled thinkingInRussian must show Russian badge");
+    panel.applyRemoteState({
+      locale: "ru",
+      settings: { thinkingInRussian: true },
+    });
+    const sysHtmlOn = modalMount ? modalMount.innerHTML : "";
+    assert.ok(sysHtmlOn.includes('class="switch is-on" role="switch" aria-checked="true" data-action="toggle-thinking-ru"'));
+    assert.ok(sysHtmlOn.includes("Русский"), "Enabled thinkingInRussian must show Russian badge");
 
-  // Mini widget exposes expand-to-medium button, Settings -> Widget exposes size selector, and S <-> M toggle works
-  const widgetMount = host && host.shadowRoot ? host.shadowRoot.querySelector(".widget-wrap") : null;
-  const widgetHtml = widgetMount ? widgetMount.innerHTML : "";
-  assert.ok(widgetHtml.includes('data-action="to-medium"'), "Mini pill must include expand-to-medium button");
-  panel.setOpen(true, { tab: "settings", subTab: "widget" });
-  const widgetTabHtml = modalMount ? modalMount.innerHTML : "";
-  assert.ok(widgetTabHtml.includes("Размер виджета"), "Settings -> Widget must expose widget size selector");
-  assert.ok(widgetTabHtml.includes('data-action="set-view-mode"'), "Settings -> Widget must expose S/M view mode buttons");
+    // Mini widget exposes expand-to-medium button, Settings -> Widget exposes size selector, and S <-> M toggle works
+    const widgetMount = host && host.shadowRoot ? host.shadowRoot.querySelector(".widget-wrap") : null;
+    const widgetHtml = widgetMount ? widgetMount.innerHTML : "";
+    assert.ok(widgetHtml.includes('data-action="to-medium"'), "Mini pill must include expand-to-medium button");
+    panel.setOpen(true, { tab: "settings", subTab: "widget" });
+    const widgetTabHtml = modalMount ? modalMount.innerHTML : "";
+    assert.ok(widgetTabHtml.includes("Размер виджета"), "Settings -> Widget must expose widget size selector");
+    assert.ok(widgetTabHtml.includes('data-action="set-view-mode"'), "Settings -> Widget must expose S/M view mode buttons");
 
-  panel.setViewMode("medium");
-  const medHtml = widgetMount ? widgetMount.innerHTML : "";
-  assert.ok(medHtml.includes("med-card"), "Setting viewMode=medium must render medium card");
-  assert.ok(medHtml.includes('data-action="to-mini"'), "Medium card must include collapse-to-mini button");
+    panel.setViewMode("medium");
+    const medHtml = widgetMount ? widgetMount.innerHTML : "";
+    assert.ok(medHtml.includes("med-card"), "Setting viewMode=medium must render medium card");
+    assert.ok(medHtml.includes('data-action="to-mini"'), "Medium card must include collapse-to-mini button");
 
-  panel.setViewMode("mini");
-  assert.ok((widgetMount ? widgetMount.innerHTML : "").includes("mini-pill"), "Setting viewMode=mini must restore mini pill");
+    panel.setViewMode("mini");
+    assert.ok((widgetMount ? widgetMount.innerHTML : "").includes("mini-pill"), "Setting viewMode=mini must restore mini pill");
 
-  // Appearance opens centered inside monolithic Studio by default, with optional right-dock button
-  panel.setOpen(true, { tab: "appearance", appSubTab: "theme", dockedRight: false });
-  const appCenteredHtml = modalMount ? modalMount.innerHTML : "";
-  assert.equal(appCenteredHtml.includes("is-appearance-live"), false, "Appearance must open centered monolithically by default");
-  assert.ok(appCenteredHtml.includes("modal-sidebar"), "Centered Appearance keeps main navigation sidebar");
-  assert.ok(appCenteredHtml.includes('data-action="toggle-appearance-dock"'), "Centered Appearance offers optional dock-right button");
-  assert.ok(appCenteredHtml.includes("layer-summary-strip"), "Combinable layer summary strip must render");
-  assert.ok(appCenteredHtml.includes('data-action="set-app-subtab" data-val="surface"'), "Combinable Surface subtab must render");
+    // Appearance opens centered inside monolithic Studio by default, with optional right-dock button
+    panel.setOpen(true, { tab: "appearance", appSubTab: "theme", dockedRight: false });
+    const appCenteredHtml = modalMount ? modalMount.innerHTML : "";
+    assert.equal(appCenteredHtml.includes("is-appearance-live"), false, "Appearance must open centered monolithically by default");
+    assert.ok(appCenteredHtml.includes("modal-sidebar"), "Centered Appearance keeps main navigation sidebar");
+    assert.ok(appCenteredHtml.includes('data-action="toggle-appearance-dock"'), "Centered Appearance offers optional dock-right button");
+    assert.ok(appCenteredHtml.includes("layer-summary-strip"), "Combinable layer summary strip must render");
+    assert.ok(appCenteredHtml.includes('data-action="set-app-subtab" data-val="surface"'), "Combinable Surface subtab must render");
 
-  // Optional right-side live preview mode
-  panel.setOpen(true, { tab: "appearance", appSubTab: "surface", dockedRight: true });
-  const appDockedHtml = modalMount ? modalMount.innerHTML : "";
-  assert.ok(appDockedHtml.includes("is-appearance-live"), "Docked Appearance enables right-side live drawer");
-  assert.equal(appDockedHtml.includes("modal-sidebar"), false, "Docked drawer hides left sidebar for live canvas view");
-  assert.ok(appDockedHtml.includes('data-action="set-message-style"'), "Surface subtab must expose message card style options");
+    // Optional right-side live preview mode
+    panel.setOpen(true, { tab: "appearance", appSubTab: "surface", dockedRight: true });
+    const appDockedHtml = modalMount ? modalMount.innerHTML : "";
+    assert.ok(appDockedHtml.includes("is-appearance-live"), "Docked Appearance enables right-side live drawer");
+    assert.equal(appDockedHtml.includes("modal-sidebar"), false, "Docked drawer hides left sidebar for live canvas view");
+    assert.ok(appDockedHtml.includes('data-action="set-message-style"'), "Surface subtab must expose message card style options");
 
-  // Single click on unpinned mini pill opens Studio immediately (no double-click required)
-  panel.setOpen(false);
-  assert.equal(modalMount.innerHTML, "");
-  const fakePillTarget = doc.createElement("div");
-  fakePillTarget.setAttribute("data-widget-body", "1");
-  const rootEl = host && host.shadowRoot ? host.shadowRoot.querySelector(".studio-root") : null;
-  rootEl.appendChild(fakePillTarget);
-  rootEl.dispatchEvent({ type: "click", target: fakePillTarget });
-  assert.ok(modalMount.innerHTML.includes("modal-shell"), "Single click on unpinned mini pill must immediately open Rudex modal");
-
-  panel.destroy();
-  translator.destroy();
+    // Single click on unpinned mini pill opens Studio immediately (no double-click required)
+    panel.setOpen(false);
+    assert.equal(modalMount.innerHTML, "");
+    const fakePillTarget = doc.createElement("div");
+    fakePillTarget.setAttribute("data-widget-body", "1");
+    const rootEl = host && host.shadowRoot ? host.shadowRoot.querySelector(".studio-root") : null;
+    rootEl.appendChild(fakePillTarget);
+    rootEl.dispatchEvent({ type: "click", target: fakePillTarget });
+    assert.ok(modalMount.innerHTML.includes("modal-shell"), "Single click on unpinned mini pill must immediately open Rudex modal");
+  } finally {
+    panel.destroy();
+    translator.destroy();
+  }
 });
 
 // =============================================================================
@@ -1104,15 +1110,17 @@ test("rudex-hook.js injects concise persona style protocol cleanly and refreshes
   }
 });
 
-test("rudex-hook.js injects Russian thinking directive, refreshes after 6 steps, and cleanly reverts/unlinks flag when turned off", () => {
+test("rudex-hook.js does not inject thinking-language prompts (0 token cost) and cleans up legacy thinking flags", () => {
   const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-thinking-hook-"));
   const hookScript = path.join(SCRIPTS_DIR, "rudex-hook.js");
   try {
     const convId = "eeee5555-5555-4555-8555-555555555555";
     const flagPath = path.join(tmpUserData, "agy_studio_thinking_ru.flag");
+    const anchorsPath = path.join(tmpUserData, "studio_thinking_anchors.json");
     const settingsPath = path.join(tmpUserData, "agy_studio_settings.json");
 
     fs.writeFileSync(flagPath, "1\n", "utf8");
+    fs.writeFileSync(anchorsPath, JSON.stringify({ version: 1, anchors: { [convId]: { enabled: true, stepCount: 0 } } }), "utf8");
     fs.writeFileSync(settingsPath, JSON.stringify({ thinkingInRussian: true }), "utf8");
 
     const runHook = (payload) => {
@@ -1130,46 +1138,16 @@ test("rudex-hook.js injects Russian thinking directive, refreshes after 6 steps,
       conversationId: convId,
       initialNumSteps: 0,
     });
-    assert.ok(Array.isArray(startOut.injectSteps) && startOut.injectSteps.length === 1);
-    assert.ok(startOut.injectSteps[0].systemMessage.systemMessage.includes("[Rudex · Язык внутренних размышлений / Thinking Language]"));
-    assert.ok(startOut.injectSteps[0].systemMessage.systemMessage.includes("MANDATORY: Write ALL internal reasoning"));
+    assert.deepEqual(startOut, {}, "Thinking translation must run client-side without injecting prompt tokens");
+    assert.equal(fs.existsSync(flagPath), false, "Legacy agy_studio_thinking_ru.flag must be cleaned up automatically");
+    assert.equal(fs.existsSync(anchorsPath), false, "Legacy studio_thinking_anchors.json must be cleaned up automatically");
 
-    // No duplicate injection before +6 steps
-    const earlyOut = runHook({
-      hookEventName: "PreInvocation",
-      conversationId: convId,
-      initialNumSteps: 3,
-    });
-    assert.deepEqual(earlyOut, {});
-
-    // Step +6 triggers recency reminder
-    const refreshOut = runHook({
+    const nextOut = runHook({
       hookEventName: "PreInvocation",
       conversationId: convId,
       initialNumSteps: 6,
     });
-    assert.ok(Array.isArray(refreshOut.injectSteps) && refreshOut.injectSteps.length === 1);
-    assert.ok(refreshOut.injectSteps[0].systemMessage.systemMessage.includes("[Rudex · Reminder]"));
-
-    // Turn thinkingInRussian OFF mid-chat -> emits revert directive and unlinks flag when no active anchors remain
-    fs.writeFileSync(settingsPath, JSON.stringify({ thinkingInRussian: false }), "utf8");
-    fs.writeFileSync(flagPath, "0\n", "utf8");
-    const revertOut = runHook({
-      hookEventName: "PreInvocation",
-      conversationId: convId,
-      initialNumSteps: 7,
-    });
-    assert.ok(Array.isArray(revertOut.injectSteps) && revertOut.injectSteps.length === 1);
-    assert.ok(revertOut.injectSteps[0].systemMessage.systemMessage.includes("default internal reasoning language"));
-    assert.equal(fs.existsSync(flagPath), false, "Flag must self-clean once all anchors are disabled");
-
-    // Subsequent call fast-exits with {}
-    const postCleanOut = runHook({
-      hookEventName: "PreInvocation",
-      conversationId: convId,
-      initialNumSteps: 8,
-    });
-    assert.deepEqual(postCleanOut, {});
+    assert.deepEqual(nextOut, {}, "PreInvocation must not inject thinking reminders");
   } finally {
     fs.rmSync(tmpUserData, { recursive: true, force: true });
   }
@@ -2253,7 +2231,8 @@ test("Antigravity update survival: versionGuard auto-repatches, updater.js hooks
     assert.equal(r1.status, 0, r1.stderr);
     const out1 = JSON.parse((r1.stdout || "{}").trim() || "{}");
     assert.ok(Array.isArray(out1.injectSteps) && out1.injectSteps.length === 1, "Hook must report background recovery step");
-    assert.ok(out1.injectSteps[0].systemMessage.metadata.user_markdown.includes("автоматически восстановил"));
+    assert.ok(out1.injectSteps[0].systemMessage.systemMessage.includes("Восстановление после обновления Antigravity"));
+    assert.equal("metadata" in out1.injectSteps[0].systemMessage, false, "Hook injectSteps must stay strict protojson without snake_case metadata");
 
     // Wait briefly for detached stub installer to write marker file
     for (let i = 0; i < 40 && !fs.existsSync(markerFile); i += 1) {
@@ -2881,7 +2860,7 @@ test("Claude Code themes, fonts, Google Fonts loader, one-click suite, full UI c
   const ccLight = THEME_PRESETS.find((p) => p.id === "claude-code-light");
   const ccTerm = THEME_PRESETS.find((p) => p.id === "claude-terminal");
   assert.ok(ccDark && ccDark.vars.accentColor === "#d97757" && ccDark.vars.canvasBg === "#1f1e1d");
-  assert.ok(ccLight && ccLight.vars.accentColor === "#c15f3c" && ccLight.vars.canvasBg === "#faf9f5" && ccLight.mode === "light");
+  assert.ok(ccLight && ccLight.vars.accentColor === "#c15f3c" && ccLight.vars.canvasBg === "#f5f3ec" && ccLight.mode === "light");
   assert.ok(ccTerm && ccTerm.vars.canvasBg === "#141413");
   assert.ok(GRADIENT_PRESETS.some((g) => g.id === "claude-ember"));
   assert.ok(GRADIENT_PRESETS.some((g) => g.id === "claude-parchment"));
@@ -3050,7 +3029,7 @@ test("Claude Code themes, fonts, Google Fonts loader, one-click suite, full UI c
     assert.equal(root.getAttribute("data-theme"), "light");
     assert.equal(root.getAttribute("data-studio-theme"), "claude-light");
     assert.equal(root.style.getPropertyValue("--rx-accent"), "#c15f3c");
-    assert.equal(root.style.getPropertyValue("--rx-theme-bg"), "#faf9f5");
+    assert.equal(root.style.getPropertyValue("--rx-theme-bg"), "#f5f3ec");
 
     // Switch to Appearance -> Text and click Claude Editorial font pairing
     panel.setOpen(true, { tab: "appearance", appSubTab: "text", dockedRight: false });
@@ -3655,21 +3634,37 @@ test("Rudex 5.0 standalone Limits Widget, Keybinding matcher/formatter, and Stud
   assert.ok(html.includes("78%") && html.includes("14%") && html.includes("#ef4444"), "Low quota must render red traffic-light bar");
   assert.ok(html.includes("3ч 10м"), "Reset timer must be displayed");
 
-  // Native settings & customization entry injection
+  // Native settings & customization entry injection (must inject AT MOST ONCE even with nested dialog wrappers & repeated ticks)
   const { doc } = createMockDom();
-  const nav = doc.createElement("nav");
+  const dlg = doc.createElement("div");
+  dlg.setAttribute("role", "dialog");
+  const outerWrap = doc.createElement("div");
+  const nav = doc.createElement("div");
   const b1 = doc.createElement("button");
-  b1.textContent = "Общие";
+  b1.textContent = "Основные";
   const b2 = doc.createElement("button");
-  b2.textContent = "Модели и использование";
+  b2.textContent = "Модели";
+  const b3 = doc.createElement("button");
+  b3.textContent = "Браузер";
   nav.appendChild(b1);
   nav.appendChild(b2);
-  doc.body.appendChild(nav);
+  nav.appendChild(b3);
+  const footerWrap = doc.createElement("div");
+  const b4 = doc.createElement("button");
+  b4.textContent = "Оставить отзыв";
+  footerWrap.appendChild(b4);
+  outerWrap.appendChild(nav);
+  outerWrap.appendChild(footerWrap);
+  dlg.appendChild(outerWrap);
+  doc.body.appendChild(dlg);
   let openedTab = "";
   v5Ui.rv5InjectNativeSettingsEntries(doc, true, (tab) => { openedTab = tab; });
-  const injected = nav.querySelector('[data-rudex-native-entry="settings"]');
-  assert.ok(injected, "Rudex Settings entry must be injected into native Antigravity Settings nav");
-  injected.dispatchEvent({ type: "click", target: injected, preventDefault() {}, stopPropagation() {} });
+  v5Ui.rv5InjectNativeSettingsEntries(doc, true, (tab) => { openedTab = tab; });
+  v5Ui.rv5InjectNativeSettingsEntries(doc, true, (tab) => { openedTab = tab; });
+  const allInjected = doc.querySelectorAll('[data-rudex-native-entry="settings"]');
+  assert.equal(allInjected.length, 1, "Rudex Studio entry must be injected strictly ONCE inside native Settings");
+  assert.equal(allInjected[0].parentNode, nav, "Rudex Studio entry must be placed inside the deepest settings nav list");
+  allInjected[0].dispatchEvent({ type: "click", target: allInjected[0], preventDefault() {}, stopPropagation() {} });
   assert.equal(openedTab, "appearance");
 });
 
@@ -3711,15 +3706,57 @@ test("Rudex 5.0 rudex-hook.js: Agent Profile default for new chats, PreToolUse h
     // 1. SessionStart auto-claims default profile for new chat and injects directive
     const sRes = runHook({ hookEventName: "SessionStart", conversationId: "conv-new-1", initialNumSteps: 0 });
     assert.ok(Array.isArray(sRes.injectSteps) && sRes.injectSteps.length === 1);
-    assert.ok(sRes.injectSteps[0].systemMessage.systemMessage.includes("СУБАГЕНТЫ (АКТИВНО)"));
+    assert.ok(sRes.injectSteps[0].systemMessage.systemMessage.includes("СУБАГЕНТЫ (ВКЛ)"));
     assert.ok(sRes.injectSteps[0].systemMessage.systemMessage.includes("РЕЖИМ ТОЛЬКО ЧТЕНИЕ"));
     assert.ok(sRes.injectSteps[0].systemMessage.systemMessage.includes("rudex"));
 
-    // 2. PreToolUse hardware blocks write_file (readonly), search_web (off), browser subagent (off), and disabled MCP
+    // 1b. Pending profile configured in brand-new chat ("__new__") WITHOUT applyToNewChats is claimed on first turn & blocks search_web
+    fs.writeFileSync(path.join(tmpDir, "agy_studio_settings.json"), JSON.stringify({ agentProfileDefault: { enabled: false, applyToNewChats: false } }));
+    fs.writeFileSync(path.join(tmpDir, "agy_studio_chats.json"), JSON.stringify({
+      version: 1,
+      chats: {},
+      pendingNewChatAgentProfile: {
+        profile: { enabled: true, subagents: "parallel", webSearch: "off", browser: "auto", planFirst: "auto", safetyMode: "normal" },
+        updatedAt: Date.now(),
+        claimedBy: "",
+      },
+    }));
+    const pendingSession = runHook({ hookEventName: "SessionStart", conversationId: "conv-brand-new-99", initialNumSteps: 0 });
+    assert.ok(Array.isArray(pendingSession.injectSteps) && pendingSession.injectSteps.length === 1);
+    assert.ok(pendingSession.injectSteps[0].systemMessage.systemMessage.includes("ВЕБ-ПОИСК (СТРОГО ВЫКЛ)"));
+    const pendingDenyWeb = runHook({ hookEventName: "PreToolUse", conversationId: "conv-brand-new-99", toolCall: { name: "search_web", args: { query: "test" } } });
+    assert.equal(pendingDenyWeb.decision, "deny", "search_web must be hardware-blocked when user toggled Web Search OFF in a new chat");
+    const pendingSubagentDenyWeb = runHook({ hookEventName: "PreToolUse", conversationId: "sub-1", parentConversationId: "conv-brand-new-99", isSubagent: true, toolCall: { name: "search_web", args: { query: "test" } } });
+    assert.equal(pendingSubagentDenyWeb.decision, "deny", "Subagents must also inherit parent chat's Web Search OFF policy");
+    const pendingAllowSub = runHook({ hookEventName: "PreToolUse", conversationId: "conv-brand-new-99", toolCall: { name: "invoke_subagent", args: { TypeName: "research" } } });
+    assert.equal(pendingAllowSub.decision, "allow", "Permitted tools must always receive explicit decision: allow");
+
+    // Restore conv-new-1 profile for remaining checks
+    fs.writeFileSync(path.join(tmpDir, "agy_studio_chats.json"), JSON.stringify({
+      version: 1,
+      chats: {
+        "conv-new-1": {
+          agentProfile: {
+            enabled: true,
+            subagents: "parallel",
+            webSearch: "off",
+            browser: "off",
+            planFirst: "strict",
+            autoVerify: true,
+            deepMode: true,
+            safetyMode: "readonly",
+            pinnedSkills: ["rudex"],
+            disabledTools: ["mcp:custom-db"],
+          },
+        },
+      },
+    }));
+
+    // 2. PreToolUse fallback safety: returns explicit "allow" when no block rule matches (never {}!)
     const denyWrite = runHook({ hookEventName: "PreToolUse", conversationId: "conv-new-1", toolCall: { name: "write_file", args: {} } });
     assert.equal(denyWrite.decision, "deny");
     const allowRead = runHook({ hookEventName: "PreToolUse", conversationId: "conv-new-1", toolCall: { name: "read_file", args: {} } });
-    assert.equal(allowRead.decision, undefined);
+    assert.equal(allowRead.decision, "allow", "PreToolUse must always return explicit decision: allow when permitting a tool");
     const denyWeb = runHook({ hookEventName: "PreToolUse", conversationId: "conv-new-1", toolCall: { name: "search_web", args: {} } });
     assert.equal(denyWeb.decision, "deny");
     const denyBrowser = runHook({ hookEventName: "PreToolUse", conversationId: "conv-new-1", toolCall: { name: "invoke_subagent", args: { TypeName: "browser" } } });
@@ -3790,5 +3827,1180 @@ test("Rudex 5.0 AGY Workshop safely manages Rules, Skills, MCP servers, and bloc
     if (prevEnv === undefined) delete process.env.RUDEX_AGY_CONFIG_DIR;
     else process.env.RUDEX_AGY_CONFIG_DIR = prevEnv;
     fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("Rudex 5.0 polish: Auto-default toggles, clean single borders, valid Studio CSS tokens, and Screenshot Pencil Annotator", () => {
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const ann = require(path.join(RES_DIR, "rudex-annotator.js"));
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+
+  // 1. Extra Shadow CSS must never reference undefined --rx-bg-elev token
+  const extraCss = v5Core.rv5BuildExtraShadowCss();
+  assert.equal(extraCss.includes("--rx-bg-elev"), false, "Must use real studio-styles.js tokens, never nonexistent --rx-bg-elev");
+  assert.ok(extraCss.includes(".rx-annotator-shell"), "Must include Screenshot Annotator CSS");
+
+  // 2. No confusing "Full Turbo" default; all toggles default to Auto
+  assert.equal(v5Core.RUDEX_AGENT_PROFILE_DEFAULTS.enabled, false);
+  assert.equal(v5Core.RUDEX_AGENT_PROFILE_DEFAULTS.subagents, "auto");
+  assert.equal(v5Core.RUDEX_AGENT_PRESETS.some((p) => p.id === "turbo"), false, "Legacy 'turbo' preset must not exist");
+  const dockHtml = v5Ui.rv5BuildChatDockHtml({
+    agentProfile: v5Core.RUDEX_AGENT_PROFILE_DEFAULTS,
+    defaultProfile: v5Core.RUDEX_AGENT_PROFILE_DEFAULTS,
+    liveEdits: [{ id: "le-q1", text: "Проверь цвета", status: "pending", createdAt: Date.now() }],
+    isGenerating: true,
+    hasComposerText: true,
+    liveEditInline: { enabled: true, showChatDock: true, showInChat: true, showQueueStrip: false },
+    popoverOpen: false,
+    isRu: true,
+  });
+  assert.ok(dockHtml.includes("Инструменты · Авто"), "Default dock chip must show Auto cleanly");
+  assert.equal(dockHtml.includes('data-action="open-annotator"'), false, "Chat dock must NOT render a standalone Screen button");
+  assert.equal(dockHtml.includes('data-action="send-inline-live-edit"'), false, "Chat dock must NOT render a standalone Live Edit button");
+  assert.equal(dockHtml.includes("rx-live-queue-strip"), false, "Weird queue strip above composer must stay hidden by default when showQueueStrip is false");
+
+  // 2a. Live edits stay anchored right next to the user's preceding message by default (and optionally after agent reply)
+  const { doc: chatDoc } = createMockDom();
+  const chatMain = chatDoc.createElement("main");
+  const user0 = chatDoc.createElement("div");
+  user0.setAttribute("data-testid", "user-message-bubble");
+  user0.textContent = "Первый запрос пользователя";
+  const resp0 = chatDoc.createElement("div");
+  resp0.setAttribute("data-testid", "agent-response");
+  const user1 = chatDoc.createElement("div");
+  user1.setAttribute("data-testid", "user-message-bubble");
+  user1.textContent = "Второй запрос пользователя";
+  const resp1 = chatDoc.createElement("div");
+  resp1.setAttribute("data-testid", "agent-response");
+  chatMain.appendChild(user0);
+  chatMain.appendChild(resp0);
+  chatMain.appendChild(user1);
+  chatMain.appendChild(resp1);
+  chatDoc.body.appendChild(chatMain);
+  let canceledLiveId = "";
+  const sampleLiveEdits = [
+    { id: "le-legacy", text: "Старое без якоря", status: "delivered", deliveredAt: Date.now() },
+    { id: "le-c0", text: "Дополнение к первому сообщению", status: "delivered", anchorUserCount: 1, anchorUserText: "Первый запрос пользователя", anchorRespIdx: 0, deliveredAt: Date.now() },
+    { id: "le-c1", text: "Сделай красиво в чате", images: [{ name: "shot.png", previewDataUrl: "data:image/png;base64,AA==" }], files: [{ name: "spec.pdf" }], status: "pending", anchorUserCount: 2, anchorUserText: "Второй запрос пользователя", anchorRespIdx: 1, createdAt: Date.now() },
+  ];
+  v5Ui.rv5SyncLiveChatBubbles(chatDoc, {
+    liveEdits: sampleLiveEdits,
+    liveEditInline: { enabled: true, showInChat: true, chatBubbleStyle: "accent", chatBubblePos: "after-user" },
+    isRu: true,
+    isLight: false,
+    accentColor: "#d97757",
+    onCancel: (id) => { canceledLiveId = id; },
+  });
+  const slotU0 = chatDoc.querySelector('[data-rudex-live-slot="user-0"]');
+  const slotU1 = chatDoc.querySelector('[data-rudex-live-slot="user-1"]');
+  assert.ok(slotU0 && slotU1, "Each user message with a live edit must get its own adjacent slot");
+  assert.ok(slotU0.innerHTML.includes("Дополнение к первому сообщению") && slotU0.innerHTML.includes("Учтено агентом"));
+  assert.equal(slotU0.innerHTML.includes('data-rx-cb-act="dismiss"'), false, "Delivered live edits must not show a close cross button");
+  assert.equal(slotU0.innerHTML.includes("Старое без якоря"), false, "Unanchored legacy delivered items must never appear");
+  assert.ok(slotU1.innerHTML.includes("Сделай красиво в чате") && slotU1.innerHTML.includes("is-accent"));
+  assert.ok(slotU1.innerHTML.includes("rx-cb-img") && slotU1.innerHTML.includes("spec.pdf"), "Live bubble must render both attached image previews and file chips");
+
+  // Disabling showDeliveredBadge hides "Учтено агентом" on delivered edits while keeping pending queue controls
+  v5Ui.rv5SyncLiveChatBubbles(chatDoc, {
+    liveEdits: sampleLiveEdits,
+    liveEditInline: { enabled: true, showInChat: true, showDeliveredBadge: false, chatBubbleStyle: "native", chatBubblePos: "after-user" },
+    isRu: true,
+  });
+  assert.equal(chatDoc.querySelector('[data-rudex-live-slot="user-0"]').innerHTML.includes("Учтено агентом"), false, "Disabling showDeliveredBadge must hide delivered status text");
+  assert.ok(chatDoc.querySelector('[data-rudex-live-slot="user-1"]').innerHTML.includes("Отменить"), "Pending edit must still keep Cancel button");
+  assert.equal(chatMain.children[0], user0);
+  assert.equal(chatMain.children[1], slotU0, "Live edit must appear right under user0 (before resp0)");
+  assert.equal(chatMain.children[2], resp0);
+  assert.equal(chatMain.children[3], user1);
+  assert.equal(chatMain.children[4], slotU1, "Second live edit must appear right under user1 (before resp1)");
+  v5Ui.rv5SyncLiveChatBubbles(chatDoc, {
+    liveEdits: sampleLiveEdits,
+    liveEditInline: { enabled: true, showInChat: false },
+    isRu: true,
+  });
+  assert.equal(chatDoc.querySelector('[data-rudex-live-slot]'), null, "Disabling showInChat must remove all anchored live slots");
+  assert.equal(canceledLiveId, "");
+
+  // 2b. Contextual image pencil edit triggers appear directly on opened image dialog & composer thumbnails
+  const { doc: imgDoc } = createMockDom();
+  const dlg = imgDoc.createElement("div");
+  dlg.setAttribute("role", "dialog");
+  const bigImg = imgDoc.createElement("img");
+  bigImg.setAttribute("src", "data:image/png;base64,iVBORw0KGgo=");
+  bigImg.getBoundingClientRect = () => ({ left: 100, top: 80, width: 640, height: 360, right: 740, bottom: 440 });
+  dlg.appendChild(bigImg);
+  imgDoc.body.appendChild(dlg);
+
+  const comp = imgDoc.createElement("div");
+  comp.setAttribute("data-rudex-theme-composer", "1");
+  const thumbWrap = imgDoc.createElement("div");
+  const thumbImg = imgDoc.createElement("img");
+  thumbImg.setAttribute("src", "data:image/png;base64,iVBORw0KGgo=");
+  thumbImg.getBoundingClientRect = () => ({ left: 20, top: 600, width: 48, height: 48, right: 68, bottom: 648 });
+  thumbWrap.appendChild(thumbImg);
+  comp.appendChild(thumbWrap);
+  imgDoc.body.appendChild(comp);
+
+  const editedCalls = [];
+  v5Ui.rv5InjectImageEditTriggers(imgDoc, true, (info) => editedCalls.push(info));
+  const lbBtn = dlg.querySelector('[data-rudex-img-edit-btn="lightbox"]');
+  const thBtn = thumbWrap.querySelector('[data-rudex-img-edit-btn="thumb"]');
+  assert.ok(lbBtn, "Opened screenshot dialog must receive contextual Edit button");
+  assert.ok(thBtn, "Composer attached image thumbnail must receive contextual pencil trigger");
+  lbBtn.dispatchEvent({ type: "click", target: lbBtn, preventDefault() {}, stopPropagation() {} });
+  thBtn.dispatchEvent({ type: "click", target: thBtn, preventDefault() {}, stopPropagation() {} });
+  assert.equal(editedCalls.length, 2);
+  assert.equal(editedCalls[0].fromLightbox, true);
+  assert.equal(editedCalls[1].fromLightbox, false);
+
+  // 3. Theme CSS prevents protruding sidebar border, double composer border/ring, opaque Radix Dialog backdrops, and layout shift on collapsibles
+  const claudeCss = te.buildThemeCss(te.normalizeAppearance({ presetId: "claude-code-dark", borderPreset: "crisp", typography: { uiFont: "claude-mono-ui" } }), { hostIsLight: false });
+  assert.equal(claudeCss.includes('[data-rudex-bg-sidebar="1"]:not([data-rudex-bg-sidebar="1"] *)'), false, "Must not add redundant protruding sidebar border-right");
+  assert.ok(claudeCss.includes(':not([data-state]):not([aria-hidden="true"]):not([role="dialog"]):not([role="alertdialog"])'), "bg-shell CSS must guard against modal overlays/backdrops");
+  assert.ok(claudeCss.includes("--tw-ring-shadow: 0 0 #0000 !important;"), "Inner composer wrappers must strip Tailwind focus rings");
+  assert.ok(claudeCss.includes('[data-rudex-theme-composer="1"] *:not(code):not(pre)'), "UI font must apply across entire composer bottom bar");
+  assert.equal(claudeCss.includes('[data-slot="collapsible"]:has(> button)'), false, "Must not apply layout-shifting rules to generic collapsibles on Cancel");
+
+  // 3a. Radix Dialog portal backdrop mounted under body outside #root must NEVER get data-rudex-bg-shell="1"
+  const { doc: portalDoc, win: portalWin } = createMockDom();
+  const appRoot = portalDoc.createElement("div");
+  appRoot.id = "root";
+  appRoot.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1400, bottom: 900, width: 1400, height: 900 });
+  portalDoc.body.appendChild(appRoot);
+  const radixBackdrop = portalDoc.createElement("div");
+  radixBackdrop.setAttribute("data-state", "open");
+  radixBackdrop.className = "fixed inset-0 z-50 bg-black/50";
+  radixBackdrop.style.position = "fixed";
+  radixBackdrop.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+  radixBackdrop.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1400, bottom: 900, width: 1400, height: 900 });
+  portalDoc.body.appendChild(radixBackdrop);
+  portalDoc.elementsFromPoint = () => [radixBackdrop, appRoot, portalDoc.body];
+  const portalTe = te.createThemeEngine({ document: portalDoc, window: portalWin });
+  portalTe.apply({ presetId: "claude-code-dark", borderPreset: "crisp" });
+  assert.equal(radixBackdrop.getAttribute("data-rudex-bg-shell"), null, "Radix Dialog backdrop must NEVER be marked as opaque bg-shell");
+  portalTe.destroy();
+
+  // 3b. PreInvocation live-edit hook emits strict protojson without snake_case metadata.user_markdown
+  const tmpHookDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-protojson-"));
+  try {
+    const qDir = path.join(tmpHookDir, "studio_live_edits", "queue");
+    fs.mkdirSync(qDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpHookDir, "studio_live_edits", "pending.flag"), "1\n");
+    fs.writeFileSync(path.join(qDir, "le-1.json"), JSON.stringify({
+      id: "le-1",
+      chatKey: "conv-live-1",
+      text: "Сделай шрифт крупнее",
+      images: [{ name: "shot.png", path: "C:/tmp/shot.png" }],
+      files: [{ name: "brief.pdf", path: "C:/tmp/brief.pdf" }],
+      status: "pending",
+      createdAt: Date.now(),
+    }));
+    const r = spawnSync(process.execPath, [path.join(SCRIPTS_DIR, "rudex-hook.js")], {
+      input: JSON.stringify({ hookEventName: "PreInvocation", conversationId: "conv-live-1", initialNumSteps: 2 }),
+      encoding: "utf8",
+      env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpHookDir, RUDEX_SKIP_AUTO_REPATCH: "1" }),
+    });
+    assert.equal(r.status, 0, r.stderr);
+    const parsed = JSON.parse(r.stdout || "{}");
+    assert.ok(Array.isArray(parsed.injectSteps) && parsed.injectSteps.length === 1);
+    assert.ok(parsed.injectSteps[0].systemMessage.systemMessage.includes("Сделай шрифт крупнее"));
+    assert.ok(parsed.injectSteps[0].systemMessage.systemMessage.includes("C:/tmp/shot.png"), "PreInvocation must include attached screenshots");
+    assert.ok(parsed.injectSteps[0].systemMessage.systemMessage.includes("C:/tmp/brief.pdf"), "PreInvocation must include attached files");
+    assert.equal("metadata" in parsed.injectSteps[0].systemMessage, false, "PreInvocation systemMessage must not include snake_case metadata that breaks protojson unmarshal");
+    assert.equal("terminationBehavior" in parsed, false, "PreInvocation should omit empty terminationBehavior");
+  } finally {
+    fs.rmSync(tmpHookDir, { recursive: true, force: true });
+  }
+
+  // 4. Screenshot Pencil Annotator module & drawing primitives
+  assert.ok(ann.RUDEX_ANNOTATOR_TOOLS.some((t) => t.id === "pencil"));
+  assert.ok(ann.RUDEX_ANNOTATOR_TOOLS.some((t) => t.id === "arrow"));
+  const { doc, win } = createMockDom();
+  const mount = doc.createElement("div");
+  const ctrl = ann.createScreenshotAnnotator({
+    mountEl: mount,
+    doc,
+    win,
+    invokeIpc: async () => ({ ok: false }),
+    getLocale: () => "ru",
+    isGenerating: () => false,
+  });
+  ctrl.open({ dataUrl: "data:image/png;base64,iVBORw0KGgo=" });
+  assert.equal(ctrl.isOpen(), true);
+  assert.ok(mount.innerHTML.includes("Карандаш") && mount.innerHTML.includes("Вставить в чат"));
+  ctrl.handleKeydown({ key: "Escape" });
+  assert.equal(ctrl.isOpen(), false);
+
+  // 5. Chat dock hides when overlapped by native Radix menu/popover & Agent Tools never auto-closes on stream tick
+  const spSrc = fs.readFileSync(path.join(RES_DIR, "studio-panel.js"), "utf8");
+  assert.ok(spSrc.includes("function hasOverlappingNativePopover("), "studio-panel.js must detect overlapping native popovers/menus");
+  assert.equal(spSrc.includes("if (!wasGenBeforeTick && (tel.isGenerating || snap.isGenerating) && state.agentPopoverOpen)"), false, "sampleStreamTick must not auto-close Agent Tools popover mid-reading");
+});
+
+test("Rudex 5.0 composer drafts (per-chat & new chat text+files) and last-20 user input history", () => {
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const Module = require("module");
+  const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-drafts-hist-"));
+  const origLoad = Module._load;
+  const mockClipboard = { text: "", image: null };
+  const fakeElectron = {
+    app: {
+      getPath: (k) => (k === "userData" ? tmpUserData : tmpUserData),
+      on: () => {},
+    },
+    ipcMain: { handle: () => {}, on: () => {} },
+    webContents: { getAllWebContents: () => [] },
+    dialog: {},
+    shell: { showItemInFolder: () => {} },
+    protocol: {},
+    BrowserWindow: { getAllWindows: () => [] },
+    clipboard: {
+      writeText: (t) => { mockClipboard.text = t; },
+      writeImage: (im) => { mockClipboard.image = im; },
+    },
+    nativeImage: {
+      createFromPath: () => ({ isEmpty: () => true }),
+    },
+  };
+  try {
+    Module._load = function (req, parent, isMain) {
+      if (req === "electron") return fakeElectron;
+      return origLoad.apply(this, arguments);
+    };
+    const mainModPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainModPath)];
+    const i18nMain = require(mainModPath);
+
+    // 1. Composer drafts: save text + screenshot + PDF for both a chat & __new__ (enabled by default)
+    const pngDataUrl = "data:image/png;base64," + Buffer.from("PNGDATA123456").toString("base64");
+    const pdfDataUrl = "data:application/pdf;base64," + Buffer.from("%PDF-1.4 sample").toString("base64");
+    const savedChat = i18nMain.saveComposerDraft({
+      chatKey: "chat-draft-1",
+      title: "Мой чат",
+      text: "Долгий недописанный промпт\nсо второй строкой",
+      attachments: [
+        { name: "screen.png", mime: "image/png", isImage: true, dataUrl: pngDataUrl },
+        { name: "doc.pdf", mime: "application/pdf", isImage: false, dataUrl: pdfDataUrl },
+      ],
+    });
+    assert.equal(savedChat.ok, true);
+    assert.equal(savedChat.draft.attachments.length, 2);
+    const savedNew = i18nMain.saveComposerDraft({
+      chatKey: "__new__",
+      text: "Черновик нового чата",
+      attachments: [],
+    });
+    assert.equal(savedNew.ok, true);
+
+    // Re-saving draft reusing existing fileName preserves the persisted file without losing data
+    const reused = i18nMain.saveComposerDraft({
+      chatKey: "chat-draft-1",
+      title: "Мой чат",
+      text: "Долгий недописанный промпт — обновил!",
+      attachments: [
+        { name: "screen.png", mime: "image/png", isImage: true, fileName: savedChat.draft.attachments[0].fileName },
+      ],
+    });
+    assert.equal(reused.ok, true);
+    assert.equal(reused.draft.attachments.length, 1);
+
+    const restored = i18nMain.getComposerDraftWithData("chat-draft-1");
+    assert.equal(restored.ok, true);
+    assert.equal(restored.draft.text, "Долгий недописанный промпт — обновил!");
+    assert.equal(restored.draft.attachments.length, 1);
+    assert.equal(restored.draft.attachments[0].dataUrl, pngDataUrl);
+
+    const restoredNew = i18nMain.getComposerDraftWithData("__new__");
+    assert.equal(restoredNew.draft.text, "Черновик нового чата");
+
+    // Orphaned PDF file must be pruned after being removed from draft
+    const draftMediaFiles = fs.readdirSync(path.join(tmpUserData, "studio_drafts_media"));
+    assert.equal(draftMediaFiles.length, 1, "Orphaned draft attachment files must be pruned automatically");
+
+    // Clearing draft removes it and cleans up disk media
+    i18nMain.clearComposerDraft({ chatKey: "chat-draft-1" });
+    assert.equal(i18nMain.getComposerDraftWithData("chat-draft-1").draft, null);
+    assert.equal(fs.readdirSync(path.join(tmpUserData, "studio_drafts_media")).length, 0);
+
+    // 2. Last-20 input history: record 24 items -> capped strictly at 20, newest first, old media pruned
+    for (let i = 1; i <= 24; i += 1) {
+      const rec = i18nMain.recordInputHistoryItem({
+        chatKey: "chat-hist-1",
+        title: "Рабочий чат",
+        text: `Сообщение номер ${i}`,
+        source: i % 5 === 0 ? "live-edit" : "chat",
+        attachments: i <= 2 || i === 24
+          ? [{ name: `file-${i}.pdf`, mime: "application/pdf", isImage: false, dataUrl: pdfDataUrl }]
+          : [],
+      });
+      assert.equal(rec.ok, true);
+    }
+    const histUi = i18nMain.getInputHistoryForUi();
+    assert.equal(histUi.enabled, true, "Input history must be enabled by default");
+    assert.equal(histUi.draftsEnabled, true, "Composer drafts must be enabled by default");
+    assert.equal(histUi.items.length, 20, "Input history must cap strictly at 20 messages");
+    assert.equal(histUi.items[0].text, "Сообщение номер 24");
+    assert.equal(histUi.items[19].text, "Сообщение номер 5");
+    assert.equal(histUi.items[0].attachments.length, 1);
+    assert.equal(histUi.items[0].attachments[0].exists, true);
+    // Files from evicted items #1 and #2 must have been pruned, leaving only file-24.pdf
+    const histMediaFiles = fs.readdirSync(path.join(tmpUserData, "studio_history_media"));
+    assert.equal(histMediaFiles.length, 1, "Evicted history item files must be pruned from disk");
+
+    // Delete single item & clear all
+    const afterDel = i18nMain.deleteInputHistoryItem(histUi.items[1].id);
+    assert.equal(afterDel.items.length, 19);
+
+    // 3. UI renderer for Settings -> Input History & Drafts
+    const uiHtml = v5Ui.rv5RenderInputHistoryHtml({
+      isRu: true,
+      composerDraftsEnabled: true,
+      inputHistoryEnabled: true,
+      draftCount: 1,
+      items: histUi.items,
+      loading: false,
+    });
+    assert.ok(uiHtml.includes("Автосохранение черновиков (текст и файлы)"));
+    assert.ok(uiHtml.includes("История последних 20 сообщений и файлов"));
+    assert.ok(uiHtml.includes("Сообщение номер 24"));
+    assert.ok(uiHtml.includes('data-action="copy-history-text"'));
+    assert.ok(uiHtml.includes('data-action="copy-history-file"'));
+    assert.ok(uiHtml.includes('data-action="toggle-composer-drafts"'));
+    assert.ok(uiHtml.includes('data-action="toggle-input-history"'));
+
+    const afterClear = i18nMain.clearInputHistory();
+    assert.equal(afterClear.items.length, 0);
+    assert.equal(fs.readdirSync(path.join(tmpUserData, "studio_history_media")).length, 0);
+  } finally {
+    Module._load = origLoad;
+    fs.rmSync(tmpUserData, { recursive: true, force: true });
+  }
+});
+
+test("Element inspector displays real computed values with sliders/reset and all 13 themes style highlights & light mode cleanly", () => {
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  Object.assign(global, v5Core);
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+
+  // 1. elementOverrides normalization must NOT coerce "" into 0px, and supports opacity + expanded bounds
+  const normOvs = normalizeAppearance({
+    elementOverrides: [
+      {
+        id: "ov-test",
+        name: "Композер",
+        selector: '[data-rudex-theme-composer="1"]',
+        styles: {
+          borderRadius: "",
+          padding: "",
+          borderWidth: "",
+          fontSize: "16",
+          opacity: "85",
+        },
+      },
+    ],
+  }).elementOverrides;
+  assert.equal(normOvs.length, 1);
+  assert.equal(normOvs[0].styles.borderRadius, -1, "Empty borderRadius must stay unset (-1), not 0");
+  assert.equal(normOvs[0].styles.padding, -1, "Empty padding must stay unset (-1), not 0");
+  assert.equal(normOvs[0].styles.borderWidth, -1, "Empty borderWidth must stay unset (-1), not 0");
+  assert.equal(normOvs[0].styles.fontSize, 16);
+  assert.equal(normOvs[0].styles.opacity, 85);
+
+  const ovCss = buildThemeCss({ presetId: "claude-code-dark", elementOverrides: normOvs });
+  assert.ok(ovCss.includes("font-size: 16px !important;"));
+  assert.ok(ovCss.includes("opacity: 0.85 !important;"));
+  assert.equal(ovCss.includes("border-radius: 0px !important;"), false, "Unset borderRadius must not emit 0px");
+
+  // 2. Element Inspector HTML shows live computed numbers, paired range+number controls, per-field reset & sticky full reset
+  const inspHtml = v5Ui.rv5BuildElementInspectorHtml(
+    {
+      name: "Поле ввода",
+      selector: '[data-rudex-theme-composer="1"]',
+      scope: "exact",
+      canToggleScope: true,
+      computed: {
+        fontSize: 14,
+        borderRadius: 16,
+        padding: 12,
+        borderWidth: 1,
+        width: 720,
+        minHeight: 84,
+        opacity: 100,
+        bgOpacity: 100,
+        color: "#faf9f5",
+        bgColor: "#262624",
+        borderColor: "#3a3935",
+      },
+    },
+    { elementOverrides: [{ id: "ov-1", selector: '[data-rudex-theme-composer="1"]', styles: { borderRadius: 22 } }] },
+    [],
+    [],
+    true
+  );
+  assert.equal(inspHtml.includes('placeholder="auto"'), false, "Inspector must never show empty 'auto' placeholders");
+  assert.ok(inspHtml.includes("сейчас 14px"), "Inspector must display live computed fontSize");
+  assert.ok(inspHtml.includes("сейчас 12px"), "Inspector must display live computed padding");
+  assert.ok(inspHtml.includes("сейчас 720px"), "Inspector must display live computed width");
+  assert.ok(inspHtml.includes('data-insp-range="borderRadius"') && inspHtml.includes('data-insp-num="borderRadius"'));
+  assert.ok(inspHtml.includes('value="22"'), "Inspector must display custom overridden borderRadius");
+  assert.ok(inspHtml.includes('data-action="inspector-clear-style" data-prop="borderRadius"'));
+  assert.ok(inspHtml.includes('data-action="inspector-reset-element"'));
+  assert.ok(inspHtml.includes("rx-insp-footer"));
+
+  // 3. Light themes: glare-free non-#ffffff surfaces, dark-class neutralization, tablist & border fixes
+  for (const lightId of ["claude-code-light", "light-paper", "nordic-frost"]) {
+    const preset = THEME_PRESETS.find((p) => p.id === lightId);
+    assert.ok(preset && preset.mode === "light");
+    assert.notEqual(preset.vars.canvasBg.toLowerCase(), "#ffffff", `${lightId} canvasBg must not be blinding #ffffff`);
+    assert.notEqual(preset.vars.cardBg.toLowerCase(), "#ffffff", `${lightId} cardBg must not be blinding #ffffff`);
+    const css = buildThemeCss({ presetId: lightId }, { hostIsLight: true });
+    assert.ok(css.includes("color-scheme: light !important;"), `${lightId} must force light color-scheme`);
+    assert.ok(css.includes('[role="tablist"]'), `${lightId} must style [role="tablist"] so tabs never stay black`);
+    assert.ok(css.includes('[class~="text-white/80"]'), `${lightId} must neutralize dark-mode text-white/* utility classes`);
+    assert.ok(css.includes('[class~="bg-white/10"]'), `${lightId} must neutralize bg-white/10 surfaces`);
+    assert.ok(css.includes('[data-rudex-theme-composer="1"] button:where([class~="bg-white"]'), `${lightId} must theme composer send button`);
+  }
+
+  // 4. Glass themes without wallpaper: transparent #root over radial ambient backdrop + padded glass cards
+  for (const glassId of ["liquid-glass", "obsidian-glass", "midnight-neon"]) {
+    const css = buildThemeCss({ presetId: glassId });
+    assert.ok(css.includes("radial-gradient("), `${glassId} must render ambient radial backdrop without wallpaper`);
+    assert.ok(css.includes("#root, #app {\n  background-color: transparent !important;"), `${glassId} must keep #root transparent over backdrop`);
+    assert.ok(css.includes("padding: 16px 18px !important;"), `${glassId} agent card must have comfortable vertical & horizontal padding`);
+  }
+
+  // 5. All non-native themes unify accent highlights (switches, tabs, menus, tinted badges, send button)
+  for (const preset of THEME_PRESETS) {
+    if (preset.id === "native" || preset.id === "custom") continue;
+    const css = buildThemeCss({ presetId: preset.id });
+    assert.ok(css.includes('[role="switch"][data-state="checked"]'), `${preset.id} must theme checked switches`);
+    assert.ok(css.includes('[role="menuitem"]'), `${preset.id} must theme menu highlights`);
+    assert.ok(css.includes('[class~="bg-blue-500/10"]'), `${preset.id} must re-tint blue utility badges`);
+    assert.ok(css.includes(`accent-color: ${preset.vars.accentColor} !important;`), `${preset.id} must set accent-color`);
+  }
+});
+
+test("Docked-by-default mini-widget & limits widget, floating switch, corner/font controls, and accurate live quota calculation", () => {
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  Object.assign(global, v5Core);
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const Module = require("module");
+  const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-widgets-quota-"));
+  const origLoad = Module._load;
+  const ipcHandlers = {};
+  const sentMessages = [];
+  const fakeWc = { isDestroyed: () => false, send: (ch, data) => sentMessages.push({ ch, data }) };
+  const fakeElectron = {
+    app: { getPath: () => tmpUserData, on: () => {} },
+    ipcMain: { handle: (ch, fn) => { ipcHandlers[ch] = fn; }, on: () => {} },
+    webContents: { getAllWebContents: () => [fakeWc] },
+    dialog: {},
+    shell: { showItemInFolder: () => {} },
+    protocol: {},
+    BrowserWindow: { getAllWindows: () => [] },
+    clipboard: { writeText: () => {}, writeImage: () => {} },
+    nativeImage: { createFromPath: () => ({ isEmpty: () => true }) },
+  };
+  try {
+    Module._load = function (req) {
+      if (req === "electron") return fakeElectron;
+      return origLoad.apply(this, arguments);
+    };
+    const mainModPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainModPath)];
+    const i18nMain = require(mainModPath);
+    if (typeof i18nMain.registerI18nIpc === "function") i18nMain.registerI18nIpc();
+
+    // 1. Mini-widget & Limits widget default to pinned=true (docked UI) and support all corner/UI slots + font/width controls
+    const defSettings = i18nMain.sanitizeStudioSettings({});
+    assert.equal(defSettings.pinned, true, "Mini-widget must default to pinned (part of UI)");
+    assert.equal(defSettings.layoutMode, "docked");
+    assert.equal(defSettings.studioUi.widgetFont, "inherit");
+    assert.equal(defSettings.studioUi.widgetFontSize, 12);
+    assert.equal(defSettings.limitsWidget.pinned, true, "Limits widget must default to pinned (part of UI)");
+
+    const headerDock = i18nMain.sanitizeStudioSettings({ dockPosition: "inline-header", studioUi: { widgetFont: "jetbrains", widgetFontSize: 15 } });
+    assert.equal(headerDock.dockPosition, "inline-header");
+    assert.equal(headerDock.studioUi.widgetFont, "jetbrains");
+    assert.equal(headerDock.studioUi.widgetFontSize, 15);
+    assert.equal(i18nMain.sanitizeStudioSettings({ dockPosition: "top-left" }).dockPosition, "top-left");
+
+    const customLim = i18nMain.sanitizeLimitsWidget({ enabled: true, position: "sidebar-bottom", width: 260, fontSize: 15, scale: 115, pinned: false });
+    assert.equal(customLim.position, "top-right", "Deprecated sidebar-bottom must auto-migrate to safe top-right");
+    assert.equal(customLim.width, 260);
+    assert.equal(customLim.fontSize, 15);
+    assert.equal(customLim.scale, 115);
+    assert.equal(customLim.pinned, false);
+
+    // 2. Limits widget HTML adapts to theme surface, omits manual refresh button, shows docked vs floating classes & pin toggle
+    const dockedLimHtml = v5Core.rv5BuildLimitsWidgetHtml(
+      { enabled: true, pinned: true, position: "top-right", layout: "bars", fontSize: 14, width: 250, bgOpacity: 92 },
+      { families: { gemini: { fiveHourRem: 74, weeklyRem: 23, fiveHourEstimated: true, fiveHourReset: "2ч 10м", weeklyReset: "5 д" }, claudeGpt: { fiveHourRem: null, weeklyRem: 68, weeklyReset: "6 д" } } },
+      "Gemini 4 Neon",
+      true,
+      false
+    );
+    assert.ok(dockedLimHtml.includes("is-docked-ui"), "Pinned limits widget must render with is-docked-ui class");
+    assert.ok(dockedLimHtml.includes("var(--rx-theme-surface"), "Limits widget must adapt background to active theme surface");
+    assert.ok(dockedLimHtml.includes('data-action="toggle-limits-pin"'), "Limits widget must expose quick dock/float pin button");
+    assert.equal(dockedLimHtml.includes('data-action="sync-limits-now"'), false, "Limits widget must NOT show manual refresh button (auto-syncs)");
+    assert.ok(dockedLimHtml.includes("~74%"), "Estimated live 5h drop must render with ~ prefix");
+    assert.ok(dockedLimHtml.includes("68%") && !dockedLimHtml.includes("100%"), "1-bucket family must not render fake 100% for absent 5h bucket");
+
+    // 3. Limits settings UI exposes docked/floating mode switcher, safe corners (no sidebar-bottom), font, size, width & auto-sync badge
+    const limTabHtml = v5Ui.rv5RenderLimitsTabHtml({
+      limitsWidget: customLim,
+      quotaSummary: {},
+      activeModelName: "Gemini 4 Neon",
+      systemFonts: [],
+      monitorHtml: "",
+      exportHtml: "",
+      isRu: true,
+      isLight: true,
+    });
+    assert.ok(limTabHtml.includes('data-action="set-limits-window-mode"'));
+    assert.equal(limTabHtml.includes('data-val="sidebar-bottom"'), false, "Sidebar-overlapping position must not be offered");
+    assert.ok(limTabHtml.includes('data-action="set-limits-position" data-val="top-right"'));
+    assert.ok(limTabHtml.includes('data-limits-field="width"'));
+    assert.ok(limTabHtml.includes('data-limits-field="fontSize"'));
+    assert.ok(limTabHtml.includes("Автосинхронизация"));
+
+    // 3b. Live-edit chat bubbles MUST match by anchorUserText and NEVER attach past delivered edits to a new message under DOM virtualization
+    const { doc: leDoc } = createMockDom();
+    const leMain = leDoc.createElement("main");
+    const newUserBubble = leDoc.createElement("div");
+    newUserBubble.setAttribute("data-testid", "user-message-bubble");
+    const newUserContent = leDoc.createElement("div");
+    newUserContent.setAttribute("data-testid", "user-message-content");
+    newUserContent.textContent = "Совершенно новое сообщение пользователя";
+    newUserBubble.appendChild(newUserContent);
+    leMain.appendChild(newUserBubble);
+    leDoc.body.appendChild(leMain);
+    v5Ui.rv5SyncLiveChatBubbles(leDoc, {
+      liveEdits: [
+        { id: "old-legacy", text: "Старая правка без текста якоря", status: "delivered", anchorUserCount: 1 },
+        { id: "old-past", text: "Правка к прошлому ушедшему сообщению", status: "delivered", anchorUserCount: 1, anchorUserText: "Старый запрос час назад" },
+        { id: "cur-match", text: "Правка именно к новому сообщению", status: "delivered", anchorUserCount: 1, anchorUserText: "Совершенно новое сообщение пользователя" },
+      ],
+      liveEditInline: { enabled: true, showInChat: true },
+      isRu: true,
+    });
+    const renderedSlots = leDoc.querySelectorAll("[data-rudex-live-slot]");
+    const slotText = renderedSlots.length > 0 ? renderedSlots[0].innerHTML : "";
+    assert.ok(slotText.includes("Правка именно к новому сообщению"), "Matching anchorUserText edit must render under its exact user message");
+    assert.equal(slotText.includes("Старая правка без текста якоря"), false, "Legacy delivered edit without anchorUserText must NOT leak onto a new message");
+    assert.equal(slotText.includes("Правка к прошлому ушедшему сообщению"), false, "Past virtualized turn edit must NOT attach to a newer user message");
+
+    // 3c. Studio subtab-bar wraps cleanly so right-edge tabs never clip without a scrollbar
+    const stCss = buildStudioStyles();
+    assert.ok(/\.subtab-bar\s*\{[^}]*flex-wrap:\s*wrap/.test(stCss), ".subtab-bar must wrap cleanly instead of clipping tabs off-screen");
+
+    // 4. Quota parser inverts "% used" / "% использовано" into remaining %
+    const usedParsed = parseQuotaFromDocumentText("Usage\nGemini Models\n5h limit 35% used\nResets in 3h 20m\nWeekly limit 77% used\nResets in 5d", "Gemini 4");
+    assert.equal(usedParsed.gemini.fiveHourRem, 65, "35% used must convert to 65% remaining");
+    assert.equal(usedParsed.gemini.weeklyRem, 23, "77% used must convert to 23% remaining");
+
+    // 5. Live quota sync: pending turns decrement displayed 5h/weekly remaining & 1-bucket sync clears stale 5h=100%
+    if (ipcHandlers["agy-studio:sync-quota-snapshot"] && ipcHandlers["agy-studio:record-quota-turn"]) {
+      const s1 = ipcHandlers["agy-studio:sync-quota-snapshot"]({}, {
+        activeChatKey: "chat-q1",
+        gemini: { fiveHourRem: 100, weeklyRem: 30, fiveHourReset: "4ч", weeklyReset: "5 д" },
+      });
+      assert.equal(s1.summary.families.gemini.fiveHourRem, 100);
+      assert.ok(sentMessages.some((m) => m.ch === "agy-studio:quota-updated"), "Quota sync must broadcast agy-studio:quota-updated");
+
+      // Record heavy turn -> displayed 5h remaining must drop below 100% live without waiting for manual refresh
+      const afterTurn = ipcHandlers["agy-studio:record-quota-turn"]({}, {
+        chatKey: "chat-q1",
+        title: "Heavy chat",
+        modelName: "Gemini 4 Neon",
+        outputTokens: 60000,
+        contextTokens: 200000,
+      });
+      assert.ok(afterTurn.summary.families.gemini.fiveHourRem < 100, `Expected live 5h remaining < 100 after turn, got ${afterTurn.summary.families.gemini.fiveHourRem}`);
+      assert.equal(afterTurn.summary.families.gemini.fiveHourEstimated, true);
+
+      // 1-bucket snapshot (only weekly, fiveHourRem: null) must clear stale 5h bucket instead of keeping 100%
+      const s2 = ipcHandlers["agy-studio:sync-quota-snapshot"]({}, {
+        activeChatKey: "chat-q1",
+        gemini: { fiveHourRem: null, weeklyRem: 23, fiveHourReset: "", weeklyReset: "5 д" },
+      });
+      assert.equal(s2.summary.families.gemini.fiveHourRem, null, "1-bucket weekly-only snapshot must clear stale 5h remaining");
+      assert.equal(s2.summary.families.gemini.weeklyRem, 23);
+    }
+  } finally {
+    Module._load = origLoad;
+    fs.rmSync(tmpUserData, { recursive: true, force: true });
+  }
+});
+
+test("Modal dimming z-index, right appearance drawer offset, light-theme live edits, popular fonts, synced card limits, and busy model-selector usage popover", async () => {
+  const v5Core = require("../skills/rudex/resources/rudex-v5-core.js");
+  const v5Ui = require("../skills/rudex/resources/rudex-v5-ui.js");
+  const stCss = buildStudioStyles();
+  const extraCss = v5Core.rv5BuildExtraShadowCss();
+
+  // 1. Limits widget & chat dock z-index MUST stay strictly below modal backdrop (2147483200) so they dim cleanly behind Studio modal
+  const backdropZ = Number((/\.modal-backdrop\s*\{[^}]*z-index:\s*(\d+)/.exec(stCss) || [])[1] || 0);
+  const limitsZ = Number((/\.rx-limits-mount\s*\{[^}]*z-index:\s*(\d+)/.exec(extraCss) || [])[1] || 0);
+  const dockZ = Number((/\.rx-chat-dock\s*\{[^}]*z-index:\s*(\d+)/.exec(extraCss) || [])[1] || 0);
+  assert.ok(backdropZ > 0 && limitsZ > 0 && dockZ > 0, "Expected valid z-index tokens");
+  assert.ok(limitsZ < backdropZ, `Limits mount z-index (${limitsZ}) must be strictly below modal backdrop (${backdropZ})`);
+  assert.ok(dockZ < backdropZ, `Chat dock z-index (${dockZ}) must be strictly below modal backdrop (${backdropZ})`);
+
+  // 2. Popular fonts (ChatGPT, OpenCode, Cyrillic Pro Golos/Onest, Manrope, Space Mono) exist and build valid Google Font URLs
+  const uiFontIds = new Set(FONT_PRESETS.ui.map((f) => f.id));
+  const monoFontIds = new Set(FONT_PRESETS.mono.map((f) => f.id));
+  for (const id of ["chatgpt-sans", "opencode-mono", "golos", "onest", "manrope"]) {
+    assert.ok(uiFontIds.has(id), `Expected popular UI font preset: ${id}`);
+  }
+  for (const id of ["opencode-mono", "fira", "space-mono", "source-code-pro", "ubuntu-mono"]) {
+    assert.ok(monoFontIds.has(id), `Expected popular mono font preset: ${id}`);
+  }
+  const chatGptFontUrl = teBuildWebFontUrl({ typography: { uiFont: "chatgpt-sans", monoFont: "fira" } });
+  assert.ok(chatGptFontUrl.includes("Inter") && chatGptFontUrl.includes("Fira+Code"));
+
+  // 3. Panel integration: light app theme under dark studio windowTheme, synced M-card limits, right drawer clearance, and busy model-selector usage popover
+  const { doc, win } = createMockDom();
+  const docPointerDownFns = [];
+  const origDocAddEvt = doc.addEventListener ? doc.addEventListener.bind(doc) : null;
+  doc.addEventListener = (type, fn, cap) => {
+    if (type === "pointerdown" && typeof fn === "function") docPointerDownFns.push(fn);
+    if (origDocAddEvt) origDocAddEvt(type, fn, cap);
+  };
+  win.innerWidth = 1600;
+  win.innerHeight = 900;
+  const mainEl = doc.createElement("main");
+  const uBubble = doc.createElement("div");
+  uBubble.setAttribute("data-testid", "user-message-bubble");
+  const uContent = doc.createElement("div");
+  uContent.setAttribute("data-testid", "user-message-content");
+  uContent.textContent = "проверь светлую тему и лимиты";
+  uBubble.appendChild(uContent);
+  mainEl.appendChild(uBubble);
+
+  const modelBtn = doc.createElement("button");
+  modelBtn.setAttribute("data-testid", "model-selector-trigger");
+  modelBtn.setAttribute("disabled", "");
+  modelBtn.disabled = true;
+  modelBtn.textContent = "Gemini 4 Neon Сверхвысокий";
+  modelBtn.getBoundingClientRect = () => ({ left: 420, top: 820, right: 620, bottom: 850, width: 200, height: 30 });
+  mainEl.appendChild(modelBtn);
+  doc.body.appendChild(mainEl);
+
+  const titleBarCalls = [];
+  win.electronNativeAPI = { setTitleBarOverlay: (o) => titleBarCalls.push(o) };
+
+  const quotaSnap = {
+    families: {
+      gemini: { fiveHourRem: 57, weeklyRem: 12, fiveHourReset: "3 ч 43 мин", weeklyReset: "5 д 3 ч", calibrated: true },
+      claudeGpt: { fiveHourRem: 100, weeklyRem: 100, fiveHourReset: "", weeklyReset: "", calibrated: true },
+    },
+    activeChat: { chatKey: "c1", fiveHourWindowPct: 43, fiveHourPct: 43, weeklyPct: 30, turns: 12 },
+    chats: [],
+  };
+
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      invoke: async (ch) => {
+        if (ch === "agy-studio:get-quota-summary") return quotaSnap;
+        if (ch === "agy-studio:get-state") {
+          return {
+            locale: "ru",
+            settings: {
+              pinned: true,
+              layoutMode: "docked",
+              viewMode: "medium",
+              dockPosition: "bottom-right",
+              studioUi: { windowTheme: "claude-dark", widgetTheme: "claude", widgetScale: "md", widgetZoom: 100 },
+              appearance: { presetId: "claude-code-light" },
+              limitsWidget: { enabled: true, layout: "bars", position: "top-right", pinned: true },
+              liveEditInline: { enabled: true, showInChat: true, showDeliveredBadge: true, chatBubbleStyle: "native" },
+            },
+            quotaSummary: quotaSnap,
+            chat: { personaEnabled: false },
+          };
+        }
+        return { ok: true };
+      },
+    },
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    themeEngine: createThemeEngine({ document: doc, window: win }),
+  });
+
+  const prevSyncLive = global.rv5SyncLiveChatBubbles;
+  const prevBuildDock = global.rv5BuildChatDockHtml;
+  const prevBuildLimits = global.rv5BuildLimitsWidgetHtml;
+  const prevNormLimits = global.rv5NormalizeLimitsWidget;
+  const prevLiveDefaults = global.RUDEX_LIVE_EDIT_DEFAULTS;
+  global.rv5SyncLiveChatBubbles = v5Ui.rv5SyncLiveChatBubbles;
+  global.rv5BuildChatDockHtml = v5Ui.rv5BuildChatDockHtml;
+  global.rv5BuildLimitsWidgetHtml = v5Core.rv5BuildLimitsWidgetHtml;
+  global.rv5NormalizeLimitsWidget = v5Core.rv5NormalizeLimitsWidget;
+  global.RUDEX_LIVE_EDIT_DEFAULTS = v5Core.RUDEX_LIVE_EDIT_DEFAULTS;
+  try {
+    panel.init();
+    await new Promise((r) => setTimeout(r, 20));
+    panel.applyQuotaSummary(quotaSnap);
+    panel.applyLiveEditsUpdate({
+      items: [{ id: "le-1", chatKey: "__new__", fallbackAny: true, status: "pending", text: "Сообщение правки в светлой теме", anchorUserText: "проверь светлую тему и лимиты" }],
+    });
+
+    const host = doc.getElementById("rudex-studio-host");
+    const rootEl = host.shadowRoot.querySelector(".studio-root");
+    assert.equal(rootEl.getAttribute("data-app-theme"), "light", "data-app-theme must be 'light' for claude-code-light even when Studio windowTheme is claude-dark");
+
+    // Live-edit bubble must use light theme so text is dark & readable on light backgrounds
+    const liveSlot = doc.querySelector("[data-rudex-live-slot]");
+    assert.ok(liveSlot, "Live edit slot must render");
+    assert.equal(liveSlot.getAttribute("data-theme"), "light", "Live-edit bubble must follow app light theme");
+
+    // TitleBar overlay synced to light parchment chrome
+    assert.ok(titleBarCalls.some((c) => c && c.color === "#ebe8de" && c.symbolColor === "#1b1a18"), "Window caption buttons must sync to light theme palette");
+
+    // Medium card widget & standalone limits widget must display synchronized 57% / 12% remaining (not mismatched -43% / -30%)
+    const widgetHtml = host.shadowRoot.querySelector(".widget-wrap").innerHTML;
+    const limitsHtml = host.shadowRoot.querySelector(".rx-limits-mount").innerHTML;
+    assert.ok(widgetHtml.includes("5ч 57%") && (widgetHtml.includes("Нед. 12%") || widgetHtml.includes("Нед 12%")), `Expected synced 57% / 12% in medium card, got: ${widgetHtml.slice(-400)}`);
+    assert.ok(limitsHtml.includes("57%") && limitsHtml.includes("12%"), "Standalone limits widget must display exact 57% / 12%");
+
+    // Right appearance drawer cleanly hides right-side widgets so they NEVER overlap the drawer OR chat text, and restores them on close
+    panel.setOpen(true, { tab: "appearance", dockedRight: true });
+    const limMount = host.shadowRoot.querySelector(".rx-limits-mount");
+    assert.ok(limMount.className.includes("rx-zen-hidden"), `Expected right-side limits mount to yield cleanly while right appearance drawer is open, got class: ${limMount.className}`);
+    panel.setOpen(false);
+    assert.equal(limMount.className.includes("rx-zen-hidden"), false, "Limits mount must reappear immediately when right appearance drawer closes");
+
+    // Clicking disabled model-selector-trigger while agent is running opens Usage popover with live limits
+    const pdEvt = {
+      type: "pointerdown",
+      button: 0,
+      target: modelBtn,
+      clientX: 460,
+      clientY: 835,
+      preventDefault() {},
+      stopPropagation() {},
+      stopImmediatePropagation() {},
+    };
+    for (const fn of docPointerDownFns) fn(pdEvt);
+    const usageMount = host.shadowRoot.querySelector(".rx-usage-pop-mount");
+    assert.ok(usageMount && usageMount.innerHTML.includes("Использование"), "Clicking disabled model selector must open Usage popover");
+    assert.ok(usageMount.innerHTML.includes("57%") && usageMount.innerHTML.includes("12%"), "Usage popover must show live Gemini 57% / 12% limits");
+  } finally {
+    panel.destroy();
+    global.rv5SyncLiveChatBubbles = prevSyncLive;
+    global.rv5BuildChatDockHtml = prevBuildDock;
+    global.rv5BuildLimitsWidgetHtml = prevBuildLimits;
+    global.rv5NormalizeLimitsWidget = prevNormLimits;
+    global.RUDEX_LIVE_EDIT_DEFAULTS = prevLiveDefaults;
+  }
+});
+
+test("UI styles (Antigravity, Claude Code, Codex, OpenCode): Mix & Match, granular overrides, native-preset scan, backend persistence, and Studio UI tab", async () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  assert.ok(Array.isArray(te.UI_STYLE_PRESETS) && te.UI_STYLE_PRESETS.length === 4, "Must expose 4 platform UI style presets");
+  assert.deepEqual(te.UI_STYLE_PRESETS.map((p) => p.id), ["antigravity", "claude-code", "codex", "opencode"]);
+
+  // Default appearance must stay native default
+  assert.equal(te.isAppearanceNativeDefault({}), true);
+  assert.equal(te.isAppearanceNativeDefault({ uiStyle: { preset: "claude-code" } }), false);
+  assert.equal(te.isAppearanceNativeDefault({ uiStyle: { composerRadius: 22 } }), false);
+
+  // Mix & Match normalization derives preset="custom" when zones differ
+  const mixed = te.teNormalizeUiStyle({
+    composer: "codex",
+    chat: "opencode",
+    modelSelector: "claude-code",
+    composerRadius: 26,
+    composerMaxWidth: 860,
+    userBubbleAlign: "left",
+    agentAccentBar: "on",
+    modelBtnStyle: "mono",
+    modelMenuDensity: "compact",
+  });
+  assert.equal(mixed.preset, "custom");
+  assert.equal(mixed.composer, "codex");
+  assert.equal(mixed.chat, "opencode");
+  assert.equal(mixed.modelSelector, "claude-code");
+  assert.equal(mixed.composerRadius, 26);
+  assert.equal(mixed.composerMaxWidth, 860);
+  assert.equal(mixed.userBubbleAlign, "left");
+  assert.equal(mixed.agentAccentBar, "on");
+  assert.equal(mixed.modelBtnStyle, "mono");
+  assert.equal(mixed.modelMenuDensity, "compact");
+
+  // CSS generation for each of the 3 non-default platforms + granular overrides works even on presetId: "native"
+  const claudeCss = te.buildThemeCss({ presetId: "native", uiStyle: { preset: "claude-code" } }, { hostIsLight: false });
+  assert.ok(claudeCss.includes("border-radius: 14px !important;"), "Claude Code input box must apply 14px editorial radius");
+  assert.ok(claudeCss.includes('[data-rudex-comp-input-row="1"]'), "Claude Code must style separated top Reply bar");
+  assert.ok(claudeCss.includes('[data-rudex-comp-toolbar="1"]'), "Claude Code must place toolbar outside Reply bar");
+  assert.ok(claudeCss.includes("margin-left: auto !important;"), "Claude Code must align model selector to right of bottom bar");
+  assert.ok(claudeCss.includes("--rudex-cc-send-top"), "Claude Code must position inline return arrow inside Reply bar");
+  assert.ok(claudeCss.includes("background-color: transparent !important;"), "Claude Code model selector must be quiet borderless ghost trigger");
+
+  const codexCss = te.buildThemeCss({ presetId: "native", uiStyle: { preset: "codex" } }, { hostIsLight: false });
+  assert.ok(codexCss.includes("border-radius: 22px !important;"), "Codex composer must apply 22px elevated command capsule");
+  assert.ok(codexCss.includes("border-top: 1px solid"), "Codex composer must separate bottom footer bar");
+  assert.ok(codexCss.includes("border-radius: 999px !important;"), "Codex model button and send button must be pill/circular");
+
+  const opencodeCss = te.buildThemeCss({ presetId: "claude-code-light", uiStyle: { preset: "opencode" } }, { hostIsLight: true });
+  assert.ok(opencodeCss.includes("border-radius: 6px !important;"), "OpenCode must apply crisp 6px terminal corners");
+  assert.ok(opencodeCss.includes('content: "❯";'), "OpenCode must render terminal prompt chevron inside input row");
+  assert.ok(opencodeCss.includes("border-left: 3px solid"), "OpenCode must apply left accent stripe to composer & user bubbles");
+  assert.ok(opencodeCss.includes("width: 100% !important;"), "OpenCode user bubble must stretch full timeline width");
+
+  const customCss = te.buildThemeCss({ presetId: "native", uiStyle: mixed }, { hostIsLight: false });
+  assert.ok(customCss.includes("border-radius: 26px !important;"));
+  assert.ok(customCss.includes("max-width: min(100%, 860px) !important;"));
+  assert.ok(customCss.includes("margin-right: auto !important;"));
+  assert.ok(customCss.includes("min-height: 26px !important;"));
+
+  // Studio Panel renders Appearance -> UI Style tab and updates appearanceDraft live on clicks & range inputs
+  const { doc, win } = createMockDom();
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: { invoke: async () => ({ ok: true }) },
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    themeEngine: te.createThemeEngine({ document: doc, window: win }),
+  });
+  try {
+    panel.init();
+    panel.setOpen(true, { tab: "appearance", appSubTab: "uistyle", dockedRight: true });
+    const host = doc.getElementById("rudex-studio-host");
+    const root = host.shadowRoot.querySelector(".studio-root");
+    const modalMount = host.shadowRoot.querySelector(".modal-mount");
+    assert.ok(modalMount.innerHTML.includes("uistyle-grid"), "Appearance -> UI Style must render platform cards grid");
+    assert.ok(modalMount.innerHTML.includes('data-action="set-uistyle-preset"'), "Must expose 1-click platform preset cards");
+    assert.ok(modalMount.innerHTML.includes('data-action="set-uistyle-part"'), "Must expose per-zone Mix & Match buttons");
+    assert.ok(modalMount.innerHTML.includes('data-app-field="uiStyle.composerRadius"'), "Must expose granular fine-tuning sliders");
+
+    const codexBtn = doc.createElement("button");
+    codexBtn.setAttribute("data-action", "set-uistyle-preset");
+    codexBtn.setAttribute("data-id", "codex");
+    root.appendChild(codexBtn);
+    root.dispatchEvent({ type: "click", target: codexBtn });
+    await new Promise((r) => setTimeout(r, 30));
+    const injectedStyle = doc.getElementById("rudex-studio-theme");
+    assert.ok(injectedStyle && injectedStyle.textContent.includes("border-radius: 22px !important;"), "Selecting Codex preset must immediately apply Codex CSS live");
+  } finally {
+    panel.destroy();
+  }
+});
+
+test("Dynamic auto-updating limits: post-snapshot transcript steps decrement remaining %, reset timers tick live, expired 5h window auto-resets, and backend sanitizes uiStyle", async () => {
+  const Module = require("module");
+  const origLoad = Module._load;
+  const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-dyn-quota-"));
+  const fakeElectron = {
+    app: { getPath: () => tmpUserData, isReady: () => true, on: () => {}, whenReady: () => Promise.resolve() },
+    ipcMain: { handle: () => {}, removeHandler: () => {} },
+    webContents: { getAllWebContents: () => [] },
+    dialog: {},
+    shell: {},
+    protocol: {},
+    BrowserWindow: { getAllWindows: () => [] },
+    clipboard: { writeText: () => {}, writeImage: () => {} },
+    nativeImage: { createFromPath: () => ({ isEmpty: () => true }) },
+  };
+  try {
+    Module._load = function (req) {
+      if (req === "electron") return fakeElectron;
+      return origLoad.apply(this, arguments);
+    };
+    const mainModPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainModPath)];
+    const i18nMain = require(mainModPath);
+
+    // 1) uiStyle persistence sanitizer
+    const sanitizedApp = i18nMain.sanitizeAppearance({
+      presetId: "claude-code-dark",
+      uiStyle: {
+        composer: "codex",
+        chat: "opencode",
+        modelSelector: "claude-code",
+        composerRadius: 24,
+        composerMaxWidth: 920,
+        userBubbleAlign: "full",
+        modelBtnStyle: "mono",
+      },
+    });
+    assert.equal(sanitizedApp.uiStyle.preset, "custom");
+    assert.equal(sanitizedApp.uiStyle.composer, "codex");
+    assert.equal(sanitizedApp.uiStyle.chat, "opencode");
+    assert.equal(sanitizedApp.uiStyle.modelSelector, "claude-code");
+    assert.equal(sanitizedApp.uiStyle.composerRadius, 24);
+    assert.equal(sanitizedApp.uiStyle.composerMaxWidth, 920);
+    assert.equal(sanitizedApp.uiStyle.userBubbleAlign, "full");
+    assert.equal(sanitizedApp.uiStyle.modelBtnStyle, "mono");
+
+    // 2) Live reset countdown formatting & expiry detection
+    const t0 = Date.UTC(2026, 10, 25, 12, 0, 0);
+    const ticked = i18nMain.formatLiveResetRemaining("3 ч 43 мин", t0, t0 + 30 * 60 * 1000, "ru");
+    assert.equal(ticked.expired, false);
+    assert.equal(ticked.text, "3 ч 13 мин");
+    const expired = i18nMain.formatLiveResetRemaining("1 ч 0 мин", t0, t0 + 65 * 60 * 1000, "ru");
+    assert.equal(expired.expired, true);
+    assert.equal(expired.text, "");
+
+    // 3) Post-snapshot transcript steps dynamically lower live 5h & weekly % without re-opening official View Usage
+    i18nMain.saveQuotaStore({
+      version: 1,
+      resetAt: 0,
+      families: {
+        gemini: {
+          fiveHourRem: 70,
+          weeklyRem: 20,
+          fiveHourReset: "3 ч 0 мин",
+          weeklyReset: "5 д 0 ч",
+          updatedAt: t0,
+          calibrated: true,
+          tokensPer1Pct5h: 25000,
+          tokensPer1PctWeekly: 100000,
+          pending5hByChat: {},
+          pendingWeeklyByChat: {},
+        },
+        claudeGpt: {
+          fiveHourRem: 100,
+          weeklyRem: 100,
+          fiveHourReset: "",
+          weeklyReset: "",
+          updatedAt: t0,
+          calibrated: false,
+        },
+      },
+    });
+
+    const chatUuid = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const diskMap = new Map([
+      [
+        chatUuid,
+        {
+          chatKey: chatUuid,
+          titleGuess: "Active coding chat",
+          lastModel: "Gemini 4 Neon",
+          lastTs: t0 + 20 * 60 * 1000,
+          steps: [
+            // Historical steps before snapshot (t0 - 1h): 30% used = 750k units -> calibrates to ~25k/1%
+            { ts: t0 - 60 * 60 * 1000, units: 555000, family: "gemini" },
+            // New steps AFTER snapshot (t0 + 15m): 250k raw * 1.35 weight = 337.5k units -> ~13.5% live drop!
+            { ts: t0 + 15 * 60 * 1000, units: 250000, family: "gemini" },
+          ],
+        },
+      ],
+    ]);
+
+    const liveSum = i18nMain.buildQuotaSummary(chatUuid, true, { nowMs: t0 + 30 * 60 * 1000, diskByChat: diskMap });
+    assert.ok(liveSum.families.gemini.fiveHourRem < 70, `Expected live 5h remaining to drop below 70 after post-snapshot transcript steps, got ${liveSum.families.gemini.fiveHourRem}`);
+    assert.equal(liveSum.families.gemini.fiveHourEstimated, true);
+    assert.equal(liveSum.families.gemini.fiveHourReset, "2 ч 30 мин", "Reset timer must dynamically tick down from 3h 0m -> 2h 30m");
+    assert.ok(liveSum.families.gemini.weeklyRem < 20, `Expected live weekly remaining to drop below 20, got ${liveSum.families.gemini.weeklyRem}`);
+
+    // 4) Once 5h timer expires (t0 + 3h 10m), 5h window auto-resets toward 100% (counting only steps after resetAtMs)
+    const afterResetSum = i18nMain.buildQuotaSummary(chatUuid, true, { nowMs: t0 + 190 * 60 * 1000, diskByChat: diskMap });
+    assert.equal(afterResetSum.families.gemini.fiveHourWindowResetDetected, true);
+    assert.equal(afterResetSum.families.gemini.fiveHourRem, 100, "Expired 5h window with no post-reset steps must auto-reset to 100%");
+    assert.equal(afterResetSum.families.gemini.fiveHourReset, "");
+
+    // 5) Estimated drop must NEVER falsely floor a >0% snapshot all the way down to 0%
+    const hugeMap = new Map([
+      [
+        chatUuid,
+        {
+          chatKey: chatUuid,
+          titleGuess: "Heavy chat",
+          lastModel: "Gemini 4 Neon",
+          lastTs: t0 + 25 * 60 * 1000,
+          steps: [
+            { ts: t0 - 30 * 60 * 1000, units: 1200000, family: "gemini" },
+            { ts: t0 + 15 * 60 * 1000, units: 5000000, family: "gemini" },
+          ],
+        },
+      ],
+    ]);
+    const heavySum = i18nMain.buildQuotaSummary(chatUuid, true, { nowMs: t0 + 30 * 60 * 1000, diskByChat: hugeMap });
+    assert.equal(heavySum.families.gemini.fiveHourRem, 1, "Estimated drop from >0% official snapshot must stop at ~1% instead of lying ~0%");
+    assert.equal(heavySum.families.gemini.weeklyRem, 1, "Estimated weekly drop from >0% official snapshot must stop at ~1% instead of lying ~0%");
+  } finally {
+    Module._load = origLoad;
+    fs.rmSync(tmpUserData, { recursive: true, force: true });
+  }
+});
+
+test("Final polish: live-edit bubble matches native user bubble style, Claude Code neutralizes bg-white voice icon, busy usage popover closes cleanly, and auth screen hides widgets", async () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+
+  // 1) Claude Code CSS: vertical input-row stacking + transparent non-send toolbar button rule
+  const ccCss = te.buildThemeCss({ presetId: "claude-code-dark", uiStyle: { preset: "claude-code" } });
+  assert.ok(ccCss.includes("flex-direction: column !important;"), "Claude Code input-row must stack attachments vertically");
+  assert.ok(
+    ccCss.includes(':not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *)'),
+    "Claude Code toolbar must neutralize stray bg-white icon buttons with high specificity"
+  );
+
+  // 2) Live-edit chat bubble copies exact computed color/border/radius from native user-message-bubble
+  const { doc, win } = createMockDom();
+  const chatWrap = doc.createElement("div");
+  const userBubble = doc.createElement("div");
+  userBubble.setAttribute("data-testid", "user-message-bubble");
+  userBubble.textContent = "Привет, сделай релиз";
+  chatWrap.appendChild(userBubble);
+  doc.body.appendChild(chatWrap);
+  const origGcs = win.getComputedStyle;
+  win.getComputedStyle = (el) => {
+    const base = origGcs ? origGcs(el) : {};
+    if (el === userBubble) {
+      return Object.assign({}, base, {
+        backgroundColor: "rgb(47, 46, 43)",
+        color: "rgb(250, 249, 245)",
+        borderTopWidth: "1px",
+        borderTopStyle: "solid",
+        borderTopColor: "rgba(250, 249, 245, 0.1)",
+        borderLeftWidth: "1px",
+        borderLeftStyle: "solid",
+        borderLeftColor: "rgba(250, 249, 245, 0.1)",
+        borderRadius: "14px",
+        boxShadow: "none",
+      });
+    }
+    return base;
+  };
+  v5Ui.rv5SyncLiveChatBubbles(doc, {
+    liveEdits: [{ id: "le-1", text: "Дополнение в тон", status: "pending", anchorUserText: "Привет, сделай релиз" }],
+    liveEditInline: { enabled: true, showInChat: true, chatBubbleStyle: "native" },
+    isRu: true,
+    isLight: false,
+    accentColor: "#d97757",
+  });
+  const slot = doc.querySelector('[data-rudex-live-bubbles="1"]');
+  assert.ok(slot, "Live-edit bubble slot must mount after user bubble");
+  assert.equal(slot.style.getPropertyValue("--rx-cb-bg"), "rgb(47, 46, 43)", "Live-edit bubble must inherit exact backgroundColor of native user bubble");
+  assert.equal(slot.style.getPropertyValue("--rx-cb-radius"), "14px", "Live-edit bubble must inherit exact borderRadius of native user bubble");
+
+  // 3) Busy usage popover: stable DOM across ticks (✕ click works), tooltip guard active, no Limits Widget button
+  const { doc: pDoc, win: pWin } = createMockDom();
+  const docPointerDownFns = [];
+  const origDocAddEvt = pDoc.addEventListener.bind(pDoc);
+  pDoc.addEventListener = (type, fn, cap) => {
+    if (type === "pointerdown") docPointerDownFns.push(fn);
+    origDocAddEvt(type, fn, cap);
+  };
+  const trig = pDoc.createElement("button");
+  trig.setAttribute("data-testid", "model-selector-trigger");
+  trig.setAttribute("disabled", "");
+  trig.disabled = true;
+  trig.textContent = "Gemini 4 Neon";
+  trig.getBoundingClientRect = () => ({ left: 820, top: 760, right: 1020, bottom: 788, width: 200, height: 28 });
+  pDoc.body.appendChild(trig);
+
+  const panel = createStudioPanel({
+    document: pDoc,
+    window: pWin,
+    ipcRenderer: { invoke: async () => ({ ok: true, families: { gemini: { fiveHourRem: 55, weeklyRem: 40 }, claudeGpt: { fiveHourRem: 100, weeklyRem: 100 } } }) },
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+  });
+  try {
+    panel.init();
+    const host = pDoc.getElementById("rudex-studio-host");
+    const root = host.shadowRoot ? host.shadowRoot.querySelector(".studio-root") : host.querySelector(".studio-root");
+    const pdEvt = { type: "pointerdown", button: 0, target: trig, clientX: 860, clientY: 774, composedPath: () => [trig, pDoc.body], preventDefault() {}, stopPropagation() {}, stopImmediatePropagation() {} };
+    for (const fn of docPointerDownFns) fn(pdEvt);
+    assert.equal(pDoc.documentElement.getAttribute("data-rudex-usage-pop-open"), "1", "Opening usage popover must activate native tooltip guard");
+    const usageMount = root.querySelector(".rx-usage-pop-mount");
+    assert.ok(usageMount && usageMount.innerHTML.includes('data-action="close-model-usage-pop"'), "Usage popover must render ✕ close button");
+    assert.equal(usageMount.innerHTML.includes("open-limits-from-usage-pop"), false, "Usage popover must NOT render redundant Limits Widget button");
+
+    // Repeated pollStream ticks must NOT overwrite unchanged innerHTML (which previously broke clicking ✕!)
+    const sentinel = pDoc.createElement("span");
+    sentinel.setAttribute("data-sentinel", "1");
+    usageMount.appendChild(sentinel);
+    panel.pollStream();
+    assert.ok(usageMount.contains(sentinel), "Repeated pollStream ticks must NOT re-write unchanged usage popover innerHTML");
+
+    // Simulate clicking ✕ close button on root click handler
+    const closeTarget = {
+      closest: (sel) => (sel === "[data-action]" || sel === "button" ? { getAttribute: (a) => (a === "data-action" ? "close-model-usage-pop" : null) } : null),
+    };
+    const rootClickFns = Array.from((root.listeners && root.listeners.get("click")) || []);
+    assert.ok(rootClickFns.length > 0, "rootEl must have click handler attached");
+    for (const fn of rootClickFns) fn({ type: "click", target: closeTarget });
+    assert.equal(pDoc.documentElement.getAttribute("data-rudex-usage-pop-open"), null, "Closing usage popover via ✕ must clear tooltip guard");
+    assert.equal(usageMount.style.display, "none", "Clicking ✕ must close usage popover");
+
+    // 4) Auth / Sign-in screen hides mini-widget & limits widget automatically
+    pDoc.body.removeChild(trig);
+    const h1 = pDoc.createElement("h1");
+    h1.textContent = "Добро пожаловать в Antigravity!";
+    const loginBtn = pDoc.createElement("button");
+    loginBtn.textContent = "Продолжить через Google";
+    pDoc.body.appendChild(h1);
+    pDoc.body.appendChild(loginBtn);
+    await new Promise((r) => setTimeout(r, 700));
+    panel.pollStream();
+    assert.ok(root.classList.contains("is-auth-screen"), "Sign-in / account-switch screen must add is-auth-screen class to hide widgets");
+
+    // Restoring workspace element brings widgets back immediately
+    pDoc.body.appendChild(trig);
+    await new Promise((r) => setTimeout(r, 700));
+    panel.pollStream();
+    assert.ok(!root.classList.contains("is-auth-screen"), "Returning to workspace must remove is-auth-screen class");
+  } finally {
+    panel.destroy();
+  }
+});
+
+test("Light theme Pass D2 preserves data-rudex-light-text and data-rudex-light-fix across repeated scanWallpaperShells passes", () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const { doc, win } = createMockDom();
+  win.innerWidth = 1600;
+  win.innerHeight = 900;
+  const aside = doc.createElement("aside");
+  aside.setAttribute("data-testid", "sidebar");
+  aside.getBoundingClientRect = () => ({ left: 0, top: 30, right: 240, bottom: 900, width: 240, height: 870 });
+  const navBtn = doc.createElement("div");
+  navBtn.textContent = "+ Новый чат";
+  navBtn.style.color = "rgb(236, 236, 239)";
+  navBtn.getBoundingClientRect = () => ({ left: 10, top: 44, right: 220, bottom: 72, width: 210, height: 28 });
+  aside.appendChild(navBtn);
+  doc.body.appendChild(aside);
+
+  // Simulate browser computed style reflecting [data-rudex-light-text="1"] turning text dark on the 2nd scan
+  const origGcs = win.getComputedStyle;
+  win.getComputedStyle = (el) => {
+    const base = origGcs ? origGcs(el) : {};
+    if (el === navBtn) {
+      return Object.assign({}, base, {
+        backgroundColor: "rgba(0, 0, 0, 0)",
+        color: el.getAttribute("data-rudex-light-text") === "1" ? "rgb(28, 28, 32)" : "rgb(236, 236, 239)",
+      });
+    }
+    return base;
+  };
+
+  const engine = te.createThemeEngine({ document: doc, window: win });
+  try {
+    engine.apply({ presetId: "light-paper" });
+    assert.equal(navBtn.getAttribute("data-rudex-light-text"), "1", "1st scan must mark hardcoded light sidebar text");
+
+    // 2nd scan (triggered e.g. when opening Appearance drawer or DOM mutation) MUST preserve the attribute!
+    engine.scanWallpaperShells();
+    assert.equal(navBtn.getAttribute("data-rudex-light-text"), "1", "2nd scan must NOT strip data-rudex-light-text after text turns dark");
+
+    // Switching back to a dark theme MUST cleanly strip data-rudex-light-text
+    engine.apply({ presetId: "claude-code-dark" });
+    assert.equal(navBtn.getAttribute("data-rudex-light-text"), null, "Switching to dark theme must remove data-rudex-light-text");
+  } finally {
+    engine.destroy();
   }
 });

@@ -46,18 +46,18 @@ const THEME_PRESETS = [
     id: "claude-code-light",
     nameRu: "Claude Code · Светлая",
     nameEn: "Claude Code Light",
-    descRu: "Пергаментный крем #FAF9F5, глубокие чернила и терракота #C15F3C",
-    descEn: "Warm ivory parchment #FAF9F5, deep charcoal ink, and #C15F3C terracotta",
+    descRu: "Тёплый пергамент #F5F3EC без бликов, глубокие чернила и терракота #C15F3C",
+    descEn: "Warm eye-friendly ivory parchment #F5F3EC, charcoal ink, and #C15F3C terracotta",
     mode: "light",
     badge: "Claude Code",
     vars: {
       accentColor: "#c15f3c",
-      canvasBg: "#faf9f5",
-      cardBg: "#ffffff",
-      sidebarBg: "#f0eee6",
-      fgColor: "#141413",
-      mutedColor: "#6b6961",
-      borderColor: "#e3e0d5",
+      canvasBg: "#f5f3ec",
+      cardBg: "#fbfaf6",
+      sidebarBg: "#ebe8de",
+      fgColor: "#1b1a18",
+      mutedColor: "#636058",
+      borderColor: "#d9d5c9",
       glassOpacity: 94,
       glassBlur: 8,
       radius: 10,
@@ -98,7 +98,7 @@ const THEME_PRESETS = [
       sidebarBg: "#0d111d",
       fgColor: "#f5f7ff",
       mutedColor: "#9aa6c0",
-      borderColor: "rgba(255, 255, 255, 0.18)",
+      borderColor: "#2a3552",
       glassOpacity: 46,
       glassBlur: 24,
       radius: 18,
@@ -168,18 +168,18 @@ const THEME_PRESETS = [
     id: "light-paper",
     nameRu: "Светлая бумага",
     nameEn: "Light Paper",
-    descRu: "Светлые бумажные поверхности и чёткая типографика",
-    descEn: "Crisp light paper surfaces with ink typography",
+    descRu: "Мягкие бумажные поверхности без рези в глазах и чёткая типографика",
+    descEn: "Soft glare-free paper surfaces with crisp ink typography",
     mode: "light",
     vars: {
       accentColor: "#2563eb",
-      canvasBg: "#f8f7f4",
-      cardBg: "#ffffff",
-      sidebarBg: "#f1efe9",
-      fgColor: "#141418",
-      mutedColor: "#5c5c66",
-      borderColor: "#e2dfd7",
-      glassOpacity: 86,
+      canvasBg: "#f2f1ec",
+      cardBg: "#faf9f6",
+      sidebarBg: "#e8e6df",
+      fgColor: "#1c1c20",
+      mutedColor: "#585862",
+      borderColor: "#d6d3c9",
+      glassOpacity: 88,
       glassBlur: 10,
       radius: 12,
     },
@@ -268,18 +268,18 @@ const THEME_PRESETS = [
     id: "nordic-frost",
     nameRu: "Скандинавский лёд",
     nameEn: "Nordic Frost",
-    descRu: "Прохладные ледяные поверхности и небесно-синий акцент",
-    descEn: "Crisp arctic light surfaces with sky blue accent",
+    descRu: "Мягкие арктические поверхности без бликов и небесно-синий акцент",
+    descEn: "Soft glare-free arctic light surfaces with sky blue accent",
     mode: "light",
     vars: {
       accentColor: "#0284c7",
-      canvasBg: "#f1f5f9",
-      cardBg: "#ffffff",
-      sidebarBg: "#e6edf5",
-      fgColor: "#0f172a",
-      mutedColor: "#475569",
-      borderColor: "#cbd5e1",
-      glassOpacity: 84,
+      canvasBg: "#edf2f7",
+      cardBg: "#f7fafc",
+      sidebarBg: "#e2e8f0",
+      fgColor: "#142033",
+      mutedColor: "#4b5c73",
+      borderColor: "#c4d1df",
+      glassOpacity: 86,
       glassBlur: 12,
       radius: 12,
     },
@@ -345,9 +345,81 @@ const CORNER_PRESETS = [
   },
 ];
 
+const UI_STYLE_PRESETS = [
+  {
+    id: "antigravity",
+    nameRu: "Antigravity",
+    nameEn: "Antigravity",
+    badge: "Базовый",
+    badgeEn: "Default",
+    descRu: "Оригинальный стиль поля ввода, чата и меню моделей Antigravity",
+    descEn: "Original Antigravity composer, chat layout, and model selector",
+  },
+  {
+    id: "claude-code",
+    nameRu: "Claude Code",
+    nameEn: "Claude Code",
+    badge: "Anthropic",
+    badgeEn: "Anthropic",
+    descRu: "Редакторская строка Reply, спокойный текстовый выбор модели без рамок и компактные тёплые баблы",
+    descEn: "Editorial Reply bar, quiet borderless model selector, and compact warm right bubbles",
+  },
+  {
+    id: "codex",
+    nameRu: "OpenAI Codex",
+    nameEn: "OpenAI Codex",
+    badge: "Codex Desktop",
+    badgeEn: "Codex Desktop",
+    descRu: "Объёмная командная капсула (20px), пилюльная кнопка модели и структурные карточки шагов",
+    descEn: "Elevated 20px command capsule, pill model picker, and structured turn/tool cards",
+  },
+  {
+    id: "opencode",
+    nameRu: "OpenCode",
+    nameEn: "OpenCode",
+    badge: "SST TUI",
+    badgeEn: "SST TUI",
+    descRu: "Чёткий терминальный фрейм (6px), левая акцент-полоса сообщений и моноширинный бейдж моделей",
+    descEn: "Crisp 6px terminal frame, left-accent session timeline bubbles, and mono model badge",
+  },
+];
+
+const DEFAULT_UI_STYLE = {
+  preset: "antigravity",
+  composer: "antigravity",
+  chat: "antigravity",
+  modelSelector: "antigravity",
+  composerRadius: 0,
+  composerMaxWidth: 0,
+  composerPadY: 0,
+  composerShadow: "preset",
+  userBubbleAlign: "preset",
+  userBubbleMaxWidth: 0,
+  chatGap: 0,
+  agentAccentBar: "preset",
+  modelBtnStyle: "preset",
+  modelMenuDensity: "preset",
+};
+
 const FONT_PRESETS = {
   ui: [
     { id: "system", label: "Системный (Default)", labelEn: "System Default", stack: "", googleQuery: "" },
+    {
+      id: "chatgpt-sans",
+      label: "ChatGPT (OpenAI Sans / Inter)",
+      labelEn: "ChatGPT (OpenAI Sans / Inter)",
+      badge: "ChatGPT",
+      stack: '"OpenAI Sans", "Söhne", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      googleQuery: "family=Inter:wght@400;500;600;700",
+    },
+    {
+      id: "opencode-mono",
+      label: "OpenCode (JetBrains Mono)",
+      labelEn: "OpenCode (JetBrains Mono)",
+      badge: "OpenCode",
+      stack: '"JetBrains Mono", "Geist Mono", "Fira Code", "Cascadia Code", Consolas, monospace',
+      googleQuery: "family=JetBrains+Mono:wght@400;500;600;700",
+    },
     {
       id: "claude-sans",
       label: "Claude Sans (Anthropic)",
@@ -358,8 +430,8 @@ const FONT_PRESETS = {
     },
     {
       id: "claude-serif",
-      label: "Claude Editorial (Serif)",
-      labelEn: "Claude Editorial (Serif)",
+      label: "Claude Editorial (Source Serif 4)",
+      labelEn: "Claude Editorial (Source Serif 4)",
       badge: "Claude",
       stack: '"Anthropic Serif", "Tiempos Text", "Source Serif 4", "Lora", Georgia, Cambria, serif',
       googleQuery: "family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600",
@@ -382,19 +454,59 @@ const FONT_PRESETS = {
     },
     {
       id: "geist",
-      label: "Geist Sans",
-      labelEn: "Geist Sans",
+      label: "Cursor / Linear (Geist Sans)",
+      labelEn: "Cursor / Linear (Geist Sans)",
+      badge: "Cursor",
       stack: '"Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       googleQuery: "family=Geist:wght@400;500;600;700&family=Inter:wght@400;500;600;700",
     },
-    { id: "segoe", label: "Segoe UI", labelEn: "Segoe UI", stack: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', googleQuery: "" },
+    {
+      id: "golos",
+      label: "Golos Text (Кириллица Pro)",
+      labelEn: "Golos Text (Cyrillic Pro)",
+      badge: "RU",
+      stack: '"Golos Text", "Inter", "Segoe UI", system-ui, sans-serif',
+      googleQuery: "family=Golos+Text:wght@400;500;600;700",
+    },
+    {
+      id: "onest",
+      label: "Onest (Кириллица · Современный)",
+      labelEn: "Onest (Modern Cyrillic)",
+      badge: "RU",
+      stack: '"Onest", "Inter", "Segoe UI", system-ui, sans-serif',
+      googleQuery: "family=Onest:wght@400;500;600;700",
+    },
+    {
+      id: "manrope",
+      label: "Manrope (Мягкий геом.)",
+      labelEn: "Manrope (Geometric)",
+      stack: '"Manrope", "Inter", "Segoe UI", system-ui, sans-serif',
+      googleQuery: "family=Manrope:wght@400;500;600;700",
+    },
+    {
+      id: "plus-jakarta",
+      label: "Plus Jakarta Sans",
+      labelEn: "Plus Jakarta Sans",
+      stack: '"Plus Jakarta Sans", "Inter", "Segoe UI", sans-serif',
+      googleQuery: "family=Plus+Jakarta+Sans:wght@400;500;600;700",
+    },
+    { id: "segoe", label: "Segoe UI (Windows 11)", labelEn: "Segoe UI (Windows 11)", stack: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif', googleQuery: "" },
     { id: "inter", label: "Inter", labelEn: "Inter", stack: '"Inter", "Segoe UI", system-ui, sans-serif', googleQuery: "family=Inter:wght@400;500;600;700" },
     { id: "rubik", label: "Rubik", labelEn: "Rubik", stack: '"Rubik", "Segoe UI", system-ui, sans-serif', googleQuery: "family=Rubik:wght@400;500;600;700" },
+    { id: "nunito", label: "Nunito (Мягкий)", labelEn: "Nunito (Rounded)", stack: '"Nunito", "Segoe UI", system-ui, sans-serif', googleQuery: "family=Nunito:wght@400;500;600;700" },
     { id: "ibm-plex", label: "IBM Plex Sans", labelEn: "IBM Plex Sans", stack: '"IBM Plex Sans", "Segoe UI", sans-serif', googleQuery: "family=IBM+Plex+Sans:wght@400;500;600;700" },
     { id: "georgia", label: "Georgia (Serif)", labelEn: "Georgia (Serif)", stack: 'Georgia, "Times New Roman", serif', googleQuery: "" },
   ],
   mono: [
     { id: "system", label: "Стандартный (Default)", labelEn: "System Mono", stack: "", googleQuery: "" },
+    {
+      id: "opencode-mono",
+      label: "OpenCode Mono (JetBrains)",
+      labelEn: "OpenCode Mono (JetBrains)",
+      badge: "OpenCode",
+      stack: '"JetBrains Mono", "Geist Mono", "Fira Code", Consolas, monospace',
+      googleQuery: "family=JetBrains+Mono:wght@400;500;600;700",
+    },
     {
       id: "claude-mono",
       label: "Claude Code Mono (JetBrains)",
@@ -405,10 +517,19 @@ const FONT_PRESETS = {
     },
     {
       id: "geist-mono",
-      label: "Geist Mono",
-      labelEn: "Geist Mono",
+      label: "Vercel / Cursor (Geist Mono)",
+      labelEn: "Vercel / Cursor (Geist Mono)",
+      badge: "Cursor",
       stack: '"Geist Mono", "JetBrains Mono", Consolas, monospace',
       googleQuery: "family=Geist+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600",
+    },
+    {
+      id: "fira",
+      label: "ChatGPT / Fira Code (Лигатуры)",
+      labelEn: "ChatGPT / Fira Code (Ligatures)",
+      badge: "ChatGPT",
+      stack: '"Fira Code", "JetBrains Mono", Consolas, monospace',
+      googleQuery: "family=Fira+Code:wght@400;500;600;700",
     },
     {
       id: "ibm-plex-mono",
@@ -417,10 +538,30 @@ const FONT_PRESETS = {
       stack: '"IBM Plex Mono", "JetBrains Mono", Consolas, monospace',
       googleQuery: "family=IBM+Plex+Mono:wght@400;500;600",
     },
-    { id: "cascadia", label: "Cascadia Code", labelEn: "Cascadia Code", stack: '"Cascadia Code", Consolas, monospace', googleQuery: "" },
+    {
+      id: "source-code-pro",
+      label: "Source Code Pro (Adobe)",
+      labelEn: "Source Code Pro (Adobe)",
+      stack: '"Source Code Pro", Consolas, monospace',
+      googleQuery: "family=Source+Code+Pro:wght@400;500;600;700",
+    },
+    {
+      id: "space-mono",
+      label: "Space Mono (Терминал)",
+      labelEn: "Space Mono (Terminal)",
+      stack: '"Space Mono", Consolas, monospace',
+      googleQuery: "family=Space+Mono:wght@400;700",
+    },
+    {
+      id: "ubuntu-mono",
+      label: "Ubuntu Mono (Кириллица)",
+      labelEn: "Ubuntu Mono (Cyrillic)",
+      stack: '"Ubuntu Mono", Consolas, monospace',
+      googleQuery: "family=Ubuntu+Mono:wght@400;700",
+    },
+    { id: "cascadia", label: "VS Code (Cascadia Code)", labelEn: "VS Code (Cascadia Code)", stack: '"Cascadia Code", Consolas, monospace', googleQuery: "" },
     { id: "jetbrains", label: "JetBrains Mono", labelEn: "JetBrains Mono", stack: '"JetBrains Mono", Consolas, monospace', googleQuery: "family=JetBrains+Mono:wght@400;500;600;700" },
     { id: "consolas", label: "Consolas", labelEn: "Consolas", stack: 'Consolas, "Courier New", monospace', googleQuery: "" },
-    { id: "fira", label: "Fira Code", labelEn: "Fira Code", stack: '"Fira Code", Consolas, monospace', googleQuery: "family=Fira+Code:wght@400;500;600;700" },
   ],
 };
 
@@ -510,6 +651,7 @@ const DEFAULT_APPEARANCE = {
     chatMaxWidth: 0,
     density: "comfortable",
   },
+  uiStyle: Object.assign({}, DEFAULT_UI_STYLE),
 };
 
 const TE_HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -557,6 +699,7 @@ function teNormalizeElementOverrides(raw) {
     if (TE_HEX_RE.test(s)) return s.toLowerCase();
     return "";
   };
+  const hasNum = (v) => v !== "" && v !== null && v !== undefined && Number.isFinite(Number(v));
   for (let i = 0; i < raw.length && out.length < 80; i += 1) {
     const it = raw[i];
     if (!it || typeof it !== "object") continue;
@@ -573,18 +716,19 @@ function teNormalizeElementOverrides(raw) {
       styles: {
         fontFamily: typeof st.fontFamily === "string" ? st.fontFamily.trim().slice(0, 64) : "",
         fontFamilyCustom: teSanitizeCustomFontName(st.fontFamilyCustom),
-        fontSize: Number.isFinite(Number(st.fontSize)) && Number(st.fontSize) > 0 ? Math.round(teClamp(st.fontSize, 9, 42, 0)) : 0,
-        fontWeight: Number.isFinite(Number(st.fontWeight)) && Number(st.fontWeight) > 0 ? Math.round(teClamp(st.fontWeight, 300, 900, 0)) : 0,
-        lineHeight: Number.isFinite(Number(st.lineHeight)) && Number(st.lineHeight) > 0 ? Math.round(teClamp(st.lineHeight, 1.0, 2.4, 0) * 100) / 100 : 0,
+        fontSize: hasNum(st.fontSize) && Number(st.fontSize) > 0 ? Math.round(teClamp(st.fontSize, 8, 64, 0)) : 0,
+        fontWeight: hasNum(st.fontWeight) && Number(st.fontWeight) > 0 ? Math.round(teClamp(st.fontWeight, 300, 900, 0)) : 0,
+        lineHeight: hasNum(st.lineHeight) && Number(st.lineHeight) > 0 ? Math.round(teClamp(st.lineHeight, 1.0, 2.4, 0) * 100) / 100 : 0,
         color: hexOrRgba(st.color),
         bgColor: hexOrRgba(st.bgColor),
-        bgOpacity: Number.isFinite(Number(st.bgOpacity)) ? Math.round(teClamp(st.bgOpacity, 0, 100, 100)) : 100,
+        bgOpacity: hasNum(st.bgOpacity) ? Math.round(teClamp(st.bgOpacity, 0, 100, 100)) : 100,
+        opacity: hasNum(st.opacity) && Number(st.opacity) >= 0 ? Math.round(teClamp(st.opacity, 5, 100, -1)) : -1,
         borderColor: hexOrRgba(st.borderColor),
-        borderWidth: Number.isFinite(Number(st.borderWidth)) && Number(st.borderWidth) >= 0 ? Math.round(teClamp(st.borderWidth, 0, 6, -1)) : -1,
-        borderRadius: Number.isFinite(Number(st.borderRadius)) && Number(st.borderRadius) >= 0 ? Math.round(teClamp(st.borderRadius, 0, 40, -1)) : -1,
-        padding: Number.isFinite(Number(st.padding)) && Number(st.padding) >= 0 ? Math.round(teClamp(st.padding, 0, 48, -1)) : -1,
-        width: Number.isFinite(Number(st.width)) && Number(st.width) > 0 ? Math.round(teClamp(st.width, 40, 1600, 0)) : 0,
-        minHeight: Number.isFinite(Number(st.minHeight)) && Number(st.minHeight) > 0 ? Math.round(teClamp(st.minHeight, 18, 600, 0)) : 0,
+        borderWidth: hasNum(st.borderWidth) && Number(st.borderWidth) >= 0 ? Math.round(teClamp(st.borderWidth, 0, 8, -1)) : -1,
+        borderRadius: hasNum(st.borderRadius) && Number(st.borderRadius) >= 0 ? Math.round(teClamp(st.borderRadius, 0, 64, -1)) : -1,
+        padding: hasNum(st.padding) && Number(st.padding) >= 0 ? Math.round(teClamp(st.padding, 0, 64, -1)) : -1,
+        width: hasNum(st.width) && Number(st.width) > 0 ? Math.round(teClamp(st.width, 24, 1800, 0)) : 0,
+        minHeight: hasNum(st.minHeight) && Number(st.minHeight) > 0 ? Math.round(teClamp(st.minHeight, 16, 800, 0)) : 0,
         hidden: Boolean(st.hidden),
       },
     });
@@ -612,6 +756,9 @@ function teBuildElementOverridesCss(overrides, paused) {
       if (st.bgColor) {
         const bgVal = st.bgOpacity < 100 ? teHexToRgba(st.bgColor, st.bgOpacity) : st.bgColor;
         decls.push(`background-color: ${bgVal} !important;`);
+      }
+      if (st.opacity >= 5 && st.opacity <= 100) {
+        decls.push(`opacity: ${(st.opacity / 100).toFixed(2)} !important;`);
       }
       if (st.borderColor && st.borderWidth >= 0) {
         decls.push(st.borderWidth === 0 ? "border: none !important;" : `border: ${st.borderWidth}px solid ${st.borderColor} !important;`);
@@ -927,6 +1074,774 @@ function detectHostIsLight(doc, win) {
   return false;
 }
 
+function teNormalizeUiStyle(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const validPart = (v, fb) =>
+    v === "antigravity" || v === "claude-code" || v === "codex" || v === "opencode" ? v : fb;
+  const basePreset =
+    src.preset === "antigravity" || src.preset === "claude-code" || src.preset === "codex" || src.preset === "opencode"
+      ? src.preset
+      : "antigravity";
+  const composer = validPart(src.composer, basePreset);
+  const chat = validPart(src.chat, basePreset);
+  const modelSelector = validPart(src.modelSelector, basePreset);
+  const preset = composer === chat && chat === modelSelector ? composer : "custom";
+
+  const normZeroOrRange = (val, min, max) => {
+    const n = Number(val);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.round(teClamp(n, min, max, 0));
+  };
+  const composerShadow =
+    src.composerShadow === "none" || src.composerShadow === "soft" || src.composerShadow === "elevated"
+      ? src.composerShadow
+      : "preset";
+  const userBubbleAlign =
+    src.userBubbleAlign === "right" || src.userBubbleAlign === "left" || src.userBubbleAlign === "full"
+      ? src.userBubbleAlign
+      : "preset";
+  const agentAccentBar =
+    src.agentAccentBar === "on" || src.agentAccentBar === "off"
+      ? src.agentAccentBar
+      : "preset";
+  const modelBtnStyle =
+    src.modelBtnStyle === "ghost" ||
+    src.modelBtnStyle === "pill" ||
+    src.modelBtnStyle === "bordered" ||
+    src.modelBtnStyle === "mono"
+      ? src.modelBtnStyle
+      : "preset";
+  const modelMenuDensity =
+    src.modelMenuDensity === "compact" || src.modelMenuDensity === "comfortable"
+      ? src.modelMenuDensity
+      : "preset";
+
+  return {
+    preset,
+    composer,
+    chat,
+    modelSelector,
+    composerRadius: normZeroOrRange(src.composerRadius, 4, 32),
+    composerMaxWidth: normZeroOrRange(src.composerMaxWidth, 560, 1120),
+    composerPadY: normZeroOrRange(src.composerPadY, 6, 24),
+    composerShadow,
+    userBubbleAlign,
+    userBubbleMaxWidth: normZeroOrRange(src.userBubbleMaxWidth, 45, 100),
+    chatGap: normZeroOrRange(src.chatGap, 4, 28),
+    agentAccentBar,
+    modelBtnStyle,
+    modelMenuDensity,
+  };
+}
+
+function teHasCustomUiStyle(cfg) {
+  const us = cfg && cfg.uiStyle ? cfg.uiStyle : DEFAULT_UI_STYLE;
+  return (
+    us.composer !== "antigravity" ||
+    us.chat !== "antigravity" ||
+    us.modelSelector !== "antigravity" ||
+    us.composerRadius > 0 ||
+    us.composerMaxWidth > 0 ||
+    us.composerPadY > 0 ||
+    us.composerShadow !== "preset" ||
+    us.userBubbleAlign !== "preset" ||
+    us.userBubbleMaxWidth > 0 ||
+    us.chatGap > 0 ||
+    us.agentAccentBar !== "preset" ||
+    us.modelBtnStyle !== "preset" ||
+    us.modelMenuDensity !== "preset"
+  );
+}
+
+function teBuildUiStyleCss(cfg, vars, isLight, hasThemeOverride, hasWallpaper) {
+  const us = teNormalizeUiStyle(cfg && cfg.uiStyle);
+  if (!teHasCustomUiStyle({ uiStyle: us })) return "";
+
+  const rules = [];
+  const fgCol = hasThemeOverride ? vars.fgColor : (isLight ? "#18181b" : "#f4f4f5");
+  const mutedCol = hasThemeOverride ? vars.mutedColor : (isLight ? "#52525b" : "#a1a1aa");
+  const hairline = isLight ? "rgba(24, 24, 27, 0.13)" : "rgba(255, 255, 255, 0.12)";
+  const strongBrd = isLight ? "rgba(24, 24, 27, 0.22)" : "rgba(255, 255, 255, 0.18)";
+  const hoverBg = isLight ? "rgba(24, 24, 27, 0.06)" : "rgba(255, 255, 255, 0.07)";
+  const surfaceSoft = hasThemeOverride
+    ? teMixHex(vars.cardBg, isLight ? vars.fgColor : "#ffffff", isLight ? 0.045 : 0.06)
+    : (isLight ? "#f3f2ee" : "#222226");
+
+  const resolveStyleAccent = (styleId) => {
+    if (hasThemeOverride || cfg.customAccent) return vars.accentColor;
+    if (styleId === "claude-code") return isLight ? "#c15f3c" : "#d97757";
+    if (styleId === "codex") return isLight ? "#18181b" : "#f4f4f5";
+    if (styleId === "opencode") return isLight ? "#0f766e" : "#5eead4";
+    return vars.accentColor;
+  };
+
+  const composerAccent = resolveStyleAccent(us.composer);
+  const chatAccent = resolveStyleAccent(us.chat);
+  const modelAccent = resolveStyleAccent(us.modelSelector);
+  const compAccentFg = teGetYiq(composerAccent) > 155 ? "#111216" : "#ffffff";
+
+  // === 1. COMPOSER (Message Input — True Structural Platform Layouts) ===
+  const compSel = `[data-rudex-theme-composer="1"],
+form:has(textarea):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+[data-testid="composer"]:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
+.composer-container:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"]))`;
+
+  const compDecls = [];
+  const compFocusDecls = [];
+  const compBlocks = [];
+
+  const resolveShadowCss = (mode, defaultMode) => {
+    const eff = mode === "preset" ? defaultMode : mode;
+    if (eff === "none") return "none";
+    if (eff === "soft") {
+      return isLight
+        ? "0 2px 12px rgba(24, 24, 27, 0.07)"
+        : "0 2px 16px rgba(0, 0, 0, 0.24)";
+    }
+    if (eff === "elevated") {
+      return isLight
+        ? "0 10px 30px -6px rgba(15, 23, 42, 0.13), 0 1px 3px rgba(15, 23, 42, 0.05)"
+        : "0 14px 36px -6px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(255, 255, 255, 0.04)";
+    }
+    return "";
+  };
+
+  if (us.composer === "claude-code") {
+    // Authentic Claude Code 2026 Split Layout:
+    // Top: compact single-line bordered Reply box with inline return arrow (↵) inside right edge
+    // Bottom (outside box, on canvas): + & mic on left, quiet borderless Model + Mode text on right
+    const cRad = us.composerRadius > 0 ? us.composerRadius : 14;
+    const padY = us.composerPadY >= 6 ? us.composerPadY : 11;
+    const cBg = hasWallpaper
+      ? teHexToRgba(hasThemeOverride ? vars.cardBg : (isLight ? "#faf9f5" : "#2b2a27"), Math.min(94, Math.max(76, cfg.glassOpacity || 86)))
+      : (hasThemeOverride ? vars.cardBg : (isLight ? "#faf9f5" : "#2b2a27"));
+    const cBrd = hasThemeOverride ? vars.borderColor : (isLight ? "rgba(31, 30, 29, 0.15)" : "rgba(250, 249, 245, 0.14)");
+    const effShadow = resolveShadowCss(us.composerShadow, "none");
+    const ccSendIconMask = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 10 4 15 9 20'/%3E%3Cpath d='M20 4v7a4 4 0 0 1-4 4H4'/%3E%3C/svg%3E")`;
+
+    compDecls.push(
+      `position: relative !important;`,
+      `background: transparent !important;`,
+      `background-color: transparent !important;`,
+      `background-image: none !important;`,
+      `border: none !important;`,
+      `box-shadow: none !important;`,
+      `padding: 0 !important;`,
+      `border-radius: 0 !important;`,
+      `backdrop-filter: none !important;`,
+      `-webkit-backdrop-filter: none !important;`,
+      `overflow: visible !important;`
+    );
+    if (us.composerMaxWidth >= 560) {
+      compDecls.push(`max-width: min(100%, ${us.composerMaxWidth}px) !important;`, `width: 100%;`, `margin-inline: auto !important;`);
+    }
+
+    compBlocks.push(`
+[data-rudex-theme-composer="1"]:not(#rudex-studio-host):not(#rudex-studio-host *),
+[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"] {
+  margin-bottom: 7px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *),
+[data-rudex-theme-composer="1"] textarea[data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+  position: relative !important;
+  width: 100% !important;
+  min-height: 46px !important;
+  box-sizing: border-box !important;
+  background-color: ${cBg} !important;
+  border: 1px solid ${cBrd} !important;
+  border-radius: ${cRad}px !important;
+  padding: ${padY}px 46px ${padY}px 16px !important;
+  box-shadow: ${effShadow || "none"} !important;
+  ${hasWallpaper && effectiveBlurPx > 0 ? `backdrop-filter: blur(${effectiveBlurPx}px) saturate(160%); -webkit-backdrop-filter: blur(${effectiveBlurPx}px) saturate(160%);` : ""}
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(textarea) {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: stretch !important;
+  gap: 6px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where(textarea, [contenteditable="true"], [role="textbox"]) {
+  width: 100% !important;
+  min-height: 22px !important;
+}
+[data-rudex-theme-composer="1"]:focus-within [data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+  border-color: color-mix(in srgb, ${fgCol} 32%, ${cBrd}) !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  padding: 7px 6px 0 !important;
+  margin: 0 !important;
+  min-height: 30px !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-group="1"] {
+  display: contents !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: ${mutedCol} !important;
+  border-radius: 7px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
+  color: ${mutedCol} !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):hover {
+  background-color: ${hoverBg} !important;
+  color: ${fgCol} !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):hover :where(svg, span) {
+  color: ${fgCol} !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-plus="1"] {
+  order: -10 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-mic="1"] {
+  order: -9 !important;
+}
+[data-rudex-theme-composer="1"] [data-testid="model-selector-trigger"] {
+  order: 20 !important;
+  margin-left: auto !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-mode="1"] {
+  order: 21 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: ${fgCol} !important;
+  font-weight: 600 !important;
+  font-size: 12.5px !important;
+  padding: 3px 7px !important;
+  border-radius: 7px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-mode="1"]:hover {
+  background-color: ${hoverBg} !important;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+  position: absolute !important;
+  right: 10px !important;
+  top: var(--rudex-cc-send-top, 9px) !important;
+  z-index: 5 !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: ${mutedCol} !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):hover {
+  background-color: ${hoverBg} !important;
+  color: ${fgCol} !important;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) > * {
+  display: none !important;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *)::after {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  -webkit-mask: ${ccSendIconMask} center / contain no-repeat;
+  mask: ${ccSendIconMask} center / contain no-repeat;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"][data-testid="input-cancel-button"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+  background-color: color-mix(in srgb, ${composerAccent} 16%, transparent) !important;
+  color: ${composerAccent} !important;
+  border: 1px solid color-mix(in srgb, ${composerAccent} 45%, transparent) !important;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"][data-testid="input-cancel-button"]:not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
+  color: ${composerAccent} !important;
+}`.trim());
+  } else if (us.composer === "codex") {
+    // OpenAI Codex Desktop 2026: elevated 22px command card with separated footer bar & crisp monochrome send circle
+    const cRad = us.composerRadius > 0 ? us.composerRadius : 22;
+    const padY = us.composerPadY >= 6 ? us.composerPadY : 13;
+    const cBg = hasThemeOverride ? vars.cardBg : (isLight ? "#ffffff" : "#18181b");
+    const cBrd = hasThemeOverride ? strongBrd : (isLight ? "rgba(24, 24, 27, 0.17)" : "rgba(255, 255, 255, 0.15)");
+    const footerBg = isLight ? "rgba(15, 23, 42, 0.028)" : "rgba(255, 255, 255, 0.028)";
+    const codexSendBg = isLight ? "#18181b" : "#f4f4f5";
+    const codexSendFg = isLight ? "#ffffff" : "#09090b";
+    const effShadow = resolveShadowCss(us.composerShadow, "elevated");
+
+    compDecls.push(
+      `border-radius: ${cRad}px !important;`,
+      `border: 1.5px solid ${cBrd} !important;`,
+      `padding: 0 !important;`,
+      `overflow: hidden !important;`,
+      `box-shadow: ${effShadow || "none"} !important;`,
+      `transition: border-color 0.15s ease, box-shadow 0.15s ease;`
+    );
+    if (!hasWallpaper) compDecls.push(`background-color: ${cBg} !important;`);
+    if (us.composerMaxWidth >= 560) {
+      compDecls.push(`max-width: min(100%, ${us.composerMaxWidth}px) !important;`, `width: 100%;`, `margin-inline: auto !important;`);
+    }
+    compFocusDecls.push(`border-color: color-mix(in srgb, ${fgCol} 36%, ${cBrd}) !important;`);
+
+    compBlocks.push(`
+[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"] {
+  gap: 0 !important;
+  padding: 0 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"] {
+  padding: 10px 16px 0 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] {
+  padding: ${padY}px 18px ${Math.max(8, padY - 2)}px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where(textarea, [contenteditable="true"], [role="textbox"]) {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] {
+  padding: 8px 14px !important;
+  border-top: 1px solid ${hairline} !important;
+  background-color: ${footerBg} !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-mode="1"] {
+  border-radius: 999px !important;
+  border: 1px solid ${hairline} !important;
+  background-color: ${surfaceSoft} !important;
+  padding: 3px 10px !important;
+  font-size: 12px !important;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *),
+[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-white"], [class~="dark:bg-white"], [class~="bg-primary"]):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  border-radius: 999px !important;
+  background-color: ${codexSendBg} !important;
+  color: ${codexSendFg} !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span),
+[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-white"], [class~="dark:bg-white"], [class~="bg-primary"]):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
+  color: ${codexSendFg} !important;
+}`.trim());
+  } else if (us.composer === "opencode") {
+    // OpenCode SST Desktop / TUI 2026: sharp 6px frame, 3px left accent rail, terminal chevron (❯), mono status bar & square key send
+    const cRad = us.composerRadius > 0 ? us.composerRadius : 6;
+    const padY = us.composerPadY >= 6 ? us.composerPadY : 10;
+    const cBg = hasThemeOverride ? vars.cardBg : (isLight ? "#f4f5f7" : "#141518");
+    const cBrd = hasThemeOverride ? vars.borderColor : (isLight ? "rgba(15, 23, 42, 0.18)" : "rgba(255, 255, 255, 0.14)");
+    const barBg = isLight ? "rgba(15, 23, 42, 0.035)" : "rgba(0, 0, 0, 0.22)";
+    const effShadow = resolveShadowCss(us.composerShadow, "none");
+
+    compDecls.push(
+      `border-radius: ${cRad}px !important;`,
+      `border: 1px solid ${cBrd} !important;`,
+      `border-left: 3px solid ${composerAccent} !important;`,
+      `padding: 0 !important;`,
+      `overflow: hidden !important;`,
+      `box-shadow: ${effShadow || "none"} !important;`,
+      `transition: border-color 0.12s ease;`
+    );
+    if (!hasWallpaper) compDecls.push(`background-color: ${cBg} !important;`);
+    if (us.composerMaxWidth >= 560) {
+      compDecls.push(`max-width: min(100%, ${us.composerMaxWidth}px) !important;`, `width: 100%;`, `margin-inline: auto !important;`);
+    }
+    compFocusDecls.push(`border-color: color-mix(in srgb, ${composerAccent} 55%, ${cBrd}) !important;`, `border-left-color: ${composerAccent} !important;`);
+
+    compBlocks.push(`
+[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"] {
+  gap: 0 !important;
+  padding: 0 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"] {
+  padding: 8px 12px 0 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] {
+  position: relative !important;
+  padding: ${padY}px 13px ${padY}px 28px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(textarea) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where(textarea, [contenteditable="true"], [role="textbox"]) {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(textarea)::before {
+  content: "❯";
+  position: absolute;
+  left: 11px;
+  bottom: ${padY + 2}px;
+  color: ${composerAccent};
+  font-family: var(--font-mono, "JetBrains Mono", Consolas, monospace);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: none;
+  user-select: none;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] {
+  padding: 6px 11px !important;
+  border-top: 1px solid ${hairline} !important;
+  background-color: ${barBg} !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  font-family: var(--font-mono, "JetBrains Mono", Consolas, monospace) !important;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-send="1"]) {
+  border-radius: 5px !important;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *),
+[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-white"], [class~="dark:bg-white"], [class~="bg-primary"]):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  border-radius: 5px !important;
+  background-color: ${composerAccent} !important;
+  color: ${compAccentFg} !important;
+  border: 1px solid color-mix(in srgb, ${composerAccent} 78%, transparent) !important;
+}
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span),
+[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-white"], [class~="dark:bg-white"], [class~="bg-primary"]):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
+  color: ${compAccentFg} !important;
+}`.trim());
+  } else {
+    // Antigravity base + optional granular overrides
+    if (us.composerRadius > 0) compDecls.push(`border-radius: ${us.composerRadius}px !important;`);
+    if (us.composerPadY > 0) {
+      compDecls.push(`padding-top: ${us.composerPadY}px !important;`, `padding-bottom: ${us.composerPadY}px !important;`);
+    }
+    if (us.composerMaxWidth >= 560) {
+      compDecls.push(`max-width: min(100%, ${us.composerMaxWidth}px) !important;`, `width: 100%;`, `margin-inline: auto !important;`);
+    }
+    const baseShadow = resolveShadowCss(us.composerShadow, "");
+    if (baseShadow) compDecls.push(`box-shadow: ${baseShadow} !important;`);
+  }
+
+  if (compDecls.length > 0) {
+    rules.push(`${compSel} {\n  ${compDecls.join("\n  ")}\n}`);
+  }
+  if (compFocusDecls.length > 0) {
+    rules.push(`[data-rudex-theme-composer="1"]:focus-within {\n  ${compFocusDecls.join("\n  ")}\n}`);
+  }
+  for (let bi = 0; bi < compBlocks.length; bi += 1) {
+    rules.push(compBlocks[bi]);
+  }
+
+  // === 2. CHAT (User Messages, Agent Responses, Steps & Code) ===
+  const userBubbleSel = `[data-testid="user-message-bubble"],\n[data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *)`;
+  const bubbleDecls = [];
+  const bubbleWrapDecls = [];
+  const agentDecls = [];
+  let chatExtraCss = "";
+
+  const effAlign = us.userBubbleAlign !== "preset"
+    ? us.userBubbleAlign
+    : (us.chat === "opencode" ? "full" : (us.chat === "claude-code" || us.chat === "codex" ? "right" : "preset"));
+
+  if (us.chat === "claude-code") {
+    const bBg = hasThemeOverride ? surfaceSoft : (isLight ? "#ebe8de" : "#2f2e2b");
+    const bBrd = hasThemeOverride ? hairline : (isLight ? "rgba(31, 30, 29, 0.10)" : "rgba(250, 249, 245, 0.10)");
+    bubbleDecls.push(
+      `border-radius: 14px !important;`,
+      `padding: 9px 14px !important;`,
+      `border: 1px solid ${bBrd} !important;`,
+      `box-shadow: none !important;`
+    );
+    if (!hasWallpaper) bubbleDecls.push(`background-color: ${bBg} !important;`);
+    if (us.userBubbleMaxWidth <= 0) bubbleDecls.push(`max-width: min(74%, 640px) !important;`);
+    agentDecls.push(`line-height: 1.62;`, `letter-spacing: -0.005em;`);
+    chatExtraCss = `
+main :where([data-testid*="thought"], [data-testid*="thinking"], [data-rudex-zone="thinking"]):not(#rudex-studio-host *) {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  color: ${mutedCol} !important;
+  padding-left: 0 !important;
+}
+:where([data-testid="agent-response"], [data-markdown-root]) pre:not(#rudex-studio-host *) {
+  border-radius: 10px !important;
+  border: 1px solid ${hairline} !important;
+}
+:where([data-testid="agent-response"], [data-markdown-root]) code:not(pre code) {
+  border-radius: 5px !important;
+}`;
+  } else if (us.chat === "codex") {
+    const bBg = hasThemeOverride ? surfaceSoft : (isLight ? "#f4f4f5" : "#222226");
+    const bBrd = hasThemeOverride ? strongBrd : (isLight ? "rgba(24, 24, 27, 0.14)" : "rgba(255, 255, 255, 0.13)");
+    bubbleDecls.push(
+      `border-radius: 18px !important;`,
+      `padding: 10px 16px !important;`,
+      `border: 1px solid ${bBrd} !important;`,
+      isLight ? `box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05) !important;` : `box-shadow: 0 3px 12px rgba(0, 0, 0, 0.24) !important;`
+    );
+    if (!hasWallpaper) bubbleDecls.push(`background-color: ${bBg} !important;`);
+    if (us.userBubbleMaxWidth <= 0) bubbleDecls.push(`max-width: min(80%, 700px) !important;`);
+    agentDecls.push(`line-height: 1.56;`);
+    chatExtraCss = `
+main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="step-group"], [data-testid*="tool-call"], [data-rudex-zone="steps"], [data-rudex-zone="thinking"]):not(#rudex-studio-host *) {
+  border: 1px solid ${hairline} !important;
+  box-shadow: none !important;
+  border-radius: 12px !important;
+  background-color: ${isLight ? "rgba(24, 24, 27, 0.028)" : "rgba(255, 255, 255, 0.03)"} !important;
+}
+:where([data-testid="agent-response"], [data-markdown-root]) pre:not(#rudex-studio-host *) {
+  border-radius: 12px !important;
+  border: 1px solid ${strongBrd} !important;
+}`;
+  } else if (us.chat === "opencode") {
+    const bBg = hasThemeOverride
+      ? `color-mix(in srgb, ${chatAccent} ${isLight ? "8%" : "10%"}, ${vars.cardBg})`
+      : (isLight ? "#eef1f4" : "#181a1f");
+    const bBrd = hasThemeOverride ? hairline : (isLight ? "rgba(15, 23, 42, 0.14)" : "rgba(255, 255, 255, 0.11)");
+    bubbleDecls.push(
+      `border-radius: 6px !important;`,
+      `padding: 9px 14px !important;`,
+      `border: 1px solid ${bBrd} !important;`,
+      `border-left: 3px solid ${chatAccent} !important;`,
+      `box-shadow: none !important;`
+    );
+    if (!hasWallpaper) bubbleDecls.push(`background-color: ${bBg} !important;`);
+    agentDecls.push(`line-height: 1.54;`);
+    chatExtraCss = `
+main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="step-group"], [data-testid*="tool-call"], [data-rudex-zone="steps"], [data-rudex-zone="thinking"]):not(#rudex-studio-host *) {
+  border-radius: 6px !important;
+  border: 1px solid ${hairline} !important;
+  border-left: 2px solid color-mix(in srgb, ${chatAccent} 62%, transparent) !important;
+  box-shadow: none !important;
+  background-color: ${isLight ? "rgba(15, 23, 42, 0.026)" : "rgba(255, 255, 255, 0.025)"} !important;
+}
+:where([data-testid="agent-response"], [data-markdown-root]) pre:not(#rudex-studio-host *) {
+  border-radius: 6px !important;
+  border: 1px solid ${strongBrd} !important;
+}
+:where([data-testid="agent-response"], [data-markdown-root]) code:not(pre code) {
+  border-radius: 4px !important;
+}`;
+  }
+
+  if (effAlign === "right") {
+    bubbleDecls.push(`margin-left: auto !important;`, `margin-right: 0 !important;`);
+    bubbleWrapDecls.push(`align-items: flex-end !important;`, `justify-content: flex-end !important;`);
+  } else if (effAlign === "left") {
+    bubbleDecls.push(`margin-left: 0 !important;`, `margin-right: auto !important;`);
+    bubbleWrapDecls.push(`align-items: flex-start !important;`, `justify-content: flex-start !important;`);
+  } else if (effAlign === "full") {
+    bubbleDecls.push(`width: 100% !important;`, `max-width: 100% !important;`, `margin-left: 0 !important;`, `margin-right: 0 !important;`);
+    bubbleWrapDecls.push(`align-items: stretch !important;`, `justify-content: flex-start !important;`);
+  }
+
+  if (us.userBubbleMaxWidth >= 45 && effAlign !== "full") {
+    bubbleDecls.push(`max-width: ${us.userBubbleMaxWidth}% !important;`);
+  }
+  if (us.chatGap >= 4) {
+    bubbleDecls.push(`margin-bottom: ${us.chatGap}px !important;`);
+    agentDecls.push(`margin-bottom: ${us.chatGap}px !important;`);
+  }
+
+  const showAgentBar = us.agentAccentBar === "on" || (us.agentAccentBar === "preset" && us.chat === "opencode");
+  if (showAgentBar) {
+    agentDecls.push(
+      `border-left: 2px solid color-mix(in srgb, ${chatAccent} 42%, transparent) !important;`,
+      `padding-left: 14px !important;`
+    );
+  } else if (us.agentAccentBar === "off") {
+    agentDecls.push(`border-left: none !important;`);
+  }
+
+  if (bubbleWrapDecls.length > 0) {
+    rules.push(`:where(div, section, article):has(> [data-testid="user-message-bubble"]):not(#rudex-studio-host *) {\n  ${bubbleWrapDecls.join("\n  ")}\n}`);
+  }
+  if (bubbleDecls.length > 0) {
+    rules.push(`${userBubbleSel} {\n  ${bubbleDecls.join("\n  ")}\n}`);
+    rules.push(`[data-testid="user-message-bubble"] [data-testid="user-message-content"] {\n  background: transparent !important;\n  border: none !important;\n  padding: 0 !important;\n  margin: 0 !important;\n  box-shadow: none !important;\n  max-width: 100% !important;\n}`);
+  }
+  if (agentDecls.length > 0) {
+    rules.push(`[data-testid="agent-response"] {\n  ${agentDecls.join("\n  ")}\n}`);
+  }
+  if (chatExtraCss) rules.push(chatExtraCss.trim());
+
+  // === 3. MODEL SELECTOR (Trigger Button & Dropdown Menu) ===
+  const effModelBtn = us.modelBtnStyle !== "preset"
+    ? us.modelBtnStyle
+    : (us.modelSelector === "claude-code" ? "ghost" : (us.modelSelector === "codex" ? "pill" : (us.modelSelector === "opencode" ? "mono" : "none")));
+
+  if (effModelBtn === "ghost") {
+    rules.push(`
+[data-testid="model-selector-trigger"] {
+  background-color: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  padding: 3px 8px !important;
+  font-weight: 550 !important;
+  letter-spacing: -0.01em !important;
+  box-shadow: none !important;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+[data-testid="model-selector-trigger"]:hover {
+  background-color: ${hoverBg} !important;
+}`.trim());
+  } else if (effModelBtn === "pill") {
+    rules.push(`
+[data-testid="model-selector-trigger"] {
+  background-color: ${surfaceSoft} !important;
+  border: 1px solid ${strongBrd} !important;
+  border-radius: 999px !important;
+  padding: 4px 11px !important;
+  font-weight: 550 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, ${isLight ? "0.04" : "0.18"}) !important;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+[data-testid="model-selector-trigger"]:hover {
+  border-color: color-mix(in srgb, ${modelAccent} 50%, ${strongBrd}) !important;
+  background-color: ${hoverBg} !important;
+}`.trim());
+  } else if (effModelBtn === "bordered") {
+    rules.push(`
+[data-testid="model-selector-trigger"] {
+  background-color: ${surfaceSoft} !important;
+  border: 1px solid ${strongBrd} !important;
+  border-radius: 8px !important;
+  padding: 3px 9px !important;
+  font-weight: 550 !important;
+}
+[data-testid="model-selector-trigger"]:hover {
+  border-color: color-mix(in srgb, ${modelAccent} 52%, ${strongBrd}) !important;
+}`.trim());
+  } else if (effModelBtn === "mono") {
+    rules.push(`
+[data-testid="model-selector-trigger"],
+[data-testid="model-selector-trigger"] * {
+  font-family: var(--font-mono, "JetBrains Mono", "Cascadia Code", Consolas, monospace) !important;
+}
+[data-testid="model-selector-trigger"] {
+  background-color: ${isLight ? "rgba(15, 23, 42, 0.045)" : "rgba(255, 255, 255, 0.045)"} !important;
+  border: 1px solid ${strongBrd} !important;
+  border-left: 2.5px solid ${modelAccent} !important;
+  border-radius: 6px !important;
+  padding: 3px 9px !important;
+  font-size: 11.5px !important;
+  font-weight: 550 !important;
+  letter-spacing: -0.01em !important;
+}
+[data-testid="model-selector-trigger"]:hover {
+  border-color: color-mix(in srgb, ${modelAccent} 58%, ${strongBrd}) !important;
+  background-color: ${hoverBg} !important;
+}`.trim());
+  }
+
+  const menuSel = `:where([role="menu"], [role="listbox"], [data-radix-menu-content], [data-slot="dropdown-menu-content"], [data-slot="select-content"]):not(#rudex-studio-host):not(#rudex-studio-host *)`;
+  const menuItemSel = `:where([role="menu"], [role="listbox"], [data-radix-menu-content], [data-slot="dropdown-menu-content"], [data-slot="select-content"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where([role="menuitem"], [role="option"])`;
+
+  if (us.modelSelector === "claude-code") {
+    rules.push(`
+${menuSel} {
+  border-radius: 12px !important;
+  border: 1px solid ${hairline} !important;
+  padding: 6px !important;
+  box-shadow: ${isLight ? "0 12px 32px rgba(31, 30, 29, 0.12)" : "0 16px 40px rgba(0, 0, 0, 0.45)"} !important;
+}
+${menuItemSel} {
+  border-radius: 8px !important;
+  padding: 7px 10px !important;
+  transition: background-color 0.1s ease;
+}
+${menuItemSel}:where([data-highlighted], [aria-selected="true"], [data-state="checked"]) {
+  background-color: color-mix(in srgb, ${modelAccent} ${isLight ? "12%" : "17%"}, transparent) !important;
+}`.trim());
+  } else if (us.modelSelector === "codex") {
+    rules.push(`
+${menuSel} {
+  border-radius: 14px !important;
+  border: 1px solid ${strongBrd} !important;
+  padding: 6px !important;
+  box-shadow: ${isLight ? "0 14px 36px rgba(15, 23, 42, 0.14)" : "0 18px 44px rgba(0, 0, 0, 0.56)"} !important;
+}
+${menuItemSel} {
+  border-radius: 9px !important;
+  padding: 7px 11px !important;
+  font-weight: 500;
+}
+${menuItemSel}:where([data-highlighted], [aria-selected="true"], [data-state="checked"]) {
+  background-color: ${hoverBg} !important;
+  box-shadow: inset 2px 0 0 ${modelAccent};
+}`.trim());
+  } else if (us.modelSelector === "opencode") {
+    rules.push(`
+${menuSel} {
+  border-radius: 6px !important;
+  border: 1px solid ${strongBrd} !important;
+  padding: 4px !important;
+  box-shadow: ${isLight ? "0 10px 24px rgba(15, 23, 42, 0.12)" : "0 14px 32px rgba(0, 0, 0, 0.52)"} !important;
+}
+${menuItemSel} {
+  border-radius: 4px !important;
+  padding: 5px 8px !important;
+  font-family: var(--font-mono, "JetBrains Mono", Consolas, monospace) !important;
+  font-size: 12px !important;
+}
+${menuItemSel}:where([data-highlighted], [aria-selected="true"], [data-state="checked"]) {
+  background-color: color-mix(in srgb, ${modelAccent} ${isLight ? "14%" : "18%"}, transparent) !important;
+  box-shadow: inset 2px 0 0 ${modelAccent};
+}`.trim());
+  }
+
+  if (us.modelMenuDensity === "compact") {
+    rules.push(`${menuItemSel} {\n  padding-top: 4px !important;\n  padding-bottom: 4px !important;\n  min-height: 26px !important;\n}`);
+  } else if (us.modelMenuDensity === "comfortable") {
+    rules.push(`${menuItemSel} {\n  padding-top: 8px !important;\n  padding-bottom: 8px !important;\n  min-height: 36px !important;\n}`);
+  }
+
+  return rules.join("\n");
+}
+
 function normalizeAppearance(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const preset = teFindThemePreset(src.presetId);
@@ -1096,6 +2011,7 @@ function normalizeAppearance(raw) {
       chatMaxWidth,
       density,
     },
+    uiStyle: teNormalizeUiStyle(src.uiStyle),
   };
 }
 
@@ -1181,6 +2097,7 @@ function isAppearanceNativeDefault(raw) {
     cfg.messageStyle === "glass" &&
     cfg.wallpaper.type === "none" &&
     !teHasCustomTypography(cfg) &&
+    !teHasCustomUiStyle(cfg) &&
     (!Array.isArray(cfg.elementOverrides) || cfg.elementOverrides.length === 0)
   );
 }
@@ -1350,11 +2267,12 @@ function buildThemeCss(rawAppearance, options) {
   const hasCustomTypo = teHasCustomTypography(cfg);
   const hasCornersOverride = teHasCustomCorners(cfg);
   const hasBorderPreset = cfg.borderPreset !== "crisp";
+  const hasUiStyle = teHasCustomUiStyle(cfg);
   const hasElementOverrides = !cfg.overridesPaused && Array.isArray(cfg.elementOverrides) && cfg.elementOverrides.length > 0;
   const hasSurfaceOverride =
     hasCornersOverride || hasBorderPreset || cfg.radius !== 12 || cfg.borderStrength !== 50 || cfg.messageStyle !== "glass";
 
-  if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !hasElementOverrides && !cfg.uiPolish) {
+  if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !hasUiStyle && !hasElementOverrides && !cfg.uiPolish) {
     return "";
   }
 
@@ -1401,16 +2319,22 @@ function buildThemeCss(rawAppearance, options) {
     const cardAlpha = hasWallpaper ? Math.min(vars.glassOpacity, 88) : (isGlassTheme ? Math.min(vars.glassOpacity, 76) : Math.max(vars.glassOpacity, 90));
     const sidebarAlpha = hasWallpaper ? Math.min(vars.sidebarOpacity + 4, 94) : (isGlassTheme ? Math.min(vars.sidebarOpacity, 78) : 96);
     const secondaryHex = isClaudeTheme
-      ? (isLight ? "#f0eee6" : (cfg.presetId === "claude-terminal" ? "#252422" : "#30302e"))
-      : teMixHex(vars.cardBg, isLight ? "#000000" : "#ffffff", 0.06);
+      ? (isLight ? "#e8e4d8" : (cfg.presetId === "claude-terminal" ? "#252422" : "#30302e"))
+      : teMixHex(vars.cardBg, isLight ? vars.fgColor : "#ffffff", isLight ? 0.065 : 0.08);
     const cardRgba = teHexToRgba(vars.cardBg, cardAlpha);
     const sidebarRgba = teHexToRgba(vars.sidebarBg, sidebarAlpha);
 
     const effectiveCard = (hasWallpaper || isGlassTheme) ? cardRgba : vars.cardBg;
     const effectiveSidebar = (hasWallpaper || isGlassTheme) ? sidebarRgba : vars.sidebarBg;
+    const activeItemBg = `color-mix(in srgb, ${vars.accentColor} ${isLight ? "14%" : "17%"}, ${vars.sidebarBg})`;
+    const hoverSurfaceBg = isLight ? teHexToRgba(vars.fgColor, 6) : "rgba(255, 255, 255, 0.065)";
+    const menuHoverBg = `color-mix(in srgb, ${vars.accentColor} ${isLight ? "13%" : "18%"}, ${vars.cardBg})`;
+    const switchOffTrack = isLight ? teMixHex(vars.borderColor, vars.fgColor, 0.14) : teMixHex(vars.cardBg, "#ffffff", 0.16);
 
     chunks.push(`
 :root, :root.dark, :root.light, html, html.dark, html.light, body, body.dark, body.light, .dark, .light {
+  color-scheme: ${isLight ? "light" : "dark"} !important;
+  accent-color: ${vars.accentColor} !important;
   --background: ${vars.canvasBg} !important;
   --color-background: ${vars.canvasBg} !important;
   --bg-canvas: ${vars.canvasBg} !important;
@@ -1425,9 +2349,9 @@ function buildThemeCss(rawAppearance, options) {
   --brand: ${vars.accentColor} !important;
   --primary-foreground: ${primaryFg} !important;
   --color-primary-foreground: ${primaryFg} !important;
-  --ring: ${vars.accentColor} !important;
-  --color-ring: ${vars.accentColor} !important;
-  --focus-border: ${vars.accentColor} !important;
+  --ring: color-mix(in srgb, ${vars.accentColor} 42%, ${effectiveBorder}) !important;
+  --color-ring: color-mix(in srgb, ${vars.accentColor} 42%, ${effectiveBorder}) !important;
+  --focus-border: color-mix(in srgb, ${vars.accentColor} 45%, ${effectiveBorder}) !important;
   --link: ${vars.accentColor} !important;
   --color-link: ${vars.accentColor} !important;
   --link-foreground: ${vars.accentColor} !important;
@@ -1486,12 +2410,23 @@ function buildThemeCss(rawAppearance, options) {
   background-color: color-mix(in srgb, ${vars.accentColor} 28%, transparent);
   color: ${vars.fgColor};
 }
+::placeholder {
+  color: ${vars.mutedColor} !important;
+  opacity: 0.85 !important;
+}
 `);
-    if (isClaudeTheme) {
-      const codeInlineBg = isLight ? "rgba(193, 95, 60, 0.10)" : "rgba(217, 119, 87, 0.14)";
-      const codeInlineFg = isLight ? "#9e4425" : "#e89b76";
-      const codeBlockBg = isLight ? "#f4f2eb" : (cfg.presetId === "claude-terminal" ? "#10100f" : "#191817");
-      chunks.push(`
+    // Harmonious inline code, code blocks & blockquotes for ALL custom themes (light & dark, not just Claude)
+    const codeInlineBg = isClaudeTheme
+      ? (isLight ? "rgba(193, 95, 60, 0.11)" : "rgba(217, 119, 87, 0.14)")
+      : (isLight ? `color-mix(in srgb, ${vars.accentColor} 10%, ${vars.sidebarBg})` : `color-mix(in srgb, ${vars.accentColor} 15%, ${vars.cardBg})`);
+    const codeInlineFg = isClaudeTheme
+      ? (isLight ? "#9e4425" : "#e89b76")
+      : (isLight ? teMixHex(vars.accentColor, "#000000", 0.34) : teMixHex(vars.accentColor, "#ffffff", 0.36));
+    const codeBlockBgRaw = isClaudeTheme
+      ? (isLight ? "#ece9df" : (cfg.presetId === "claude-terminal" ? "#10100f" : "#191817"))
+      : (isLight ? teMixHex(vars.canvasBg, vars.fgColor, 0.055) : teMixHex(vars.canvasBg, "#000000", 0.24));
+    const codeBlockBg = isGlassTheme && !isLight ? teHexToRgba(codeBlockBgRaw, 68) : codeBlockBgRaw;
+    chunks.push(`
 [data-testid="agent-response"] code:not(pre code),
 [data-markdown-root] code:not(pre code) {
   background-color: ${codeInlineBg} !important;
@@ -1502,7 +2437,12 @@ function buildThemeCss(rawAppearance, options) {
 }
 :where([data-testid="agent-response"], [data-markdown-root]) pre {
   background-color: ${codeBlockBg} !important;
+  color: ${vars.fgColor} !important;
   border: 1px solid ${effectiveBorder} !important;
+}
+:where([data-testid="agent-response"], [data-markdown-root]) pre code {
+  background-color: transparent !important;
+  color: ${vars.fgColor};
 }
 [data-testid="agent-response"] blockquote,
 [data-markdown-root] blockquote {
@@ -1510,8 +2450,7 @@ function buildThemeCss(rawAppearance, options) {
   color: ${vars.mutedColor};
 }
 `);
-    }
-    // Unify blue/link/accent utility classes & unread dots across Antigravity with active theme accent
+    // Unify blue/link/accent utility classes, switches, checkboxes, active tabs, menu highlights & unread dots with active theme accent
     // NOTE: Always use exact class-token matching [class~="..."] (never substring [class*="..."])
     // so Tailwind modifiers like hover:bg-muted, prose-code:bg-muted, [&_pre]:bg-zinc-900 never fire at rest!
     chunks.push(`
@@ -1524,65 +2463,230 @@ main a:not(#rudex-studio-host *):not([role="button"]),
 }
 [data-rudex-theme-accent-dot="1"],
 :where(div, span, button):where([class~="bg-blue-500"], [class~="bg-blue-600"], [class~="dark:bg-blue-500"], [class~="dark:bg-blue-600"], [class~="bg-sky-500"], [class~="bg-indigo-500"], [class~="bg-cyan-500"]):not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(button, [role="button"]):where([class~="bg-primary"], [class~="dark:bg-primary"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where(button, [role="button"]):where([class~="bg-primary"], [class~="dark:bg-primary"]):not(#rudex-studio-host):not(#rudex-studio-host *),
+:where([role="switch"][data-state="checked"], [role="switch"][aria-checked="true"], [role="checkbox"][data-state="checked"], [role="checkbox"][aria-checked="true"], [data-slot="slider-range"], [data-slot="progress-indicator"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   background-color: ${vars.accentColor} !important;
+  border-color: ${vars.accentColor} !important;
 }
-:where(button, [role="button"]):where([class~="bg-primary"], [class~="dark:bg-primary"], [class~="bg-blue-500"], [class~="bg-blue-600"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where([role="switch"][data-state="unchecked"], [role="switch"][aria-checked="false"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  background-color: ${switchOffTrack} !important;
+  border-color: ${effectiveBorder} !important;
+}
+:where([role="switch"] > span, [data-slot="switch-thumb"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+}
+:where(button, [role="button"]):where([class~="bg-primary"], [class~="dark:bg-primary"], [class~="bg-blue-500"], [class~="bg-blue-600"], [class~="bg-sky-500"], [class~="bg-indigo-500"]):not(#rudex-studio-host):not(#rudex-studio-host *),
+:where(button, [role="button"]):where([class~="bg-primary"], [class~="dark:bg-primary"], [class~="bg-blue-500"], [class~="bg-blue-600"], [class~="bg-sky-500"], [class~="bg-indigo-500"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(span, svg),
+:where([role="checkbox"][data-state="checked"], [role="checkbox"][aria-checked="true"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   color: ${primaryFg} !important;
 }
-:where(div, button, input, textarea):where([class~="border-blue-500"], [class~="border-blue-600"], [class~="border-sky-500"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+:where(div, span, button, a):where([class~="bg-blue-500/10"], [class~="bg-blue-500/15"], [class~="bg-blue-500/20"], [class~="bg-sky-500/10"], [class~="bg-sky-500/15"], [class~="bg-indigo-500/15"], [class~="bg-primary/10"], [class~="bg-primary/15"], [class~="bg-primary/20"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  background-color: color-mix(in srgb, ${vars.accentColor} ${isLight ? "13%" : "17%"}, transparent) !important;
+}
+:where(div, button, input, textarea, span):where([class~="border-blue-500"], [class~="border-blue-600"], [class~="border-sky-500"], [class~="border-indigo-500"], [class~="border-primary"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   border-color: ${vars.accentColor} !important;
+}
+:where(div, button, span):where([class~="border-blue-500/30"], [class~="border-blue-500/40"], [class~="border-blue-500/50"], [class~="border-primary/30"], [class~="border-primary/40"], [class~="border-primary/50"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  border-color: color-mix(in srgb, ${vars.accentColor} 42%, transparent) !important;
+}
+:where([data-rudex-bg-sidebar="1"], aside, [data-testid="sidebar"]) :where(a, button, [role="listitem"], [role="treeitem"]):not(#rudex-studio-host *):not([aria-current="page"]):not([aria-selected="true"]):not([data-active="true"]):not([data-state="active"]):hover {
+  background-color: ${hoverSurfaceBg} !important;
+}
+:where([role="menu"], [role="listbox"]) :where([role="menuitem"], [role="option"]):where([data-highlighted], [aria-selected="true"], :hover):not(#rudex-studio-host *) {
+  background-color: ${menuHoverBg} !important;
+  color: ${vars.fgColor} !important;
+}
+:where([role="tablist"], [data-slot="tabs-list"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  background-color: ${secondaryHex} !important;
+  border: 1px solid ${effectiveBorder} !important;
+}
+:where([role="tab"], [data-slot="tabs-trigger"]):not([data-state="active"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  color: ${vars.mutedColor} !important;
+}
+:where([role="tab"], [data-slot="tabs-trigger"]):not([data-state="active"]):hover:not(#rudex-studio-host):not(#rudex-studio-host *) {
+  color: ${vars.fgColor} !important;
+}
+:where([role="tab"][data-state="active"], [data-slot="tabs-trigger"][data-state="active"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  background-color: ${vars.cardBg} !important;
+  color: ${vars.fgColor} !important;
+  box-shadow: inset 0 -2px 0 ${vars.accentColor};
+}
+[data-rudex-theme-composer="1"] button:where([class~="bg-white"], [class~="dark:bg-white"], [class~="bg-zinc-100"], [class~="bg-neutral-100"]):not(#rudex-studio-host *),
+main button:where([class~="bg-white"], [class~="dark:bg-white"]):not([role="switch"]):not(#rudex-studio-host *) {
+  background-color: ${vars.accentColor} !important;
+  color: ${primaryFg} !important;
+  border-color: transparent !important;
+}
+[data-rudex-theme-composer="1"] button:where([class~="bg-white"], [class~="dark:bg-white"], [class~="bg-zinc-100"], [class~="bg-neutral-100"]) :where(svg, span),
+main button:where([class~="bg-white"], [class~="dark:bg-white"]):not([role="switch"]) :where(svg, span) {
+  color: ${primaryFg} !important;
+}
+`);
+    if (isLight) {
+      chunks.push(`
+/* Light-mode contrast & dark-class neutralization over Antigravity's dark DOM */
+:where(div, span, p, h1, h2, h3, h4, h5, h6, li, button, a, label, td, th, svg):where(
+  [class~="text-white"], [class~="dark:text-white"],
+  [class~="text-white/95"], [class~="text-white/90"], [class~="text-white/85"], [class~="text-white/80"], [class~="text-white/75"], [class~="text-white/70"], [class~="dark:text-white/90"], [class~="dark:text-white/80"],
+  [class~="text-zinc-50"], [class~="text-zinc-100"], [class~="text-zinc-200"], [class~="text-zinc-300"],
+  [class~="dark:text-zinc-50"], [class~="dark:text-zinc-100"], [class~="dark:text-zinc-200"], [class~="dark:text-zinc-300"],
+  [class~="text-neutral-50"], [class~="text-neutral-100"], [class~="text-neutral-200"], [class~="text-neutral-300"],
+  [class~="dark:text-neutral-50"], [class~="dark:text-neutral-100"], [class~="dark:text-neutral-200"], [class~="dark:text-neutral-300"],
+  [class~="text-gray-50"], [class~="text-gray-100"], [class~="text-gray-200"], [class~="text-gray-300"],
+  [class~="dark:text-gray-50"], [class~="dark:text-gray-100"], [class~="dark:text-gray-200"], [class~="dark:text-gray-300"],
+  [class~="text-slate-50"], [class~="text-slate-100"], [class~="text-slate-200"], [class~="text-slate-300"],
+  [class~="dark:text-slate-50"], [class~="dark:text-slate-100"], [class~="dark:text-slate-200"], [class~="dark:text-slate-300"],
+  [class~="text-stone-100"], [class~="text-stone-200"], [class~="text-stone-300"]
+):not([class~="bg-primary"]):not([class~="dark:bg-primary"]):not([class~="bg-blue-500"]):not([class~="bg-blue-600"]):not([class~="bg-red-500"]):not([class~="bg-red-600"]):not([class~="bg-emerald-500"]):not([class~="bg-emerald-600"]):not([class~="bg-green-600"]):not([class~="bg-black"]):not([data-state="checked"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  color: ${vars.fgColor} !important;
+}
+:where(div, span, p, li, button, label, svg):where(
+  [class~="text-white/60"], [class~="text-white/50"], [class~="text-white/40"], [class~="dark:text-white/60"], [class~="dark:text-white/50"],
+  [class~="text-zinc-400"], [class~="text-zinc-500"], [class~="dark:text-zinc-400"], [class~="dark:text-zinc-500"],
+  [class~="text-neutral-400"], [class~="text-neutral-500"], [class~="dark:text-neutral-400"], [class~="dark:text-neutral-500"],
+  [class~="text-gray-400"], [class~="text-gray-500"], [class~="dark:text-gray-400"], [class~="dark:text-gray-500"],
+  [class~="text-slate-400"], [class~="text-slate-500"], [class~="dark:text-slate-400"], [class~="dark:text-slate-500"],
+  [class~="text-stone-400"], [class~="text-stone-500"]
+):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  color: ${vars.mutedColor} !important;
+}
+:where(div, section, button, span, a, li):where(
+  [class~="bg-white/5"], [class~="bg-white/10"], [class~="bg-white/15"], [class~="dark:bg-white/5"], [class~="dark:bg-white/10"], [class~="dark:bg-white/15"],
+  [class~="bg-zinc-950/50"], [class~="bg-zinc-950/80"], [class~="bg-zinc-900/50"], [class~="bg-zinc-900/80"], [class~="bg-zinc-900/90"], [class~="dark:bg-zinc-900/50"], [class~="dark:bg-zinc-800/50"], [class~="bg-zinc-800/50"], [class~="bg-zinc-800/80"],
+  [class~="bg-neutral-950/50"], [class~="bg-neutral-950/80"], [class~="bg-neutral-900/50"], [class~="bg-neutral-900/80"], [class~="dark:bg-neutral-900/50"], [class~="bg-neutral-800/50"], [class~="bg-neutral-800/80"],
+  [class~="bg-gray-900/50"], [class~="bg-gray-900/80"], [class~="bg-slate-900/50"], [class~="bg-slate-900/80"],
+  [class~="bg-black/20"], [class~="bg-black/30"], [class~="bg-black/40"], [class~="bg-black/50"], [class~="bg-black/60"], [class~="bg-black/70"], [class~="bg-black/80"]
+):not([data-testid="agent-response"]):not([data-markdown-root]):not([role="dialog"]):not([role="alertdialog"]):not([data-state="open"]):not([aria-hidden="true"]):not([data-slot*="overlay"]):not([data-slot*="backdrop"]):not([role="switch"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  background-color: ${secondaryHex} !important;
+  color: ${vars.fgColor} !important;
+}
+:where([data-rudex-bg-sidebar="1"], aside, [data-testid="sidebar"]) :where([class~="bg-black"], [class~="dark:bg-black"], [class~="bg-zinc-900"], [class~="bg-zinc-950"], [class~="bg-neutral-900"], [class~="bg-neutral-950"], [class~="bg-gray-900"], [class~="bg-slate-900"], [class~="bg-stone-900"]):not(#rudex-studio-host *) {
+  background-color: ${activeItemBg} !important;
+  color: ${vars.fgColor} !important;
+}
+[data-rudex-light-fix="sidebar"] {
+  background-color: ${secondaryHex} !important;
+  color: ${vars.fgColor} !important;
+}
+[data-rudex-light-fix="sidebar-active"] {
+  background-color: ${activeItemBg} !important;
+  color: ${vars.fgColor} !important;
+  box-shadow: inset 2px 0 0 ${vars.accentColor};
+}
+[data-rudex-light-fix="sidebar"] :where(span, div, p, a, svg, label),
+[data-rudex-light-fix="sidebar-active"] :where(span, div, p, a, svg, label) {
+  color: ${vars.fgColor} !important;
+}
+[data-rudex-light-fix="header"] {
+  background-color: ${secondaryHex} !important;
+  color: ${vars.fgColor} !important;
+  border-color: ${effectiveBorder} !important;
+}
+[data-rudex-light-fix="header"] :where(span, svg) {
+  color: ${vars.fgColor} !important;
+}
+[data-rudex-light-fix="surface"] {
+  background-color: ${secondaryHex} !important;
+  color: ${vars.fgColor} !important;
+  border-color: ${effectiveBorder} !important;
+}
+[data-rudex-light-fix="surface"] :where(span, p, label, svg):not([class~="text-green-"]):not([class~="text-red-"]):not([class~="text-amber-"]) {
+  color: ${vars.fgColor} !important;
+}
+[data-rudex-light-text="1"] {
+  color: ${vars.fgColor} !important;
+}
+[data-testid="agent-response"],
+[data-markdown-root],
+[data-testid="agent-response"] :where(p, li, h1, h2, h3, h4, h5, h6, strong, b, em, td, th, dt, dd, span, div):not(a):not(code):not(pre):not(pre *):not([class~="text-green-400"]):not([class~="text-emerald-400"]):not([class~="text-red-400"]):not([class~="text-rose-400"]):not([class~="text-amber-400"]):not([data-rudex-live-slot]):not([data-rudex-live-slot] *),
+[data-testid="model-selector-trigger"],
+[data-rudex-theme-composer="1"] :where(button, [role="button"]):not([class~="bg-primary"]):not([class~="bg-white"]):not([class~="dark:bg-white"]):not([class~="bg-blue-500"]):not([class~="bg-blue-600"]):not([class~="bg-red-500"]):not([data-testid="input-cancel-button"]) {
+  color: ${vars.fgColor} !important;
+}
+:where(aside, main, header, [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-rudex-theme-composer="1"]) :where(div, section, button, a, input, select, textarea, hr, span):where(:not(#rudex-studio-host):not(#rudex-studio-host *):not([class~="border-transparent"]):not([class~="border-none"]):not([class~="border-0"]):not([class~="border-primary"]):not([class~="border-blue-500"]):not([class~="border-blue-600"]):not([class~="border-red-500"]):not([class~="border-green-500"]):not([class~="border-emerald-500"]):not([role="switch"][data-state="checked"]):not([role="switch"][aria-checked="true"]):not([role="checkbox"][data-state="checked"]):not([role="checkbox"][aria-checked="true"]):not(blockquote):not(code)) {
+  border-color: ${effectiveBorder} !important;
+}
+:where(span, div, p):where([class~="text-green-400"], [class~="text-emerald-400"], [class~="dark:text-green-400"], [class~="dark:text-emerald-400"]):not(#rudex-studio-host *) {
+  color: #15803d !important;
+}
+:where(span, div, p):where([class~="text-red-400"], [class~="text-rose-400"], [class~="dark:text-red-400"], [class~="dark:text-rose-400"]):not(#rudex-studio-host *) {
+  color: #dc2626 !important;
+}
+:where(span, div, p):where([class~="text-amber-400"], [class~="text-yellow-400"], [class~="dark:text-amber-400"], [class~="dark:text-yellow-400"]):not(#rudex-studio-host *) {
+  color: #b45309 !important;
+}
+`);
+    }
+    // Unify mismatched dark header action buttons (e.g. right-pane toggle button next to Open IDE) across ALL custom themes
+    chunks.push(`
+[data-rudex-header-btn-fix="1"] {
+  background-color: ${secondaryHex} !important;
+  color: ${vars.fgColor} !important;
+  border-color: ${effectiveBorder} !important;
+}
+[data-rudex-header-btn-fix="1"]:hover {
+  background-color: ${menuHoverBg} !important;
+}
+[data-rudex-header-btn-fix="1"] :where(svg, span) {
+  color: ${vars.fgColor} !important;
 }
 `);
     if (!hasWallpaper) {
-      if (cfg.presetId === "liquid-glass") {
-        chunks.push(`
-html, body {
-  background-color: ${vars.canvasBg} !important;
-  background-image: radial-gradient(62% 54% at 14% 12%, rgba(10, 132, 255, 0.24), transparent 72%), radial-gradient(56% 52% at 88% 18%, rgba(99, 102, 241, 0.20), transparent 74%), radial-gradient(60% 58% at 54% 92%, rgba(6, 182, 212, 0.16), transparent 76%) !important;
-  background-attachment: fixed !important;
-  color: ${vars.fgColor};
-}
-`);
-      } else {
-        const lightTextFixCss = isLight
-          ? `
-:where(div, span, p, h1, h2, h3, h4, li, button, a, label):where([class~="text-white"], [class~="dark:text-white"], [class~="text-zinc-100"], [class~="text-zinc-200"], [class~="text-zinc-300"], [class~="text-neutral-100"], [class~="text-neutral-200"], [class~="text-neutral-300"], [class~="text-gray-100"], [class~="text-gray-200"], [class~="text-gray-300"]):not([class~="bg-primary"]):not([class~="bg-blue-500"]):not([class~="bg-blue-600"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
-  color: ${vars.fgColor} !important;
-}
-:where(div, span, p, li, button, label):where([class~="text-zinc-400"], [class~="text-zinc-500"], [class~="text-neutral-400"], [class~="text-neutral-500"], [class~="text-gray-400"], [class~="text-gray-500"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
-  color: ${vars.mutedColor} !important;
-}`
-          : "";
-        const cleanAgentCanvasCss = (!isGlassTheme && cfg.messageStyle !== "solid")
-          ? `
+      const isGlassNoWp = isGlassTheme;
+      const shellCanvasBg = isGlassNoWp ? "transparent" : vars.canvasBg;
+      const cleanAgentCanvasCss = (!isGlassTheme && cfg.messageStyle !== "solid")
+        ? `
 [data-testid="agent-response"],
 [data-testid="agent-response"] :where([data-markdown-root], div:has(> [data-markdown-root])),
 [data-markdown-root] {
   background-color: transparent !important;
   background-image: none !important;
 }`
-          : "";
-        chunks.push(`
+        : "";
+      const glassAmbientBgImage = cfg.presetId === "liquid-glass"
+        ? "radial-gradient(62% 54% at 14% 12%, rgba(10, 132, 255, 0.24), transparent 72%), radial-gradient(56% 52% at 88% 18%, rgba(99, 102, 241, 0.20), transparent 74%), radial-gradient(60% 58% at 54% 92%, rgba(6, 182, 212, 0.16), transparent 76%)"
+        : (cfg.presetId === "midnight-neon"
+          ? "radial-gradient(58% 52% at 16% 14%, rgba(56, 189, 248, 0.17), transparent 72%), radial-gradient(52% 48% at 86% 20%, rgba(168, 85, 247, 0.14), transparent 74%), radial-gradient(56% 52% at 50% 94%, rgba(14, 165, 233, 0.11), transparent 74%)"
+          : "radial-gradient(60% 54% at 18% 12%, rgba(99, 102, 241, 0.16), transparent 72%), radial-gradient(52% 48% at 84% 22%, rgba(139, 92, 246, 0.12), transparent 74%), radial-gradient(56% 52% at 52% 94%, rgba(59, 130, 246, 0.10), transparent 76%)");
+      const liquidBackdropCss = isGlassNoWp
+        ? `
+html, body {
+  background-color: ${vars.canvasBg} !important;
+  background-image: ${glassAmbientBgImage} !important;
+  background-attachment: fixed !important;
+  color: ${vars.fgColor} !important;
+}
+#root, #app {
+  background-color: transparent !important;
+  color: ${vars.fgColor} !important;
+}`
+        : `
 html, body, #root, #app {
   background-color: ${vars.canvasBg} !important;
   color: ${vars.fgColor} !important;
-}
-[data-rudex-bg-shell="1"],
+}`;
+      chunks.push(`
+${liquidBackdropCss}
+[data-rudex-bg-shell="1"]:not([data-state]):not([aria-hidden="true"]):not([role="dialog"]):not([role="alertdialog"]),
 main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
 [data-testid="chat-container"]:not([role="dialog"]),
 [data-testid="conversation-view"]:not([role="dialog"]),
 :where(div, section):where([class~="bg-background"], [class~="dark:bg-background"]):where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="switch"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-slot="badge"], [data-slot="button"], [data-rudex-ignore="1"])) {
-  background-color: ${vars.canvasBg} !important;
+  background-color: ${shellCanvasBg} !important;
   color: ${vars.fgColor};
 }
 [data-rudex-bg-fade="1"],
 [data-rudex-bg-fade="1"]::before,
-[data-rudex-bg-fade="1"]::after {
+[data-rudex-bg-fade="1"]::after,
+:where(div, section)[class*="bg-gradient-"]:where(:not(#rudex-studio-host, #rudex-studio-host *, [role="dialog"], [role="alertdialog"], [role="button"], button, a, [data-testid="agent-response"], [data-testid="agent-response"] *, [data-testid="user-message-bubble"], [data-testid="user-message-bubble"] *, [data-rudex-theme-composer="1"], [data-rudex-theme-composer="1"] *, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"])),
+:where(div, section)[class*="bg-linear-"]:where(:not(#rudex-studio-host, #rudex-studio-host *, [role="dialog"], [role="alertdialog"], [role="button"], button, a, [data-testid="agent-response"], [data-testid="agent-response"] *, [data-testid="user-message-bubble"], [data-testid="user-message-bubble"] *, [data-rudex-theme-composer="1"], [data-rudex-theme-composer="1"] *, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"])) {
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
   box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border-color: transparent !important;
 }
 [data-rudex-bg-sidebar="1"],
@@ -1603,8 +2707,9 @@ header:not(#rudex-studio-host *) {
   isolation: isolate;
 }
 :where([data-rudex-bg-sidebar="1"], aside, [data-testid="sidebar"]) :where([aria-current="page"], [aria-selected="true"], [data-active="true"], [data-state="active"]):not(#rudex-studio-host *) {
-  background-color: ${secondaryHex} !important;
+  background-color: ${activeItemBg} !important;
   color: ${vars.fgColor} !important;
+  box-shadow: inset 2px 0 0 ${vars.accentColor};
 }
 [data-rudex-theme-composer="1"],
 form:has(textarea):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
@@ -1617,14 +2722,18 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:
   border-color: ${effectiveBorder} !important;
   color: ${vars.fgColor} !important;
 }
-[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"]),
+[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"], [role="textbox"]),
 [data-rudex-theme-composer="1"] :where(form, [data-testid="composer"], .composer-container),
-[data-rudex-theme-composer="1"] div:has(> textarea),
-[data-rudex-theme-composer="1"] div:has(> [contenteditable="true"]) {
+[data-rudex-theme-composer="1"] :where(div, section):has(:is(textarea, [contenteditable="true"], [role="textbox"])) {
   background-color: transparent !important;
   background-image: none !important;
+  border: none !important;
   border-color: transparent !important;
+  outline: none !important;
   box-shadow: none !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   color: ${vars.fgColor} !important;
@@ -1673,9 +2782,8 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:
 :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea):not(#rudex-studio-host):not(#rudex-studio-host *) {
   color: ${vars.fgColor} !important;
   caret-color: ${vars.accentColor} !important;
-}${cleanAgentCanvasCss}${lightTextFixCss}
+}${cleanAgentCanvasCss}
 `);
-      }
       if (isGlassTheme && cfg.messageStyle === "glass") {
         const glassSidebarNoWp = teHexToRgba(vars.sidebarBg, Math.round(teClamp(cfg.sidebarOpacity, 15, 100, 62)));
         const glassCardNoWp = teHexToRgba(vars.cardBg, Math.round(teClamp(cfg.glassOpacity, 15, 100, 56)));
@@ -1703,7 +2811,7 @@ header {
   background-image: ${glassSheenGrad};
   border: 1px solid ${glassSpecBorder} !important;
   border-radius: ${cRadii.messages}px !important;
-  padding-inline: 18px !important;
+  padding: 16px 18px !important;
   box-shadow: ${glassFresnelShadow};
   ${opticalGlassFilter}
 }
@@ -2014,14 +3122,18 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:
   color: ${vars.fgColor} !important;
   ${msgStyle !== "solid" ? glassBlurCss : ""}
 }
-[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"]),
+[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"], [role="textbox"]),
 [data-rudex-theme-composer="1"] :where(form, [data-testid="composer"], .composer-container),
-[data-rudex-theme-composer="1"] div:has(> textarea),
-[data-rudex-theme-composer="1"] div:has(> [contenteditable="true"]) {
+[data-rudex-theme-composer="1"] :where(div, section):has(:is(textarea, [contenteditable="true"], [role="textbox"])) {
   background-color: transparent !important;
   background-image: none !important;
+  border: none !important;
   border-color: transparent !important;
+  outline: none !important;
   box-shadow: none !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   color: ${vars.fgColor} !important;
@@ -2080,7 +3192,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
     chunks.push(teBuildCornerRadiusCss(cfg, cRadii));
   }
 
-  // Crisp structural block borders across themes so user bubbles, steps/thinking, code, and composer are effortless to scan
+  // Crisp structural block borders across themes (zero layout shift: no forced padding/margin on collapsibles, no double borders on nested sidebar/composer)
   if ((hasThemeOverride || hasBorderPreset || cfg.borderStrength !== 50) && cfg.borderStrength > 0) {
     const contrastAgentCss = cfg.borderPreset === "contrast" && !hasWallpaper && cfg.messageStyle !== "minimal"
       ? `
@@ -2094,7 +3206,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 [data-testid="user-message-bubble"],
 [data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
   border: 1px solid ${crispBorderCol} !important;
-  box-shadow: ${isLight ? "0 1px 4px rgba(15, 23, 42, 0.06)" : "0 2px 10px rgba(0, 0, 0, 0.26)"};
+  box-shadow: ${isLight ? "0 1px 4px rgba(15, 23, 42, 0.06)" : "0 2px 10px rgba(0, 0, 0, 0.22)"};
 }
 [data-testid="user-message-bubble"] [data-testid="user-message-content"] {
   border: none !important;
@@ -2102,30 +3214,52 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 }
 [data-rudex-theme-composer="1"] {
   border: 1px solid ${crispBorderCol} !important;
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-color: transparent !important;
 }
-[data-rudex-bg-sidebar="1"],
-aside:not(#rudex-studio-host *),
-[data-testid="sidebar"] {
-  border-right: 1px solid ${crispBorderCol} !important;
+:where(div, form, section):has(> [data-rudex-theme-composer="1"]) {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-color: transparent !important;
 }
-[data-rudex-bg-header="1"],
-header:not(#rudex-studio-host *) {
-  border-bottom: 1px solid ${crispBorderCol} !important;
+[data-rudex-theme-composer="1"] *:not(button):not([role="button"]):not(svg):not(img):not([class*="badge"]):not([class*="chip"]):not([class*="pill"]) {
+  outline: none !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+main:focus,
+main:focus-visible,
+[data-rudex-bg-shell="1"]:focus,
+[data-rudex-bg-shell="1"]:focus-visible,
+[data-testid="chat-container"]:focus,
+[data-testid="chat-container"]:focus-visible,
+[data-testid="conversation-view"]:focus,
+[data-testid="conversation-view"]:focus-visible,
+main div[tabindex]:focus,
+main div[tabindex]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+[data-rudex-bg-sidebar="1"] [data-rudex-bg-sidebar="1"],
+[data-rudex-bg-sidebar="1"] aside {
+  border-right: none !important;
 }
 main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="step-group"], [data-testid*="tool-call"], [data-rudex-zone="steps"], [data-rudex-zone="thinking"]):not(#rudex-studio-host *) {
-  border: 1px solid ${stepBorderCol} !important;
-  border-left: 2px solid color-mix(in srgb, ${vars.accentColor} 58%, ${stepBorderCol}) !important;
-  background-color: ${stepSurfaceBg} !important;
-  border-radius: ${Math.max(6, cRadii.cards)}px !important;
-  padding: 8px 12px !important;
-}
-main :where([data-slot="collapsible"]):not([data-testid="agent-response"]):not(#rudex-studio-host *):has(> button) {
-  border: 1px solid ${stepBorderCol} !important;
-  border-left: 2px solid color-mix(in srgb, ${vars.accentColor} 46%, ${stepBorderCol}) !important;
+  box-shadow: inset 0 0 0 1px ${stepBorderCol};
   background-color: ${stepSurfaceBg};
-  border-radius: ${Math.max(6, Math.min(12, cRadii.cards))}px !important;
-  padding: 6px 10px !important;
-  margin-block: 4px !important;
+  border-radius: ${Math.max(6, Math.min(10, cRadii.cards))}px;
 }
 :where([data-testid="agent-response"], [data-markdown-root], main) pre:not(#rudex-studio-host *) {
   border: 1px solid ${crispBorderCol} !important;
@@ -2149,7 +3283,7 @@ main :where([data-slot="collapsible"]):not([data-testid="agent-response"]):not(#
   --default-font-family: ${uiStack} !important;
   --font-ui: ${uiStack} !important;
 }
-body, input, textarea, button, button *, [role="button"], [role="button"] *, select, label, [role="tooltip"], [role="tooltip"] *, [role="menu"], [role="menu"] *, [role="listbox"], [role="listbox"] *, [data-rudex-theme-composer="1"] :where(button, span, div, p, label):not(code):not(pre), :where([class~="font-sans"]):not(#rudex-studio-host):not(#rudex-studio-host *), [data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"] {
+body, input, textarea, button, button *, [role="button"], [role="button"] *, select, label, [role="tooltip"], [role="tooltip"] *, [role="menu"], [role="menu"] *, [role="listbox"], [role="listbox"] *, [data-rudex-theme-composer="1"], [data-rudex-theme-composer="1"] *:not(code):not(pre):not(svg):not(svg *), [data-rudex-theme-composer="1"] :where(button, span, div, p, label):not(code):not(pre), :where([class~="font-sans"]):not(#rudex-studio-host):not(#rudex-studio-host *), [data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"] {
   font-family: ${uiStack} !important;
   ${isSerifUi ? 'text-rendering: optimizeLegibility; font-feature-settings: "kern" 1, "liga" 1;' : ""}
 }
@@ -2286,6 +3420,12 @@ ${monoStack ? `:root, html, body {\n  --font-mono: ${monoStack} !important;\n}\n
   if (cfg.uiPolish) {
     const thumbRad = hasCornersOverride && cRadii.base === 0 ? "0px" : "999px";
     chunks.push(`
+[data-testid="model-selector-trigger"]:disabled,
+[data-testid="model-selector-trigger"][aria-disabled="true"],
+[data-testid="model-selector-trigger"][data-disabled] {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
 ::-webkit-scrollbar {
   width: 7px;
   height: 7px;
@@ -2305,10 +3445,18 @@ textarea:focus:not([data-rudex-theme-composer="1"] *),
 form:has(textarea[placeholder]:focus-within):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
 [data-testid="composer"]:focus-within:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
 .composer-container:focus-within:not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])) {
-  border-color: color-mix(in srgb, ${vars.accentColor} 68%, ${effectiveBorder}) !important;
-  box-shadow: 0 8px 24px -10px color-mix(in srgb, ${vars.accentColor} 22%, transparent) !important;
+  border-color: color-mix(in srgb, ${vars.fgColor} 26%, ${effectiveBorder}) !important;
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
 }
 `);
+  }
+
+  if (hasUiStyle) {
+    const uiStyleCss = teBuildUiStyleCss(cfg, vars, isLight, hasThemeOverride, hasWallpaper);
+    if (uiStyleCss) chunks.push(uiStyleCss);
   }
 
   const overridesCss = teBuildElementOverridesCss(cfg.elementOverrides, cfg.overridesPaused);
@@ -2336,13 +3484,36 @@ function createThemeEngine(options = {}) {
     "data-rudex-bg-fade",
     "data-rudex-theme-composer",
     "data-rudex-theme-accent-dot",
+    "data-rudex-light-fix",
+    "data-rudex-light-text",
+    "data-rudex-header-btn-fix",
+    "data-rudex-comp-stack",
+    "data-rudex-comp-top-row",
+    "data-rudex-comp-input-row",
+    "data-rudex-comp-toolbar",
+    "data-rudex-comp-group",
+    "data-rudex-comp-plus",
+    "data-rudex-comp-mic",
+    "data-rudex-comp-mode",
+    "data-rudex-comp-send",
+  ];
+  const COMP_PART_ATTRS = [
+    "data-rudex-comp-stack",
+    "data-rudex-comp-top-row",
+    "data-rudex-comp-input-row",
+    "data-rudex-comp-toolbar",
+    "data-rudex-comp-group",
+    "data-rudex-comp-plus",
+    "data-rudex-comp-mic",
+    "data-rudex-comp-mode",
+    "data-rudex-comp-send",
   ];
   const SHELL_SCAN_THROTTLE_MS = 350;
   const SHELL_SKIP_TAGS = new Set(["PRE", "CODE", "BUTTON", "INPUT", "TEXTAREA", "FORM", "SVG", "IMG", "VIDEO", "CANVAS", "SCRIPT", "STYLE"]);
   const SHELL_SKIP_ROLES = new Set(["dialog", "alertdialog", "menu", "listbox", "tooltip"]);
   const SHELL_SKIP_TESTIDS = new Set(["user-message-content", "agent-response"]);
   const MUTATION_IGNORE_SELECTOR = '[data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"], [data-browser-hole], #rudex-studio-host, #rudex-bg';
-  const PROTECTED_OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper], .agy-overlay, [data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"], [data-markdown-root], [data-browser-hole], #rudex-studio-host, #rudex-bg';
+  const PROTECTED_OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper], [data-radix-focus-guard], [data-slot*="dialog"], [data-slot*="overlay"], [data-slot*="backdrop"], .agy-overlay, [data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"], [data-markdown-root], [data-browser-hole], #rudex-studio-host, #rudex-bg';
 
   let currentConfig = normalizeAppearance(DEFAULT_APPEARANCE);
   let styleNode = null;
@@ -2371,6 +3542,8 @@ function createThemeEngine(options = {}) {
   let shellResizeHandler = null;
   let wallpaperActive = false;
   let themeScanActive = false;
+  let activeThemeIsLight = false;
+  let activeSidebarYiq = 20;
   let lastCssText = "";
   let lastHadThemeOverride = false;
   let pendingFastConfig = null;
@@ -2472,9 +3645,12 @@ function createThemeEngine(options = {}) {
     if (!doc || typeof doc.querySelectorAll !== "function") return;
     try {
       const marked = doc.querySelectorAll(
-        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-theme-composer], [data-rudex-theme-accent-dot]"
+        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-theme-composer], [data-rudex-theme-accent-dot], [data-rudex-light-fix], [data-rudex-light-text], [data-rudex-header-btn-fix], [data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-mode], [data-rudex-comp-send]"
       );
       for (let i = 0; marked && i < marked.length; i += 1) {
+        if (marked[i] && marked[i].style && typeof marked[i].style.removeProperty === "function") {
+          marked[i].style.removeProperty("--rudex-cc-send-top");
+        }
         clearShellAttrsOnElement(marked[i]);
       }
     } catch (_e) {}
@@ -2491,6 +3667,14 @@ function createThemeEngine(options = {}) {
       if (el.getAttribute(IGNORE_ATTR) === "1") return true;
       const role = el.getAttribute("role");
       if (role && SHELL_SKIP_ROLES.has(role)) return true;
+      if (el.getAttribute("aria-modal") === "true" || el.getAttribute("aria-hidden") === "true") return true;
+      const dSlot = el.getAttribute("data-slot") || "";
+      if (dSlot && /dialog|overlay|backdrop|modal|popover|sheet|drawer/i.test(dSlot)) return true;
+      const dState = el.getAttribute("data-state") || "";
+      if (dState === "open" || dState === "closed") {
+        const clsStr = typeof el.className === "string" ? el.className : "";
+        if (/\b(?:fixed|inset-0|z-50)\b/.test(clsStr)) return true;
+      }
       const tid = el.getAttribute("data-testid");
       if (tid && SHELL_SKIP_TESTIDS.has(tid)) return true;
       if (typeof el.hasAttribute === "function") {
@@ -2574,6 +3758,9 @@ function createThemeEngine(options = {}) {
     const visitedSet = new Set();
     const headerElSet = new Set();
     const plans = [];
+    const compPartFixes = [];
+    const compPartSet = new Set();
+    const compSendOffsets = [];
 
     const hasHeaderAncestor = (node) => {
       let p = node && (node.parentElement || node.parentNode);
@@ -2642,16 +3829,23 @@ function createThemeEngine(options = {}) {
           }
           if (attr) {
             const cs = win.getComputedStyle(el);
-            hasBg = hasComputedBgFill(cs);
-            if (attr === "data-rudex-bg-header") {
-              if (shouldMarkHeader(el, rect, cs, hasBg)) {
-                headerElSet.add(el);
-                plans.push({ el, attr, hasBg: true });
-              } else {
-                plans.push({ el, attr: "", hasBg: false });
-              }
+            const isFixedOverlay = cs && cs.position === "fixed" && tag !== "HEADER" && tag !== "ASIDE" && tag !== "NAV";
+            const bgAlpha = cs ? teParseBgAlpha(cs.backgroundColor) : 0;
+            const isTranslucentBackdrop = attr === "data-rudex-bg-shell" && bgAlpha > 0 && bgAlpha < 0.85 && cs && (cs.position === "fixed" || cs.position === "absolute");
+            if (isFixedOverlay || isTranslucentBackdrop) {
+              plans.push({ el, attr: "", hasBg: false });
             } else {
-              plans.push({ el, attr, hasBg });
+              hasBg = hasComputedBgFill(cs);
+              if (attr === "data-rudex-bg-header") {
+                if (shouldMarkHeader(el, rect, cs, hasBg)) {
+                  headerElSet.add(el);
+                  plans.push({ el, attr, hasBg: true });
+                } else {
+                  plans.push({ el, attr: "", hasBg: false });
+                }
+              } else {
+                plans.push({ el, attr, hasBg });
+              }
             }
           } else {
             plans.push({ el, attr: "", hasBg: false });
@@ -2714,22 +3908,40 @@ function createThemeEngine(options = {}) {
           ) {
             continue;
           }
+          // Skip React portals mounted directly under document.body outside #root/#app (e.g., Radix Dialog backdrops)
+          const isBodyPortal =
+            rootTarget !== doc.body &&
+            doc.body &&
+            typeof doc.body.contains === "function" &&
+            doc.body.contains(hitEl) &&
+            typeof rootTarget.contains === "function" &&
+            !rootTarget.contains(hitEl);
+          if (isBodyPortal) {
+            continue;
+          }
           hitPointEls.push(hitEl);
           if (visitedSet.has(hitEl)) continue;
           visitedSet.add(hitEl);
           if (typeof hitEl.getBoundingClientRect !== "function") continue;
           const r = hitEl.getBoundingClientRect();
           if (!r || r.width <= 0 || r.height <= 0) continue;
+          const hitCs = win.getComputedStyle(hitEl);
+          const hitTag = String(hitEl.tagName || "").toUpperCase();
+          if (hitCs && hitCs.position === "fixed" && hitTag !== "HEADER" && hitTag !== "ASIDE" && hitTag !== "NAV") {
+            continue;
+          }
           let hitAttr = "";
           if (r.left <= 20 && r.width >= 140 && r.width <= 400 && r.height >= vh * 0.50) {
             hitAttr = "data-rudex-bg-sidebar";
           } else if (r.width >= vw * 0.42 && r.height >= vh * 0.42) {
+            const hitBgAlpha = hitCs ? teParseBgAlpha(hitCs.backgroundColor) : 0;
+            if (hitBgAlpha > 0 && hitBgAlpha < 0.85 && hitCs && hitCs.position === "absolute") continue;
             hitAttr = "data-rudex-bg-shell";
           } else if (r.top <= 88 && r.height >= 22 && r.height <= 74 && r.width >= vw * 0.35) {
             hitAttr = "data-rudex-bg-header";
           }
           if (hitAttr) {
-            const cs = win.getComputedStyle(hitEl);
+            const cs = hitCs;
             const hitHasBg = hasComputedBgFill(cs);
             if (hitAttr === "data-rudex-bg-header") {
               if (shouldMarkHeader(hitEl, r, cs, hitHasBg)) {
@@ -2787,7 +3999,8 @@ function createThemeEngine(options = {}) {
             if (typeof cur.getBoundingClientRect === "function") {
               const cr = cur.getBoundingClientRect();
               if (cr && cr.height > Math.min(380, vh * 0.48)) break;
-              if (cr && cr.width >= 200 && cr.width <= maxComposerW && cr.height >= 36 && cr.height <= maxComposerH) {
+              const isInnerPart = typeof cur.hasAttribute === "function" && cur.hasAttribute("data-rudex-comp-input-row");
+              if (!isInnerPart && cr && cr.width >= 200 && cr.width <= maxComposerW && cr.height >= 36 && cr.height <= maxComposerH) {
                 const ccs = win.getComputedStyle(cur);
                 const alreadyComposer = typeof cur.hasAttribute === "function" && cur.hasAttribute("data-rudex-theme-composer");
                 const hasBorder = ccs && ccs.borderTopWidth && parseFloat(ccs.borderTopWidth) > 0 && teParseBgAlpha(ccs.borderTopColor) >= 0.04;
@@ -2803,8 +4016,180 @@ function createThemeEngine(options = {}) {
           }
           if (best) {
             composerEls.add(best);
-            composerInfos.push({ el: best, rect: bestRect });
+            composerInfos.push({ el: best, rect: bestRect, inp });
             plans.push({ el: best, attr: "data-rudex-theme-composer", hasBg: true });
+          }
+        }
+
+        // Pass C2: Semantic annotation of composer sub-parts (input row, bottom toolbar, +, mic, mode, send)
+        // Zero DOM node moves (100% React-safe) — powers true Claude Code / Codex / OpenCode layouts!
+        const markCompPart = (el, attr) => {
+          if (!el || el.nodeType !== 1) return;
+          compPartSet.add(el);
+          compPartFixes.push({ el, attr, val: "1" });
+        };
+        const directChildUnder = (ancestor, node) => {
+          let p = node;
+          while (p && p.parentElement && p.parentElement !== ancestor) {
+            p = p.parentElement;
+          }
+          return p && p.parentElement === ancestor ? p : null;
+        };
+        const findLcaInside = (root, a, b) => {
+          if (!root || !a || !b) return null;
+          const chainA = new Set();
+          let p = a;
+          while (p && p !== root.parentElement) {
+            chainA.add(p);
+            if (p === root) break;
+            p = p.parentElement;
+          }
+          let q = b;
+          while (q && q !== root.parentElement) {
+            if (chainA.has(q)) return q;
+            if (q === root) break;
+            q = q.parentElement;
+          }
+          return root;
+        };
+
+        for (let ci = 0; ci < composerInfos.length; ci += 1) {
+          const info = composerInfos[ci];
+          const comp = info.el;
+          const inp = info.inp;
+          if (!comp || !inp || typeof comp.querySelectorAll !== "function") continue;
+          const modelTrig = comp.querySelector('[data-testid="model-selector-trigger"]');
+          const allBtns = Array.from(comp.querySelectorAll('button, [role="button"]')).filter((b) => {
+            if (!b || b === inp) return false;
+            if (typeof b.getBoundingClientRect !== "function") return true;
+            const r = b.getBoundingClientRect();
+            return r && r.width > 4 && r.height > 4;
+          });
+          const inpRect = typeof inp.getBoundingClientRect === "function" ? inp.getBoundingClientRect() : null;
+          let anchorBtn = modelTrig || null;
+          if (!anchorBtn && allBtns.length > 0) {
+            // Pick lowest button (typically in bottom toolbar)
+            let bestB = null;
+            let bestTop = -Infinity;
+            for (let bi = 0; bi < allBtns.length; bi += 1) {
+              const b = allBtns[bi];
+              const br = typeof b.getBoundingClientRect === "function" ? b.getBoundingClientRect() : null;
+              const topVal = br ? br.top : 0;
+              if (topVal >= bestTop) {
+                bestTop = topVal;
+                bestB = b;
+              }
+            }
+            anchorBtn = bestB;
+          }
+          if (!anchorBtn) continue;
+
+          const stack = findLcaInside(comp, inp, anchorBtn);
+          if (!stack) continue;
+          const inputRow = directChildUnder(stack, inp);
+          const toolbar = directChildUnder(stack, anchorBtn);
+          if (!inputRow || !toolbar || inputRow === toolbar) continue;
+
+          if (stack !== comp) markCompPart(stack, "data-rudex-comp-stack");
+          markCompPart(inputRow, "data-rudex-comp-input-row");
+          markCompPart(toolbar, "data-rudex-comp-toolbar");
+
+          // Mark any row above inputRow (e.g., attachments or host bar) as top-row
+          if (stack.children && stack.children.length > 2) {
+            for (let si = 0; si < stack.children.length; si += 1) {
+              const ch = stack.children[si];
+              if (ch === inputRow) break;
+              if (ch && ch !== toolbar) markCompPart(ch, "data-rudex-comp-top-row");
+            }
+          }
+
+          // Classify buttons inside toolbar
+          const barBtns = Array.from(toolbar.querySelectorAll('button, [role="button"]')).filter((b) => {
+            if (!b) return false;
+            if (typeof b.getBoundingClientRect !== "function") return true;
+            const r = b.getBoundingClientRect();
+            return r && r.width > 4 && r.height > 4;
+          });
+
+          let sendBtn = toolbar.querySelector('[data-testid="input-cancel-button"], [data-testid*="send"], button[type="submit"], button[aria-label*="send" i], button[aria-label*="отправ" i], button[aria-label*="stop" i], button[aria-label*="останов" i]');
+          if (!sendBtn) {
+            const prevSend = toolbar.querySelector('[data-rudex-comp-send="1"]');
+            if (prevSend && prevSend !== modelTrig && (!prevSend.getAttribute || prevSend.getAttribute("data-rudex-comp-mode") !== "1")) {
+              sendBtn = prevSend;
+            }
+          }
+          if (!sendBtn && barBtns.length > 0) {
+            // Prefer the rightmost icon-only button (never steal text mode buttons like "Турбо"/"Manual" after Claude Code re-orders them!)
+            let maxRight = -Infinity;
+            for (let bi = 0; bi < barBtns.length; bi += 1) {
+              const b = barBtns[bi];
+              if (b === modelTrig || (b.getAttribute && b.getAttribute("data-rudex-comp-mode") === "1")) continue;
+              const bTxt = String(b.textContent || "").trim();
+              if (bTxt.length >= 2) continue;
+              const br = typeof b.getBoundingClientRect === "function" ? b.getBoundingClientRect() : null;
+              const rv = br ? br.right : bi;
+              if (rv >= maxRight) {
+                maxRight = rv;
+                sendBtn = b;
+              }
+            }
+          }
+          if (sendBtn) markCompPart(sendBtn, "data-rudex-comp-send");
+
+          const modelRect = modelTrig && typeof modelTrig.getBoundingClientRect === "function" ? modelTrig.getBoundingClientRect() : null;
+          let plusBtn = null;
+          let micBtn = null;
+          let modeBtn = null;
+
+          for (let bi = 0; bi < barBtns.length; bi += 1) {
+            const b = barBtns[bi];
+            if (b === sendBtn || b === modelTrig) continue;
+            const br = typeof b.getBoundingClientRect === "function" ? b.getBoundingClientRect() : null;
+            const txt = String(b.textContent || "").trim();
+            const al = String((b.getAttribute && (b.getAttribute("aria-label") || b.getAttribute("title"))) || "").toLowerCase();
+            if (!plusBtn && (txt === "+" || /attach|add|upload|файл|прикреп|добав/.test(al) || (modelRect && br && br.right <= modelRect.left + 8 && br.width <= 44))) {
+              plusBtn = b;
+              continue;
+            }
+            if (!micBtn && (/mic|voice|dictat|speech|голос|микроф|диктов/.test(al) || (!txt && br && br.width <= 42 && (!modelRect || br.left > modelRect.left)))) {
+              micBtn = b;
+              continue;
+            }
+            if (!modeBtn && txt.length >= 2 && txt.length <= 28) {
+              modeBtn = b;
+            }
+          }
+          if (plusBtn) markCompPart(plusBtn, "data-rudex-comp-plus");
+          if (micBtn) markCompPart(micBtn, "data-rudex-comp-mic");
+          if (modeBtn) markCompPart(modeBtn, "data-rudex-comp-mode");
+
+          // Mark direct grouping wrappers inside toolbar so Claude Code can flatten & re-order cleanly via display:contents
+          const keyItems = Array.from(new Set([plusBtn, micBtn, modelTrig, modeBtn, sendBtn, ...barBtns].filter(Boolean)));
+          for (let ki = 0; ki < keyItems.length; ki += 1) {
+            let p = keyItems[ki].parentElement;
+            while (p && p !== toolbar && toolbar.contains(p)) {
+              if (modelTrig && p === modelTrig) break;
+              markCompPart(p, "data-rudex-comp-group");
+              p = p.parentElement;
+            }
+          }
+
+          // Compute exact vertical center of send button inside inputRow for Claude Code split layout
+          if (info.rect && typeof inputRow.getBoundingClientRect === "function") {
+            const ir = inputRow.getBoundingClientRect();
+            const sr = sendBtn && typeof sendBtn.getBoundingClientRect === "function" ? sendBtn.getBoundingClientRect() : null;
+            const sendH = sr && sr.height >= 16 && sr.height <= 40 ? sr.height : 28;
+            if (ir && ir.height >= 24) {
+              let centerY = ir.top + ir.height / 2;
+              if (inpRect && inpRect.height >= 16 && inpRect.height <= 52 && ir.height > inpRect.height + 28) {
+                centerY = inpRect.top + inpRect.height / 2;
+              }
+              const minTop = Math.max(4, Math.round(ir.top - info.rect.top) + 6);
+              const maxTop = Math.max(minTop, Math.round(ir.bottom - info.rect.top) - sendH - 6);
+              const rawTop = Math.round((centerY - info.rect.top) - sendH / 2);
+              const topPx = Math.max(minTop, Math.min(maxTop, rawTop));
+              compSendOffsets.push({ el: comp, topPx });
+            }
           }
         }
       } catch (_e) {}
@@ -2820,7 +4205,7 @@ function createThemeEngine(options = {}) {
 
       try {
         const fadeChecked = new Set();
-        const tryMarkFade = (node, allowWrappingComposer) => {
+        const tryMarkFade = (node, allowWrappingComposer, allowNarrowFade) => {
           if (!node || node.nodeType !== 1 || fadeChecked.has(node)) return;
           fadeChecked.add(node);
           if (node === doc.body || node === rootTarget || isProtectedForTheme(node)) return;
@@ -2836,46 +4221,106 @@ function createThemeEngine(options = {}) {
           }
           if (typeof node.getBoundingClientRect !== "function") return;
           const fr = node.getBoundingClientRect();
-          if (!fr || fr.width < vw * 0.32 || fr.height < 6) return;
+          if (!fr || fr.height < 6) return;
           if (fr.left <= 20 && fr.width <= 400 && fr.height >= vh * 0.50) return;
           const maxFadeH = allowWrappingComposer ? Math.min(260, Math.round(vh * 0.36)) : 145;
           if (fr.top < 58 || fr.height > maxFadeH) return;
           const fcs = win.getComputedStyle(node);
           if (!fcs) return;
           const alreadyFade = typeof node.hasAttribute === "function" && node.hasAttribute("data-rudex-bg-fade");
-          const hasGradient = Boolean(fcs.backgroundImage && fcs.backgroundImage.indexOf("gradient(") >= 0);
-          const isPointerNoneOverlay = wallpaperActive && fcs.pointerEvents === "none" && (hasComputedBgFill(fcs) || (fcs.boxShadow && fcs.boxShadow !== "none"));
-          const isOpaqueWrapperUnderWp = allowWrappingComposer && wallpaperActive && hasComputedBgFill(fcs);
-          if (alreadyFade || hasGradient || isPointerNoneOverlay || isOpaqueWrapperUnderWp) {
+          let hasGradient = Boolean(fcs.backgroundImage && fcs.backgroundImage.indexOf("gradient(") >= 0);
+          if (!hasGradient && (allowWrappingComposer || allowNarrowFade)) {
+            try {
+              const bcs = win.getComputedStyle(node, "::before");
+              const acs = win.getComputedStyle(node, "::after");
+              if ((bcs && bcs.backgroundImage && bcs.backgroundImage.indexOf("gradient(") >= 0) || (acs && acs.backgroundImage && acs.backgroundImage.indexOf("gradient(") >= 0)) {
+                hasGradient = true;
+              }
+            } catch (_e) {}
+          }
+          const isEmptyPointerNone = fcs.pointerEvents === "none" && (!node.children || node.children.length === 0) && !String(node.textContent || "").trim();
+          const minW = (allowNarrowFade && isEmptyPointerNone && hasGradient && fr.top >= vh * 0.45) ? 4 : vw * 0.28;
+          if (fr.width < minW) return;
+          const hasShadow = Boolean(fcs.boxShadow && fcs.boxShadow !== "none");
+          const hasBackdrop = Boolean((fcs.backdropFilter && fcs.backdropFilter !== "none") || (fcs.webkitBackdropFilter && fcs.webkitBackdropFilter !== "none"));
+          const isPointerNoneOverlay = (wallpaperActive || themeScanActive) && fcs.pointerEvents === "none" && (hasComputedBgFill(fcs) || hasShadow || hasBackdrop);
+          const isOpaqueWrapperUnderTheme = allowWrappingComposer && (wallpaperActive || themeScanActive) && (hasComputedBgFill(fcs) || hasShadow || hasBackdrop);
+          if (alreadyFade || hasGradient || isPointerNoneOverlay || isOpaqueWrapperUnderTheme) {
             plans.push({ el: node, attr: "data-rudex-bg-fade", hasBg: true });
           }
         };
 
-        // Check wide wrapper ancestors above the composer card (e.g. full-width bottom dock with gradient fade)
+        // Check wide wrapper ancestors & their siblings above/around the composer card (e.g. full-width bottom dock with gradient fade)
         for (let ci = 0; ci < composerInfos.length; ci += 1) {
           const info = composerInfos[ci];
           let anc = info.el.parentElement;
           let up = 0;
-          while (anc && anc.nodeType === 1 && up < 4) {
+          while (anc && anc.nodeType === 1 && up < 5) {
             if (anc === doc.body || anc === rootTarget) break;
             if (typeof anc.getBoundingClientRect === "function") {
               const ar = anc.getBoundingClientRect();
-              if (ar && info.rect && ar.width >= Math.max(info.rect.width + 60, vw * 0.42)) {
-                tryMarkFade(anc, true);
+              if (ar && info.rect && ar.width >= Math.max(info.rect.width + 40, vw * 0.36)) {
+                tryMarkFade(anc, true, false);
+              }
+            }
+            if (anc.children && anc.children.length > 0) {
+              for (let si = 0; si < anc.children.length && si < 24; si += 1) {
+                const sib = anc.children[si];
+                if (!sib || sib === info.el) continue;
+                tryMarkFade(sib, false, true);
+                if (sib.children && sib.children.length > 0 && sib.children.length <= 6) {
+                  for (let sj = 0; sj < sib.children.length; sj += 1) {
+                    tryMarkFade(sib.children[sj], false, true);
+                  }
+                }
               }
             }
             anc = anc.parentElement;
             up += 1;
           }
+          // Dynamic point probes directly above & left of the composer (catches tall composer with attached screenshots)
+          if (info.rect && typeof doc.elementsFromPoint === "function") {
+            const cr = info.rect;
+            const probeYs = [
+              Math.max(72, Math.round(cr.top - 8)),
+              Math.max(72, Math.round(cr.top - 22)),
+              Math.max(72, Math.round(cr.top + 8)),
+            ];
+            const probeXs = [
+              Math.max(40, Math.round(cr.left - 36)),
+              Math.round(cr.left + 24),
+              Math.round(cr.left + cr.width * 0.5),
+            ];
+            for (let py = 0; py < probeYs.length; py += 1) {
+              for (let px = 0; px < probeXs.length; px += 1) {
+                try {
+                  const chits = doc.elementsFromPoint(probeXs[px], probeYs[py]);
+                  if (Array.isArray(chits)) {
+                    for (let chi = 0; chi < chits.length && chi < 14; chi += 1) {
+                      tryMarkFade(chits[chi], false, true);
+                    }
+                  }
+                } catch (_e) {}
+              }
+            }
+          }
         }
 
         for (let hi = 0; hi < hitPointEls.length; hi += 1) {
-          tryMarkFade(hitPointEls[hi], false);
+          tryMarkFade(hitPointEls[hi], false, false);
         }
+
+        // Targeted scan for gradient / fade / pointer-events-none overlays anywhere in the chat DOM (even in long chats > 360 divs)
+        try {
+          const targetedFades = rootTarget.querySelectorAll('[class*="bg-gradient-"], [class*="bg-linear-"], [class*="pointer-events-none"], [class*="fade"]');
+          for (let ti = 0; targetedFades && ti < targetedFades.length && ti < 240; ti += 1) {
+            tryMarkFade(targetedFades[ti], false, true);
+          }
+        } catch (_e) {}
 
         const fadeCands = rootTarget.querySelectorAll("div, section, footer");
         for (let fi = 0; fadeCands && fi < fadeCands.length && fi < 360; fi += 1) {
-          tryMarkFade(fadeCands[fi], false);
+          tryMarkFade(fadeCands[fi], false, false);
         }
       } catch (_e) {}
 
@@ -2916,15 +4361,255 @@ function createThemeEngine(options = {}) {
       }
     }
 
+    const extraFixSet = new Set();
+    const extraFixes = [];
+    const parseRgbaColor = (str) => {
+      const s = String(str || "").trim().toLowerCase();
+      if (!s || s === "transparent" || s === "none") return null;
+      const m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/.exec(s);
+      if (!m) return null;
+      const r = parseFloat(m[1]);
+      const g = parseFloat(m[2]);
+      const b = parseFloat(m[3]);
+      let a = 1;
+      if (m[4] !== undefined) {
+        a = m[4].endsWith("%") ? parseFloat(m[4]) / 100 : parseFloat(m[4]);
+      }
+      if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b) || !Number.isFinite(a)) return null;
+      const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      return { r, g, b, a, yiq, chroma };
+    };
+
+    // Pass D: Neutralize mismatched dark header buttons (all custom themes) + hardcoded dark surfaces/light text (light themes)
+    if (themeScanActive && typeof doc.querySelectorAll === "function") {
+      try {
+        const isProtectedFixNode = (node) => {
+          if (!node || node.nodeType !== 1) return true;
+          const id = node.id || "";
+          if (id === HOST_ID || id === BG_ID || id === STYLE_ID) return true;
+          const tag = String(node.tagName || "").toUpperCase();
+          if (tag === "IMG" || tag === "VIDEO" || tag === "CANVAS" || tag === "SVG" || tag === "PRE" || tag === "CODE" || tag === "SCRIPT" || tag === "STYLE") return true;
+          if (typeof node.getAttribute === "function") {
+            if (node.getAttribute(IGNORE_ATTR) === "1") return true;
+            const role = node.getAttribute("role");
+            if (role === "switch" || role === "checkbox") return true;
+          }
+          if (typeof node.closest === "function") {
+            try {
+              if (node.closest('#rudex-studio-host, #rudex-bg, pre, code, [data-rudex-ignore="1"]')) return true;
+            } catch (_e) {}
+          }
+          return false;
+        };
+
+        // D1. Mismatched dark/black header action buttons (e.g. right sidebar toggle button in top bar)
+        const topBtns = rootTarget.querySelectorAll('header button, header [role="button"], [data-rudex-bg-header="1"] button, [data-rudex-bg-header="1"] [role="button"], button, [role="button"]');
+        for (let i = 0; topBtns && i < topBtns.length && i < 180; i += 1) {
+          const btn = topBtns[i];
+          if (!btn || isProtectedFixNode(btn) || typeof btn.getBoundingClientRect !== "function") continue;
+          const br = btn.getBoundingClientRect();
+          if (!br || br.width < 16 || br.height < 16 || br.height > 48 || br.top < -2 || br.bottom > 82 || br.width > 190) continue;
+          const alreadyHdrFix = typeof btn.getAttribute === "function" && btn.getAttribute("data-rudex-header-btn-fix") === "1";
+          if (alreadyHdrFix) {
+            extraFixSet.add(btn);
+            extraFixes.push({ el: btn, attr: "data-rudex-header-btn-fix", val: "1" });
+            continue;
+          }
+          const bcs = win.getComputedStyle(btn);
+          if (!bcs) continue;
+          const bg = parseRgbaColor(bcs.backgroundColor);
+          if (!bg || bg.a < 0.35 || bg.chroma > 34) continue;
+          const isBadDarkOnLight = activeThemeIsLight && bg.yiq < 115;
+          const isBadBlackOnTheme = !activeThemeIsLight && bg.yiq < 22 && (activeSidebarYiq > bg.yiq + 4 || bg.b > bg.r + 1);
+          if (isBadDarkOnLight || isBadBlackOnTheme) {
+            extraFixSet.add(btn);
+            extraFixes.push({ el: btn, attr: "data-rudex-header-btn-fix", val: "1" });
+          }
+        }
+
+        // D2. Hardcoded dark sidebar/composer/surface chips & invisible light text when a light theme is active over dark Antigravity DOM
+        if (activeThemeIsLight) {
+          const sideContainers = doc.querySelectorAll('aside, nav[aria-label], [data-testid="sidebar"], [data-rudex-bg-sidebar="1"]');
+          const checkedSide = new Set();
+          for (let s = 0; sideContainers && s < sideContainers.length && s < 6; s += 1) {
+            const sc = sideContainers[s];
+            if (!sc || isProtectedFixNode(sc)) continue;
+            const items = sc.querySelectorAll("div, a, button, li, section");
+            for (let j = 0; items && j < items.length && j < 260; j += 1) {
+              const el = items[j];
+              if (!el || checkedSide.has(el) || isProtectedFixNode(el)) continue;
+              checkedSide.add(el);
+              if (el.getAttribute && el.getAttribute("data-rudex-bg-sidebar") === "1") continue;
+              const prevFix = typeof el.getAttribute === "function" ? el.getAttribute("data-rudex-light-fix") : "";
+              const prevTextFix = typeof el.getAttribute === "function" ? el.getAttribute("data-rudex-light-text") : "";
+              if (prevFix) {
+                const isAct = (el.getAttribute && (
+                  el.getAttribute("aria-current") === "page" ||
+                  el.getAttribute("aria-selected") === "true" ||
+                  el.getAttribute("data-active") === "true" ||
+                  el.getAttribute("data-state") === "active"
+                )) || prevFix === "sidebar-active";
+                extraFixSet.add(el);
+                extraFixes.push({ el, attr: "data-rudex-light-fix", val: isAct ? "sidebar-active" : "sidebar" });
+                continue;
+              }
+              if (prevTextFix === "1") {
+                extraFixSet.add(el);
+                extraFixes.push({ el, attr: "data-rudex-light-text", val: "1" });
+                continue;
+              }
+              const cs = win.getComputedStyle(el);
+              if (!cs) continue;
+              const bg = parseRgbaColor(cs.backgroundColor);
+              if (bg && bg.a >= 0.35 && bg.yiq < 105 && bg.chroma <= 38) {
+                const isAct = (el.getAttribute && (
+                  el.getAttribute("aria-current") === "page" ||
+                  el.getAttribute("aria-selected") === "true" ||
+                  el.getAttribute("data-active") === "true" ||
+                  el.getAttribute("data-state") === "active"
+                )) || bg.yiq < 45;
+                extraFixSet.add(el);
+                extraFixes.push({ el, attr: "data-rudex-light-fix", val: isAct ? "sidebar-active" : "sidebar" });
+              } else {
+                const fg = parseRgbaColor(cs.color);
+                if (fg && fg.a >= 0.45 && fg.yiq > 165 && fg.chroma <= 34) {
+                  extraFixSet.add(el);
+                  extraFixes.push({ el, attr: "data-rudex-light-text", val: "1" });
+                }
+              }
+            }
+          }
+
+          const compAndMain = doc.querySelectorAll('[data-rudex-theme-composer="1"] :where(button, a, div, span), header :where(button, a, div, span), [data-rudex-bg-header="1"] :where(button, a, div, span)');
+          for (let k = 0; compAndMain && k < compAndMain.length && k < 220; k += 1) {
+            const el = compAndMain[k];
+            if (!el || extraFixSet.has(el) || isProtectedFixNode(el)) continue;
+            if (el.getAttribute && (el.getAttribute("data-rudex-theme-composer") === "1" || el.getAttribute("data-rudex-bg-header") === "1")) continue;
+            // Do not repaint thumbnail containers that wrap an uploaded image
+            if (typeof el.querySelector === "function" && el.querySelector("img, video, canvas")) continue;
+            if (typeof el.getBoundingClientRect === "function") {
+              const er = el.getBoundingClientRect();
+              if (!er || er.width > vw * 0.72 || er.height > vh * 0.55) continue;
+            }
+            const prevFix = typeof el.getAttribute === "function" ? el.getAttribute("data-rudex-light-fix") : "";
+            const prevTextFix = typeof el.getAttribute === "function" ? el.getAttribute("data-rudex-light-text") : "";
+            if (prevFix) {
+              extraFixSet.add(el);
+              extraFixes.push({ el, attr: "data-rudex-light-fix", val: prevFix });
+              continue;
+            }
+            if (prevTextFix === "1") {
+              extraFixSet.add(el);
+              extraFixes.push({ el, attr: "data-rudex-light-text", val: "1" });
+              continue;
+            }
+            const cs = win.getComputedStyle(el);
+            if (!cs) continue;
+            const bg = parseRgbaColor(cs.backgroundColor);
+            if (bg && bg.a >= 0.42 && bg.yiq < 95 && bg.chroma <= 34) {
+              const inHdr = typeof el.closest === "function" && Boolean(el.closest('header, [data-rudex-bg-header="1"]'));
+              extraFixSet.add(el);
+              extraFixes.push({ el, attr: "data-rudex-light-fix", val: inHdr ? "header" : "surface" });
+            } else {
+              const fg = parseRgbaColor(cs.color);
+              if (fg && fg.a >= 0.45 && fg.yiq > 210 && fg.chroma <= 30) {
+                // Only fix light text if its own background is NOT an intentional dark/colored accent pill
+                if (!bg || bg.a < 0.35 || bg.yiq > 140) {
+                  extraFixSet.add(el);
+                  extraFixes.push({ el, attr: "data-rudex-light-text", val: "1" });
+                }
+              }
+            }
+          }
+        }
+      } catch (_e) {}
+    }
+
     // Phase 2 (Write-only): batch attribute updates after all reads finish
     for (let i = 0; i < plans.length; i += 1) {
       const p = plans[i];
       if (p.attr && (p.hasBg || (typeof p.el.hasAttribute === "function" && p.el.hasAttribute(p.attr)))) {
         setExclusiveShellAttr(p.el, p.attr);
-      } else {
+      } else if (!(typeof p.el.hasAttribute === "function" && p.el.hasAttribute("data-rudex-theme-composer"))) {
         clearShellAttrsOnElement(p.el);
       }
     }
+    try {
+      const prevFixes = doc.querySelectorAll("[data-rudex-light-fix], [data-rudex-light-text], [data-rudex-header-btn-fix]");
+      for (let i = 0; prevFixes && i < prevFixes.length; i += 1) {
+        const pf = prevFixes[i];
+        if (!extraFixSet.has(pf) && typeof pf.removeAttribute === "function") {
+          pf.removeAttribute("data-rudex-light-fix");
+          pf.removeAttribute("data-rudex-light-text");
+          pf.removeAttribute("data-rudex-header-btn-fix");
+        }
+      }
+      for (let i = 0; i < extraFixes.length; i += 1) {
+        const fx = extraFixes[i];
+        if (fx && fx.el && typeof fx.el.setAttribute === "function" && fx.el.getAttribute(fx.attr) !== fx.val) {
+          fx.el.setAttribute(fx.attr, fx.val);
+        }
+      }
+      if (typeof compPartFixes !== "undefined") {
+        const prevCompParts = doc.querySelectorAll(
+          "[data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-mode], [data-rudex-comp-send]"
+        );
+        for (let i = 0; prevCompParts && i < prevCompParts.length; i += 1) {
+          const pc = prevCompParts[i];
+          if (!compPartSet.has(pc) && typeof pc.removeAttribute === "function") {
+            for (let a = 0; a < COMP_PART_ATTRS.length; a += 1) {
+              if (pc.hasAttribute(COMP_PART_ATTRS[a])) pc.removeAttribute(COMP_PART_ATTRS[a]);
+            }
+          }
+        }
+        for (let i = 0; i < compPartFixes.length; i += 1) {
+          const cf = compPartFixes[i];
+          if (cf && cf.el && typeof cf.el.setAttribute === "function" && cf.el.getAttribute(cf.attr) !== cf.val) {
+            cf.el.setAttribute(cf.attr, cf.val);
+          }
+        }
+        for (let i = 0; i < compSendOffsets.length; i += 1) {
+          const co = compSendOffsets[i];
+          if (co && co.el && co.el.style && typeof co.el.style.setProperty === "function") {
+            const val = `${co.topPx}px`;
+            if (co.el.style.getPropertyValue("--rudex-cc-send-top") !== val) {
+              co.el.style.setProperty("--rudex-cc-send-top", val);
+            }
+          }
+        }
+        // Re-measure exact vertical center of Claude Code return arrow after layout settles with new padding
+        if (compSendOffsets.length > 0 && win && typeof win.requestAnimationFrame === "function") {
+          const toAlign = compSendOffsets.map((c) => c.el);
+          win.requestAnimationFrame(() => {
+            for (let i = 0; i < toAlign.length; i += 1) {
+              const comp = toAlign[i];
+              if (!comp || typeof comp.querySelector !== "function" || typeof comp.getBoundingClientRect !== "function") continue;
+              const inRow = comp.querySelector('[data-rudex-comp-input-row="1"]');
+              if (!inRow || typeof inRow.getBoundingClientRect !== "function") continue;
+              const cr = comp.getBoundingClientRect();
+              const ir = inRow.getBoundingClientRect();
+              const inpEl = inRow.querySelector('textarea, [contenteditable="true"], [role="textbox"]');
+              const inpR = inpEl && typeof inpEl.getBoundingClientRect === "function" ? inpEl.getBoundingClientRect() : null;
+              if (cr && ir && ir.height >= 24) {
+                let centerY = ir.top + ir.height / 2;
+                if (inpR && inpR.height >= 16 && inpR.height <= 52 && ir.height > inpR.height + 28) {
+                  centerY = inpR.top + inpR.height / 2;
+                }
+                const minTop = Math.max(4, Math.round(ir.top - cr.top) + 6);
+                const maxTop = Math.max(minTop, Math.round(ir.bottom - cr.top) - 28 - 6);
+                const rawTop = Math.round((centerY - cr.top) - 14);
+                const topPx = Math.max(minTop, Math.min(maxTop, rawTop));
+                const val = `${topPx}px`;
+                if (comp.style && comp.style.getPropertyValue("--rudex-cc-send-top") !== val) {
+                  comp.style.setProperty("--rudex-cc-send-top", val);
+                }
+              }
+            }
+          });
+        }
+      }
+    } catch (_e) {}
   }
 
   function scheduleShellScan() {
@@ -3566,6 +5251,8 @@ function createThemeEngine(options = {}) {
     const hasWallpaper = teHasActiveWallpaper(effectiveConfig);
     const hasCustomTypo = teHasCustomTypography(effectiveConfig);
     const hasCornersOverride = teHasCustomCorners(effectiveConfig);
+    const hasUiStyle = teHasCustomUiStyle(effectiveConfig);
+    const hasElementOverrides = !effectiveConfig.overridesPaused && Array.isArray(effectiveConfig.elementOverrides) && effectiveConfig.elementOverrides.length > 0;
     const hasSurfaceOverride =
       hasCornersOverride || effectiveConfig.radius !== 12 || effectiveConfig.borderStrength !== 50 || effectiveConfig.messageStyle !== "glass";
     const hostIsLight = resolveEffectiveHostIsLight(effectiveConfig);
@@ -3573,7 +5260,7 @@ function createThemeEngine(options = {}) {
       ? teResolveThemeVars(effectiveConfig).mode === "light"
       : hostIsLight;
 
-    if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !effectiveConfig.uiPolish) {
+    if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !hasUiStyle && !hasElementOverrides && !effectiveConfig.uiPolish) {
       if (wallpaperActive || themeScanActive) {
         wallpaperActive = false;
         themeScanActive = false;
@@ -3602,10 +5289,18 @@ function createThemeEngine(options = {}) {
     }
 
     lastHadThemeOverride = hasThemeOverride;
-    themeScanActive = hasThemeOverride;
+    themeScanActive = hasThemeOverride || hasUiStyle;
+    activeThemeIsLight = Boolean(hasThemeOverride && isLight);
+    try {
+      const rv = teResolveThemeVars(effectiveConfig);
+      activeSidebarYiq = teGetYiq((rv && (rv.sidebarBg || rv.canvasBg)) || "#141416");
+    } catch (_e) {
+      activeSidebarYiq = isLight ? 235 : 20;
+    }
     applyWallpaper(effectiveConfig, isLight);
     if (themeScanActive && !wallpaperActive) {
       ensureShellWatchers();
+      scanWallpaperShells();
     } else if (!themeScanActive && !wallpaperActive) {
       clearWallpaperShells();
     }
@@ -3672,9 +5367,14 @@ if (typeof module !== "undefined" && module.exports) {
     THEME_PRESETS,
     GRADIENT_PRESETS,
     CORNER_PRESETS,
+    UI_STYLE_PRESETS,
+    DEFAULT_UI_STYLE,
     FONT_PRESETS,
     DEFAULT_APPEARANCE,
     normalizeAppearance,
+    teNormalizeUiStyle,
+    teHasCustomUiStyle,
+    teBuildUiStyleCss,
     isAppearanceNativeDefault,
     teResolveCornerRadii,
     teFindFont,

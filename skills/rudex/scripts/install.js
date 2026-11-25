@@ -435,6 +435,8 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
   const v5CoreSrc = fs.existsSync(v5CorePath) ? loadStripped("rudex-v5-core.js") : "";
   const v5UiPath = path.join(resourcesDir, "rudex-v5-ui.js");
   const v5UiSrc = fs.existsSync(v5UiPath) ? loadStripped("rudex-v5-ui.js") : "";
+  const annPath = path.join(resourcesDir, "rudex-annotator.js");
+  const annSrc = fs.existsSync(annPath) ? loadStripped("rudex-annotator.js") : "";
   const panelSrc = loadStripped("studio-panel.js");
 
   const snippet = [
@@ -453,6 +455,7 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     stylesSrc,
     v5CoreSrc,
     v5UiSrc,
+    annSrc,
     panelSrc,
     `const _rawBootLocale = (() => { try { return _ipc.sendSync("agy-i18n:get-locale-sync"); } catch (_e) { return "ru"; } })();`,
     `if (_rawBootLocale === "__disabled__") return;`,
@@ -465,6 +468,7 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     `_ipc.on("agy-studio:hotkey-action", (_event, payload) => { try { if (typeof _studioPanel.handleHotkeyAction === "function") _studioPanel.handleHotkeyAction(payload && payload.action); } catch (_e) {} });`,
     `_ipc.on("agy-studio:live-edits-changed", (_event, payload) => { try { _studioPanel.applyLiveEditsUpdate(payload); } catch (_e) {} });`,
     `_ipc.on("agy-studio:settings-changed", (_event, nextState) => { try { _studioPanel.applyRemoteState(nextState); } catch (_e) {} });`,
+    `_ipc.on("agy-studio:quota-updated", (_event, summary) => { try { if (typeof _studioPanel.applyQuotaSummary === "function") _studioPanel.applyQuotaSummary(summary); } catch (_e) {} });`,
     `_ipc.on("agy-studio:update-status", (_event, payload) => { try { _studioPanel.applyUpdateStatus(payload); } catch (_e) {} });`,
     `const _bootRudex = () => { try { _translator.init(); _translator.translateDocument(); } catch (_e) {} try { _studioPanel.init(); } catch (_e) {} };`,
     `if (document.readyState === "loading") { if (document.documentElement) { try { _translator.init(); } catch (_e) {} } document.addEventListener("DOMContentLoaded", _bootRudex, { once: true }); } else { _bootRudex(); }`,

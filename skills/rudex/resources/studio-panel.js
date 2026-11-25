@@ -11,9 +11,14 @@ if (typeof rv5RenderAgentHubTabHtml === "undefined" && typeof require === "funct
     Object.assign(globalThis, require("./rudex-v5-ui.js"));
   } catch (_e) {}
 }
+if (typeof createScreenshotAnnotator === "undefined" && typeof require === "function") {
+  try {
+    Object.assign(globalThis, require("./rudex-annotator.js"));
+  } catch (_e) {}
+}
 
 const MAX_PERSONA_BODY_BYTES = 23000;
-const DOCK_POSITIONS = ["bottom-right", "top-right", "middle-right", "bottom-left", "hidden"];
+const DOCK_POSITIONS = ["inline-header", "top-left", "top-right", "bottom-right", "bottom-left", "middle-right", "hidden"];
 const MINI_FIELD_KEYS = ["status", "lang", "tps", "respTokens", "chatTokens", "model", "quota"];
 const DEFAULT_MINI_FIELDS = {
   status: true,
@@ -34,6 +39,9 @@ const DEFAULT_STUDIO_UI = {
   widgetScale: "md",
   widgetRadius: 999,
   widgetOpacity: 92,
+  widgetFont: "inherit",
+  widgetFontCustom: "",
+  widgetFontSize: 12,
   studioRadius: 14,
   studioBlur: 18,
   appScale: 100,
@@ -68,8 +76,12 @@ const WIDGET_DESIGN_THEMES = [
 ];
 
 const FONT_PAIR_PRESETS = [
+  { id: "chatgpt", nameRu: "ChatGPT", nameEn: "ChatGPT", descRu: "OpenAI Sans / Inter + Fira Code", descEn: "OpenAI Sans / Inter + Fira Code", uiFont: "chatgpt-sans", monoFont: "fira" },
+  { id: "opencode", nameRu: "OpenCode", nameEn: "OpenCode", descRu: "JetBrains Mono везде (терминальный код)", descEn: "JetBrains Mono everywhere (terminal coder)", uiFont: "opencode-mono", monoFont: "opencode-mono" },
   { id: "claude-default", nameRu: "Claude Code", nameEn: "Claude Code", descRu: "Claude Sans + JetBrains Mono", descEn: "Claude Sans + JetBrains Mono", uiFont: "claude-sans", monoFont: "claude-mono" },
   { id: "claude-editorial", nameRu: "Claude Editorial", nameEn: "Claude Editorial", descRu: "Source Serif 4 + JetBrains Mono", descEn: "Source Serif 4 + JetBrains Mono", uiFont: "claude-serif", monoFont: "claude-mono" },
+  { id: "cursor", nameRu: "Cursor / Linear", nameEn: "Cursor / Linear", descRu: "Geist Sans + Geist Mono", descEn: "Geist Sans + Geist Mono", uiFont: "geist", monoFont: "geist-mono" },
+  { id: "cyrillic-pro", nameRu: "Кириллица Pro", nameEn: "Cyrillic Pro", descRu: "Golos Text + JetBrains Mono", descEn: "Golos Text + JetBrains Mono", uiFont: "golos", monoFont: "jetbrains" },
   { id: "claude-cli", nameRu: "Claude Code CLI", nameEn: "Claude Code CLI", descRu: "Моноширинный терминал везде", descEn: "Monospace terminal everywhere", uiFont: "claude-mono-ui", monoFont: "claude-mono" },
   { id: "system", nameRu: "Стандартный", nameEn: "System Default", descRu: "Системные шрифты Antigravity", descEn: "Native Antigravity system fonts", uiFont: "system", monoFont: "system" },
 ];
@@ -445,6 +457,8 @@ const TEXT = {
     pinLockLabel: "Закрепить виджет",
     pinLockDesc: "Фиксирует позицию; в закреплённом виде долго удерживайте (~0.5 с) и потяните, чтобы изменить масштаб (клик открывает Rudex)",
     dockResetBtn: "К якорю",
+    dockInlineHeader: "В шапке (UI)",
+    dockTopLeft: "Левый верх",
     dockBottomRight: "Правый низ",
     dockTopRight: "Правый верх",
     dockMiddleRight: "Справа по центру",
@@ -482,10 +496,10 @@ const TEXT = {
     langEnTitle: "English (EN)",
     langEnDesc: "Оригинальный английский интерфейс",
     langActiveBadge: "Активен",
-    thinkingRuTitle: "Мысли агента на русском",
-    thinkingRuDesc: "Переключает внутренние размышления (thinking) агента на русский язык. При отключении возвращается режим по умолчанию.",
-    thinkingRuGlobalDesc: "Действует глобально для всех чатов. При отключении возвращается режим по умолчанию.",
-    thinkingRuOn: "Русский",
+    thinkingRuTitle: "Автоперевод мыслей агента на русский",
+    thinkingRuDesc: "Бесплатно переводит размышления агента прямо в интерфейсе (0 токенов и 0 расхода лимитов Antigravity).",
+    thinkingRuGlobalDesc: "Работает автоматически во всех чатах через бесплатный переводчик — лимиты не расходуются.",
+    thinkingRuOn: "Русский (авто)",
     thinkingRuDefault: "По умолчанию",
     updateSectionTitle: "Обновления Rudex",
     updateBadgeNew: "Есть обновление",
@@ -849,6 +863,8 @@ const TEXT = {
     pinLockLabel: "Lock widget in place",
     pinLockDesc: "Locks position; when pinned, hold and drag the widget to scale it (click opens Rudex)",
     dockResetBtn: "Snap to anchor",
+    dockInlineHeader: "Header bar",
+    dockTopLeft: "Top left",
     dockBottomRight: "Bottom right",
     dockTopRight: "Top right",
     dockMiddleRight: "Middle right",
@@ -886,10 +902,10 @@ const TEXT = {
     langEnTitle: "English (EN)",
     langEnDesc: "Native English Antigravity UI",
     langActiveBadge: "Active",
-    thinkingRuTitle: "Agent thinking in Russian",
-    thinkingRuDesc: "Switches agent internal reasoning (thinking) to Russian. Turn off to restore default behavior.",
-    thinkingRuGlobalDesc: "Applies globally across all chats. Turn off to restore default behavior.",
-    thinkingRuOn: "Russian",
+    thinkingRuTitle: "Auto-translate agent thinking to Russian",
+    thinkingRuDesc: "Translates agent thinking blocks right in the UI for free (0 tokens & 0 Antigravity quota used).",
+    thinkingRuGlobalDesc: "Runs automatically across all chats via free translator — zero Antigravity quota cost.",
+    thinkingRuOn: "Russian (auto)",
     thinkingRuDefault: "Default",
     updateSectionTitle: "Rudex Updates",
     updateBadgeNew: "Update available",
@@ -1063,6 +1079,38 @@ function spCloneGreeting(raw) {
   return Object.assign({}, spNormalizeGreeting(raw));
 }
 
+function spDefaultUiStyle() {
+  if (typeof DEFAULT_UI_STYLE !== "undefined") return Object.assign({}, DEFAULT_UI_STYLE);
+  return {
+    preset: "antigravity",
+    composer: "antigravity",
+    chat: "antigravity",
+    modelSelector: "antigravity",
+    composerRadius: 0,
+    composerMaxWidth: 0,
+    composerPadY: 0,
+    composerShadow: "preset",
+    userBubbleAlign: "preset",
+    userBubbleMaxWidth: 0,
+    chatGap: 0,
+    agentAccentBar: "preset",
+    modelBtnStyle: "preset",
+    modelMenuDensity: "preset",
+  };
+}
+
+function spGetUiStylePresets() {
+  if (typeof UI_STYLE_PRESETS !== "undefined" && Array.isArray(UI_STYLE_PRESETS)) return UI_STYLE_PRESETS;
+  const mod = spGetThemeMod();
+  if (mod && Array.isArray(mod.UI_STYLE_PRESETS)) return mod.UI_STYLE_PRESETS;
+  return [
+    { id: "antigravity", nameRu: "Antigravity", nameEn: "Antigravity", badge: "Базовый", badgeEn: "Default", descRu: "Оригинальный стиль поля ввода, чата и меню моделей Antigravity", descEn: "Original Antigravity composer, chat layout, and model selector" },
+    { id: "claude-code", nameRu: "Claude Code", nameEn: "Claude Code", badge: "Anthropic", badgeEn: "Anthropic", descRu: "Редакторская строка Reply, спокойный текстовый выбор модели без рамок и компактные тёплые баблы", descEn: "Editorial Reply bar, quiet borderless model selector, and compact warm right bubbles" },
+    { id: "codex", nameRu: "OpenAI Codex", nameEn: "OpenAI Codex", badge: "Codex Desktop", badgeEn: "Codex Desktop", descRu: "Объёмная командная капсула (20px), пилюльная кнопка модели и структурные карточки шагов", descEn: "Elevated 20px command capsule, pill model picker, and structured turn/tool cards" },
+    { id: "opencode", nameRu: "OpenCode", nameEn: "OpenCode", badge: "SST TUI", badgeEn: "SST TUI", descRu: "Чёткий терминальный фрейм (6px), левая акцент-полоса сообщений и моноширинный бейдж моделей", descEn: "Crisp 6px terminal frame, left-accent session timeline bubbles, and mono model badge" },
+  ];
+}
+
 function spDefaultAppearance() {
   if (typeof DEFAULT_APPEARANCE !== "undefined") return JSON.parse(JSON.stringify(DEFAULT_APPEARANCE));
   return {
@@ -1134,6 +1182,7 @@ function spDefaultAppearance() {
       chatMaxWidth: 0,
       density: "comfortable",
     },
+    uiStyle: spDefaultUiStyle(),
   };
 }
 
@@ -1145,6 +1194,7 @@ function spNormalizeAppearance(raw) {
     corners: Object.assign({}, def.corners, src.corners || {}),
     wallpaper: Object.assign({}, def.wallpaper, src.wallpaper || {}),
     typography: Object.assign({}, def.typography, src.typography || {}),
+    uiStyle: Object.assign({}, def.uiStyle, src.uiStyle || {}),
   });
 }
 
@@ -1176,6 +1226,9 @@ function spNormalizeStudioUi(raw) {
     widgetZoom,
     widgetRadius,
     widgetOpacity: clampInt(src.widgetOpacity, 45, 100, DEFAULT_STUDIO_UI.widgetOpacity),
+    widgetFont: typeof src.widgetFont === "string" && src.widgetFont.trim() ? src.widgetFont.trim().slice(0, 40) : DEFAULT_STUDIO_UI.widgetFont,
+    widgetFontCustom: typeof src.widgetFontCustom === "string" ? src.widgetFontCustom.trim().slice(0, 80) : "",
+    widgetFontSize: clampInt(src.widgetFontSize, 10, 18, DEFAULT_STUDIO_UI.widgetFontSize),
     studioRadius: clampInt(src.studioRadius, 8, 26, DEFAULT_STUDIO_UI.studioRadius),
     studioBlur: clampInt(src.studioBlur, 0, 32, DEFAULT_STUDIO_UI.studioBlur),
     appScale: clampInt(src.appScale, 70, 150, DEFAULT_STUDIO_UI.appScale),
@@ -1351,9 +1404,17 @@ function extractPctForLabel(slice, labelRe, crossBoundaryRe) {
     const beforeHasPct = Boolean(lastPm && !crossBoundaryRe.test(gapBefore));
     const sameLineBefore = Boolean(beforeHasPct && !/[\r\n]/.test(gapBefore));
 
+    const pctIndicatesUsed = (nearby) => {
+      const s = String(nearby || "");
+      if (/\b(?:left|remaining)\b|остал[а-яё]*|остаток/i.test(s)) return false;
+      return /\bused\b|использован[а-яё]*|израсходован[а-яё]*/i.test(s);
+    };
+
     const readAfterMatch = () => {
-      const val = parseFloat(pctM[1].replace(",", "."));
+      let val = parseFloat(pctM[1].replace(",", "."));
       if (!Number.isFinite(val) || val < 0 || val > 100) return null;
+      const rightTail = afterLabel.slice(pctM.index + pctM[0].length, pctM.index + pctM[0].length + 28);
+      if (pctIndicatesUsed(rightTail)) val = Math.max(0, Math.min(100, Math.round((100 - val) * 10) / 10));
       const resetFromBetween = extractBoundedReset(betweenAfter, crossBoundaryRe);
       const resetFromAfterPct = extractBoundedReset(
         afterLabel.slice(pctM.index + pctM[0].length, pctM.index + pctM[0].length + 140),
@@ -1363,8 +1424,10 @@ function extractPctForLabel(slice, labelRe, crossBoundaryRe) {
     };
 
     const readBeforeMatch = () => {
-      const val = parseFloat(lastPm[1].replace(",", "."));
+      let val = parseFloat(lastPm[1].replace(",", "."));
       if (!Number.isFinite(val) || val < 0 || val > 100) return null;
+      const rightTail = gapBefore.slice(0, 28);
+      if (pctIndicatesUsed(rightTail)) val = Math.max(0, Math.min(100, Math.round((100 - val) * 10) / 10));
       const reset = extractBoundedReset(afterLabel.slice(0, 140), crossBoundaryRe);
       return { val, reset };
     };
@@ -1692,9 +1755,12 @@ function createStudioPanel(options) {
     destroyed: false,
     locale: opts.initialLocale === "en" ? "en" : "ru",
     isOpen: false,
-    activeTab: "monitor",
+    activeTab: "persona",
     appearanceSubTab: "theme",
     settingsSubTab: "system",
+    widgetSubSection: "mini",
+    lastHostMetricsSig: "",
+    lastHostMetricsAt: 0,
     openDisclosures: {},
     theme: "dark",
     activeChatKey: "__new__",
@@ -1729,7 +1795,7 @@ function createStudioPanel(options) {
     newChatDraftPersona: null,
     settings: {
       panelEnabled: true,
-      pinned: false,
+      pinned: true,
       viewMode: "mini",
       layoutMode: "docked",
       dockPosition: "bottom-right",
@@ -1738,7 +1804,9 @@ function createStudioPanel(options) {
       miniFields: Object.assign({}, DEFAULT_MINI_FIELDS),
       trackHistory: true,
       personaStrictMode: true,
-      thinkingInRussian: false,
+      thinkingInRussian: true,
+      composerDraftsEnabled: true,
+      inputHistoryEnabled: true,
       autoCheckUpdates: true,
       customPresets: [],
       appearance: spCloneAppearance(spDefaultAppearance()),
@@ -1769,7 +1837,12 @@ function createStudioPanel(options) {
     newLabelMatch: "",
     newLabelText: "",
     newAgentPresetName: "",
+    newChatDraftAgentProfile: null,
     lastNativeInjectAt: 0,
+    lastImgInjectAt: 0,
+    lastChatDockHtml: "",
+    inputHistory: { loading: false, items: [], draftCount: 0 },
+    dismissedLiveEditIds: new Set(),
     workshop: {
       loading: false,
       scope: "global",
@@ -1791,6 +1864,9 @@ function createStudioPanel(options) {
     lastQuotaScrapeAt: 0,
     lastQuotaScrapeSig: "",
     lastQuotaSyncAt: 0,
+    lastAutoQuotaPollAt: 0,
+    quotaPollInflight: false,
+    lastQuotaFamiliesSig: "",
     exportOpts: {
       includeAttachments: true,
       includeArtifacts: true,
@@ -1813,6 +1889,11 @@ function createStudioPanel(options) {
     liveEditBusy: false,
     liveEditError: "",
     liveEdits: [],
+    usagePopOpen: false,
+    usagePopAnchor: null,
+    lastUsagePopHtml: "",
+    onAuthScreen: false,
+    appTheme: "dark",
     updatePreviewActive: false,
     update: {
       status: "idle",
@@ -1838,7 +1919,34 @@ function createStudioPanel(options) {
   let modalMountEl = null;
   let limitsMountEl = null;
   let chatDockMountEl = null;
+  let usagePopMountEl = null;
   let pickerMountEl = null;
+  let annotatorMountEl = null;
+  let annotatorCtrl = null;
+  let docPasteHandler = null;
+  let docDropHandler = null;
+  let docFileChangeHandler = null;
+  let docInputHandler = null;
+  let beforeUnloadDraftHandler = null;
+  let outsidePopoverHandler = null;
+  let modelTriggerClickHandler = null;
+  let composerSendClickHandler = null;
+  let lastTitleBarOverlaySig = "";
+  let titleBarBootTimer = null;
+  let quotaScrapeTimers = [];
+  const composerOrigImages = []; // Ring buffer of full-resolution pasted/dropped/uploaded images before Antigravity downscales thumbnails
+  const composerOrigFiles = []; // Ring buffer of attached non-image files (PDF, code, docs, etc.)
+  const pendingComposerReads = new Set(); // In-flight FileReader promises so instant Enter after paste/drop never races
+  const liveEditLocalPreviews = new Map(); // id -> { images: [{ name, previewDataUrl }], files: [{ name }] }
+  const draftDataUrlToFileName = new Map(); // dataUrlSig -> persisted draft fileName (avoids re-sending MBs on every keystroke)
+  const lastSavedDraftByChat = new Map(); // chatKey -> { text, atts: [{ name, mime, isImage, fileName }] }
+  let draftSaveTimer = null;
+  let draftRestoreTimer = null;
+  let draftRestoreSeq = 0;
+  let isRestoringDraft = false;
+  let draftJustSubmittedUntil = 0;
+  let lastDraftObsSig = "";
+  let liveEditSendInFlight = false;
   let limitsDragState = null;
   let pickerMoveHandler = null;
   let pickerClickHandler = null;
@@ -1934,10 +2042,7 @@ function createStudioPanel(options) {
     return null;
   }
 
-  function detectTheme() {
-    const sui = spNormalizeStudioUi(state.settings.studioUi);
-    if (sui.windowTheme === "claude-light") return "light";
-    if (sui.windowTheme === "claude-dark") return "dark";
+  function detectAppTheme() {
     const activeApp = state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance;
     if (activeApp && activeApp.presetId && activeApp.presetId !== "native") {
       if (activeApp.presetId === "custom") {
@@ -1972,6 +2077,13 @@ function createStudioPanel(options) {
       }
     } catch (_e) {}
     return "dark";
+  }
+
+  function detectTheme() {
+    const sui = spNormalizeStudioUi(state.settings.studioUi);
+    if (sui.windowTheme === "claude-light") return "light";
+    if (sui.windowTheme === "claude-dark") return "dark";
+    return detectAppTheme();
   }
 
   const RESIZE_HOLD_MS = 450;
@@ -2014,7 +2126,7 @@ function createStudioPanel(options) {
       } catch (_e) {}
     }
     const dock = normalizeDockPosition(state.settings.dockPosition);
-    const topReserve = state.settings.layoutMode === "docked" && dock === "top-right" ? 68 : 28;
+    const topReserve = state.settings.layoutMode === "docked" && (dock === "top-right" || dock === "top-left") ? 68 : 28;
     const availW = Math.max(120, vw - 28);
     const availH = Math.max(48, vh - topReserve);
     const maxEffZoom = Math.min(availW / baseW, availH / baseH);
@@ -2023,16 +2135,26 @@ function createStudioPanel(options) {
   }
 
   function syncTheme() {
+    const appNext = detectAppTheme();
     const next = detectTheme();
+    const prevAppTheme = state.appTheme;
+    state.appTheme = appNext;
     state.theme = next;
     if (rootEl) {
       const sui = spNormalizeStudioUi(state.settings.studioUi);
       rootEl.setAttribute("data-theme", next);
+      rootEl.setAttribute("data-app-theme", appNext);
       rootEl.setAttribute("data-studio-theme", sui.windowTheme);
       rootEl.style.setProperty("--rx-studio-radius", `${sui.studioRadius}px`);
       rootEl.style.setProperty("--rx-studio-blur", `${sui.studioBlur}px`);
       rootEl.style.setProperty("--rx-widget-opacity", (sui.widgetOpacity / 100).toFixed(2));
       rootEl.style.setProperty("--rx-widget-radius", sui.widgetRadius >= 999 ? "999px" : `${sui.widgetRadius}px`);
+      rootEl.style.setProperty("--rx-widget-font-size", `${sui.widgetFontSize || 12}px`);
+      const wfStack = sui.widgetFont && sui.widgetFont !== "inherit" && typeof teResolveFontStack === "function"
+        ? teResolveFontStack("ui", sui.widgetFont, sui.widgetFontCustom)
+        : "";
+      if (wfStack) rootEl.style.setProperty("--rx-widget-font-family", wfStack);
+      else rootEl.style.removeProperty("--rx-widget-font-family");
       const appFactor = state.appZoomSupported ? (sui.appScale / 100) : 1;
       const vw = (win && Number(win.innerWidth)) || 1280;
       const vh = (win && Number(win.innerHeight)) || 800;
@@ -2045,7 +2167,7 @@ function createStudioPanel(options) {
       const minWidgetW = isMed ? 318 : 260;
       const minWidgetH = isMed ? 310 : 36;
       const dock = normalizeDockPosition(state.settings.dockPosition);
-      const topRes = state.settings.layoutMode === "docked" && dock === "top-right" ? 68 : 28;
+      const topRes = state.settings.layoutMode === "docked" && (dock === "top-right" || dock === "top-left") ? 68 : 28;
       const maxWidgetEffZoom = Math.max(0.55, Math.min(2.2, (vw - 28) / minWidgetW, (vh - topRes) / minWidgetH));
       const rawWidgetZoom = (sui.widgetZoom / 100) / appFactor;
       const widgetZoom = Math.max(0.55, Math.min(maxWidgetEffZoom, rawWidgetZoom));
@@ -2074,17 +2196,17 @@ function createStudioPanel(options) {
       if (hasThemePalette) {
         const vars = activeApp.presetId === "custom"
           ? {
-              mode: next,
+              mode: appNext,
               canvasBg: activeApp.canvasBg,
               cardBg: activeApp.cardBg,
               sidebarBg: spMixHexColor(activeApp.canvasBg, activeApp.cardBg, 0.45),
-              fgColor: next === "light" ? "#141418" : "#ececef",
-              mutedColor: next === "light" ? "#5c5c66" : "#9a9aa6",
-              borderColor: next === "light" ? "rgba(17, 18, 24, 0.12)" : "rgba(255, 255, 255, 0.10)",
+              fgColor: appNext === "light" ? "#141418" : "#ececef",
+              mutedColor: appNext === "light" ? "#5c5c66" : "#9a9aa6",
+              borderColor: appNext === "light" ? "rgba(17, 18, 24, 0.14)" : "rgba(255, 255, 255, 0.10)",
             }
           : (preset && preset.vars ? preset.vars : null);
         if (vars) {
-          const isThemeLight = (preset && preset.mode === "light") || (activeApp.presetId === "custom" && next === "light");
+          const isThemeLight = (preset && preset.mode === "light") || (activeApp.presetId === "custom" && appNext === "light");
           const surface2 = spMixHexColor(vars.cardBg, isThemeLight ? "#000000" : "#ffffff", isThemeLight ? 0.05 : 0.065);
           const softFg = spMixHexColor(vars.fgColor, vars.canvasBg, 0.14);
           rootEl.style.setProperty("--rx-theme-bg", vars.canvasBg);
@@ -2101,6 +2223,9 @@ function createStudioPanel(options) {
         for (let i = 0; i < themePropNames.length; i += 1) {
           rootEl.style.removeProperty(themePropNames[i]);
         }
+      }
+      if (prevAppTheme !== appNext && state.liveEdits && state.liveEdits.length > 0) {
+        syncLiveChatBubbles(false);
       }
 
       // Sync accent color (respect explicit Claude Studio theme accent when on native Antigravity)
@@ -2243,6 +2368,8 @@ function createStudioPanel(options) {
       if (typeof rawSettings.trackHistory === "boolean") state.settings.trackHistory = rawSettings.trackHistory;
       if (typeof rawSettings.personaStrictMode === "boolean") state.settings.personaStrictMode = rawSettings.personaStrictMode;
       if (typeof rawSettings.thinkingInRussian === "boolean") state.settings.thinkingInRussian = rawSettings.thinkingInRussian;
+      if (typeof rawSettings.composerDraftsEnabled === "boolean") state.settings.composerDraftsEnabled = rawSettings.composerDraftsEnabled;
+      if (typeof rawSettings.inputHistoryEnabled === "boolean") state.settings.inputHistoryEnabled = rawSettings.inputHistoryEnabled;
       if (typeof rawSettings.autoCheckUpdates === "boolean") state.settings.autoCheckUpdates = rawSettings.autoCheckUpdates;
       if (Array.isArray(rawSettings.customPresets)) state.settings.customPresets = normalizeCustomPresets(rawSettings.customPresets);
       if (rawSettings.greeting && typeof rawSettings.greeting === "object") {
@@ -2692,14 +2819,17 @@ function createStudioPanel(options) {
       turnSyncTimer = null;
       if (state.destroyed || state.activeChatKey !== chatKey) return;
       invokeIpc("agy-studio:get-turn-metrics", { chatKey }).then((res) => {
-        if (state.destroyed || !res || !res.ok || state.activeChatKey !== chatKey) return;
-        if (telemetryEngine && typeof telemetryEngine.applyExactTranscriptMetrics === "function") {
+        if (state.destroyed || state.activeChatKey !== chatKey) return;
+        if (res && res.ok && telemetryEngine && typeof telemetryEngine.applyExactTranscriptMetrics === "function") {
           telemetryEngine.applyExactTranscriptMetrics(state.telemetry, res);
           flushChatTelemetry(chatKey, title, state.telemetry);
           updateLiveDom();
         }
+        invokeIpc("agy-studio:get-quota-summary", { chatKey, forceFresh: true }).then((qs) => {
+          if (!state.destroyed && qs) applyQuotaSummary(qs);
+        });
       });
-    }, 550);
+    }, 850);
   }
 
   function switchChatIfNeeded(detected, snap) {
@@ -2717,7 +2847,7 @@ function createStudioPanel(options) {
     const wasActivated = state.hasActivatedChat;
     const tel = state.telemetry;
 
-    const isPromotion = wasActivated && prevKey === "__new__" && detected.key !== "__new__" && snap.userMsgCount <= 1 && (state.newChatDraftPersona !== null || snap.isGenerating || tel.isGenerating || state.pendingNewSendAt > 0);
+    const isPromotion = wasActivated && prevKey === "__new__" && detected.key !== "__new__" && snap.userMsgCount <= 1 && (state.newChatDraftPersona !== null || state.newChatDraftAgentProfile !== null || snap.isGenerating || tel.isGenerating || state.pendingNewSendAt > 0);
     state.pendingNewSendAt = 0;
 
     if (wasActivated && prevKey.startsWith("chat-")) {
@@ -2744,12 +2874,14 @@ function createStudioPanel(options) {
       const draft = state.newChatDraftPersona || (state.chatPersona.enabled && state.chatPersona.text.trim()
         ? { personaEnabled: true, personaActivePreset: state.chatPersona.activePreset || "custom", personaText: state.chatPersona.text, personaStrict: state.chatPersona.strict !== false }
         : null);
+      const draftAp = state.newChatDraftAgentProfile || (state.chatAgentProfile && state.chatAgentProfile.enabled ? Object.assign({}, state.chatAgentProfile) : null);
       promoPayload = {
         title: detected.title,
         personaEnabled: Boolean(draft && draft.personaEnabled),
         personaActivePreset: draft && draft.personaActivePreset ? draft.personaActivePreset : state.chatPersona.activePreset || "custom",
         personaText: draft && typeof draft.personaText === "string" ? draft.personaText : "",
         personaStrict: draft ? draft.personaStrict !== false : state.chatPersona.strict !== false,
+        agentProfile: draftAp,
         telemetry: serializeChatTelemetry(tel),
       };
       if (promoPayload.personaEnabled && promoPayload.personaText.trim()) {
@@ -2773,6 +2905,7 @@ function createStudioPanel(options) {
         tel.highWaterBubbleTok = snap.respFloatTok;
       }
       state.newChatDraftPersona = null;
+      state.newChatDraftAgentProfile = null;
     } else if (migrateFromKey) {
       if (state.chatPersona.enabled && state.chatPersona.text.trim()) {
         fallbackPersona = {
@@ -2791,7 +2924,16 @@ function createStudioPanel(options) {
       }
     } else {
       state.newChatDraftPersona = null;
+      state.newChatDraftAgentProfile = null;
       state.lastPromotedPersona = null;
+      if (wasActivated && ((UUID_RE.test(prevKey) && UUID_RE.test(detected.key) && prevKey !== detected.key) || (prevKey !== "__new__" && detected.isNew))) {
+        state.agentPopoverOpen = false;
+      }
+      removeAllLiveChatBubbleSlots();
+      const defAp = state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats && state.settings.agentProfileDefault.enabled
+        ? Object.assign({}, state.settings.agentProfileDefault)
+        : (typeof rv5NormalizeAgentProfile === "function" ? rv5NormalizeAgentProfile(null) : { enabled: false });
+      state.chatAgentProfile = detected.isNew ? defAp : (typeof rv5NormalizeAgentProfile === "function" ? rv5NormalizeAgentProfile(null) : { enabled: false });
       state.hydrationIgnoreUntil = nowHiRes() + 2000;
       const freshTel = spEmptyTelemetry();
       freshTel.respTokens = detected.isNew ? 0 : snap.respTokens;
@@ -2819,12 +2961,24 @@ function createStudioPanel(options) {
       state.toastError = false;
     }
 
+    if (wasActivated && !isPromotion && !migrateFromKey && Date.now() > draftJustSubmittedUntil) {
+      flushComposerDraftSync(prevKey, prevTitle);
+    }
+
     state.hasActivatedChat = true;
     state.activeChatKey = detected.key;
     state.activeChatTitle = detected.title;
+    lastDraftObsSig = "";
     const seq = ++state.activeChatSwitchSeq;
     renderStructure();
     updateLiveDom();
+
+    if (isPromotion) {
+      lastSavedDraftByChat.delete("__new__");
+      invokeIpc("agy-studio:clear-composer-draft", { chatKey: "__new__" });
+    } else if (!migrateFromKey) {
+      restoreComposerDraftForChat(detected.key);
+    }
 
     invokeIpc("agy-studio:activate-chat", {
       chatKey: detected.key,
@@ -2833,6 +2987,7 @@ function createStudioPanel(options) {
       migrateFromKey,
       fallbackPersona,
       draftPersona: detected.isNew ? state.newChatDraftPersona : null,
+      draftAgentProfile: detected.isNew ? state.newChatDraftAgentProfile : null,
     }).then((res) => {
       if (state.destroyed || seq !== state.activeChatSwitchSeq || !res || !res.chat) return;
       const rec = res.chat;
@@ -2844,6 +2999,15 @@ function createStudioPanel(options) {
         text: typeof rec.personaText === "string" ? rec.personaText : "",
         strict: typeof rec.personaStrict === "boolean" ? rec.personaStrict : state.settings.personaStrictMode !== false,
       };
+      if (rec.agentProfile && typeof rec.agentProfile === "object") {
+        state.chatAgentProfile = typeof rv5NormalizeAgentProfile === "function"
+          ? rv5NormalizeAgentProfile(rec.agentProfile)
+          : Object.assign({}, rec.agentProfile);
+      } else if (detected.isNew && state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats && state.settings.agentProfileDefault.enabled) {
+        state.chatAgentProfile = Object.assign({}, state.settings.agentProfileDefault);
+      } else if (!isPromotion) {
+        state.chatAgentProfile = typeof rv5NormalizeAgentProfile === "function" ? rv5NormalizeAgentProfile(null) : { enabled: false };
+      }
       if (!state.draftDirty) {
         state.draftPersonaText = state.chatPersona.text;
       }
@@ -2892,11 +3056,7 @@ function createStudioPanel(options) {
       contextTokens: Math.max(0, Math.round(contextTokens || 0)),
     }).then((res) => {
       if (!state.destroyed && res && res.summary) {
-        state.quotaSummary = res.summary;
-        updateLiveDom();
-        if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "export") {
-          renderStructure();
-        }
+        applyQuotaSummary(res.summary);
       }
     });
   }
@@ -2986,23 +3146,58 @@ function createStudioPanel(options) {
     }
     repaintTimer = win.setTimeout(() => {
       repaintTimer = null;
-      if (!state.destroyed && state.mounted) updateLiveDom();
+      if (!state.destroyed && state.mounted) {
+        updateLiveDom();
+        positionChatDock();
+      }
     }, 95);
   }
 
+  function syncHostTitleBarOverlay(appCfg, force) {
+    const cfg = spNormalizeAppearance(appCfg || (state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance));
+    const preset = spFindThemePreset(cfg.presetId);
+    const sig = `${cfg.presetId}|${cfg.canvasBg}|${cfg.cardBg}`;
+    if (!force && sig === lastTitleBarOverlaySig) return;
+    lastTitleBarOverlaySig = sig;
+    try {
+      invokeIpc("agy-studio:sync-titlebar-overlay", { appearance: cfg });
+    } catch (_e) {}
+    try {
+      if (win && win.electronNativeAPI && typeof win.electronNativeAPI.setTitleBarOverlay === "function") {
+        let color = "#0d0d11";
+        let symbolColor = "#ececef";
+        if (cfg.presetId === "custom") {
+          color = cfg.canvasBg || "#09090b";
+          const l = parseColorLightness(color);
+          symbolColor = l !== null && l > 0.58 ? "#141418" : "#f1f2f6";
+        } else if (cfg.presetId !== "native" && preset && preset.vars) {
+          color = preset.vars.sidebarBg || preset.vars.canvasBg || color;
+          symbolColor = preset.vars.fgColor || symbolColor;
+        }
+        win.electronNativeAPI.setTitleBarOverlay({ color, symbolColor });
+      }
+    } catch (_e) {}
+  }
+
   function applyThemeToHost(appCfg) {
-    if (!themeEngine || typeof themeEngine.apply !== "function") return;
-    try { themeEngine.apply(appCfg || state.settings.appearance); } catch (_e) {}
+    const cfg = appCfg || state.settings.appearance;
+    if (themeEngine && typeof themeEngine.apply === "function") {
+      try { themeEngine.apply(cfg); } catch (_e) {}
+    }
     syncTheme();
+    syncHostTitleBarOverlay(cfg, false);
   }
 
   function applyThemeFastToHost(appCfg) {
-    if (!themeEngine) return;
-    try {
-      if (typeof themeEngine.applyFast === "function") themeEngine.applyFast(appCfg || state.appearanceDraft);
-      else if (typeof themeEngine.apply === "function") themeEngine.apply(appCfg || state.appearanceDraft);
-    } catch (_e) {}
+    const cfg = appCfg || state.appearanceDraft;
+    if (themeEngine) {
+      try {
+        if (typeof themeEngine.applyFast === "function") themeEngine.applyFast(cfg);
+        else if (typeof themeEngine.apply === "function") themeEngine.apply(cfg);
+      } catch (_e) {}
+    }
     syncTheme();
+    syncHostTitleBarOverlay(cfg, false);
   }
 
   function applyLiveEditsPayload(payload) {
@@ -3013,7 +3208,16 @@ function createStudioPanel(options) {
       if (!x) return false;
       if (curKey === "__new__") return x.chatKey === "__new__" || x.fallbackAny;
       return x.chatKey === curKey || x.deliveredConversationId === curKey || (x.fallbackAny && x.status === "pending");
-    }).slice(-20);
+    }).slice(-20).map((it) => {
+      const cached = liveEditLocalPreviews.get(it.id);
+      if (!cached) return it;
+      const mergedImgs = Array.isArray(it.images) && it.images.length > 0
+        ? it.images.map((im, idx) => Object.assign({}, im, {
+            previewDataUrl: im.previewDataUrl || (cached.images && cached.images[idx] ? cached.images[idx].previewDataUrl : ""),
+          }))
+        : (cached.images || []);
+      return Object.assign({}, it, { images: mergedImgs });
+    });
   }
 
   function countPendingLiveEdits() {
@@ -3344,6 +3548,78 @@ function createStudioPanel(options) {
     `;
   }
 
+  function applyQuotaSummary(summary) {
+    if (state.destroyed || !summary || typeof summary !== "object") return;
+    state.quotaSummary = summary;
+    try {
+      state.lastQuotaFamiliesSig = JSON.stringify(summary.families || {});
+    } catch (_e) {}
+    updateLiveDom();
+    renderLimitsWidgetMount();
+    if (state.usagePopOpen) renderModelUsagePopover();
+    if (state.isOpen && state.activeTab === "settings" && (state.settingsSubTab === "export" || (state.settingsSubTab === "widget" && state.widgetSubSection === "limits"))) {
+      const ae = shadowRoot && shadowRoot.activeElement ? shadowRoot.activeElement : null;
+      const isEditingControl = Boolean(ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA"));
+      if (isEditingControl && state.settingsSubTab === "widget" && modalMountEl && typeof rv5BuildLimitsWidgetHtml === "function") {
+        const stage = modalMountEl.querySelector(".preview-stage");
+        if (stage) {
+          const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : state.settings.limitsWidget;
+          stage.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, (state.telemetry && state.telemetry.modelName) || "", state.locale !== "en", true);
+        }
+      } else {
+        renderStructure();
+      }
+    }
+  }
+
+  function scheduleQuotaDomScrapeBurst() {
+    if (!win || typeof win.setTimeout !== "function") {
+      scrapeDomQuotaSnapshot(true);
+      return;
+    }
+    const delays = [220, 680, 1450];
+    for (let i = 0; i < delays.length; i += 1) {
+      const tid = win.setTimeout(() => {
+        quotaScrapeTimers = quotaScrapeTimers.filter((t) => t !== tid);
+        if (!state.destroyed) scrapeDomQuotaSnapshot(true);
+      }, delays[i]);
+      quotaScrapeTimers.push(tid);
+    }
+  }
+
+  function pollQuotaSummaryIfDue(now) {
+    if (state.destroyed || state.quotaPollInflight || !ipc) return;
+    const limUiVisible = Boolean(
+      state.usagePopOpen ||
+      (state.settings.limitsWidget && state.settings.limitsWidget.enabled) ||
+      state.settings.viewMode === "medium" ||
+      (state.settings.miniFields && state.settings.miniFields.quota) ||
+      (state.isOpen && state.activeTab === "settings" && (state.settingsSubTab === "export" || (state.settingsSubTab === "widget" && state.widgetSubSection === "limits")))
+    );
+    const intervalMs = state.telemetry.isGenerating
+      ? 10000
+      : (limUiVisible ? 22000 : 60000);
+    if (now - (state.lastAutoQuotaPollAt || 0) < intervalMs) return;
+    state.lastAutoQuotaPollAt = now;
+    state.quotaPollInflight = true;
+    invokeIpc("agy-studio:get-quota-summary", {
+      chatKey: state.activeChatKey || "__new__",
+      forceFresh: true,
+    }).then((qs) => {
+      state.quotaPollInflight = false;
+      if (state.destroyed || !qs || typeof qs !== "object") return;
+      let nextSig = "";
+      try { nextSig = JSON.stringify(qs.families || {}); } catch (_e) {}
+      if (!state.quotaSummary || nextSig !== state.lastQuotaFamiliesSig) {
+        applyQuotaSummary(qs);
+      } else {
+        state.quotaSummary = qs;
+      }
+    }).catch(() => {
+      state.quotaPollInflight = false;
+    });
+  }
+
   function applyUpdateStatus(payload) {
     if (!payload || typeof payload !== "object" || state.destroyed) return;
     const prevAvailable = Boolean(state.update && state.update.available);
@@ -3541,11 +3817,7 @@ function createStudioPanel(options) {
         activeChatKey: state.activeChatKey || "__new__",
       }).then((res) => {
         if (!state.destroyed && res && res.summary) {
-          state.quotaSummary = res.summary;
-          updateLiveDom();
-          if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "export") {
-            renderStructure();
-          }
+          applyQuotaSummary(res.summary);
         }
       });
     } catch (_e) {}
@@ -3574,10 +3846,35 @@ function createStudioPanel(options) {
     const tr = t();
     const qs = state.quotaSummary;
     const ac = qs && qs.activeChat ? qs.activeChat : null;
-    const fiveHour = ac ? formatQuotaPct(ac.fiveHourWindowPct || ac.fiveHourPct) : "0%";
-    const week = ac ? formatQuotaPct(ac.weeklyPct) : "0%";
-    const miniText = `${tr.quota5hShort} -${fiveHour} · ${tr.quotaWeekShort} -${week}`;
-    return { fiveHour, week, miniText, activeChat: ac };
+    const fams = qs && qs.families ? qs.families : null;
+    const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : (state.settings.limitsWidget || {});
+    const isUsedMode = lw && lw.displayMode === "used";
+    const mLow = String((state.telemetry && state.telemetry.modelName) || "").toLowerCase();
+    const activeFamKey = mLow.includes("claude") || mLow.includes("gpt") || mLow.includes("sonnet") || mLow.includes("opus")
+      ? "claudeGpt"
+      : "gemini";
+    const fam = fams && (fams[activeFamKey] || fams.gemini || fams.claudeGpt) ? (fams[activeFamKey] || fams.gemini || fams.claudeGpt) : null;
+    const hasReal5 = Boolean(fam && typeof fam.fiveHourRem === "number" && Number.isFinite(fam.fiveHourRem));
+    const hasRealW = Boolean(fam && typeof fam.weeklyRem === "number" && Number.isFinite(fam.weeklyRem));
+    if (hasReal5 || hasRealW) {
+      const fmtFam = (rem, isEst) => {
+        if (typeof rem !== "number" || !Number.isFinite(rem)) return "—";
+        const val = isUsedMode ? Math.max(0, Math.min(100, Math.round(100 - rem))) : Math.max(0, Math.min(100, Math.round(rem)));
+        return `${isEst ? "~" : ""}${val}%`;
+      };
+      const fiveHour = fmtFam(fam.fiveHourRem, fam.fiveHourEstimated);
+      const week = fmtFam(fam.weeklyRem, fam.weeklyEstimated);
+      const parts = [];
+      if (hasReal5) parts.push(`${tr.quota5hShort} ${fiveHour}`);
+      if (hasRealW) parts.push(`${tr.quotaWeekShort} ${week}`);
+      return { fiveHour, week, miniText: parts.join(" · "), activeChat: ac, family: fam };
+    }
+    const fiveHour = ac ? formatQuotaPct(ac.fiveHourWindowPct || ac.fiveHourPct) : "—";
+    const week = ac ? formatQuotaPct(ac.weeklyPct) : "—";
+    const miniText = ac && ((ac.fiveHourWindowPct || ac.fiveHourPct) > 0 || ac.weeklyPct > 0)
+      ? `${tr.quota5hShort} -${fiveHour} · ${tr.quotaWeekShort} -${week}`
+      : `${tr.quota5hShort} — · ${tr.quotaWeekShort} —`;
+    return { fiveHour, week, miniText, activeChat: ac, family: fam };
   }
 
   function spNeedsRuThinking(str) {
@@ -3661,7 +3958,7 @@ function createStudioPanel(options) {
     const seen = new Set();
     try {
       const triggers = doc.querySelectorAll(
-        'button[data-testid="thinking-collapsible-trigger"][aria-expanded="true"], button[aria-expanded="true"][aria-label]'
+        'button[data-testid="thinking-collapsible-trigger"][aria-expanded="true"], button[aria-expanded="true"]'
       );
       for (let i = 0; triggers && i < triggers.length; i += 1) {
         const btn = triggers[i];
@@ -3669,7 +3966,8 @@ function createStudioPanel(options) {
         const testId = typeof btn.getAttribute === "function" ? (btn.getAttribute("data-testid") || "") : "";
         if (testId !== "thinking-collapsible-trigger") {
           const aria = typeof btn.getAttribute === "function" ? (btn.getAttribute("aria-label") || "").trim() : "";
-          if (!/^(?:Thought\s+for\b|Thought\s+Process\b|Thinking\b|Думал\b|Размышлял\b|Процесс\s+мышления\b|Размышлени)/i.test(aria)) {
+          const labelTxt = aria || String(btn.textContent || "").replace(/\s+/g, " ").trim();
+          if (!/^(?:Thought\s+for\b|Thought\s+Process\b|Thinking\b|Думал\b|Думает\b|Размышлял\b|Размышляет\b|Процесс\s+мышления\b|Размышлени)/i.test(labelTxt)) {
             continue;
           }
         }
@@ -3858,6 +4156,50 @@ function createStudioPanel(options) {
     }
   }
 
+  function detectAuthScreen() {
+    if (!doc || !doc.body || typeof doc.querySelector !== "function") return false;
+    try {
+      // If any normal workspace/chat element exists outside our host, we are inside the app (not on login/account switch)
+      const wsNodes = doc.querySelectorAll('[data-testid="sidebar"], aside, [data-testid="model-selector-trigger"], [data-testid="user-message-bubble"], [data-testid="agent-response"], [data-testid="composer"], textarea, [contenteditable="true"]');
+      for (let i = 0; wsNodes && i < wsNodes.length; i += 1) {
+        const el = wsNodes[i];
+        if (!el) continue;
+        if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) continue;
+        return false;
+      }
+      const candidates = doc.querySelectorAll("h1, h2, button, a, p");
+      const authRe = /welcome\s+to\s+antigravity|добро\s+пожаловать\s+в\s+antigravity|continue\s+with\s+google|продолжить\s+через\s+google|use\s+business\s+account|использовать\s+бизнес-аккаунт|having\s+trouble\s+signing\s+in|не\s+удалось\s+войти|sign\s+in\s+to\s+antigravity|войти\s+в\s+antigravity/i;
+      for (let i = 0; candidates && i < candidates.length && i < 48; i += 1) {
+        const el = candidates[i];
+        if (!el) continue;
+        if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) continue;
+        const t = String(el.textContent || "").trim();
+        if (t && authRe.test(t)) return true;
+      }
+    } catch (_e) {}
+    return false;
+  }
+
+  function syncAuthScreenVisibility() {
+    const isAuth = detectAuthScreen();
+    const prev = Boolean(state.onAuthScreen);
+    state.onAuthScreen = isAuth;
+    if (rootEl && rootEl.classList) {
+      if (isAuth && typeof rootEl.classList.add === "function") rootEl.classList.add("is-auth-screen");
+      else if (!isAuth && typeof rootEl.classList.remove === "function") rootEl.classList.remove("is-auth-screen");
+    }
+    if (isAuth && !prev) {
+      if (state.usagePopOpen) { state.usagePopOpen = false; renderModelUsagePopover(); }
+      if (state.agentPopoverOpen) { state.agentPopoverOpen = false; renderChatDockMount(); }
+      if (state.liveEditOpen) { state.liveEditOpen = false; renderPopoverStructure(); }
+    } else if (!isAuth && prev) {
+      state.lastQuotaScrapeSig = "";
+      state.lastQuotaPollAt = 0;
+      pollQuotaSummaryIfDue(Date.now());
+    }
+    return isAuth;
+  }
+
   function pollStream() {
     if (state.destroyed) return;
     if (doc && doc.hidden) return;
@@ -3866,11 +4208,30 @@ function createStudioPanel(options) {
     if (!isBusy && now - state.lastPollAt < 650) return;
     state.lastPollAt = now;
 
+    if (syncAuthScreenVisibility()) {
+      return;
+    }
+
     sampleStreamTick();
     scrapeDomQuotaSnapshot(false);
+    pollQuotaSummaryIfDue(now);
     if (state.settings.thinkingInRussian) scanThinkingBlocks(false);
     updateLiveDom();
     syncChatDockLiveState();
+    if (now - (state.lastHostMetricsAt || 0) > 900) {
+      state.lastHostMetricsAt = now;
+      const hm = measureHostUiMetrics();
+      const mSig = `${hm.sidebarRight}|${hm.headerTop}|${hm.headerBottom}|${hm.headerRightClear}`;
+      if (mSig !== state.lastHostMetricsSig) {
+        state.lastHostMetricsSig = mSig;
+        applyWidgetPosition();
+        renderLimitsWidgetMount();
+      }
+    }
+    if (typeof rv5InjectImageEditTriggers === "function" && now - state.lastImgInjectAt > 350) {
+      state.lastImgInjectAt = now;
+      rv5InjectImageEditTriggers(doc, state.locale !== "en", handleEditImageFromDom);
+    }
     if (typeof rv5InjectNativeSettingsEntries === "function" && now - state.lastNativeInjectAt > 1600) {
       state.lastNativeInjectAt = now;
       rv5InjectNativeSettingsEntries(doc, state.locale !== "en", (tab, sub) => {
@@ -4023,7 +4384,7 @@ function createStudioPanel(options) {
           </div>
           <div class="med-quota-card">
             <span>${escHtml(tr.quotaSectionTitle)}</span>
-            <span class="num" style="color:var(--rx-fg-strong);font-weight:600" data-live="quotaMed">${escHtml(getActiveChatQuotaDisplay().miniText)}</span>
+            <span class="num med-quota-val" style="color:var(--rx-theme-fg-strong, var(--rx-fg-strong));font-weight:600" data-live="quotaMed">${escHtml(getActiveChatQuotaDisplay().miniText)}</span>
           </div>
           <div class="med-footer">
             <span class="med-model-tag" data-live="model" title="${escAttr(tel.modelName || tr.modelUnknown)}">${escHtml(tel.modelName || "—")}</span>
@@ -4267,6 +4628,7 @@ function createStudioPanel(options) {
 
     const subTabs = [
       { id: "theme", label: tr.appSubTheme },
+      { id: "uistyle", label: isRu ? "Стиль UI" : "UI Style" },
       { id: "elements", label: isRu ? "🎯 Элементы" : "🎯 Elements" },
       { id: "text", label: tr.appSubText },
       { id: "surface", label: tr.appSubSurface },
@@ -4276,6 +4638,12 @@ function createStudioPanel(options) {
     ];
 
     const themeLabel = presetObj ? (isRu ? presetObj.nameRu : presetObj.nameEn) : draft.presetId;
+    const usObj = draft.uiStyle || spDefaultUiStyle();
+    const uiStylePresets = spGetUiStylePresets();
+    const usPresetFound = uiStylePresets.find((p) => p.id === usObj.preset);
+    const uiStyleShortLabel = usPresetFound
+      ? (isRu ? usPresetFound.nameRu : usPresetFound.nameEn)
+      : (isRu ? "Микс" : "Mix");
     const effAccent = draft.customAccent ? draft.accentColor : ((presetObj && presetObj.vars && presetObj.vars.accentColor) || draft.accentColor);
     const wpMap = { none: tr.appWpNone, gradient: tr.appWpGradient, image: tr.appWpImage, video: tr.appWpVideo };
     let wpLabel = wpMap[wp.type] || tr.appWpNone;
@@ -4295,6 +4663,7 @@ function createStudioPanel(options) {
 
     let inner = "";
     if (sub === "theme") inner = renderAppearanceThemeSub(tr, isRu);
+    else if (sub === "uistyle") inner = renderAppearanceUiStyleSub(tr, isRu);
     else if (sub === "elements" && typeof rv5RenderElementsBuilderHtml === "function") {
       inner = rv5RenderElementsBuilderHtml({
         draft,
@@ -4325,6 +4694,10 @@ function createStudioPanel(options) {
           <span>${escHtml(themeLabel)}</span>
         </button>
         <span class="layer-sep">·</span>
+        <button type="button" class="layer-pill${sub === "uistyle" ? " is-active" : ""}" data-action="set-app-subtab" data-val="uistyle">
+          <span>${escHtml(isRu ? "Стиль" : "Style")}: ${escHtml(uiStyleShortLabel)}</span>
+        </button>
+        <span class="layer-sep">·</span>
         <button type="button" class="layer-pill${sub === "wallpaper" ? " is-active" : ""}" data-action="set-app-subtab" data-val="wallpaper">
           <span>${escHtml(tr.appLayerWallpaper)}: ${escHtml(wpLabel)}</span>
         </button>
@@ -4338,6 +4711,348 @@ function createStudioPanel(options) {
         </button>
       </div>
       ${inner}
+    `;
+  }
+
+  function buildUiStyleLivePreviewStyles(us) {
+    const isCC = us.composer === "claude-code";
+    const isCodex = us.composer === "codex";
+    const isOC = us.composer === "opencode";
+    const compRad = us.composerRadius > 0
+      ? us.composerRadius
+      : (isCC ? 14 : (isCodex ? 20 : (isOC ? 6 : 12)));
+    const compPadY = us.composerPadY > 0
+      ? Math.max(6, Math.min(18, Math.round(us.composerPadY * 0.78)))
+      : (isCodex ? 10 : (isCC ? 9 : (isOC ? 7 : 8)));
+    const compShadow = us.composerShadow === "none"
+      ? "none"
+      : (us.composerShadow === "elevated" || (us.composerShadow === "preset" && isCodex)
+          ? "0 8px 22px -6px rgba(0, 0, 0, 0.42)"
+          : (us.composerShadow === "soft"
+              ? "0 2px 10px rgba(0, 0, 0, 0.18)"
+              : "none"));
+    const sendRad = isOC ? "5px" : "999px";
+    const sendStyle = isCodex
+      ? `border-radius:999px;background:var(--rx-fg-strong);color:var(--rx-bg);`
+      : `border-radius:${sendRad};`;
+
+    const effAlign = us.userBubbleAlign !== "preset"
+      ? us.userBubbleAlign
+      : (us.chat === "opencode" ? "full" : "right");
+    const bubRad = us.chat === "opencode" ? 6 : (us.chat === "codex" ? 16 : (us.chat === "claude-code" ? 13 : 11));
+    const bubMaxW = effAlign === "full"
+      ? "100%"
+      : (us.userBubbleMaxWidth >= 45 ? `${us.userBubbleMaxWidth}%` : (us.chat === "claude-code" ? "72%" : "80%"));
+    const bubSelf = effAlign === "left" ? "flex-start" : (effAlign === "full" ? "stretch" : "flex-end");
+    const bubLeftBrd = us.chat === "opencode" ? "3px solid var(--rx-accent)" : "";
+    const gapPx = us.chatGap >= 4 ? Math.max(4, Math.min(20, Math.round(us.chatGap * 0.75))) : 7;
+    const showAgentBar = us.agentAccentBar === "on" || (us.agentAccentBar === "preset" && us.chat === "opencode");
+
+    const effModelBtn = us.modelBtnStyle !== "preset"
+      ? us.modelBtnStyle
+      : (us.modelSelector === "claude-code" ? "ghost" : (us.modelSelector === "codex" ? "pill" : (us.modelSelector === "opencode" ? "mono" : "bordered")));
+    let modelStyle = "background:var(--rx-surface-2);border:1px solid var(--rx-border-strong);border-radius:7px;";
+    if (effModelBtn === "ghost") {
+      modelStyle = "background:transparent;border:1px solid transparent;border-radius:6px;padding:1px 4px;";
+    } else if (effModelBtn === "pill") {
+      modelStyle = "background:var(--rx-surface-2);border:1px solid var(--rx-border-strong);border-radius:999px;padding:2px 9px;";
+    } else if (effModelBtn === "mono") {
+      modelStyle = "background:var(--rx-bg);border:1px solid var(--rx-border-strong);border-left:2.5px solid var(--rx-accent);border-radius:5px;font-family:var(--rx-font-mono);font-size:10px;";
+    }
+
+    const wrapWidth = us.composerMaxWidth >= 560
+      ? `width:${Math.max(66, Math.min(100, Math.round((us.composerMaxWidth / 1120) * 100)))}%;margin-inline:auto;`
+      : "";
+
+    let compWrapStyle = wrapWidth;
+    let inputRowStyle = "";
+    let toolbarStyle = "";
+
+    if (isCC) {
+      // Split Claude Code: outer container transparent, top input row is the rounded bordered bar, bottom toolbar is outside on canvas
+      compWrapStyle += "background:transparent;border:none;padding:0;box-shadow:none;";
+      inputRowStyle = `background:var(--rx-surface);border:1px solid var(--rx-border-strong);border-radius:${compRad}px;padding:${compPadY}px 11px;box-shadow:${compShadow};`;
+      toolbarStyle = "padding:6px 4px 0;background:transparent;border:none;";
+    } else if (isCodex) {
+      compWrapStyle += `background:var(--rx-surface);border:1.5px solid var(--rx-border-strong);border-radius:${compRad}px;overflow:hidden;box-shadow:${compShadow};padding:0;`;
+      inputRowStyle = `padding:${compPadY}px 12px;`;
+      toolbarStyle = "padding:6px 11px;border-top:1px solid var(--rx-border);background:color-mix(in srgb, var(--rx-fg) 3%, transparent);";
+    } else if (isOC) {
+      compWrapStyle += `background:var(--rx-surface);border:1px solid var(--rx-border-strong);border-left:3px solid var(--rx-accent);border-radius:${compRad}px;overflow:hidden;box-shadow:${compShadow};padding:0;`;
+      inputRowStyle = `padding:${compPadY}px 10px;`;
+      toolbarStyle = "padding:5px 10px;border-top:1px solid var(--rx-border);background:color-mix(in srgb, var(--rx-bg) 55%, transparent);font-family:var(--rx-font-mono);";
+    } else {
+      compWrapStyle += `background:var(--rx-surface);border:1px solid var(--rx-border-strong);border-radius:${compRad}px;padding:${compPadY}px 11px;box-shadow:${compShadow};gap:7px;`;
+      inputRowStyle = "padding:0;";
+      toolbarStyle = "padding:0;";
+    }
+
+    const bubStyle = [
+      `border-radius:${bubRad}px`,
+      `max-width:${bubMaxW}`,
+      `align-self:${bubSelf}`,
+      effAlign === "full" ? "width:100%" : "",
+      bubLeftBrd ? `border-left:${bubLeftBrd}` : "",
+    ].filter(Boolean).join(";");
+
+    const agentStyle = showAgentBar
+      ? "border-left:2px solid color-mix(in srgb, var(--rx-accent) 55%, transparent);padding-left:9px;"
+      : "";
+
+    return { compWrapStyle, inputRowStyle, toolbarStyle, bubStyle, agentStyle, modelStyle, sendStyle, gapPx };
+  }
+
+  function updateLiveUiStylePreviewDom() {
+    if (!modalMountEl) return;
+    const stage = modalMountEl.querySelector('[data-live="uiStyleStage"]');
+    if (!stage) return;
+    const draft = spNormalizeAppearance(state.appearanceDraft);
+    const us = draft.uiStyle || spDefaultUiStyle();
+    const st = buildUiStyleLivePreviewStyles(us);
+    const chatEl = stage.querySelector('[data-live="uiStyleChat"]');
+    const userEl = stage.querySelector('[data-live="uiStyleUser"]');
+    const agentEl = stage.querySelector('[data-live="uiStyleAgent"]');
+    const compEl = stage.querySelector('[data-live="uiStyleComposer"]');
+    const inRowEl = stage.querySelector('[data-live="uiStyleInputRow"]');
+    const barEl = stage.querySelector('[data-live="uiStyleToolbar"]');
+    const modelEl = stage.querySelector('[data-live="uiStyleModel"]');
+    const sendEl = stage.querySelector('[data-live="uiStyleSend"]');
+    if (chatEl) chatEl.style.gap = `${st.gapPx}px`;
+    if (userEl) userEl.setAttribute("style", st.bubStyle);
+    if (agentEl) agentEl.setAttribute("style", st.agentStyle);
+    if (compEl) compEl.setAttribute("style", st.compWrapStyle);
+    if (inRowEl) inRowEl.setAttribute("style", st.inputRowStyle);
+    if (barEl) barEl.setAttribute("style", st.toolbarStyle);
+    if (modelEl) modelEl.setAttribute("style", st.modelStyle);
+    if (sendEl) sendEl.setAttribute("style", st.sendStyle);
+  }
+
+  function renderAppearanceUiStyleSub(tr, isRu) {
+    const draft = spNormalizeAppearance(state.appearanceDraft);
+    const us = draft.uiStyle || spDefaultUiStyle();
+    const presets = spGetUiStylePresets();
+    const hasCustom = typeof teHasCustomUiStyle === "function"
+      ? teHasCustomUiStyle(draft)
+      : (us.preset !== "antigravity" || us.composer !== "antigravity" || us.chat !== "antigravity" || us.modelSelector !== "antigravity");
+    const fineOpen = state.openDisclosures.uiStyleFine !== false;
+    const st = buildUiStyleLivePreviewStyles(us);
+    const autoLbl = isRu ? "По стилю" : "Preset";
+
+    const partName = (id) => {
+      const f = presets.find((p) => p.id === id);
+      return f ? (isRu ? f.nameRu : f.nameEn) : "Antigravity";
+    };
+
+    const zoneDefs = [
+      { key: "composer", label: isRu ? "Поле ввода (Композер)" : "Message Composer", cur: us.composer },
+      { key: "chat", label: isRu ? "Чат, баблы и шаги агента" : "Chat, Bubbles & Agent Steps", cur: us.chat },
+      { key: "modelSelector", label: isRu ? "Кнопка и меню моделей" : "Model Button & Dropdown", cur: us.modelSelector },
+    ];
+
+    const optBtn = (field, val, curVal, lbl) =>
+      `<button type="button" class="uistyle-opt-btn${curVal === val ? " is-active" : ""}" data-action="set-uistyle-opt" data-field="${field}" data-val="${val}">${escHtml(lbl)}</button>`;
+
+    const placeholderTxt = us.composer === "claude-code"
+      ? (isRu ? "Reply" : "Reply")
+      : (us.composer === "opencode"
+          ? (isRu ? "введите задачу или /команду…" : "ask anything or /command…")
+          : (isRu ? "Спросите что угодно, @ — упомянуть…" : "Ask anything, @ to mention…"));
+    const modelSample = us.modelSelector === "claude-code"
+      ? "Opus 5.5 Extra"
+      : (us.modelSelector === "codex"
+          ? "GPT-5 Codex · High"
+          : (us.modelSelector === "opencode" ? "opencode/sonnet-4.5" : "Gemini 4 Neon"));
+
+    const isCC = us.composer === "claude-code";
+    const toolbarInnerHtml = isCC
+      ? `
+        <span class="uistyle-live-tools-l"><span>+</span><span>🎤</span></span>
+        <span class="uistyle-live-tools-r">
+          <span class="uistyle-live-model" data-live="uiStyleModel" style="${escAttr(st.modelStyle)}">${escHtml(modelSample)}</span>
+          <span class="uistyle-live-mode">${isRu ? "Турбо" : "Manual"}</span>
+        </span>`
+      : `
+        <span class="uistyle-live-tools-l">
+          <span>+</span>
+          <span class="uistyle-live-model" data-live="uiStyleModel" style="${escAttr(st.modelStyle)}">${escHtml(modelSample)} ▾</span>
+        </span>
+        <span class="uistyle-live-tools-r">
+          <span class="uistyle-live-send" data-live="uiStyleSend" style="${escAttr(st.sendStyle)}">↑</span>
+        </span>`;
+
+    return `
+      <div class="section-group">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span class="section-label">${isRu ? "Живое превью стиля" : "Live Style Specimen"}</span>
+          ${hasCustom ? `<button type="button" class="btn btn-sm btn-ghost" style="padding:2px 8px;font-size:11px" data-action="reset-uistyle">${isRu ? "Сбросить к Antigravity" : "Reset to Antigravity"}</button>` : ""}
+        </div>
+        <div class="uistyle-live-stage" data-live="uiStyleStage">
+          <div class="uistyle-live-chat" data-live="uiStyleChat" style="gap:${st.gapPx}px">
+            <div class="uistyle-live-user" data-live="uiStyleUser" style="${escAttr(st.bubStyle)}">${escHtml(isRu ? "Сделай стиль чата как в любимой IDE" : "Match my favorite coding IDE style")}</div>
+            <div class="uistyle-live-agent" data-live="uiStyleAgent" style="${escAttr(st.agentStyle)}">
+              <div class="uistyle-live-agent-meta">${escHtml(us.chat === "claude-code" ? (isRu ? "Размышление · 3с" : "Working out · 3s") : (us.chat === "opencode" ? "▶ step: apply_ui_style" : (isRu ? "Выполнено · 2 шага" : "Completed · 2 steps")))}</div>
+              <div>${escHtml(isRu ? "Готово — поле ввода, сообщения и меню моделей подстроены под выбранную платформу." : "Done — composer, chat messages, and model menu now match your chosen platform.")}</div>
+            </div>
+          </div>
+          <div class="uistyle-live-composer-wrap is-${escAttr(us.composer)}" data-live="uiStyleComposer" style="${escAttr(st.compWrapStyle)}">
+            <div class="uistyle-live-input-row" data-live="uiStyleInputRow" style="${escAttr(st.inputRowStyle)}">
+              <div style="display:flex;align-items:center;gap:6px;min-width:0">
+                <span class="uistyle-live-chevron">❯</span>
+                <span class="uistyle-live-placeholder">${escHtml(placeholderTxt)}</span>
+              </div>
+              <span class="uistyle-live-cc-enter">↵</span>
+            </div>
+            <div class="uistyle-live-toolbar" data-live="uiStyleToolbar" style="${escAttr(st.toolbarStyle)}">
+              ${toolbarInnerHtml}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${isRu ? "Готовые стили платформ (все 3 зоны сразу)" : "Platform Style Presets (All 3 Zones)"}</span>
+        <div class="uistyle-grid">
+          ${presets.map((pr) => {
+            const sel = us.preset === pr.id;
+            return `
+              <button type="button" class="uistyle-card${sel ? " is-selected" : ""}" data-action="set-uistyle-preset" data-id="${escAttr(pr.id)}">
+                <div class="uistyle-mini-mock is-${escAttr(pr.id)}">
+                  <div class="uistyle-mock-msg"></div>
+                  <div class="uistyle-mock-agent"></div>
+                  <div class="uistyle-mock-comp">
+                    <span class="uistyle-mock-model"></span>
+                    <span class="uistyle-mock-send"></span>
+                  </div>
+                  <div class="uistyle-mock-extbar">
+                    <span class="uistyle-mock-ext-l"><span class="uistyle-mock-ext-dot"></span><span class="uistyle-mock-ext-dot"></span></span>
+                    <span class="uistyle-mock-ext-r"></span>
+                  </div>
+                </div>
+                <div class="uistyle-card-head">
+                  <span class="uistyle-card-name">${escHtml(isRu ? pr.nameRu : pr.nameEn)}</span>
+                  <span class="uistyle-card-badge">${escHtml(isRu ? pr.badge : (pr.badgeEn || pr.badge))}</span>
+                </div>
+                <div class="uistyle-card-desc">${escHtml(isRu ? pr.descRu : pr.descEn)}</div>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${isRu ? "Раздельный выбор (Mix & Match по зонам)" : "Mix & Match per Zone"}</span>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          ${zoneDefs.map((z) => `
+            <div class="uistyle-zone-row">
+              <div class="uistyle-zone-head">
+                <span>${escHtml(z.label)}</span>
+                <span class="uistyle-zone-cur">${escHtml(partName(z.cur))}</span>
+              </div>
+              <div class="subtab-bar is-segmented">
+                ${presets.map((pr) => `
+                  <button type="button" class="subtab-btn${z.cur === pr.id ? " is-active" : ""}" data-action="set-uistyle-part" data-part="${z.key}" data-val="${escAttr(pr.id)}">${escHtml(pr.id === "codex" ? "Codex" : (pr.id === "claude-code" ? "Claude" : (isRu ? pr.nameRu : pr.nameEn)))}</button>
+                `).join("")}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+
+      <details class="rx-details" data-disc="uiStyleFine"${fineOpen ? " open" : ""}>
+        <summary>${isRu ? "Детальная настройка композера, чата и моделей" : "Fine-Tune Composer, Chat & Models"}</summary>
+        <div class="rx-details-body">
+          <div class="control-grid-2">
+            <div class="slider-box">
+              <div class="slider-head">
+                <span>${isRu ? "Скругление ввода" : "Composer Radius"}</span>
+                <b class="num" data-live-app-val="uiStyle.composerRadius">${us.composerRadius > 0 ? `${us.composerRadius}px` : autoLbl}</b>
+              </div>
+              <input type="range" class="range-input" min="0" max="32" step="1" data-app-field="uiStyle.composerRadius" value="${us.composerRadius}"/>
+            </div>
+            <div class="slider-box">
+              <div class="slider-head">
+                <span>${isRu ? "Ширина ввода" : "Composer Max Width"}</span>
+                <b class="num" data-live-app-val="uiStyle.composerMaxWidth">${us.composerMaxWidth >= 560 ? `${us.composerMaxWidth}px` : autoLbl}</b>
+              </div>
+              <input type="range" class="range-input" min="540" max="1120" step="20" data-app-field="uiStyle.composerMaxWidth" value="${us.composerMaxWidth >= 560 ? us.composerMaxWidth : 540}"/>
+            </div>
+            <div class="slider-box">
+              <div class="slider-head">
+                <span>${isRu ? "Внутр. отступ Y" : "Composer Padding Y"}</span>
+                <b class="num" data-live-app-val="uiStyle.composerPadY">${us.composerPadY >= 6 ? `${us.composerPadY}px` : autoLbl}</b>
+              </div>
+              <input type="range" class="range-input" min="4" max="24" step="1" data-app-field="uiStyle.composerPadY" value="${us.composerPadY >= 6 ? us.composerPadY : 4}"/>
+            </div>
+            <div class="slider-box">
+              <div class="slider-head">
+                <span>${isRu ? "Ширина бабла юзера" : "User Bubble Width"}</span>
+                <b class="num" data-live-app-val="uiStyle.userBubbleMaxWidth">${us.userBubbleMaxWidth >= 45 ? `${us.userBubbleMaxWidth}%` : autoLbl}</b>
+              </div>
+              <input type="range" class="range-input" min="40" max="100" step="2" data-app-field="uiStyle.userBubbleMaxWidth" value="${us.userBubbleMaxWidth >= 45 ? us.userBubbleMaxWidth : 40}"/>
+            </div>
+            <div class="slider-box" style="grid-column:span 2">
+              <div class="slider-head">
+                <span>${isRu ? "Отступ между сообщениями" : "Message Spacing"}</span>
+                <b class="num" data-live-app-val="uiStyle.chatGap">${us.chatGap >= 4 ? `${us.chatGap}px` : autoLbl}</b>
+              </div>
+              <input type="range" class="range-input" min="2" max="28" step="1" data-app-field="uiStyle.chatGap" value="${us.chatGap >= 4 ? us.chatGap : 2}"/>
+            </div>
+          </div>
+
+          <div class="section-group">
+            <span class="section-label">${isRu ? "Тень поля ввода" : "Composer Shadow"}</span>
+            <div class="uistyle-opt-strip">
+              ${optBtn("composerShadow", "preset", us.composerShadow, autoLbl)}
+              ${optBtn("composerShadow", "none", us.composerShadow, isRu ? "Нет" : "None")}
+              ${optBtn("composerShadow", "soft", us.composerShadow, isRu ? "Мягкая" : "Soft")}
+              ${optBtn("composerShadow", "elevated", us.composerShadow, isRu ? "Объёмная" : "Elevated")}
+            </div>
+          </div>
+
+          <div class="section-group">
+            <span class="section-label">${isRu ? "Выравнивание сообщений пользователя" : "User Message Alignment"}</span>
+            <div class="uistyle-opt-strip">
+              ${optBtn("userBubbleAlign", "preset", us.userBubbleAlign, autoLbl)}
+              ${optBtn("userBubbleAlign", "right", us.userBubbleAlign, isRu ? "Справа" : "Right")}
+              ${optBtn("userBubbleAlign", "left", us.userBubbleAlign, isRu ? "Слева" : "Left")}
+              ${optBtn("userBubbleAlign", "full", us.userBubbleAlign, isRu ? "Во всю ширину" : "Full width")}
+            </div>
+          </div>
+
+          <div class="section-group">
+            <span class="section-label">${isRu ? "Левая акцент-полоса у ответов агента" : "Agent Response Accent Bar"}</span>
+            <div class="uistyle-opt-strip">
+              ${optBtn("agentAccentBar", "preset", us.agentAccentBar, autoLbl)}
+              ${optBtn("agentAccentBar", "on", us.agentAccentBar, isRu ? "Вкл" : "On")}
+              ${optBtn("agentAccentBar", "off", us.agentAccentBar, isRu ? "Выкл" : "Off")}
+            </div>
+          </div>
+
+          <div class="section-group">
+            <span class="section-label">${isRu ? "Вид кнопки выбора модели" : "Model Trigger Button Style"}</span>
+            <div class="uistyle-opt-strip">
+              ${optBtn("modelBtnStyle", "preset", us.modelBtnStyle, autoLbl)}
+              ${optBtn("modelBtnStyle", "ghost", us.modelBtnStyle, isRu ? "Минимализм (текст)" : "Minimal (ghost)")}
+              ${optBtn("modelBtnStyle", "pill", us.modelBtnStyle, isRu ? "Капсула (Codex)" : "Pill (Codex)")}
+              ${optBtn("modelBtnStyle", "bordered", us.modelBtnStyle, isRu ? "Рамка" : "Bordered")}
+              ${optBtn("modelBtnStyle", "mono", us.modelBtnStyle, isRu ? "Моно-бейдж (OpenCode)" : "Mono badge")}
+            </div>
+          </div>
+
+          <div class="section-group">
+            <span class="section-label">${isRu ? "Плотность выпадающего меню моделей" : "Model Dropdown Density"}</span>
+            <div class="uistyle-opt-strip">
+              ${optBtn("modelMenuDensity", "preset", us.modelMenuDensity, autoLbl)}
+              ${optBtn("modelMenuDensity", "compact", us.modelMenuDensity, isRu ? "Компактная" : "Compact")}
+              ${optBtn("modelMenuDensity", "comfortable", us.modelMenuDensity, isRu ? "Обычная" : "Comfortable")}
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:flex-end">
+            <button type="button" class="btn btn-sm" data-action="reset-uistyle-fine">${isRu ? "Сбросить только тонкие правки" : "Reset Fine Overrides Only"}</button>
+          </div>
+        </div>
+      </details>
     `;
   }
 
@@ -5257,19 +5972,30 @@ function createStudioPanel(options) {
     const isRu = state.locale !== "en";
     const sub = state.settingsSubTab || "system";
     const subTabs = [
-      { id: "workshop", label: isRu ? "🧩 Мастерская AGY" : "🧩 AGY Workshop" },
-      { id: "hotkeys", label: isRu ? "⌨ Клавиши" : "⌨ Hotkeys" },
-      { id: "system", label: tr.setSubSystem },
-      { id: "studio", label: tr.setSubStudio },
-      { id: "widget", label: tr.setSubWidget },
-      { id: "export", label: tr.setSubExport },
+      { id: "system", label: isRu ? "Система" : "System" },
+      { id: "widget", label: isRu ? "Виджеты" : "Widgets" },
+      { id: "studio", label: isRu ? "Окно" : "Window" },
+      { id: "history", label: isRu ? "История" : "History" },
+      { id: "workshop", label: isRu ? "Мастерская" : "Workshop" },
+      { id: "hotkeys", label: isRu ? "Клавиши" : "Hotkeys" },
+      { id: "export", label: isRu ? "Экспорт" : "Export" },
     ];
     let body = "";
     if (sub === "workshop" && typeof rv5RenderWorkshopHtml === "function") body = rv5RenderWorkshopHtml(state.workshop, isRu);
+    else if (sub === "history" && typeof rv5RenderInputHistoryHtml === "function") {
+      body = rv5RenderInputHistoryHtml({
+        isRu,
+        composerDraftsEnabled: state.settings.composerDraftsEnabled !== false,
+        inputHistoryEnabled: state.settings.inputHistoryEnabled !== false,
+        draftCount: state.inputHistory ? state.inputHistory.draftCount : 0,
+        items: state.inputHistory ? state.inputHistory.items : [],
+        loading: Boolean(state.inputHistory && state.inputHistory.loading),
+      });
+    }
     else if (sub === "hotkeys" && typeof rv5RenderKeybindingsHtml === "function") body = rv5RenderKeybindingsHtml(state.settings.keybindings, state.recordingKeybindingId, isRu);
     else if (sub === "studio") body = renderStudioDesignSub(tr, isRu);
     else if (sub === "widget") body = renderWidgetSub(tr, isRu);
-    else if (sub === "export") body = renderExportSub(tr);
+    else if (sub === "export") body = renderMonitorTab() + `<div style="border-top:1px solid var(--rx-border);margin-top:12px;padding-top:12px">${renderExportSub(tr)}</div>`;
     else body = renderSystemSub(tr);
 
     return `
@@ -5367,6 +6093,26 @@ function createStudioPanel(options) {
   function renderWidgetSub(tr, isRu) {
     const s = state.settings;
     const sui = spNormalizeStudioUi(s.studioUi);
+    const wSec = state.widgetSubSection === "limits" ? "limits" : "mini";
+    const lwOn = Boolean(s.limitsWidget && s.limitsWidget.enabled);
+    const secBar = `
+      <div class="subtab-bar is-segmented" style="margin-bottom:4px">
+        <button type="button" class="subtab-btn${wSec === "mini" ? " is-active" : ""}" data-action="set-widget-subsection" data-val="mini">${escHtml(isRu ? "Мини-окно (TPS / RU)" : "Mini Widget (TPS / RU)")}</button>
+        <button type="button" class="subtab-btn${wSec === "limits" ? " is-active" : ""}" data-action="set-widget-subsection" data-val="limits">${escHtml(isRu ? "Лимиты Antigravity" : "Antigravity Limits")}${lwOn ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:999px;background:var(--rx-accent);margin-left:4px;vertical-align:middle"></span>' : ""}</button>
+      </div>
+    `;
+    if (wSec === "limits" && typeof rv5RenderLimitsTabHtml === "function") {
+      return secBar + rv5RenderLimitsTabHtml({
+        limitsWidget: state.settings.limitsWidget,
+        quotaSummary: state.quotaSummary,
+        activeModelName: state.telemetry.modelName,
+        systemFonts: state.systemFonts,
+        monitorHtml: "",
+        exportHtml: "",
+        isRu,
+        isLight: state.theme === "light",
+      });
+    }
     const mf = s.miniFields;
     const fieldSpecs = [
       { key: "status", title: tr.fieldStatus },
@@ -5378,12 +6124,19 @@ function createStudioPanel(options) {
       { key: "quota", title: tr.fieldQuota },
     ];
     const docks = [
-      { id: "bottom-right", label: tr.dockBottomRight },
+      { id: "inline-header", label: tr.dockInlineHeader },
+      { id: "top-left", label: tr.dockTopLeft },
       { id: "top-right", label: tr.dockTopRight },
-      { id: "middle-right", label: tr.dockMiddleRight },
+      { id: "bottom-right", label: tr.dockBottomRight },
       { id: "bottom-left", label: tr.dockBottomLeft },
+      { id: "middle-right", label: tr.dockMiddleRight },
       { id: "hidden", label: tr.dockHidden },
     ];
+    const isWidgetDockedUi = Boolean(s.pinned && s.layoutMode !== "floating");
+    const fontOptsHtml = typeof rv5FontSelectOptions === "function"
+      ? rv5FontSelectOptions(sui.widgetFont || "inherit", "ui", state.systemFonts, isRu, true)
+      : `<option value="inherit">${escHtml(isRu ? "Наследовать из темы" : "Inherit from theme")}</option>`;
+    const fontDatalistHtml = typeof rv5RenderSystemFontDatalist === "function" ? rv5RenderSystemFontDatalist(state.systemFonts) : "";
     const scales = [
       { id: "sm", label: tr.widgetScaleSm },
       { id: "md", label: tr.widgetScaleMd },
@@ -5394,6 +6147,8 @@ function createStudioPanel(options) {
     state.lastPreviewCapsuleHtml = previewMarkup;
 
     return `
+      ${secBar}
+      ${fontDatalistHtml}
       <div class="section-group">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
           <span class="section-label">${escHtml(tr.previewTitle)}</span>
@@ -5403,6 +6158,33 @@ function createStudioPanel(options) {
           </div>
         </div>
         <div class="preview-stage" data-widget-theme="${escAttr(sui.widgetTheme)}" data-widget-scale="${escAttr(sui.widgetScale)}" data-live="previewCapsule">${previewMarkup}</div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(isRu ? "Режим мини-окна" : "Mini Window Mode")}</span>
+        <div class="segmented-2">
+          <button type="button" class="choice-card${isWidgetDockedUi ? " is-selected" : ""}" data-action="set-widget-window-mode" data-val="docked">
+            <span class="choice-title"><span>${escHtml(isRu ? "Часть интерфейса (закреплён)" : "Docked UI (pinned)")}</span>${isWidgetDockedUi ? iconSvg("check", 13) : ""}</span>
+            <span class="choice-desc">${escHtml(isRu ? "Встроен в выбранный угол или шапку в стиле темы" : "Embedded cleanly in corner or header matching your theme")}</span>
+          </button>
+          <button type="button" class="choice-card${!isWidgetDockedUi ? " is-selected" : ""}" data-action="set-widget-window-mode" data-val="floating">
+            <span class="choice-title"><span>${escHtml(isRu ? "Плавающее окно" : "Floating Window")}</span>${!isWidgetDockedUi ? iconSvg("check", 13) : ""}</span>
+            <span class="choice-desc">${escHtml(isRu ? "Свободно перетаскивается мышкой в любое место экрана" : "Drag freely anywhere on the screen")}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(isRu ? "Расположение по углам и в интерфейсе" : "Standard Corner & UI Slot")}</span>
+        <div class="dock-grid">
+          ${docks.map((d) => `
+            <button type="button" class="dock-btn${s.dockPosition === d.id && s.layoutMode !== "floating" ? " is-selected" : ""}" data-action="set-dock" data-val="${d.id}">${escHtml(d.label)}</button>
+          `).join("")}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span class="row-desc">${escHtml(tr.dockHiddenHint)}</span>
+          ${s.layoutMode === "floating" ? `<button type="button" class="btn btn-sm" data-action="reset-position">${iconSvg("reset", 12)}${escHtml(tr.dockResetBtn)}</button>` : ""}
+        </div>
       </div>
 
       <div class="section-group">
@@ -5476,6 +6258,18 @@ function createStudioPanel(options) {
       </div>
 
       <div class="control-grid-2">
+        <div class="section-group">
+          <span class="section-label">${escHtml(isRu ? "Шрифт мини-окна" : "Widget Font")}</span>
+          <select class="select-input" data-app-field="studioUi.widgetFont">${fontOptsHtml}</select>
+          ${sui.widgetFont === "custom" ? `<input type="text" class="text-input" style="margin-top:5px" list="rudex-sys-fonts-list" data-app-field="studioUi.widgetFontCustom" value="${escAttr(sui.widgetFontCustom || "")}" placeholder="JetBrains Mono, Segoe UI…"/>` : ""}
+        </div>
+        <div class="slider-box">
+          <div class="slider-head"><span>${escHtml(isRu ? "Размер шрифта" : "Font Size")}</span><b class="num" data-live-app-val="studioUi.widgetFontSize">${sui.widgetFontSize || 12}px</b></div>
+          <input type="range" class="range-input" min="10" max="18" step="1" data-app-field="studioUi.widgetFontSize" value="${sui.widgetFontSize || 12}"/>
+        </div>
+      </div>
+
+      <div class="control-grid-2">
         <div class="slider-box">
           <div class="slider-head"><span>${escHtml(tr.widgetOpacityLabel)}</span><b class="num" data-live-app-val="studioUi.widgetOpacity">${sui.widgetOpacity}%</b></div>
           <input type="range" class="range-input" min="45" max="100" step="1" data-app-field="studioUi.widgetOpacity" value="${sui.widgetOpacity}"/>
@@ -5495,28 +6289,6 @@ function createStudioPanel(options) {
               <button type="button" class="switch${mf[f.key] ? " is-on" : ""}" role="switch" aria-checked="${mf[f.key] ? "true" : "false"}" data-action="toggle-mini-field" data-key="${f.key}"><span class="switch-thumb"></span></button>
             </div>
           `).join("")}
-        </div>
-      </div>
-
-      <div class="section-group">
-        <span class="section-label">${escHtml(tr.dockTitle)}</span>
-        <div class="card">
-          <div class="row-item">
-            <div class="row-info">
-              <span class="row-title">${escHtml(tr.pinLockLabel)}</span>
-              <span class="row-desc">${escHtml(tr.pinLockDesc)}</span>
-            </div>
-            <button type="button" class="switch${s.pinned ? " is-on" : ""}" role="switch" aria-checked="${s.pinned ? "true" : "false"}" data-action="toggle-pin"><span class="switch-thumb"></span></button>
-          </div>
-        </div>
-        <div class="dock-grid">
-          ${docks.map((d) => `
-            <button type="button" class="dock-btn${s.dockPosition === d.id && s.layoutMode !== "floating" ? " is-selected" : ""}" data-action="set-dock" data-val="${d.id}">${escHtml(d.label)}</button>
-          `).join("")}
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-          <span class="row-desc">${escHtml(tr.dockHiddenHint)}</span>
-          ${s.layoutMode === "floating" ? `<button type="button" class="btn btn-sm" data-action="reset-position">${iconSvg("reset", 12)}${escHtml(tr.dockResetBtn)}</button>` : ""}
         </div>
       </div>
     `;
@@ -5679,6 +6451,13 @@ function createStudioPanel(options) {
               <button type="button" class="switch${thinkingRu ? " is-on" : ""}" role="switch" aria-checked="${thinkingRu ? "true" : "false"}" data-action="toggle-thinking-ru" aria-label="${escAttr(tr.thinkingRuTitle)}"><span class="switch-thumb"></span></button>
             </div>
           </div>
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${isRu ? "Черновики чатов и история ввода (последние 20)" : "Chat drafts & input history (last 20)"}</span>
+              <span class="row-desc">${isRu ? "Автосохранение текста и файлов в чатах + копирование последних 20 сообщений и файлов." : "Auto-saves composer text & files per chat + copy your last 20 messages & files."}</span>
+            </div>
+            <button type="button" class="btn btn-sm" data-action="open-input-history">${isRu ? "Открыть →" : "Open →"}</button>
+          </div>
         </div>
       </div>
 
@@ -5768,27 +6547,16 @@ function createStudioPanel(options) {
     const sui = spNormalizeStudioUi(state.settings.studioUi);
     const isRu = state.locale !== "en";
     const tabs = [
-      { id: "persona", label: isRu ? "Агент" : "Agent", ic: "persona", title: isRu ? "Агент, пресеты и правки на лету" : "Agent, Presets & Live Edits", sub: isRu ? "Тумблеры фишек, пресеты для новых чатов, правки без остановки и характер" : "Feature toggles, new-chat defaults, inline live edits & persona", dot: Boolean(state.chatPersona.enabled || (state.chatAgentProfile && state.chatAgentProfile.enabled)) },
-      { id: "appearance", label: isRu ? "Внешний вид" : "Appearance", ic: "palette", title: tr.modalTitleAppearance, sub: isRu ? "Темы, 4 слота шрифтов, прицел по элементам, границы, обои и масштаб" : "Themes, 4 font slots, element picker, borders, wallpaper & scale" },
-      { id: "monitor", label: isRu ? "Лимиты и Экран" : "Limits & Screen", ic: "activity", title: isRu ? "Лимиты Antigravity и Монитор" : "Antigravity Limits & Monitor", sub: isRu ? "Окошко лимитов на главный экран, скорость TPS и экспорт чата" : "On-screen limits widget, TPS monitor & ZIP export", dot: Boolean(state.settings.limitsWidget && state.settings.limitsWidget.enabled) },
-      { id: "settings", label: isRu ? "Мастерская и Система" : "Workshop & System", ic: "gear", title: isRu ? "Мастерская AGY, клавиши и система" : "AGY Workshop, Hotkeys & System", sub: isRu ? "Правила, скиллы, MCP-серверы, горячие клавиши, язык и бекап" : "Rules, skills, MCP servers, hotkeys, language & backup", dot: Boolean(state.update && state.update.available) },
+      { id: "persona", label: isRu ? "Агент" : "Agent", ic: "persona", title: isRu ? "Агент и правки на лету" : "Agent & Live Edits", sub: isRu ? "Тумблеры инструментов (по умолчанию Авто), правки без остановки и характер" : "Tool toggles (Auto by default), inline live edits & persona", dot: Boolean(state.chatPersona.enabled || (state.chatAgentProfile && state.chatAgentProfile.enabled)) },
+      { id: "appearance", label: isRu ? "Оформление" : "Appearance", ic: "palette", title: tr.modalTitleAppearance, sub: isRu ? "Темы, 4 слота шрифтов, прицел по элементам, границы, обои и углы" : "Themes, 4 font slots, element picker, borders, wallpaper & corners" },
+      { id: "settings", label: isRu ? "Настройки" : "Settings", ic: "gear", title: isRu ? "Виджеты, лимиты, мастерская и система" : "Widgets, Limits, Workshop & System", sub: isRu ? "Мини-окно, лимиты, история, мастерская AGY, клавиши, монитор и язык" : "Mini widget, limits, history, AGY workshop, hotkeys, monitor & language", dot: Boolean((state.update && state.update.available) || (state.settings.limitsWidget && state.settings.limitsWidget.enabled)) },
     ];
-    const current = tabs.find((x) => x.id === state.activeTab) || tabs[0];
+    const effTabId = state.activeTab === "monitor" ? "settings" : state.activeTab;
+    const current = tabs.find((x) => x.id === effTabId) || tabs[0];
     const isAppearanceTab = current.id === "appearance";
     const isAppearanceDrawer = isAppearanceTab && Boolean(state.appearanceDockedRight);
     let bodyHtml = "";
-    if (current.id === "monitor") {
-      bodyHtml = typeof rv5RenderLimitsTabHtml === "function"
-        ? rv5RenderLimitsTabHtml({
-            limitsWidget: state.settings.limitsWidget,
-            quotaSummary: state.quotaSummary,
-            systemFonts: state.systemFonts,
-            monitorHtml: renderMonitorTab(),
-            exportHtml: renderExportSub(tr),
-            isRu,
-          })
-        : renderMonitorTab();
-    } else if (current.id === "appearance") {
+    if (current.id === "appearance") {
       bodyHtml = renderAppearanceDrawerBody();
     } else if (current.id === "persona") {
       bodyHtml = typeof rv5RenderAgentHubTabHtml === "function"
@@ -5797,7 +6565,6 @@ function createStudioPanel(options) {
             defaultProfile: state.settings.agentProfileDefault,
             customPresets: state.settings.customAgentPresets || [],
             liveEditInline: state.settings.liveEditInline,
-            thinkingRu: Boolean(state.settings.thinkingInRussian),
             personaHtml: renderPersonaTab(),
             isRu,
             newAgentPresetName: state.newAgentPresetName,
@@ -5809,15 +6576,16 @@ function createStudioPanel(options) {
 
     const searchQ = String(state.settingsSearchQuery || "").trim().toLowerCase();
     const quickIndex = searchQ ? [
+      { k: "стиль ui композер ввод чат модел claude code codex opencode antigravity style composer bubble model", label: isRu ? "Стиль UI (Antigravity / Claude Code / Codex / OpenCode)" : "UI Style (Antigravity / Claude Code / Codex / OpenCode)", tab: "appearance", appSub: "uistyle" },
       { k: "шрифт font типографика ввод агент код", label: isRu ? "Шрифты (4 слота)" : "Fonts (4 slots)", tab: "appearance", appSub: "text" },
       { k: "прицел элемент цвет размер переимен скрыть picker rename", label: isRu ? "🎯 Прицел и переименование элементов" : "🎯 Element Picker & Rename", tab: "appearance", appSub: "elements" },
       { k: "границ обводк стекло прозрачн border surface", label: isRu ? "Границы блоков и обводка" : "Block Borders & Surface", tab: "appearance", appSub: "surface" },
       { k: "обои градиент видео картинк wallpaper", label: isRu ? "Обои и градиенты" : "Wallpaper & Gradients", tab: "appearance", appSub: "wallpaper" },
-      { k: "лимит квот экран 5ч недел quota limit", label: isRu ? "Окошко «Только лимиты»" : "Limits Screen Widget", tab: "monitor" },
+      { k: "лимит квот экран 5ч недел quota limit виджет мини", label: isRu ? "Виджеты и Лимиты Antigravity" : "Widgets & Antigravity Limits", tab: "settings", setSub: "widget" },
       { k: "субагент тумблер пресет инструмент чат на лету правк характер agent preset subagent", label: isRu ? "Пульт агента, пресеты и правки на лету" : "Agent Presets & Live Edits", tab: "persona" },
       { k: "клавиш хоткей shortcut hotkey keybind дзен", label: isRu ? "⌨ Редактор горячих клавиш" : "⌨ Keybindings Editor", tab: "settings", setSub: "hotkeys" },
       { k: "правил скилл skill rule mcp хук hook плагин кастом workshop", label: isRu ? "🧩 Мастерская AGY (Rules / Skills / MCP)" : "🧩 AGY Workshop", tab: "settings", setSub: "workshop" },
-      { k: "масштаб scale zoom язык бекап экспорт json", label: isRu ? "Система, масштаб и JSON-бекап" : "System, Scale & JSON Backup", tab: "settings", setSub: "system" },
+      { k: "масштаб scale zoom язык бекап экспорт json монитор tps", label: isRu ? "Система, масштаб и JSON-бекап" : "System, Scale & JSON Backup", tab: "settings", setSub: "system" },
     ].filter((it) => it.k.includes(searchQ) || it.label.toLowerCase().includes(searchQ)) : [];
 
     return `
@@ -5832,7 +6600,7 @@ function createStudioPanel(options) {
                 </span>
                 <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.0.0")}</span>
               </div>
-              <div class="rx-search-wrap" style="padding:0 10px 8px">
+              <div class="rx-search-wrap">
                 <input type="text" class="rx-search-input" data-role="settingsSearch" value="${escAttr(state.settingsSearchQuery || "")}" placeholder="${isRu ? "Поиск настроек…" : "Search settings…"}"/>
                 ${quickIndex.length > 0 ? `
                   <div style="display:flex;flex-direction:column;gap:3px;margin-top:6px">
@@ -5909,6 +6677,103 @@ function createStudioPanel(options) {
     `;
   }
 
+  function measureHostUiMetrics() {
+    const vw = (win && Number(win.innerWidth)) || 1280;
+    const vh = (win && Number(win.innerHeight)) || 800;
+    let sidebarRight = 0;
+    let headerTop = 0;
+    let headerBottom = 0;
+    let headerRightClear = 188;
+    let composerLeft = 0;
+    let composerRight = 0;
+    try {
+      if (doc && typeof doc.querySelectorAll === "function") {
+        // 1. Measure real visible left sidebar so left-side widgets NEVER overlap chats or Settings
+        const sides = doc.querySelectorAll('aside, [data-rudex-bg-sidebar="1"], [data-testid="sidebar"]');
+        for (let i = 0; sides && i < sides.length; i += 1) {
+          const el = sides[i];
+          if (!el || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(el))) continue;
+          if (typeof el.getBoundingClientRect !== "function") continue;
+          const r = el.getBoundingClientRect();
+          if (r && r.width > 80 && r.height > 200 && r.left < 60 && r.right < vw * 0.45) {
+            if (r.right > sidebarRight) sidebarRight = Math.round(r.right);
+          }
+        }
+        // 1b. Measure chat composer so bottom-left / bottom-right widgets NEVER overlap the input box
+        const compEl = typeof doc.querySelector === "function" ? doc.querySelector('[data-rudex-theme-composer="1"]') : null;
+        if (compEl && typeof compEl.getBoundingClientRect === "function") {
+          const cr = compEl.getBoundingClientRect();
+          if (cr && cr.width > 180 && cr.height > 24 && cr.bottom > vh * 0.55) {
+            composerLeft = Math.round(cr.left);
+            composerRight = Math.round(cr.right);
+          }
+        }
+        // 2. Measure real top chat header bar (below Electron titlebar if present)
+        const hdrs = doc.querySelectorAll('header, [data-rudex-bg-header="1"]');
+        for (let i = 0; hdrs && i < hdrs.length; i += 1) {
+          const el = hdrs[i];
+          if (!el || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(el))) continue;
+          if (typeof el.getBoundingClientRect !== "function") continue;
+          const r = el.getBoundingClientRect();
+          if (r && r.width > 200 && r.height >= 22 && r.height <= 96 && r.top >= 0 && r.bottom <= 125) {
+            if (r.bottom > headerBottom) {
+              headerTop = Math.round(r.top);
+              headerBottom = Math.round(r.bottom);
+            }
+          }
+        }
+        // 3. Measure right-side header action cluster ("Открыть IDE" / "Open IDE" + pane icons) so inline-header widgets NEVER collide with it
+        const btns = doc.querySelectorAll('button, [role="button"], a');
+        let ideLeft = vw;
+        let ideTop = 0;
+        let ideBottom = 0;
+        for (let i = 0; btns && i < btns.length; i += 1) {
+          const b = btns[i];
+          if (!b || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(b))) continue;
+          if (typeof b.getBoundingClientRect !== "function") continue;
+          const r = b.getBoundingClientRect();
+          if (!r || r.width < 12 || r.height < 12 || r.top < 0 || r.bottom > 110 || r.left < vw * 0.55) continue;
+          const txt = String(b.textContent || "").trim().toLowerCase();
+          if (txt.includes("открыть ide") || txt.includes("open ide") || (headerBottom > 0 && r.top >= headerTop - 2 && r.bottom <= headerBottom + 4)) {
+            if (r.left < ideLeft) ideLeft = Math.round(r.left);
+            if (r.bottom > ideBottom) {
+              ideTop = Math.round(r.top);
+              ideBottom = Math.round(r.bottom);
+            }
+          }
+        }
+        if (ideBottom > 0) {
+          if (headerBottom === 0 || ideBottom > headerBottom) {
+            headerTop = Math.max(0, ideTop - 4);
+            headerBottom = ideBottom + 5;
+          }
+          const calcClear = Math.round(vw - ideLeft + 18);
+          if (calcClear > 40 && calcClear < vw * 0.45) headerRightClear = calcClear;
+        }
+      }
+    } catch (_e) {}
+    let drawerRightReserve = 0;
+    if (state.isOpen && state.activeTab === "appearance" && state.appearanceDockedRight) {
+      drawerRightReserve = 504;
+      try {
+        const sh = modalMountEl && typeof modalMountEl.querySelector === "function"
+          ? modalMountEl.querySelector(".modal-shell.is-appearance-live")
+          : null;
+        if (sh && typeof sh.getBoundingClientRect === "function") {
+          const sr = sh.getBoundingClientRect();
+          if (sr && sr.width > 120) {
+            drawerRightReserve = Math.round(vw - sr.left + 12);
+          }
+        }
+      } catch (_e) {}
+    }
+    if (headerBottom < 28) {
+      headerTop = 30;
+      headerBottom = 68;
+    }
+    return { vw, vh, sidebarRight, headerTop, headerBottom, headerRightClear, composerLeft, composerRight, drawerRightReserve };
+  }
+
   function applyWidgetPosition() {
     if (!widgetMountEl) return;
     const s = state.settings;
@@ -5916,30 +6781,49 @@ function createStudioPanel(options) {
     const dock = normalizeDockPosition(s.dockPosition);
     const shouldHide = dock === "hidden" || Boolean(state.settings.zenMode) || Boolean(state.settings.limitsWidget && state.settings.limitsWidget.enabled && state.settings.limitsWidget.onlyLimitsMode);
     const lockedCls = s.pinned ? " is-locked" : "";
+    const isFloatingPos = s.layoutMode === "floating" && typeof s.floatX === "number" && typeof s.floatY === "number";
+    const uiModeCls = s.pinned && s.layoutMode !== "floating" ? " is-docked-ui" : " is-floating-ui";
     widgetMountEl.setAttribute("data-widget-theme", sui.widgetTheme);
     widgetMountEl.setAttribute("data-widget-scale", sui.widgetScale);
-    widgetMountEl.className = "widget-wrap" + lockedCls + (shouldHide ? " is-hidden" : "");
+    widgetMountEl.className = "widget-wrap" + lockedCls + uiModeCls + (shouldHide ? " is-hidden" : "");
 
-    if (shouldHide) {
-      widgetMountEl.style.left = "";
-      widgetMountEl.style.top = "";
-      widgetMountEl.style.right = "";
-      widgetMountEl.style.bottom = "";
+    widgetMountEl.style.left = "";
+    widgetMountEl.style.top = "";
+    widgetMountEl.style.right = "";
+    widgetMountEl.style.bottom = "";
+    if (shouldHide) return;
+
+    const hm = measureHostUiMetrics();
+    const isRightSideDock = dock === "top-right" || dock === "bottom-right" || dock === "middle-right" || dock === "inline-header";
+    if (hm.drawerRightReserve > 0 && (isRightSideDock || (isFloatingPos && Number(s.floatX) > hm.vw - hm.drawerRightReserve - 240))) {
+      widgetMountEl.className = "widget-wrap is-hidden";
       return;
     }
-
-    if (s.layoutMode === "floating" && typeof s.floatX === "number" && typeof s.floatY === "number") {
-      widgetMountEl.style.right = "";
-      widgetMountEl.style.bottom = "";
+    if (isFloatingPos) {
       widgetMountEl.style.left = `${Math.max(8, Math.round(s.floatX))}px`;
       widgetMountEl.style.top = `${Math.max(8, Math.round(s.floatY))}px`;
       clampWidgetToViewport();
     } else {
-      widgetMountEl.style.left = "";
-      widgetMountEl.style.top = "";
-      widgetMountEl.style.right = "";
-      widgetMountEl.style.bottom = "";
-      widgetMountEl.className = `widget-wrap dock-${dock}${lockedCls}`;
+      widgetMountEl.className = `widget-wrap dock-${dock}${lockedCls}${uiModeCls}`;
+      const safeLeft = hm.sidebarRight > 0 ? hm.sidebarRight + 16 : 16;
+      const safeTop = hm.headerBottom + 12;
+      if (dock === "inline-header") {
+        const hdrH = Math.max(28, hm.headerBottom - hm.headerTop);
+        widgetMountEl.style.top = `${Math.max(4, Math.round(hm.headerTop + (hdrH - 28) / 2))}px`;
+        widgetMountEl.style.right = `${hm.headerRightClear}px`;
+      } else if (dock === "top-right") {
+        widgetMountEl.style.top = `${safeTop}px`;
+        widgetMountEl.style.right = "18px";
+      } else if (dock === "top-left") {
+        widgetMountEl.style.top = `${safeTop}px`;
+        widgetMountEl.style.left = `${safeLeft}px`;
+      } else if (dock === "bottom-left") {
+        widgetMountEl.style.bottom = "14px";
+        widgetMountEl.style.left = `${safeLeft}px`;
+      } else if (dock === "bottom-right") {
+        widgetMountEl.style.bottom = "14px";
+        widgetMountEl.style.right = "18px";
+      }
     }
   }
 
@@ -6031,6 +6915,16 @@ function createStudioPanel(options) {
       setLiveSlot(widgetMountEl, '[data-live="quotaMed"]', qMiniText, false);
     }
 
+    if (state.settings.limitsWidget && state.settings.limitsWidget.enabled && limitsMountEl) {
+      const f = state.quotaSummary && state.quotaSummary.families ? state.quotaSummary.families : null;
+      const g = f && f.gemini ? `${f.gemini.fiveHourRem}/${f.gemini.weeklyRem}/${f.gemini.fiveHourReset}/${f.gemini.weeklyReset}/${f.gemini.fiveHourEstimated ? 1 : 0}` : "";
+      const c = f && f.claudeGpt ? `${f.claudeGpt.fiveHourRem}/${f.claudeGpt.weeklyRem}/${f.claudeGpt.fiveHourReset}/${f.claudeGpt.weeklyReset}/${f.claudeGpt.fiveHourEstimated ? 1 : 0}` : "";
+      const limSig = `${g}|${c}|${tel.modelName || ""}`;
+      if (limSig !== state.lastLimitsQuotaSig) {
+        state.lastLimitsQuotaSig = limSig;
+        renderLimitsWidgetMount();
+      }
+    }
     if (modalMountEl && state.isOpen) {
       setLiveSlot(modalMountEl, '[data-live="resp"]', respText, false);
       setLiveSlot(modalMountEl, '[data-live="respNum"]', respNumText, false);
@@ -6054,26 +6948,29 @@ function createStudioPanel(options) {
       }
       setLiveSlot(modalMountEl, '[data-live="quotaMed"]', qMiniText, false);
       if (state.activeTab === "settings" && state.settingsSubTab === "widget") {
-        const nextPreview = renderMiniCapsuleMarkup(true);
-        if (nextPreview !== state.lastPreviewCapsuleHtml) {
-          state.lastPreviewCapsuleHtml = nextPreview;
-          setLiveSlot(modalMountEl, '[data-live="previewCapsule"]', nextPreview, true);
+        if (state.widgetSubSection === "limits") {
+          const prevStage = typeof modalMountEl.querySelector === "function" ? modalMountEl.querySelector('[data-role="limitsPreviewStage"]') : null;
+          if (prevStage && typeof rv5BuildLimitsWidgetHtml === "function") {
+            const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : state.settings.limitsWidget;
+            prevStage.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, tel.modelName || "", state.locale !== "en", true);
+          }
+        } else {
+          const nextPreview = renderMiniCapsuleMarkup(true);
+          if (nextPreview !== state.lastPreviewCapsuleHtml) {
+            state.lastPreviewCapsuleHtml = nextPreview;
+            setLiveSlot(modalMountEl, '[data-live="previewCapsule"]', nextPreview, true);
+          }
         }
       }
+    }
+    if (state.usagePopOpen) {
+      renderModelUsagePopover();
     }
   }
 
   function renderStructure() {
     if (!rootEl || state.destroyed) return;
     syncTheme();
-    if (widgetMountEl) {
-      const bodyMarkup = state.settings.viewMode === "medium"
-        ? renderMediumCardMarkup()
-        : renderMiniCapsuleMarkup(false);
-      widgetMountEl.innerHTML = bodyMarkup + `<span class="resize-hud-badge" data-role="widgetResizeHud"></span>`;
-      state.lastSparkMedSig = (state.telemetry.samples || []).join(",");
-      applyWidgetPosition();
-    }
     if (modalMountEl) {
       let prevScrollTop = 0;
       let focusedSel = "";
@@ -6118,6 +7015,14 @@ function createStudioPanel(options) {
         }
       }
     }
+    if (widgetMountEl) {
+      const bodyMarkup = state.settings.viewMode === "medium"
+        ? renderMediumCardMarkup()
+        : renderMiniCapsuleMarkup(false);
+      widgetMountEl.innerHTML = bodyMarkup + `<span class="resize-hud-badge" data-role="widgetResizeHud"></span>`;
+      state.lastSparkMedSig = (state.telemetry.samples || []).join(",");
+      applyWidgetPosition();
+    }
     if (popoverMountEl) {
       renderPopoverStructure();
     }
@@ -6126,6 +7031,7 @@ function createStudioPanel(options) {
     }
     renderLimitsWidgetMount();
     renderChatDockMount();
+    renderModelUsagePopover();
     renderPickerMount();
   }
 
@@ -6164,6 +7070,9 @@ function createStudioPanel(options) {
   function saveChatAgentProfile(nextProf, extraOpts) {
     const norm = typeof rv5NormalizeAgentProfile === "function" ? rv5NormalizeAgentProfile(nextProf) : Object.assign({}, nextProf);
     state.chatAgentProfile = norm;
+    if ((state.activeChatKey || "__new__") === "__new__") {
+      state.newChatDraftAgentProfile = norm.enabled ? Object.assign({}, norm) : null;
+    }
     const optsObj = extraOpts && typeof extraOpts === "object" ? extraOpts : {};
     if (optsObj.setAsDefault) {
       state.settings.agentProfileDefault = Object.assign({}, norm);
@@ -6190,27 +7099,411 @@ function createStudioPanel(options) {
       limitsMountEl.innerHTML = "";
       return;
     }
-    const posCls = lw.layout === "inline-header" ? "pos-inline-header" : (lw.position === "floating" ? "" : `pos-${lw.position || "top-right"}`);
+    const effPos = lw.position === "floating"
+      ? "floating"
+      : (lw.position === "inline-header" || lw.layout === "inline-header" ? "inline-header" : (lw.position || "top-right"));
+    const posCls = effPos === "floating" ? "" : `pos-${effPos}`;
     limitsMountEl.className = `rx-limits-mount ${posCls}`.trim();
-    if (lw.position === "floating" && typeof lw.floatX === "number" && typeof lw.floatY === "number") {
-      limitsMountEl.style.left = `${Math.max(8, Math.round(lw.floatX))}px`;
-      limitsMountEl.style.top = `${Math.max(8, Math.round(lw.floatY))}px`;
-      limitsMountEl.style.right = "";
-      limitsMountEl.style.bottom = "";
+    limitsMountEl.style.left = "";
+    limitsMountEl.style.top = "";
+    limitsMountEl.style.right = "";
+    limitsMountEl.style.bottom = "";
+    limitsMountEl.style.maxWidth = "";
+    const hm = measureHostUiMetrics();
+    const isLimRightSlot = effPos === "top-right" || effPos === "bottom-right" || effPos === "inline-header";
+    if (hm.drawerRightReserve > 0 && (isLimRightSlot || (effPos === "floating" && typeof lw.floatX === "number" && lw.floatX > hm.vw - hm.drawerRightReserve - 240))) {
+      limitsMountEl.className = "rx-limits-mount rx-zen-hidden";
+      limitsMountEl.innerHTML = "";
+      return;
+    }
+    if (effPos === "floating" && typeof lw.floatX === "number" && typeof lw.floatY === "number") {
+      const nx = Math.max(8, Math.min(Math.max(8, hm.vw - 140), Math.round(lw.floatX)));
+      const ny = Math.max(8, Math.min(Math.max(8, hm.vh - 44), Math.round(lw.floatY)));
+      limitsMountEl.style.left = `${nx}px`;
+      limitsMountEl.style.top = `${ny}px`;
     } else {
-      limitsMountEl.style.left = "";
-      limitsMountEl.style.top = "";
-      limitsMountEl.style.right = "";
-      limitsMountEl.style.bottom = "";
+      const safeLeft = hm.sidebarRight > 0 ? hm.sidebarRight + 16 : 16;
+      const safeTop = hm.headerBottom + 12;
+      const miniVisible = !lw.onlyLimitsMode && state.settings.dockPosition !== "hidden" && state.settings.layoutMode !== "floating";
+      const miniDock = normalizeDockPosition(state.settings.dockPosition);
+      const miniRect = miniVisible && widgetMountEl && typeof widgetMountEl.getBoundingClientRect === "function" ? widgetMountEl.getBoundingClientRect() : null;
+      const miniH = miniRect && miniRect.height > 16 ? Math.round(miniRect.height) : 34;
+      const miniW = miniRect && miniRect.width > 40 ? Math.round(miniRect.width) : 220;
+      const sameSlot = miniVisible && effPos === miniDock;
+
+      if (effPos === "inline-header") {
+        const hdrH = Math.max(28, hm.headerBottom - hm.headerTop);
+        limitsMountEl.style.top = `${Math.max(4, Math.round(hm.headerTop + (hdrH - 28) / 2))}px`;
+        limitsMountEl.style.right = `${hm.headerRightClear + (sameSlot ? miniW + 10 : 0)}px`;
+      } else if (effPos === "top-right") {
+        limitsMountEl.style.top = `${safeTop + (sameSlot ? miniH + 10 : 0)}px`;
+        limitsMountEl.style.right = "18px";
+      } else if (effPos === "top-left") {
+        limitsMountEl.style.top = `${safeTop + (sameSlot ? miniH + 10 : 0)}px`;
+        limitsMountEl.style.left = `${safeLeft}px`;
+      } else if (effPos === "bottom-right") {
+        limitsMountEl.style.bottom = `${14 + (sameSlot ? miniH + 10 : 0)}px`;
+        limitsMountEl.style.right = "18px";
+        if (hm.composerRight > 0 && hm.vw - hm.composerRight > 200) {
+          limitsMountEl.style.maxWidth = `${Math.max(190, hm.vw - hm.composerRight - 32)}px`;
+        }
+      } else if (effPos === "bottom-left") {
+        limitsMountEl.style.bottom = `${14 + (sameSlot ? miniH + 10 : 0)}px`;
+        limitsMountEl.style.left = `${safeLeft}px`;
+        if (hm.composerLeft > safeLeft + 180) {
+          limitsMountEl.style.maxWidth = `${Math.max(190, hm.composerLeft - safeLeft - 14)}px`;
+        }
+      }
     }
     if (typeof rv5BuildLimitsWidgetHtml === "function") {
       limitsMountEl.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName, state.locale !== "en");
     }
   }
 
+  function hasVisibleNativeModal() {
+    if (!doc || typeof doc.querySelectorAll !== "function") return false;
+    try {
+      const dlgs = doc.querySelectorAll('[role="dialog"], [role="alertdialog"]');
+      for (let i = 0; dlgs && i < dlgs.length; i += 1) {
+        const d = dlgs[i];
+        if (!d) continue;
+        if (hostEl && (d === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(d)))) continue;
+        if (isHiddenAncestor(d, doc.body)) continue;
+        if (typeof d.getBoundingClientRect === "function") {
+          const r = d.getBoundingClientRect();
+          if (r && r.width > 40 && r.height > 40) return true;
+        } else {
+          return true;
+        }
+      }
+    } catch (_e) {}
+    return false;
+  }
+
+  function isAgentRunningNow() {
+    if (state.telemetry && state.telemetry.isGenerating) return true;
+    if (!doc || typeof doc.querySelectorAll !== "function") return false;
+    try {
+      const busyBtns = doc.querySelectorAll('[data-testid="input-cancel-button"], [data-testid="cancel-invocation-button"], [data-testid="send-button-loading"], [data-testid="send-button-pending"]');
+      for (let i = 0; busyBtns && i < busyBtns.length; i += 1) {
+        const b = busyBtns[i];
+        if (!b) continue;
+        if (hostEl && (b === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(b)))) continue;
+        if (!isHiddenAncestor(b, doc.body)) return true;
+      }
+    } catch (_e) {}
+    return false;
+  }
+
+  function imageElToDataUrl(imgEl) {
+    if (!imgEl) return "";
+    const src = String((imgEl.getAttribute && imgEl.getAttribute("src")) || imgEl.src || "");
+    if (src.startsWith("data:image/")) return src;
+    try {
+      if (doc && typeof doc.createElement === "function") {
+        const w = Number(imgEl.naturalWidth) || Number(imgEl.width) || 0;
+        const h = Number(imgEl.naturalHeight) || Number(imgEl.height) || 0;
+        if (w > 0 && h > 0) {
+          const maxDim = 2200;
+          const scale = Math.min(1, maxDim / Math.max(w, h));
+          const c = doc.createElement("canvas");
+          c.width = Math.max(1, Math.round(w * scale));
+          c.height = Math.max(1, Math.round(h * scale));
+          const ctx = typeof c.getContext === "function" ? c.getContext("2d") : null;
+          if (ctx && typeof ctx.drawImage === "function") {
+            ctx.drawImage(imgEl, 0, 0, c.width, c.height);
+            const png = typeof c.toDataURL === "function" ? c.toDataURL("image/png") : "";
+            if (png && png.startsWith("data:image/")) return png;
+          }
+        }
+      }
+    } catch (_e) {}
+    return src;
+  }
+
+  function cacheOriginalComposerFile(fileOrBlob) {
+    if (!fileOrBlob || typeof FileReader === "undefined") return;
+    const mime = String(fileOrBlob.type || "").toLowerCase();
+    const fname = String(fileOrBlob.name || "").trim();
+    const size = Number(fileOrBlob.size) || 0;
+    const isImg = mime.startsWith("image/") || /\.(?:png|jpe?g|webp|gif|bmp)$/i.test(fname);
+    if (size > 20 * 1024 * 1024) return;
+    try {
+      const readPromise = new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (state.destroyed || typeof reader.result !== "string" || !reader.result.startsWith("data:")) {
+            resolve();
+            return;
+          }
+          const dataUrl = reader.result;
+          if (isImg && dataUrl.startsWith("data:image/")) {
+            const entry = { name: fname || `screenshot-${Date.now()}.png`, mime: mime || "image/png", dataUrl, width: 0, height: 0, aspect: 0, ts: Date.now() };
+            composerOrigImages.push(entry);
+            if (composerOrigImages.length > 8) composerOrigImages.shift();
+            const ImgCtor = (win && win.Image) || (typeof Image !== "undefined" ? Image : null);
+            if (ImgCtor) {
+              const probe = new ImgCtor();
+              probe.onload = () => {
+                entry.width = probe.naturalWidth || probe.width || 0;
+                entry.height = probe.naturalHeight || probe.height || 0;
+                entry.aspect = entry.height > 0 ? entry.width / entry.height : 0;
+                resolve();
+              };
+              probe.onerror = () => resolve();
+              probe.src = dataUrl;
+            } else {
+              resolve();
+            }
+          } else if (fname) {
+            composerOrigFiles.push({
+              name: fname,
+              mime: mime || "application/octet-stream",
+              size,
+              dataUrl,
+              ts: Date.now(),
+            });
+            if (composerOrigFiles.length > 10) composerOrigFiles.shift();
+            resolve();
+          } else {
+            resolve();
+          }
+        };
+        reader.onerror = () => resolve();
+        reader.readAsDataURL(fileOrBlob);
+      });
+      pendingComposerReads.add(readPromise);
+      readPromise.then(() => pendingComposerReads.delete(readPromise), () => pendingComposerReads.delete(readPromise));
+    } catch (_e) {}
+  }
+
+  function blobOrHttpUrlToDataUrl(url) {
+    if (!url || typeof url !== "string") return Promise.resolve("");
+    if (url.startsWith("data:")) return Promise.resolve(url);
+    const fetchFn = (win && typeof win.fetch === "function" ? win.fetch.bind(win) : null) || (typeof fetch === "function" ? fetch : null);
+    if (!fetchFn || typeof FileReader === "undefined") return Promise.resolve("");
+    return fetchFn(url)
+      .then((resp) => (resp && resp.ok && typeof resp.blob === "function" ? resp.blob() : null))
+      .then((blob) => {
+        if (!blob) return "";
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+          reader.onerror = () => resolve("");
+          reader.readAsDataURL(blob);
+        });
+      })
+      .catch(() => "");
+  }
+
+  function getComposerAttachmentScope(container) {
+    if (!container) return null;
+    const p = container.parentElement;
+    if (p && p !== doc.body && p !== doc.documentElement && p.tagName !== "MAIN" && typeof p.querySelector === "function") {
+      try {
+        if (!p.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"]')) {
+          return p;
+        }
+      } catch (_e) {}
+    }
+    return container;
+  }
+
+  function collectComposerChipFileMatches(scopeEl, editable) {
+    if (!scopeEl || composerOrigFiles.length === 0) return [];
+    const now = Date.now();
+    // Read text outside the editable box so we detect Antigravity's attachment file chips reliably
+    let scopeText = "";
+    try {
+      const fullTxt = String(scopeEl.textContent || "");
+      const edTxt = editable ? String(editable.textContent || "") : "";
+      scopeText = (edTxt ? fullTxt.replace(edTxt, " ") : fullTxt).toLowerCase();
+    } catch (_e) {}
+    const matched = [];
+    const seen = new Set();
+    for (let i = composerOrigFiles.length - 1; i >= 0 && matched.length < 6; i -= 1) {
+      const f = composerOrigFiles[i];
+      if (!f || !f.name || !f.dataUrl || seen.has(f.name) || now - f.ts > 20 * 60 * 1000) continue;
+      const lowName = f.name.toLowerCase();
+      const baseNoExt = lowName.replace(/\.[^.]+$/, "");
+      if (scopeText.includes(lowName) || (baseNoExt.length >= 4 && scopeText.includes(baseNoExt))) {
+        seen.add(f.name);
+        matched.push({ file: f, cacheIdx: i });
+      }
+    }
+    return matched;
+  }
+
+  function hasComposerAttachments(container, editable) {
+    const scope = getComposerAttachmentScope(container);
+    if (!scope || typeof scope.querySelectorAll !== "function") return false;
+    const imgs = scope.querySelectorAll("img");
+    for (let i = 0; imgs && i < imgs.length; i += 1) {
+      if (imgs[i] && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(imgs[i]))) return true;
+    }
+    return collectComposerChipFileMatches(scope, editable).length > 0;
+  }
+
+  function findFullResForThumbnail(imgEl, usedCacheSet) {
+    const tw = (imgEl && (Number(imgEl.naturalWidth) || Number(imgEl.width))) || 0;
+    const th = (imgEl && (Number(imgEl.naturalHeight) || Number(imgEl.height))) || 0;
+    const tAspect = th > 0 ? tw / th : 0;
+    // Match against our ring buffer of original full-res pasted/dropped images by aspect ratio & recency
+    for (let i = composerOrigImages.length - 1; i >= 0; i -= 1) {
+      const c = composerOrigImages[i];
+      if (!c || !c.dataUrl) continue;
+      if (usedCacheSet && usedCacheSet.has(c)) continue;
+      if (Date.now() - c.ts > 30 * 60 * 1000) continue;
+      if (c.width > 0 && c.width > tw * 1.15) {
+        if (!tAspect || !c.aspect || Math.abs(c.aspect - tAspect) < 0.14) {
+          if (usedCacheSet) usedCacheSet.add(c);
+          return c.dataUrl;
+        }
+      } else if (c.width === 0 && tw < 450) {
+        if (usedCacheSet) usedCacheSet.add(c);
+        return c.dataUrl;
+      }
+    }
+    return "";
+  }
+
+  function handleEditImageFromDom(info) {
+    if (!info || !info.imgEl) return;
+    const im = info.imgEl;
+    const rawSrc = String((im.getAttribute && im.getAttribute("src")) || im.src || "");
+    const natW = Number(im.naturalWidth) || Number(im.width) || 0;
+    const natH = Number(im.naturalHeight) || Number(im.height) || 0;
+    const openWith = (url) => {
+      if (!url) return;
+      openAnnotator({
+        dataUrl: url,
+        sourceImgEl: im,
+        thumbWrapper: info.thumbWrapper || null,
+        dialogEl: info.dialogEl || null,
+        fromLightbox: Boolean(info.fromLightbox),
+      });
+    };
+
+    // 1. If the DOM image itself is already high-resolution (>=600px), use it directly
+    if (natW >= 600) {
+      const directUrl = (rawSrc.startsWith("data:image/") || rawSrc.startsWith("blob:")) ? rawSrc : imageElToDataUrl(im);
+      openWith(directUrl);
+      return;
+    }
+
+    // 2. Antigravity downscales composer thumbnails (~160-240px): check our full-res paste/drop/upload cache first!
+    const cachedFull = findFullResForThumbnail(im);
+    if (cachedFull) {
+      openWith(cachedFull);
+      return;
+    }
+
+    // 3. Fallback: if clipboard still holds the full-res screenshot with matching aspect ratio, grab it seamlessly!
+    const fallbackUrl = (rawSrc.startsWith("data:image/") || rawSrc.startsWith("blob:")) ? rawSrc : imageElToDataUrl(im);
+    invokeIpc("agy-studio:read-clipboard-image").then((res) => {
+      if (state.destroyed) return;
+      if (res && res.ok && res.dataUrl) {
+        const ImgCtor = (win && win.Image) || (typeof Image !== "undefined" ? Image : null);
+        if (ImgCtor && natW > 0 && natH > 0) {
+          const probe = new ImgCtor();
+          probe.onload = () => {
+            const cw = probe.naturalWidth || probe.width || 0;
+            const ch = probe.naturalHeight || probe.height || 0;
+            const clipAsp = ch > 0 ? cw / ch : 0;
+            const thumbAsp = natW / natH;
+            if (cw > natW * 1.35 && (!clipAsp || Math.abs(clipAsp - thumbAsp) < 0.14)) {
+              openWith(res.dataUrl);
+            } else {
+              openWith(fallbackUrl);
+            }
+          };
+          probe.onerror = () => openWith(fallbackUrl);
+          probe.src = res.dataUrl;
+          return;
+        }
+      }
+      openWith(fallbackUrl);
+    });
+  }
+
+  function removeAllLiveChatBubbleSlots() {
+    if (!doc || typeof doc.querySelectorAll !== "function") return;
+    const slots = doc.querySelectorAll("[data-rudex-live-slot], #rudex-live-chat-bubbles");
+    for (let i = 0; slots && i < slots.length; i += 1) {
+      if (slots[i] && slots[i].parentNode) slots[i].parentNode.removeChild(slots[i]);
+    }
+  }
+
+  function syncLiveChatBubbles(scrollAfter) {
+    if (!doc || typeof rv5SyncLiveChatBubbles !== "function") return;
+    if (state.settings.zenMode) {
+      removeAllLiveChatBubbleSlots();
+      return;
+    }
+    const app = state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance;
+    rv5SyncLiveChatBubbles(doc, {
+      liveEdits: state.liveEdits || [],
+      liveEditInline: state.settings.liveEditInline,
+      dismissedIds: state.dismissedLiveEditIds,
+      isRu: state.locale !== "en",
+      isLight: detectAppTheme() === "light",
+      accentColor: (app && app.accentColor) || "#d97757",
+      onCancel: (eid) => {
+        invokeIpc("agy-studio:cancel-live-edit", { id: eid, chatKey: state.activeChatKey || "__new__" }).then((res) => {
+          if (!state.destroyed && res && res.ok) {
+            applyLiveEditsPayload(res);
+            renderChatDockMount();
+          }
+        });
+      },
+      onDismiss: (eid) => {
+        state.dismissedLiveEditIds.add(eid);
+        renderChatDockMount();
+      },
+    });
+    if (scrollAfter && typeof doc.querySelectorAll === "function") {
+      const slots = doc.querySelectorAll("[data-rudex-live-slot]");
+      const lastSlot = slots && slots.length > 0 ? slots[slots.length - 1] : null;
+      if (lastSlot && typeof lastSlot.scrollIntoView === "function") {
+        try { lastSlot.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (_e) {}
+      }
+    }
+  }
+
+  function hasOverlappingNativePopover(dockBox) {
+    if (!doc || !dockBox || typeof doc.querySelectorAll !== "function") return false;
+    try {
+      const nodes = doc.querySelectorAll(
+        '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper] > *, [data-slot="popover-content"], [data-slot="dropdown-menu-content"], [data-slot="select-content"], [data-state="open"][data-side]'
+      );
+      for (let i = 0; nodes && i < nodes.length; i += 1) {
+        const el = nodes[i];
+        if (!el) continue;
+        if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) continue;
+        const role = typeof el.getAttribute === "function" ? String(el.getAttribute("role") || "").toLowerCase() : "";
+        const slot = typeof el.getAttribute === "function" ? String(el.getAttribute("data-slot") || "").toLowerCase() : "";
+        const st = typeof el.getAttribute === "function" ? String(el.getAttribute("data-state") || "").toLowerCase() : "";
+        if (role === "tooltip" || slot === "tooltip-content" || st === "closed") continue;
+        if (isHiddenAncestor(el, doc.body)) continue;
+        if (typeof el.getBoundingClientRect !== "function") continue;
+        const r = el.getBoundingClientRect();
+        if (!r || r.width < 40 || r.height < 24) continue;
+        if (
+          r.left <= dockBox.right + 8 &&
+          r.right >= dockBox.left - 8 &&
+          r.top <= dockBox.bottom + 8 &&
+          r.bottom >= dockBox.top - 8
+        ) {
+          return true;
+        }
+      }
+    } catch (_e) {}
+    return false;
+  }
+
   function positionChatDock() {
     if (!chatDockMountEl || !doc || typeof rv5FindNativeComposer !== "function") return;
-    if (state.settings.zenMode) {
+    if (state.settings.zenMode || hasVisibleNativeModal()) {
       chatDockMountEl.style.display = "none";
       return;
     }
@@ -6224,26 +7517,41 @@ function createStudioPanel(options) {
       chatDockMountEl.style.display = "none";
       return;
     }
-    chatDockMountEl.style.display = "flex";
-    chatDockMountEl.style.left = `${Math.max(8, Math.round(rect.left))}px`;
-    chatDockMountEl.style.width = `${Math.round(rect.width)}px`;
     const vh = (win && win.innerHeight) || 800;
-    chatDockMountEl.style.bottom = `${Math.max(12, Math.round(vh - rect.top + 6))}px`;
+    const dockLeft = Math.max(8, Math.round(rect.left));
+    const dockBottom = Math.max(12, Math.round(vh - rect.top + 6));
+    const dockBox = {
+      left: dockLeft,
+      right: dockLeft + Math.min(260, Math.round(rect.width)),
+      top: vh - dockBottom - 32,
+      bottom: vh - dockBottom,
+    };
+    if (!state.agentPopoverOpen && hasOverlappingNativePopover(dockBox)) {
+      chatDockMountEl.style.display = "none";
+      return;
+    }
+    chatDockMountEl.style.display = "flex";
+    chatDockMountEl.style.left = `${dockLeft}px`;
+    chatDockMountEl.style.width = `${Math.round(rect.width)}px`;
+    chatDockMountEl.style.bottom = `${dockBottom}px`;
   }
 
   function renderChatDockMount() {
     if (!chatDockMountEl || typeof rv5BuildChatDockHtml !== "function") return;
     if (state.settings.zenMode) {
       chatDockMountEl.className = "rx-chat-dock rx-zen-hidden";
-      chatDockMountEl.innerHTML = "";
+      if (state.lastChatDockHtml !== "") {
+        state.lastChatDockHtml = "";
+        chatDockMountEl.innerHTML = "";
+      }
       return;
     }
-    chatDockMountEl.className = "rx-chat-dock";
-    chatDockMountEl.innerHTML = rv5BuildChatDockHtml({
+    const nextHtml = rv5BuildChatDockHtml({
       agentProfile: state.chatAgentProfile,
       defaultProfile: state.settings.agentProfileDefault,
       customPresets: state.settings.customAgentPresets || [],
       liveEdits: state.liveEdits || [],
+      dismissedIds: state.dismissedLiveEditIds,
       isGenerating: Boolean(state.telemetry.isGenerating),
       hasComposerText: Boolean(state.hasComposerText),
       liveEditInline: state.settings.liveEditInline,
@@ -6251,45 +7559,877 @@ function createStudioPanel(options) {
       popoverOpen: Boolean(state.agentPopoverOpen),
       isRu: state.locale !== "en",
     });
+    if (!nextHtml) {
+      chatDockMountEl.className = "rx-chat-dock rx-zen-hidden";
+      if (state.lastChatDockHtml !== "") {
+        state.lastChatDockHtml = "";
+        chatDockMountEl.innerHTML = "";
+      }
+      syncLiveChatBubbles(false);
+      return;
+    }
+    chatDockMountEl.className = "rx-chat-dock";
+    if (nextHtml !== state.lastChatDockHtml) {
+      state.lastChatDockHtml = nextHtml;
+      chatDockMountEl.innerHTML = nextHtml;
+    }
     positionChatDock();
+    syncLiveChatBubbles(false);
+  }
+
+  function buildUsageRingSvg(remPct) {
+    const r = 5.2;
+    const c = 2 * Math.PI * r;
+    const hasVal = typeof remPct === "number" && Number.isFinite(remPct);
+    const pct = hasVal ? Math.max(0, Math.min(100, remPct)) : 0;
+    const dash = (c * pct) / 100;
+    const strokeCol = !hasVal
+      ? "var(--rx-theme-muted, var(--rx-muted))"
+      : (pct <= 18 ? "var(--rx-danger, #ef4444)" : (pct <= 45 ? "var(--rx-warning, #f59e0b)" : "var(--rx-success, #22c55e)"));
+    return `<svg class="rx-usage-ring" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="${r}" fill="none" stroke="var(--rx-theme-border-strong, rgba(128,128,128,0.28))" stroke-width="2"/><circle cx="7" cy="7" r="${r}" fill="none" stroke="${strokeCol}" stroke-width="2" stroke-dasharray="${dash.toFixed(2)} ${c.toFixed(2)}" stroke-linecap="round"/></svg>`;
+  }
+
+  function setUsagePopTooltipGuard(isOpen) {
+    if (!doc || !doc.documentElement) return;
+    try {
+      if (isOpen) {
+        doc.documentElement.setAttribute("data-rudex-usage-pop-open", "1");
+        let st = typeof doc.getElementById === "function" ? doc.getElementById("rudex-usage-pop-guard") : null;
+        if (!st && doc.head && typeof doc.createElement === "function") {
+          st = doc.createElement("style");
+          st.id = "rudex-usage-pop-guard";
+          st.textContent = `html[data-rudex-usage-pop-open="1"] [data-radix-popper-content-wrapper]:has([role="tooltip"]), html[data-rudex-usage-pop-open="1"] [role="tooltip"] { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }`;
+          doc.head.appendChild(st);
+        }
+      } else {
+        doc.documentElement.removeAttribute("data-rudex-usage-pop-open");
+      }
+    } catch (_e) {}
+  }
+
+  function renderModelUsagePopover() {
+    if (!usagePopMountEl) return;
+    if (!state.usagePopOpen || state.settings.zenMode) {
+      setUsagePopTooltipGuard(false);
+      if (state.lastUsagePopHtml !== "" || usagePopMountEl.style.display !== "none") {
+        state.lastUsagePopHtml = "";
+        usagePopMountEl.innerHTML = "";
+        usagePopMountEl.style.display = "none";
+      }
+      return;
+    }
+    setUsagePopTooltipGuard(true);
+    const isRu = state.locale !== "en";
+    const qs = state.quotaSummary || {};
+    const fams = qs.families || {};
+    const gem = fams.gemini || {};
+    const cla = fams.claudeGpt || {};
+    const renderRow = (label, rem, isEst, resetStr) => {
+      const hasVal = typeof rem === "number" && Number.isFinite(rem);
+      const pctText = hasVal
+        ? `${isEst ? "~" : ""}${Math.max(0, Math.min(100, Math.round(rem)))}% ${isRu ? "осталось" : "left"}`
+        : (isRu ? "Нет снимка" : "No data");
+      return `
+        <div class="rx-usage-row">
+          <div class="rx-usage-row-left">
+            <span class="rx-usage-lbl">${escHtml(label)}</span>
+            ${resetStr ? `<span class="rx-usage-reset">${escHtml(isRu ? `Сбросится через ${resetStr}` : `Resets in ${resetStr}`)}</span>` : ""}
+          </div>
+          <span class="rx-usage-row-right">${escHtml(pctText)}${buildUsageRingSvg(rem)}</span>
+        </div>
+      `;
+    };
+    const renderFamSec = (title, d) => {
+      const has5 = typeof d.fiveHourRem === "number" && Number.isFinite(d.fiveHourRem);
+      const hasW = typeof d.weeklyRem === "number" && Number.isFinite(d.weeklyRem);
+      return `
+        <div class="rx-usage-sec">
+          <span class="rx-usage-sec-title">${escHtml(title)}</span>
+          ${hasW || !has5 ? renderRow(isRu ? "Недельный лимит" : "Weekly limit", d.weeklyRem, d.weeklyEstimated, d.weeklyReset) : ""}
+          ${has5 || !hasW ? renderRow(isRu ? "Лимит (5 ч)" : "5-hour limit", d.fiveHourRem, d.fiveHourEstimated, d.fiveHourReset) : ""}
+        </div>
+      `;
+    };
+    const nextHtml = `
+      <div class="rx-usage-pop" role="dialog" aria-label="${escAttr(isRu ? "Использование моделей" : "Model Usage")}">
+        <div class="rx-usage-head">
+          <span class="rx-usage-title">${escHtml(isRu ? "Использование" : "Usage")}</span>
+          <button type="button" class="rx-lim-btn" data-action="close-model-usage-pop" title="${escAttr(isRu ? "Закрыть" : "Close")}">✕</button>
+        </div>
+        <div class="rx-usage-lock-note">${escHtml(isRu ? "Агент сейчас работает — сменить модель в этом чате нельзя, но лимиты доступны для просмотра." : "Agent is running — model switching is locked in this chat, but limits remain viewable.")}</div>
+        ${renderFamSec(isRu ? "Модели Gemini" : "Gemini Models", gem)}
+        ${renderFamSec(isRu ? "Модели Claude и GPT" : "Claude & GPT Models", cla)}
+        <div class="rx-usage-foot">
+          <button type="button" class="rx-usage-foot-btn" data-action="open-native-usage-settings">${escHtml(isRu ? "Настройки Antigravity →" : "Antigravity Settings →")}</button>
+        </div>
+      </div>
+    `;
+    if (nextHtml !== state.lastUsagePopHtml) {
+      state.lastUsagePopHtml = nextHtml;
+      usagePopMountEl.innerHTML = nextHtml;
+    }
+    usagePopMountEl.style.display = "block";
+    const vw = (win && Number(win.innerWidth)) || 1280;
+    const vh = (win && Number(win.innerHeight)) || 800;
+    let rect = state.usagePopAnchor;
+    try {
+      const trig = doc && typeof doc.querySelector === "function" ? doc.querySelector('[data-testid="model-selector-trigger"]') : null;
+      if (trig && typeof trig.getBoundingClientRect === "function") {
+        const r = trig.getBoundingClientRect();
+        if (r && r.width > 10 && r.height > 8) rect = r;
+      }
+    } catch (_e) {}
+    const popW = 316;
+    const desiredLeft = rect
+      ? (rect.left > vw * 0.45 ? Math.round(rect.right - popW) : Math.round(rect.left))
+      : Math.round(vw / 2 - popW / 2);
+    const left = Math.max(12, Math.min(vw - popW - 12, desiredLeft));
+    const bottom = rect ? Math.max(14, Math.min(vh - 180, Math.round(vh - rect.top + 10))) : 88;
+    usagePopMountEl.style.left = `${left}px`;
+    usagePopMountEl.style.bottom = `${bottom}px`;
+    usagePopMountEl.style.top = "";
+    usagePopMountEl.style.right = "";
+  }
+
+  function openNativeAntigravityUsageSettings() {
+    state.usagePopOpen = false;
+    renderModelUsagePopover();
+    if (!doc || typeof doc.querySelectorAll !== "function") return;
+    try {
+      const btns = doc.querySelectorAll('aside button, aside a, nav button, nav a, button[aria-label*="Settings" i], button[aria-label*="Настройк" i]');
+      let settingsBtn = null;
+      for (let i = btns.length - 1; i >= 0; i -= 1) {
+        const b = btns[i];
+        if (!b || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(b))) continue;
+        const txt = String(b.textContent || b.getAttribute("aria-label") || "").trim().toLowerCase();
+        if (txt === "настройки" || txt === "settings") {
+          settingsBtn = b;
+          break;
+        }
+      }
+      if (settingsBtn && typeof settingsBtn.click === "function") {
+        settingsBtn.click();
+        if (win && typeof win.setTimeout === "function") {
+          win.setTimeout(() => {
+            try {
+              const items = doc.querySelectorAll('[role="dialog"] button, [role="dialog"] [role="tab"], aside button, nav button');
+              for (let j = 0; items && j < items.length; j += 1) {
+                const it = items[j];
+                if (!it || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(it))) continue;
+                const tLow = String(it.textContent || "").trim().toLowerCase();
+                if (tLow.includes("модели") || tLow.includes("models")) {
+                  it.click();
+                  win.setTimeout(() => scrapeDomQuotaSnapshot(true), 320);
+                  break;
+                }
+              }
+            } catch (_e2) {}
+          }, 260);
+        }
+      }
+    } catch (_e) {}
   }
 
   function syncChatDockLiveState() {
     if (!doc || typeof rv5FindNativeComposer !== "function") return;
-    const { editable } = rv5FindNativeComposer(doc);
-    const hasTxt = Boolean(editable && typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).length > 0);
-    if (hasTxt !== state.hasComposerText) {
+    const { container, editable } = rv5FindNativeComposer(doc);
+    const curTxt = editable && typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+    const hasTxt = curTxt.length > 0;
+    const hasExpiredDoneToast = state.lastChatDockHtml.includes("is-done") &&
+      !(state.liveEdits || []).some((it) => it && it.status === "delivered" && !state.dismissedLiveEditIds.has(it.id) && Date.now() - (it.deliveredAt || 0) < 4000);
+    if (hasTxt !== state.hasComposerText || hasExpiredDoneToast) {
       state.hasComposerText = hasTxt;
       renderChatDockMount();
     } else {
       positionChatDock();
+      if (state.liveEdits && state.liveEdits.length > 0) syncLiveChatBubbles(false);
+    }
+    // Observe composer content/attachment changes to persist chat draft reliably (even when clicking attachment ×)
+    if (state.hasActivatedChat && state.settings.composerDraftsEnabled !== false && !isRestoringDraft && Date.now() > draftJustSubmittedUntil && editable) {
+      const scope = getComposerAttachmentScope(container);
+      let imgCnt = 0;
+      if (scope && typeof scope.querySelectorAll === "function") {
+        const imgs = scope.querySelectorAll("img");
+        for (let i = 0; imgs && i < imgs.length; i += 1) {
+          if (imgs[i] && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(imgs[i]))) imgCnt += 1;
+        }
+      }
+      const chipCnt = collectComposerChipFileMatches(scope, editable).length;
+      const obsSig = `${state.activeChatKey || "__new__"}|${curTxt.length}|${curTxt.slice(0, 40)}|${curTxt.slice(-24)}|${imgCnt}|${chipCnt}`;
+      if (obsSig !== lastDraftObsSig) {
+        const hadPrev = lastDraftObsSig.startsWith((state.activeChatKey || "__new__") + "|");
+        lastDraftObsSig = obsSig;
+        if (hadPrev || hasTxt || imgCnt > 0 || chipCnt > 0) {
+          scheduleComposerDraftSave(350);
+        }
+      }
     }
   }
 
-  function sendInlineLiveEditFromComposer() {
-    if (!doc || typeof rv5FindNativeComposer !== "function") return false;
-    const { editable } = rv5FindNativeComposer(doc);
-    if (!editable || typeof rv5ReadEditableText !== "function") return false;
-    const text = rv5ReadEditableText(editable);
-    if (!text) return false;
-    if (typeof rv5ClearEditableText === "function") rv5ClearEditableText(editable, win);
-    state.hasComposerText = false;
-    const urgent = Boolean(state.inlineUrgent || (state.settings.liveEditInline && state.settings.liveEditInline.urgentIntercept));
-    invokeIpc("agy-studio:send-live-edit", {
-      chatKey: state.activeChatKey || "__new__",
-      title: state.activeChatTitle || "",
-      text,
-      images: [],
-      urgent,
-      fallbackAny: state.activeChatKey === "__new__" || state.activeChatKey.startsWith("chat-"),
-    }).then((res) => {
-      if (!state.destroyed && res && res.ok) {
-        applyLiveEditsPayload(res);
+  function openAnnotator(opts) {
+    if (annotatorCtrl && typeof annotatorCtrl.open === "function") {
+      if (state.agentPopoverOpen) {
+        state.agentPopoverOpen = false;
         renderChatDockMount();
       }
+      annotatorCtrl.open(opts);
+    }
+  }
+
+  async function sendInlineLiveEditFromComposer() {
+    if (!doc || typeof rv5FindNativeComposer !== "function" || liveEditSendInFlight) return false;
+    liveEditSendInFlight = true;
+    try {
+      if (pendingComposerReads.size > 0) {
+        await Promise.race([
+          Promise.all(Array.from(pendingComposerReads)),
+          new Promise((r) => (win && typeof win.setTimeout === "function" ? win.setTimeout(r, 1500) : setTimeout(r, 1500))),
+        ]);
+      }
+      const { container, editable } = rv5FindNativeComposer(doc);
+      if (!editable || typeof rv5ReadEditableText !== "function") return false;
+      const text = rv5ReadEditableText(editable);
+      const scope = getComposerAttachmentScope(container);
+      const images = [];
+      const files = [];
+      const removeBtns = [];
+      const usedOrigImages = new Set();
+
+      // 1. Collect all attached screenshots/images in full resolution (cache -> data: -> blob fetch -> canvas)
+      if (scope && typeof scope.querySelectorAll === "function") {
+        const imgs = scope.querySelectorAll("img");
+        for (let i = 0; i < imgs.length && images.length < 4; i += 1) {
+          const im = imgs[i];
+          if (!im || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(im))) continue;
+          let dataUrl = findFullResForThumbnail(im, usedOrigImages);
+          if (!dataUrl || !dataUrl.startsWith("data:image/")) {
+            dataUrl = imageElToDataUrl(im);
+          }
+          if (!dataUrl || !dataUrl.startsWith("data:image/")) {
+            const rawSrc = String((im.getAttribute && im.getAttribute("src")) || im.src || "");
+            if (rawSrc) {
+              const fetched = await blobOrHttpUrlToDataUrl(rawSrc);
+              if (fetched && fetched.startsWith("data:image/")) dataUrl = fetched;
+            }
+          }
+          if (dataUrl && dataUrl.startsWith("data:image/")) {
+            images.push({ name: `screenshot-${Date.now()}-${images.length + 1}.png`, dataUrl });
+            const wraps = [im.parentElement, im.parentElement && im.parentElement.parentElement, im.parentElement && im.parentElement.parentElement && im.parentElement.parentElement.parentElement];
+            for (let w = 0; w < wraps.length; w += 1) {
+              const box = wraps[w];
+              if (!box || box === container || box === scope || typeof box.querySelectorAll !== "function") continue;
+              if (editable && (box === editable || (typeof box.contains === "function" && box.contains(editable)))) continue;
+              const btns = box.querySelectorAll("button");
+              let foundBtn = false;
+              for (let b = 0; b < btns.length; b += 1) {
+                const cand = btns[b];
+                if (!cand || cand.hasAttribute("data-rudex-img-edit-btn")) continue;
+                // Never click a preview/lightbox button that wraps the <img> itself
+                if (typeof cand.contains === "function" && cand.contains(im)) continue;
+                if (typeof cand.querySelector === "function" && cand.querySelector("img")) continue;
+                removeBtns.push(cand);
+                foundBtn = true;
+                break;
+              }
+              if (foundBtn) break;
+            }
+          }
+        }
+      }
+
+      // 2. Collect all attached non-image files (PDF, code, text, archives, etc.) visible in composer chips
+      const matchedFiles = collectComposerChipFileMatches(scope, editable);
+      for (let i = 0; i < matchedFiles.length; i += 1) {
+        const mf = matchedFiles[i].file;
+        files.push({ name: mf.name, mime: mf.mime, dataUrl: mf.dataUrl });
+        if (scope && typeof scope.querySelectorAll === "function") {
+          const chipEls = scope.querySelectorAll("div, span, li");
+          const lowName = mf.name.toLowerCase();
+          for (let c = 0; c < chipEls.length; c += 1) {
+            const el = chipEls[c];
+            if (!el || (editable && (el === editable || (typeof editable.contains === "function" && editable.contains(el))))) continue;
+            const t = String(el.textContent || "").toLowerCase();
+            if (t.length <= 160 && t.includes(lowName)) {
+              const btn = el.querySelector && el.querySelector("button:not([data-rudex-img-edit-btn])");
+              if (btn) {
+                removeBtns.push(btn);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (!text && images.length === 0 && files.length === 0) return false;
+      draftJustSubmittedUntil = Date.now() + 2000;
+      if (draftSaveTimer && win && typeof win.clearTimeout === "function") {
+        win.clearTimeout(draftSaveTimer);
+        draftSaveTimer = null;
+      }
+      const submitKey = state.activeChatKey || "__new__";
+      const submitTitle = state.activeChatTitle || "";
+      lastSavedDraftByChat.delete(submitKey);
+      invokeIpc("agy-studio:clear-composer-draft", { chatKey: submitKey });
+      if (state.settings.inputHistoryEnabled !== false) {
+        const histAtts = [
+          ...images.map((im) => ({ name: im.name, mime: "image/png", isImage: true, dataUrl: im.dataUrl })),
+          ...files.map((fl) => ({ name: fl.name, mime: fl.mime || "application/octet-stream", isImage: false, dataUrl: fl.dataUrl })),
+        ];
+        invokeIpc("agy-studio:record-input-history", {
+          chatKey: submitKey,
+          title: submitTitle,
+          text,
+          source: "live-edit",
+          attachments: histAtts,
+        }).then(() => {
+          if (!state.destroyed && state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "history") {
+            refreshInputHistory();
+          }
+        });
+      }
+      if (typeof rv5ClearEditableText === "function") rv5ClearEditableText(editable, win);
+      // Guarantee Lexical/ProseMirror/React editor state clears via native Chromium webContents.selectAll + delete if DOM text remains
+      const ensureClearedNative = () => {
+        if (state.destroyed || !editable) return;
+        const stillHas = typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).length > 0;
+        if (!stillHas) return;
+        try {
+          if (typeof editable.focus === "function") editable.focus();
+        } catch (_e) {}
+        invokeIpc("agy-studio:clear-focused-input").then(() => {
+          if (!state.destroyed && typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).length > 0) {
+            if (typeof rv5ClearEditableText === "function") rv5ClearEditableText(editable, win);
+          }
+        });
+      };
+      if (win && typeof win.setTimeout === "function") {
+        win.setTimeout(ensureClearedNative, 16);
+        win.setTimeout(ensureClearedNative, 85);
+      }
+      const clickedSet = new Set();
+      for (let i = 0; i < removeBtns.length; i += 1) {
+        const b = removeBtns[i];
+        if (!b || clickedSet.has(b)) continue;
+        clickedSet.add(b);
+        try { if (typeof b.click === "function") b.click(); } catch (_e) {}
+      }
+      // Remove consumed cached originals so they don't re-attach on next edit
+      if (usedOrigImages.size > 0) {
+        for (let i = composerOrigImages.length - 1; i >= 0; i -= 1) {
+          if (usedOrigImages.has(composerOrigImages[i])) composerOrigImages.splice(i, 1);
+        }
+      }
+      if (matchedFiles.length > 0) {
+        const usedSet = new Set(matchedFiles.map((m) => m.file));
+        for (let i = composerOrigFiles.length - 1; i >= 0; i -= 1) {
+          if (usedSet.has(composerOrigFiles[i])) composerOrigFiles.splice(i, 1);
+        }
+      }
+      state.hasComposerText = false;
+      const urgent = Boolean(state.inlineUrgent || (state.settings.liveEditInline && state.settings.liveEditInline.urgentIntercept));
+      let anchorRespIdx = -1;
+      let anchorUserCount = 0;
+      let anchorUserText = "";
+      try {
+        const rNodes = doc.querySelectorAll('[data-testid="agent-response"]');
+        let rCnt = 0;
+        for (let i = 0; rNodes && i < rNodes.length; i += 1) {
+          if (rNodes[i] && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(rNodes[i]))) rCnt += 1;
+        }
+        anchorRespIdx = rCnt > 0 ? rCnt - 1 : -1;
+        const uNodes = doc.querySelectorAll('[data-testid="user-message-content"]');
+        let uCnt = 0;
+        let lastUserNode = null;
+        for (let i = 0; uNodes && i < uNodes.length; i += 1) {
+          if (uNodes[i] && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(uNodes[i]))) {
+            uCnt += 1;
+            lastUserNode = uNodes[i];
+          }
+        }
+        anchorUserCount = uCnt;
+        if (lastUserNode) {
+          anchorUserText = String(lastUserNode.textContent || "").replace(/\s+/g, " ").trim().slice(0, 140);
+        }
+      } catch (_e) {}
+      const previewImgs = images.map((im) => ({ name: im.name, previewDataUrl: im.dataUrl }));
+      const previewFiles = files.map((fl) => ({ name: fl.name, mime: fl.mime }));
+      const tempId = "pending-" + Date.now();
+      state.liveEdits = (state.liveEdits || []).concat([{
+        id: tempId,
+        chatKey: state.activeChatKey || "__new__",
+        text,
+        images: previewImgs,
+        files: previewFiles,
+        status: "pending",
+        anchorRespIdx,
+        anchorUserCount,
+        anchorUserText,
+        createdAt: Date.now(),
+      }]).slice(-20);
+      renderChatDockMount();
+      syncLiveChatBubbles(true);
+      invokeIpc("agy-studio:send-live-edit", {
+        chatKey: state.activeChatKey || "__new__",
+        title: state.activeChatTitle || "",
+        text,
+        images,
+        files,
+        urgent,
+        anchorRespIdx,
+        anchorUserCount,
+        anchorUserText,
+        fallbackAny: !UUID_RE.test(String(state.activeChatKey || "")),
+      }).then((res) => {
+        if (!state.destroyed && res && res.ok) {
+          if (res.entry && res.entry.id && (previewImgs.length > 0 || previewFiles.length > 0)) {
+            liveEditLocalPreviews.set(res.entry.id, { images: previewImgs, files: previewFiles });
+            if (liveEditLocalPreviews.size > 24) {
+              const oldestKey = liveEditLocalPreviews.keys().next().value;
+              liveEditLocalPreviews.delete(oldestKey);
+            }
+          }
+          applyLiveEditsPayload(res);
+          renderChatDockMount();
+        }
+      });
+      return true;
+    } finally {
+      liveEditSendInFlight = false;
+    }
+  }
+
+  // === COMPOSER DRAFTS (PER-CHAT AUTO-SAVE & RESTORE) + INPUT HISTORY (LAST 20) ===
+  function draftSigForDataUrl(dataUrl) {
+    const s = String(dataUrl || "");
+    if (!s) return "";
+    return `${s.length}:${s.slice(0, 64)}:${s.slice(-64)}`;
+  }
+
+  function draftDataUrlToBlob(dataUrl, fallbackMime) {
+    try {
+      const s = String(dataUrl || "");
+      const idx = s.indexOf(",");
+      if (idx <= 0) return null;
+      const header = s.slice(0, idx);
+      const mimeMatch = /^data:([^;,]+)/i.exec(header);
+      const mime = mimeMatch ? mimeMatch[1] : (fallbackMime || "application/octet-stream");
+      const bin = atob(s.slice(idx + 1));
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i += 1) arr[i] = bin.charCodeAt(i);
+      const BlobCtor = (win && win.Blob) || (typeof Blob !== "undefined" ? Blob : null);
+      return BlobCtor ? new BlobCtor([arr], { type: mime }) : null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  async function insertTextIntoNativeComposerRich(editable, rawText) {
+    const text = String(rawText || "");
+    if (!editable || !text) return false;
+    try { if (typeof editable.focus === "function") editable.focus(); } catch (_e) {}
+    const tag = String(editable.tagName || "").toUpperCase();
+    if (tag === "TEXTAREA" || tag === "INPUT") {
+      try {
+        const proto = win && win.HTMLTextAreaElement && win.HTMLTextAreaElement.prototype;
+        const desc = proto ? Object.getOwnPropertyDescriptor(proto, "value") : null;
+        if (desc && typeof desc.set === "function") desc.set.call(editable, text);
+        else editable.value = text;
+        const Evt = (win && typeof win.Event === "function" ? win.Event : (typeof Event === "function" ? Event : null));
+        if (Evt) editable.dispatchEvent(new Evt("input", { bubbles: true }));
+        return true;
+      } catch (_e) {}
+    }
+    // 1. Lexical / ProseMirror native paste (preserves multi-line breaks cleanly)
+    try {
+      const DtCtor = (win && win.DataTransfer) || (typeof DataTransfer !== "undefined" ? DataTransfer : null);
+      const PasteEvt = (win && win.ClipboardEvent) || (typeof ClipboardEvent !== "undefined" ? ClipboardEvent : null);
+      if (DtCtor && PasteEvt) {
+        const dt = new DtCtor();
+        dt.setData("text/plain", text);
+        editable.dispatchEvent(new PasteEvt("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
+        if (typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).trim().length > 0) {
+          return true;
+        }
+      }
+    } catch (_e) {}
+    // 2. Native Chromium webContents.insertText via Electron main process
+    try {
+      if (typeof editable.focus === "function") editable.focus();
+      const res = await invokeIpc("agy-studio:insert-text-into-focused", { text });
+      if (res && res.ok && typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).trim().length > 0) {
+        return true;
+      }
+    } catch (_e) {}
+    // 3. Fallback execCommand / textContent
+    try {
+      if (doc && typeof doc.execCommand === "function" && doc.execCommand("insertText", false, text)) {
+        if (typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).trim().length > 0) return true;
+      }
+    } catch (_e) {}
+    try {
+      editable.textContent = text;
+      const Evt = (win && typeof win.Event === "function" ? win.Event : (typeof Event === "function" ? Event : null));
+      if (Evt) editable.dispatchEvent(new Evt("input", { bubbles: true }));
+      return true;
+    } catch (_e) {}
+    return false;
+  }
+
+  function insertAttachmentsIntoNativeComposer(attachments, container, editable) {
+    const list = Array.isArray(attachments) ? attachments : [];
+    if (!list.length || !editable) return 0;
+    const DtCtor = (win && win.DataTransfer) || (typeof DataTransfer !== "undefined" ? DataTransfer : null);
+    const FileCtor = (win && win.File) || (typeof File !== "undefined" ? File : null);
+    const PasteEvt = (win && win.ClipboardEvent) || (typeof ClipboardEvent !== "undefined" ? ClipboardEvent : null);
+    const DragEvt = (win && win.DragEvent) || (typeof DragEvent !== "undefined" ? DragEvent : null);
+    if (!DtCtor || !FileCtor) return 0;
+
+    let attached = 0;
+    const filesToAttach = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const a = list[i];
+      if (!a || !a.dataUrl) continue;
+      const blob = draftDataUrlToBlob(a.dataUrl, a.mime);
+      if (!blob) continue;
+      const mime = a.mime || blob.type || "application/octet-stream";
+      const fname = a.name || (a.isImage ? `screenshot-${i + 1}.png` : `file-${i + 1}.bin`);
+      const file = new FileCtor([blob], fname, { type: mime });
+      filesToAttach.push({ file, att: a, mime, fname });
+      // Pre-register in Full HD cache & fileName map so editing & re-saving work immediately
+      const sig = draftSigForDataUrl(a.dataUrl);
+      if (a.fileName && sig) draftDataUrlToFileName.set(sig, a.fileName);
+      if (a.isImage || mime.startsWith("image/")) {
+        const entry = { name: fname, mime, dataUrl: a.dataUrl, width: 0, height: 0, aspect: 0, ts: Date.now() };
+        composerOrigImages.push(entry);
+        if (composerOrigImages.length > 8) composerOrigImages.shift();
+        const ImgCtor = (win && win.Image) || (typeof Image !== "undefined" ? Image : null);
+        if (ImgCtor) {
+          try {
+            const probe = new ImgCtor();
+            probe.onload = () => {
+              entry.width = probe.naturalWidth || probe.width || 0;
+              entry.height = probe.naturalHeight || probe.height || 0;
+              entry.aspect = entry.height > 0 ? entry.width / entry.height : 0;
+            };
+            probe.src = a.dataUrl;
+          } catch (_e) {}
+        }
+      } else {
+        composerOrigFiles.push({ name: fname, mime, size: blob.size || 0, dataUrl: a.dataUrl, ts: Date.now() });
+        if (composerOrigFiles.length > 10) composerOrigFiles.shift();
+      }
+    }
+
+    if (filesToAttach.length === 0) return 0;
+    try { if (typeof editable.focus === "function") editable.focus(); } catch (_e) {}
+    for (let i = 0; i < filesToAttach.length; i += 1) {
+      const item = filesToAttach[i];
+      try {
+        const dt = new DtCtor();
+        dt.items.add(item.file);
+        if (item.att.isImage || item.mime.startsWith("image/")) {
+          if (PasteEvt) {
+            editable.dispatchEvent(new PasteEvt("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
+            attached += 1;
+          }
+        } else {
+          let sent = false;
+          if (PasteEvt) {
+            editable.dispatchEvent(new PasteEvt("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
+            sent = true;
+          }
+          // Also try drop on composer container if paste did not pick up non-image files
+          if (DragEvt && container && win && typeof win.setTimeout === "function") {
+            const targetBox = container;
+            const fileObj = item.file;
+            const fnameLow = item.fname.toLowerCase();
+            win.setTimeout(() => {
+              if (state.destroyed) return;
+              const scopeNow = getComposerAttachmentScope(targetBox);
+              const txtNow = scopeNow ? String(scopeNow.textContent || "").toLowerCase() : "";
+              if (!txtNow.includes(fnameLow)) {
+                try {
+                  const dt2 = new DtCtor();
+                  dt2.items.add(fileObj);
+                  targetBox.dispatchEvent(new DragEvt("drop", { bubbles: true, cancelable: true, dataTransfer: dt2 }));
+                } catch (_e) {}
+              }
+            }, 90);
+          }
+          if (sent) attached += 1;
+        }
+      } catch (_e) {}
+    }
+    return attached;
+  }
+
+  function collectComposerSnapshotSync(container, editable) {
+    const text = editable && typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+    const scope = getComposerAttachmentScope(container);
+    const items = [];
+    const usedOrig = new Set();
+    if (scope && typeof scope.querySelectorAll === "function") {
+      const imgs = scope.querySelectorAll("img");
+      for (let i = 0; imgs && i < imgs.length && items.length < 6; i += 1) {
+        const im = imgs[i];
+        if (!im || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(im))) continue;
+        let dataUrl = findFullResForThumbnail(im, usedOrig);
+        if (!dataUrl || !dataUrl.startsWith("data:image/")) dataUrl = imageElToDataUrl(im);
+        const rawSrc = (!dataUrl || !dataUrl.startsWith("data:image/")) ? String((im.getAttribute && im.getAttribute("src")) || im.src || "") : "";
+        const sig = dataUrl ? draftSigForDataUrl(dataUrl) : "";
+        const cachedFileName = sig ? (draftDataUrlToFileName.get(sig) || "") : "";
+        items.push({
+          name: `screenshot-${items.length + 1}.png`,
+          mime: "image/png",
+          isImage: true,
+          dataUrl: dataUrl && dataUrl.startsWith("data:image/") ? dataUrl : "",
+          rawSrc,
+          sig,
+          fileName: cachedFileName,
+        });
+      }
+    }
+    const matchedFiles = collectComposerChipFileMatches(scope, editable);
+    for (let i = 0; i < matchedFiles.length && items.length < 8; i += 1) {
+      const mf = matchedFiles[i].file;
+      const sig = draftSigForDataUrl(mf.dataUrl);
+      const cachedFileName = sig ? (draftDataUrlToFileName.get(sig) || "") : "";
+      items.push({
+        name: mf.name,
+        mime: mf.mime || "application/octet-stream",
+        isImage: false,
+        dataUrl: mf.dataUrl,
+        rawSrc: "",
+        sig,
+        fileName: cachedFileName,
+      });
+    }
+    return { text, items };
+  }
+
+  async function resolveSnapshotAttachments(items, reuseFileNames) {
+    const out = [];
+    for (let i = 0; i < items.length; i += 1) {
+      const it = items[i];
+      if (!it) continue;
+      let dataUrl = it.dataUrl || "";
+      if (!dataUrl && it.rawSrc) {
+        const fetched = await blobOrHttpUrlToDataUrl(it.rawSrc);
+        if (fetched && fetched.startsWith("data:")) dataUrl = fetched;
+      }
+      const sig = dataUrl ? draftSigForDataUrl(dataUrl) : (it.sig || "");
+      const fileName = reuseFileNames && (it.fileName || (sig ? draftDataUrlToFileName.get(sig) : ""));
+      if (fileName) {
+        out.push({ name: it.name, mime: it.mime, isImage: it.isImage, fileName, _sig: sig });
+      } else if (dataUrl && dataUrl.startsWith("data:")) {
+        out.push({ name: it.name, mime: it.mime, isImage: it.isImage, dataUrl, _sig: sig });
+      }
+    }
+    return out;
+  }
+
+  async function saveComposerDraftNow(explicitKey, explicitTitle) {
+    if (state.destroyed || isRestoringDraft || state.settings.composerDraftsEnabled === false) return;
+    if (Date.now() < draftJustSubmittedUntil) return;
+    if (!doc || typeof rv5FindNativeComposer !== "function") return;
+    if (pendingComposerReads.size > 0) {
+      await Promise.race([
+        Promise.all(Array.from(pendingComposerReads)),
+        new Promise((r) => (win && typeof win.setTimeout === "function" ? win.setTimeout(r, 1200) : setTimeout(r, 1200))),
+      ]);
+    }
+    if (state.destroyed || isRestoringDraft || Date.now() < draftJustSubmittedUntil) return;
+    const { container, editable } = rv5FindNativeComposer(doc);
+    if (!editable) return;
+    const key = explicitKey || state.activeChatKey || "__new__";
+    const title = typeof explicitTitle === "string" ? explicitTitle : (state.activeChatTitle || "");
+    const snap = collectComposerSnapshotSync(container, editable);
+    const resolvedAtts = await resolveSnapshotAttachments(snap.items, true);
+    if (state.destroyed || isRestoringDraft || Date.now() < draftJustSubmittedUntil) return;
+    const payloadAtts = resolvedAtts.map((a) => ({
+      name: a.name,
+      mime: a.mime,
+      isImage: a.isImage,
+      fileName: a.fileName || undefined,
+      dataUrl: a.fileName ? undefined : a.dataUrl,
+    }));
+    const res = await invokeIpc("agy-studio:save-composer-draft", {
+      chatKey: key,
+      title,
+      text: snap.text,
+      attachments: payloadAtts,
     });
-    renderChatDockMount();
-    return true;
+    if (!state.destroyed && res && res.ok) {
+      if (res.draft && Array.isArray(res.draft.attachments)) {
+        for (let i = 0; i < res.draft.attachments.length && i < resolvedAtts.length; i += 1) {
+          const saved = res.draft.attachments[i];
+          const src = resolvedAtts[i];
+          if (saved && saved.fileName && src && src._sig) {
+            draftDataUrlToFileName.set(src._sig, saved.fileName);
+          }
+        }
+        lastSavedDraftByChat.set(key, res.draft);
+      } else {
+        lastSavedDraftByChat.delete(key);
+      }
+    }
+  }
+
+  function flushComposerDraftSync(explicitKey, explicitTitle) {
+    if (state.destroyed || isRestoringDraft || state.settings.composerDraftsEnabled === false) return;
+    if (Date.now() < draftJustSubmittedUntil) return;
+    if (!doc || typeof rv5FindNativeComposer !== "function" || !ipc || typeof ipc.send !== "function") return;
+    const { container, editable } = rv5FindNativeComposer(doc);
+    if (!editable) return;
+    const key = explicitKey || state.activeChatKey || "__new__";
+    const title = typeof explicitTitle === "string" ? explicitTitle : (state.activeChatTitle || "");
+    const snap = collectComposerSnapshotSync(container, editable);
+    const atts = [];
+    for (let i = 0; i < snap.items.length; i += 1) {
+      const it = snap.items[i];
+      if (it.fileName) {
+        atts.push({ name: it.name, mime: it.mime, isImage: it.isImage, fileName: it.fileName });
+      } else if (it.dataUrl) {
+        atts.push({ name: it.name, mime: it.mime, isImage: it.isImage, dataUrl: it.dataUrl });
+      }
+    }
+    try {
+      ipc.send("agy-studio:save-composer-draft-sync", { chatKey: key, title, text: snap.text, attachments: atts });
+    } catch (_e) {}
+  }
+
+  function scheduleComposerDraftSave(delayMs) {
+    if (state.destroyed || isRestoringDraft || state.settings.composerDraftsEnabled === false) return;
+    if (Date.now() < draftJustSubmittedUntil) return;
+    if (!win || typeof win.setTimeout !== "function") {
+      saveComposerDraftNow();
+      return;
+    }
+    if (draftSaveTimer && typeof win.clearTimeout === "function") {
+      win.clearTimeout(draftSaveTimer);
+    }
+    draftSaveTimer = win.setTimeout(() => {
+      draftSaveTimer = null;
+      saveComposerDraftNow();
+    }, typeof delayMs === "number" ? delayMs : 350);
+  }
+
+  function restoreComposerDraftForChat(chatKey) {
+    if (state.destroyed || state.settings.composerDraftsEnabled === false || !chatKey) return;
+    const seq = ++draftRestoreSeq;
+    if (draftRestoreTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(draftRestoreTimer);
+      draftRestoreTimer = null;
+    }
+    invokeIpc("agy-studio:get-composer-draft", { chatKey }).then((res) => {
+      if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey) return;
+      if (!res || !res.ok || !res.draft) return;
+      const draft = res.draft;
+      const hasText = Boolean(draft.text && String(draft.text).trim());
+      const hasAtts = Array.isArray(draft.attachments) && draft.attachments.length > 0;
+      if (!hasText && !hasAtts) return;
+
+      let attempts = 0;
+      const tryApply = async () => {
+        if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey) return;
+        const found = typeof rv5FindNativeComposer === "function" ? rv5FindNativeComposer(doc) : { container: null, editable: null };
+        if (!found || !found.editable) {
+          attempts += 1;
+          if (attempts < 20 && win && typeof win.setTimeout === "function") {
+            draftRestoreTimer = win.setTimeout(tryApply, 120);
+          }
+          return;
+        }
+        const existingTxt = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(found.editable) : "";
+        const existingAtt = hasComposerAttachments(found.container, found.editable);
+        if (existingTxt.length > 0 || existingAtt) return;
+
+        isRestoringDraft = true;
+        try {
+          if (hasAtts) {
+            insertAttachmentsIntoNativeComposer(draft.attachments, found.container, found.editable);
+          }
+          if (hasText) {
+            await insertTextIntoNativeComposerRich(found.editable, draft.text);
+          }
+          lastSavedDraftByChat.set(chatKey, draft);
+        } finally {
+          const release = () => {
+            isRestoringDraft = false;
+            lastDraftObsSig = "";
+          };
+          if (win && typeof win.setTimeout === "function") win.setTimeout(release, 450);
+          else release();
+        }
+      };
+
+      if (win && typeof win.setTimeout === "function") {
+        draftRestoreTimer = win.setTimeout(tryApply, 90);
+      } else {
+        tryApply();
+      }
+    });
+  }
+
+  function captureAndRecordUserSubmission(container, editable, source) {
+    if (!editable) return;
+    const chatKey = state.activeChatKey || "__new__";
+    const title = state.activeChatTitle || "";
+    const snap = collectComposerSnapshotSync(container, editable);
+    if (!snap.text.trim() && snap.items.length === 0) return;
+
+    draftJustSubmittedUntil = Date.now() + 2000;
+    if (draftSaveTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(draftSaveTimer);
+      draftSaveTimer = null;
+    }
+    lastSavedDraftByChat.delete(chatKey);
+    invokeIpc("agy-studio:clear-composer-draft", { chatKey });
+
+    if (state.settings.inputHistoryEnabled === false) return;
+    (async () => {
+      if (pendingComposerReads.size > 0) {
+        await Promise.race([
+          Promise.all(Array.from(pendingComposerReads)),
+          new Promise((r) => (win && typeof win.setTimeout === "function" ? win.setTimeout(r, 800) : setTimeout(r, 800))),
+        ]);
+      }
+      const atts = await resolveSnapshotAttachments(snap.items, true);
+      const payloadAtts = atts.map((a) => ({
+        name: a.name,
+        mime: a.mime,
+        isImage: a.isImage,
+        fileName: a.fileName || undefined,
+        dataUrl: a.dataUrl || undefined,
+      }));
+      await invokeIpc("agy-studio:record-input-history", {
+        chatKey,
+        title,
+        text: snap.text,
+        source: source || "chat",
+        attachments: payloadAtts,
+      });
+      if (!state.destroyed && state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "history") {
+        refreshInputHistory();
+      }
+    })();
+  }
+
+  function refreshInputHistory() {
+    state.inputHistory = Object.assign({}, state.inputHistory || {}, { loading: true });
+    if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "history") renderStructure();
+    return invokeIpc("agy-studio:get-input-history").then((res) => {
+      if (state.destroyed) return res;
+      state.inputHistory = {
+        loading: false,
+        items: res && Array.isArray(res.items) ? res.items : [],
+        draftCount: res && typeof res.draftCount === "number" ? res.draftCount : 0,
+      };
+      if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "history") {
+        renderStructure();
+      }
+      return res;
+    });
   }
 
   function renderPickerMount() {
@@ -6324,16 +8464,131 @@ function createStudioPanel(options) {
     pickerMountEl.innerHTML = parts.join("");
   }
 
+  function setPickerCursorStyle(active) {
+    if (!doc) return;
+    const id = "rudex-picker-cursor-style";
+    try {
+      const existing = typeof doc.getElementById === "function" ? doc.getElementById(id) : null;
+      if (!active) {
+        if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+        return;
+      }
+      if (!existing && doc.head && typeof doc.createElement === "function") {
+        const st = doc.createElement("style");
+        st.id = id;
+        st.setAttribute("data-rudex-ignore", "1");
+        st.textContent = "body *:not(#rudex-studio-host):not(#rudex-studio-host *) { cursor: crosshair !important; }";
+        doc.head.appendChild(st);
+      }
+    } catch (_e) {}
+  }
+
   function stopElementPicker() {
     state.pickerActive = false;
     state.pickerHoverRect = null;
     state.pickerHoverLabel = "";
+    setPickerCursorStyle(false);
     if (doc && typeof doc.removeEventListener === "function") {
       if (pickerMoveHandler) { doc.removeEventListener("mousemove", pickerMoveHandler, true); pickerMoveHandler = null; }
       if (pickerClickHandler) { doc.removeEventListener("click", pickerClickHandler, true); pickerClickHandler = null; }
     }
     renderPickerMount();
     if (state.isOpen) renderStructure();
+  }
+
+  function parseCssColorToHex(raw, fallbackHex) {
+    const s = String(raw || "").trim();
+    if (/^#[0-9a-f]{6}$/i.test(s)) return { hex: s.toLowerCase(), alphaPct: 100 };
+    const m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/i.exec(s);
+    if (m) {
+      const r = Math.max(0, Math.min(255, Math.round(Number(m[1]) || 0)));
+      const g = Math.max(0, Math.min(255, Math.round(Number(m[2]) || 0)));
+      const b = Math.max(0, Math.min(255, Math.round(Number(m[3]) || 0)));
+      let a = 1;
+      if (m[4] !== undefined) {
+        a = m[4].endsWith("%") ? parseFloat(m[4]) / 100 : parseFloat(m[4]);
+        if (!Number.isFinite(a)) a = 1;
+      }
+      const hex = "#" + [r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("");
+      return { hex, alphaPct: Math.max(0, Math.min(100, Math.round(a * 100))) };
+    }
+    return { hex: fallbackHex || "#262624", alphaPct: 100 };
+  }
+
+  function readElementComputedMetrics(elOrSelector) {
+    let el = elOrSelector;
+    if (typeof el === "string" && doc && typeof doc.querySelector === "function") {
+      try {
+        const list = doc.querySelectorAll(el);
+        el = null;
+        for (let i = 0; list && i < list.length; i += 1) {
+          if (list[i] && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(list[i]))) {
+            el = list[i];
+            break;
+          }
+        }
+      } catch (_e) {
+        el = null;
+      }
+    }
+    const defaults = {
+      fontSize: 14,
+      borderRadius: 8,
+      padding: 8,
+      borderWidth: 1,
+      width: 320,
+      minHeight: 36,
+      opacity: 100,
+      bgOpacity: 100,
+      color: detectAppTheme() === "light" ? "#1b1a18" : "#faf9f5",
+      bgColor: detectAppTheme() === "light" ? "#fbfaf6" : "#262624",
+      borderColor: detectAppTheme() === "light" ? "#d9d5c9" : "#3a3935",
+    };
+    if (!el || !win || typeof win.getComputedStyle !== "function") return defaults;
+    try {
+      const cs = win.getComputedStyle(el);
+      const rect = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+      const col = parseCssColorToHex(cs.color, defaults.color);
+      const bg = parseCssColorToHex(cs.backgroundColor, defaults.bgColor);
+      const brd = parseCssColorToHex(cs.borderTopColor, defaults.borderColor);
+      const fs = Math.round(parseFloat(cs.fontSize));
+      const rad = Math.round(parseFloat(cs.borderTopLeftRadius));
+      const padT = parseFloat(cs.paddingTop) || 0;
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const pad = Math.round(Math.max(padT, padL) > 0 ? (padT > 0 && padL > 0 ? (padT + padL) / 2 : Math.max(padT, padL)) : 0);
+      const bw = Math.round(parseFloat(cs.borderTopWidth) || 0);
+      const op = cs.opacity !== "" && Number.isFinite(parseFloat(cs.opacity)) ? Math.round(parseFloat(cs.opacity) * 100) : 100;
+      return {
+        fontSize: Number.isFinite(fs) && fs > 0 ? Math.max(8, Math.min(64, fs)) : defaults.fontSize,
+        borderRadius: Number.isFinite(rad) && rad >= 0 ? Math.max(0, Math.min(64, rad)) : defaults.borderRadius,
+        padding: Number.isFinite(pad) && pad >= 0 ? Math.max(0, Math.min(64, pad)) : defaults.padding,
+        borderWidth: Number.isFinite(bw) && bw >= 0 ? Math.max(0, Math.min(8, bw)) : defaults.borderWidth,
+        width: rect && rect.width > 0 ? Math.max(24, Math.min(1800, Math.round(rect.width))) : defaults.width,
+        minHeight: rect && rect.height > 0 ? Math.max(16, Math.min(800, Math.round(rect.height))) : defaults.minHeight,
+        opacity: Math.max(5, Math.min(100, op)),
+        bgOpacity: bg.alphaPct > 0 ? bg.alphaPct : 100,
+        color: col.hex,
+        bgColor: bg.alphaPct > 0 ? bg.hex : defaults.bgColor,
+        borderColor: brd.alphaPct > 0 ? brd.hex : defaults.borderColor,
+      };
+    } catch (_e) {
+      return defaults;
+    }
+  }
+
+  let inspSaveTimer = null;
+  function scheduleInspectorPersist() {
+    if (!win || typeof win.setTimeout !== "function") {
+      saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+      return;
+    }
+    if (inspSaveTimer && typeof win.clearTimeout === "function") win.clearTimeout(inspSaveTimer);
+    inspSaveTimer = win.setTimeout(() => {
+      inspSaveTimer = null;
+      if (!state.destroyed) {
+        saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+      }
+    }, 180);
   }
 
   function startElementPicker() {
@@ -6343,9 +8598,15 @@ function createStudioPanel(options) {
     }
     loadSystemFontsOnce();
     state.pickerActive = true;
+    setPickerCursorStyle(true);
     state.appearanceDraft = spCloneAppearance(state.settings.appearance);
     state.appearanceLivePreview = true;
-    if (state.isOpen) setOpen(false);
+    // Close modal visually without discarding appearanceLivePreview/appearanceDraft
+    if (state.isOpen) {
+      state.isOpen = false;
+      state.appearanceDockedRight = false;
+      if (modalMountEl) modalMountEl.innerHTML = "";
+    }
     const isRu = state.locale !== "en";
     pickerMoveHandler = (e) => {
       if (!state.pickerActive || !e || !e.target) return;
@@ -6382,6 +8643,7 @@ function createStudioPanel(options) {
         origText: origTxt || curTxt,
         currentText: curTxt,
         zone: "",
+        computed: readElementComputedMetrics(el),
       };
       stopElementPicker();
       renderPickerMount();
@@ -6393,12 +8655,13 @@ function createStudioPanel(options) {
     renderPickerMount();
   }
 
-  function upsertSelectedElementStyle(prop, rawVal) {
+  function upsertSelectedElementStyle(prop, rawVal, opts) {
     if (!state.pickerSelected || !state.pickerSelected.selector) return;
-    pushAppearanceUndo();
+    const o = opts && typeof opts === "object" ? opts : {};
+    if (!o.skipUndo) pushAppearanceUndo();
     const sel = state.pickerSelected;
     const list = Array.isArray(state.appearanceDraft.elementOverrides) ? state.appearanceDraft.elementOverrides.slice() : [];
-    let idx = list.findIndex((o) => o.id === sel.overrideId || o.selector === sel.selector);
+    let idx = list.findIndex((x) => x.id === sel.overrideId || x.selector === sel.selector);
     let item = idx >= 0 ? Object.assign({}, list[idx], { styles: Object.assign({}, list[idx].styles) }) : {
       id: sel.overrideId || ("ov-" + Date.now()),
       name: sel.name || sel.selector,
@@ -6414,8 +8677,14 @@ function createStudioPanel(options) {
     else list.push(item);
     state.appearanceDraft.elementOverrides = list;
     applyThemeFastToHost(state.appearanceDraft);
-    saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
-    renderPickerMount();
+    if (o.liveOnly) {
+      scheduleInspectorPersist();
+    } else {
+      saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+    }
+    if (!o.preserveDom) {
+      renderPickerMount();
+    }
   }
 
   function triggerQuotaSyncClick() {
@@ -6459,6 +8728,10 @@ function createStudioPanel(options) {
     if (action === "toggleLimitsWidget") {
       const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : state.settings.limitsWidget;
       saveSettingsPatch({ limitsWidget: Object.assign({}, lw, { enabled: !lw.enabled }) });
+      return;
+    }
+    if (action === "openAnnotator") {
+      openAnnotator();
       return;
     }
     if (action === "toggleAgentPopover") {
@@ -6536,7 +8809,11 @@ function createStudioPanel(options) {
     }
     if (action === "openTabAgent") { setOpen(true, { tab: "persona" }); return; }
     if (action === "openTabDesign") { setOpen(true, { tab: "appearance" }); return; }
-    if (action === "openTabLimits") { setOpen(true, { tab: "monitor" }); return; }
+    if (action === "openTabLimits") {
+      state.widgetSubSection = "limits";
+      setOpen(true, { tab: "settings", subTab: "widget" });
+      return;
+    }
     if (action === "openTabWorkshop") { setOpen(true, { tab: "settings", subTab: "workshop" }); refreshWorkshopData(); return; }
     if (action === "emergencyResetOverrides") {
       const app = spCloneAppearance(state.settings.appearance);
@@ -6696,6 +8973,8 @@ function createStudioPanel(options) {
     if (action === "start-element-picker") { startElementPicker(); return; }
     if (action === "stop-element-picker") { stopElementPicker(); return; }
     if (action === "close-element-inspector") { state.pickerSelected = null; renderPickerMount(); return; }
+    if (action === "close-model-usage-pop") { state.usagePopOpen = false; renderModelUsagePopover(); return; }
+    if (action === "open-native-usage-settings") { openNativeAntigravityUsageSettings(); return; }
     if (action === "toggle-overrides-paused") {
       pushAppearanceUndo();
       state.appearanceDraft.overridesPaused = !state.appearanceDraft.overridesPaused;
@@ -6717,6 +8996,7 @@ function createStudioPanel(options) {
           canToggleScope: false,
           renameable: false,
           origText: "",
+          computed: readElementComputedMetrics(zone.selector),
         };
         renderPickerMount();
       }
@@ -6736,6 +9016,7 @@ function createStudioPanel(options) {
           canToggleScope: false,
           renameable: false,
           origText: "",
+          computed: readElementComputedMetrics(ov.selector),
         };
         renderPickerMount();
       }
@@ -6776,7 +9057,12 @@ function createStudioPanel(options) {
     }
     if (action === "inspector-clear-style" && state.pickerSelected) {
       const prop = actionEl.getAttribute("data-prop");
-      if (prop) upsertSelectedElementStyle(prop, "");
+      if (prop) {
+        const negOneProps = new Set(["borderWidth", "borderRadius", "padding", "opacity"]);
+        const zeroProps = new Set(["fontSize", "fontWeight", "lineHeight", "width", "minHeight"]);
+        const resetVal = negOneProps.has(prop) ? -1 : (zeroProps.has(prop) ? 0 : (prop === "bgOpacity" ? 100 : ""));
+        upsertSelectedElementStyle(prop, resetVal);
+      }
       return;
     }
     if (action === "inspector-toggle-hidden" && state.pickerSelected) {
@@ -6788,7 +9074,17 @@ function createStudioPanel(options) {
       pushAppearanceUndo();
       const sel = state.pickerSelected;
       state.appearanceDraft.elementOverrides = (state.appearanceDraft.elementOverrides || []).filter((o) => o.id !== sel.overrideId && o.selector !== sel.selector);
-      saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+      applyThemeToHost(state.appearanceDraft);
+      const patch = { appearance: spCloneAppearance(state.appearanceDraft) };
+      if (sel.renameable && sel.origText) {
+        const low = sel.origText.trim().toLowerCase();
+        const nextLabels = (state.settings.customLabels || []).filter((l) => l.match.toLowerCase() !== low);
+        if (nextLabels.length !== (state.settings.customLabels || []).length) {
+          patch.customLabels = nextLabels;
+        }
+      }
+      saveSettingsPatch(patch);
+      sel.computed = readElementComputedMetrics(sel.selector);
       renderPickerMount();
       return;
     }
@@ -6891,7 +9187,10 @@ function createStudioPanel(options) {
       const f = actionEl.getAttribute("data-field");
       const v = actionEl.getAttribute("data-val");
       if (f && v) {
-        const next = Object.assign({}, state.chatAgentProfile, { [f]: v, enabled: true, presetId: "custom" });
+        const next = Object.assign({}, state.chatAgentProfile, { [f]: v, presetId: "custom" });
+        const cnt = typeof rv5CountActiveAgentFeatures === "function" ? rv5CountActiveAgentFeatures(next) : 1;
+        next.enabled = cnt > 0;
+        if (!next.enabled) next.presetId = "default";
         saveChatAgentProfile(next, { setAsDefault: Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats) });
       }
       return;
@@ -6899,29 +9198,78 @@ function createStudioPanel(options) {
     if (action === "toggle-agent-bool") {
       const f = actionEl.getAttribute("data-field");
       if (f) {
-        const next = Object.assign({}, state.chatAgentProfile, { [f]: !state.chatAgentProfile[f], enabled: true, presetId: "custom" });
+        const curOn = Boolean(state.chatAgentProfile.enabled && state.chatAgentProfile[f]);
+        const next = Object.assign({}, state.chatAgentProfile, { [f]: !curOn, presetId: "custom" });
+        const cnt = typeof rv5CountActiveAgentFeatures === "function" ? rv5CountActiveAgentFeatures(next) : 1;
+        next.enabled = cnt > 0;
+        if (!next.enabled) next.presetId = "default";
         saveChatAgentProfile(next, { setAsDefault: Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats) });
       }
       return;
     }
+    if (action === "reset-agent-auto") {
+      const keepDef = Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats);
+      const clean = typeof rv5NormalizeAgentProfile === "function"
+        ? rv5NormalizeAgentProfile({ enabled: false, presetId: "default", applyToNewChats: false })
+        : { enabled: false, presetId: "default", applyToNewChats: false };
+      saveChatAgentProfile(clean, { setAsDefault: keepDef });
+      return;
+    }
     if (action === "quick-toggle-agent") {
       const k = actionEl.getAttribute("data-key");
-      const next = Object.assign({}, state.chatAgentProfile, { enabled: true, presetId: "custom" });
-      if (k === "subagents") next.subagents = next.subagents === "parallel" ? "auto" : "parallel";
-      else if (k === "webSearch") next.webSearch = next.webSearch === "always" ? "auto" : "always";
-      else if (k === "browser") next.browser = next.browser === "verify" ? "auto" : "verify";
-      else if (k === "planFirst") next.planFirst = next.planFirst === "strict" ? "auto" : "strict";
+      const next = Object.assign({}, state.chatAgentProfile, { presetId: "custom" });
+      if (!next.enabled) {
+        next.subagents = "auto";
+        next.webSearch = "auto";
+        next.browser = "auto";
+        next.planFirst = "auto";
+        next.autoVerify = false;
+        next.deepMode = false;
+        next.safetyMode = "normal";
+      }
+      if (k === "subagents") next.subagents = next.subagents === "auto" ? "parallel" : (next.subagents === "parallel" ? "off" : "auto");
+      else if (k === "webSearch") next.webSearch = next.webSearch === "auto" ? "always" : (next.webSearch === "always" ? "off" : "auto");
+      else if (k === "browser") next.browser = next.browser === "auto" ? "verify" : (next.browser === "verify" ? "off" : "auto");
+      else if (k === "planFirst") next.planFirst = next.planFirst === "auto" ? "strict" : (next.planFirst === "strict" ? "skip" : "auto");
       else if (k === "autoVerify") next.autoVerify = !next.autoVerify;
+      else if (k === "deepMode") next.deepMode = !next.deepMode;
       else if (k === "readonly") next.safetyMode = next.safetyMode === "readonly" ? "normal" : "readonly";
-      saveChatAgentProfile(next);
+      const cnt = typeof rv5CountActiveAgentFeatures === "function" ? rv5CountActiveAgentFeatures(next) : 1;
+      next.enabled = cnt > 0;
+      if (!next.enabled) next.presetId = "default";
+      saveChatAgentProfile(next, { setAsDefault: Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats) });
+      return;
+    }
+    if (action === "open-annotator") {
+      openAnnotator();
+      return;
+    }
+    if (action === "dismiss-live-edit-toast") {
+      const eid = actionEl.getAttribute("data-id");
+      if (eid) {
+        state.dismissedLiveEditIds.add(eid);
+        renderChatDockMount();
+      }
       return;
     }
     if (action === "toggle-live-inline") {
       const f = actionEl.getAttribute("data-field");
       if (f) {
         const cur = Object.assign({}, state.settings.liveEditInline || {});
-        cur[f] = !cur[f];
+        const defaultTrue = f === "showChatDock" || f === "showInChat" || f === "showDeliveredBadge" || f === "enabled";
+        const prevVal = defaultTrue ? cur[f] !== false : Boolean(cur[f]);
+        cur[f] = !prevVal;
         if (f === "urgentIntercept") state.inlineUrgent = Boolean(cur[f]);
+        saveSettingsPatch({ liveEditInline: cur });
+      }
+      return;
+    }
+    if (action === "set-live-inline-field") {
+      const f = actionEl.getAttribute("data-field");
+      const v = actionEl.getAttribute("data-val");
+      if (f && v) {
+        const cur = Object.assign({}, state.settings.liveEditInline || {});
+        cur[f] = v;
         saveSettingsPatch({ liveEditInline: cur });
       }
       return;
@@ -6957,12 +9305,75 @@ function createStudioPanel(options) {
       }
       return;
     }
+    if (action === "set-limits-window-mode") {
+      const mode = actionEl.getAttribute("data-val") || "docked";
+      const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+      if (mode === "floating") {
+        lw.pinned = false;
+        lw.position = "floating";
+        if (typeof lw.floatX !== "number" || typeof lw.floatY !== "number") {
+          const r = limitsMountEl && typeof limitsMountEl.getBoundingClientRect === "function" ? limitsMountEl.getBoundingClientRect() : null;
+          lw.floatX = r && r.width > 20 ? Math.max(8, Math.round(r.left)) : Math.max(16, ((win && win.innerWidth) || 1280) - 270);
+          lw.floatY = r && r.height > 20 ? Math.max(8, Math.round(r.top)) : 60;
+        }
+      } else {
+        lw.pinned = true;
+        if (lw.position === "floating") lw.position = "top-right";
+        lw.floatX = null;
+        lw.floatY = null;
+      }
+      saveSettingsPatch({ limitsWidget: lw });
+      return;
+    }
+    if (action === "set-limits-position") {
+      const pos = actionEl.getAttribute("data-val") || "top-right";
+      const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+      lw.position = pos;
+      lw.pinned = pos !== "floating";
+      if (pos !== "floating") {
+        lw.floatX = null;
+        lw.floatY = null;
+      }
+      if (pos === "inline-header" && lw.layout !== "pill" && lw.layout !== "inline-header") {
+        lw.layout = "inline-header";
+      } else if (pos !== "inline-header" && lw.layout === "inline-header") {
+        lw.layout = "bars";
+      }
+      saveSettingsPatch({ limitsWidget: lw });
+      return;
+    }
+    if (action === "toggle-limits-pin") {
+      const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+      const isCurrentlyDocked = Boolean(lw.pinned && lw.position !== "floating");
+      if (isCurrentlyDocked) {
+        lw.pinned = false;
+        lw.position = "floating";
+        const r = limitsMountEl && typeof limitsMountEl.getBoundingClientRect === "function" ? limitsMountEl.getBoundingClientRect() : null;
+        if (r && r.width > 20) {
+          lw.floatX = Math.max(8, Math.round(r.left));
+          lw.floatY = Math.max(8, Math.round(r.top));
+        }
+      } else {
+        lw.pinned = true;
+        if (lw.position === "floating") lw.position = "top-right";
+        lw.floatX = null;
+        lw.floatY = null;
+      }
+      saveSettingsPatch({ limitsWidget: lw });
+      return;
+    }
     if (action === "set-limits-field") {
       const f = actionEl.getAttribute("data-field");
       const v = actionEl.getAttribute("data-val");
       if (f) {
         const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
         lw[f] = v;
+        if (f === "layout" && v === "inline-header") {
+          lw.position = "inline-header";
+          lw.pinned = true;
+        } else if (f === "layout" && v !== "inline-header" && lw.position === "inline-header") {
+          lw.position = "top-right";
+        }
         saveSettingsPatch({ limitsWidget: lw });
       }
       return;
@@ -6976,7 +9387,25 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "sync-limits-now") { triggerQuotaSyncClick(); return; }
-    if (action === "open-limits-settings") { setOpen(true, { tab: "monitor" }); return; }
+    if (action === "open-limits-settings") {
+      state.widgetSubSection = "limits";
+      setOpen(true, { tab: "settings", subTab: "widget" });
+      return;
+    }
+    if (action === "set-widget-subsection") {
+      state.widgetSubSection = actionEl.getAttribute("data-val") === "limits" ? "limits" : "mini";
+      loadSystemFontsOnce();
+      if (state.widgetSubSection === "limits") {
+        invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
+          if (!state.destroyed && qs) {
+            state.quotaSummary = qs;
+            if (state.isOpen) renderStructure();
+          }
+        });
+      }
+      renderStructure();
+      return;
+    }
     if (action === "record-keybinding") {
       const id = actionEl.getAttribute("data-id") || "";
       state.recordingKeybindingId = state.recordingKeybindingId === id ? "" : id;
@@ -7250,16 +9679,152 @@ function createStudioPanel(options) {
     if (action === "set-settings-subtab") {
       const sub = actionEl.getAttribute("data-val") || "widget";
       state.settingsSubTab = sub;
+      if (sub === "widget") {
+        loadSystemFontsOnce();
+        invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+          if (!state.destroyed && qs) applyQuotaSummary(qs);
+        });
+      }
       if (sub === "workshop") refreshWorkshopData();
+      if (sub === "history") refreshInputHistory();
       if (sub === "export") {
-        invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
-          if (!state.destroyed && qs) {
-            state.quotaSummary = qs;
-            if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "export") renderStructure();
-          }
+        invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+          if (!state.destroyed && qs) applyQuotaSummary(qs);
         });
       }
       renderStructure();
+      return;
+    }
+    if (action === "open-input-history") {
+      state.activeTab = "settings";
+      state.settingsSubTab = "history";
+      refreshInputHistory();
+      renderStructure();
+      return;
+    }
+    if (action === "toggle-composer-drafts") {
+      saveSettingsPatch({ composerDraftsEnabled: state.settings.composerDraftsEnabled === false });
+      return;
+    }
+    if (action === "toggle-input-history") {
+      saveSettingsPatch({ inputHistoryEnabled: state.settings.inputHistoryEnabled === false });
+      return;
+    }
+    if (action === "refresh-input-history") {
+      refreshInputHistory();
+      return;
+    }
+    if (action === "clear-all-drafts") {
+      invokeIpc("agy-studio:clear-composer-draft", { all: true }).then(() => {
+        if (state.destroyed) return;
+        lastSavedDraftByChat.clear();
+        if (state.inputHistory) state.inputHistory.draftCount = 0;
+        setToast(state.locale !== "en" ? "Все черновики чатов очищены" : "All saved drafts cleared", false);
+        renderStructure();
+      });
+      return;
+    }
+    if (action === "clear-input-history") {
+      invokeIpc("agy-studio:clear-input-history").then((res) => {
+        if (state.destroyed) return;
+        state.inputHistory = {
+          loading: false,
+          items: res && Array.isArray(res.items) ? res.items : [],
+          draftCount: res && typeof res.draftCount === "number" ? res.draftCount : (state.inputHistory ? state.inputHistory.draftCount : 0),
+        };
+        setToast(state.locale !== "en" ? "История ввода очищена" : "Input history cleared", false);
+        renderStructure();
+      });
+      return;
+    }
+    if (action === "delete-history-item") {
+      const id = actionEl.getAttribute("data-id") || "";
+      if (id) {
+        invokeIpc("agy-studio:delete-input-history-item", { id }).then((res) => {
+          if (state.destroyed) return;
+          if (res && Array.isArray(res.items)) {
+            state.inputHistory = {
+              loading: false,
+              items: res.items,
+              draftCount: typeof res.draftCount === "number" ? res.draftCount : (state.inputHistory ? state.inputHistory.draftCount : 0),
+            };
+          }
+          renderStructure();
+        });
+      }
+      return;
+    }
+    if (action === "copy-history-text") {
+      const id = actionEl.getAttribute("data-id") || "";
+      const list = state.inputHistory && Array.isArray(state.inputHistory.items) ? state.inputHistory.items : [];
+      const found = list.find((x) => x && x.id === id);
+      if (found && found.text) {
+        invokeIpc("agy-studio:copy-history-text", { text: found.text }).then(() => {
+          if (!state.destroyed) setToast(state.locale !== "en" ? "Текст скопирован в буфер обмена" : "Text copied to clipboard", false);
+        });
+      }
+      return;
+    }
+    if (action === "copy-history-file") {
+      const fileName = actionEl.getAttribute("data-file") || "";
+      const name = actionEl.getAttribute("data-name") || fileName;
+      const mime = actionEl.getAttribute("data-mime") || "";
+      const isImage = actionEl.getAttribute("data-is-img") === "1";
+      if (fileName) {
+        invokeIpc("agy-studio:copy-history-file", { fileName, name, mime, isImage, mode: "clipboard" }).then((res) => {
+          if (state.destroyed) return;
+          if (res && res.ok) {
+            setToast(
+              state.locale !== "en"
+                ? (isImage ? "Скриншот скопирован — вставьте Ctrl+V" : `Файл «${name}» скопирован — вставьте Ctrl+V`)
+                : (isImage ? "Image copied — press Ctrl+V" : `File "${name}" copied — press Ctrl+V`),
+              false
+            );
+          } else {
+            setToast(state.locale !== "en" ? "Не удалось скопировать файл" : "Failed to copy file", true);
+          }
+        });
+      }
+      return;
+    }
+    if (action === "reveal-history-file") {
+      const fileName = actionEl.getAttribute("data-file") || "";
+      if (fileName) {
+        invokeIpc("agy-studio:copy-history-file", { fileName, mode: "reveal" });
+      }
+      return;
+    }
+    if (action === "insert-history-item") {
+      const id = actionEl.getAttribute("data-id") || "";
+      const list = state.inputHistory && Array.isArray(state.inputHistory.items) ? state.inputHistory.items : [];
+      const found = list.find((x) => x && x.id === id);
+      if (found) {
+        setOpen(false);
+        (async () => {
+          const atts = [];
+          const srcAtts = Array.isArray(found.attachments) ? found.attachments : [];
+          for (let i = 0; i < srcAtts.length; i += 1) {
+            const a = srcAtts[i];
+            if (!a || !a.fileName || a.exists === false) continue;
+            const res = await invokeIpc("agy-studio:copy-history-file", {
+              fileName: a.fileName,
+              name: a.name,
+              mime: a.mime,
+              isImage: a.isImage,
+              mode: "dataUrl",
+            });
+            if (res && res.ok && res.dataUrl) {
+              atts.push({ name: res.name || a.name, mime: res.mime || a.mime, isImage: Boolean(res.isImage || a.isImage), dataUrl: res.dataUrl });
+            }
+          }
+          if (state.destroyed || typeof rv5FindNativeComposer !== "function") return;
+          const { container, editable } = rv5FindNativeComposer(doc);
+          if (!editable) return;
+          if (atts.length > 0) insertAttachmentsIntoNativeComposer(atts, container, editable);
+          if (found.text) await insertTextIntoNativeComposerRich(editable, found.text);
+          scheduleComposerDraftSave(250);
+        })();
+      }
       return;
     }
     if (action === "to-medium") { setViewMode("medium"); return; }
@@ -7350,16 +9915,34 @@ function createStudioPanel(options) {
     }
     if (action === "set-dock") {
       const dock = normalizeDockPosition(actionEl.getAttribute("data-val"));
-      saveSettingsPatch({ dockPosition: dock, layoutMode: "docked", floatX: null, floatY: null });
+      saveSettingsPatch({ dockPosition: dock, layoutMode: "docked", pinned: true, floatX: null, floatY: null });
+      return;
+    }
+    if (action === "set-widget-window-mode") {
+      const mode = actionEl.getAttribute("data-val") || "docked";
+      if (mode === "floating") {
+        const r = widgetMountEl && typeof widgetMountEl.getBoundingClientRect === "function" ? widgetMountEl.getBoundingClientRect() : null;
+        const fx = typeof state.settings.floatX === "number" ? state.settings.floatX : (r && r.width > 20 ? Math.max(8, Math.round(r.left)) : null);
+        const fy = typeof state.settings.floatY === "number" ? state.settings.floatY : (r && r.height > 20 ? Math.max(8, Math.round(r.top)) : null);
+        saveSettingsPatch({ pinned: false, layoutMode: fx !== null && fy !== null ? "floating" : "docked", floatX: fx, floatY: fy });
+      } else {
+        const dock = state.settings.dockPosition === "hidden" ? "bottom-right" : state.settings.dockPosition;
+        saveSettingsPatch({ pinned: true, layoutMode: "docked", dockPosition: dock, floatX: null, floatY: null });
+      }
       return;
     }
     if (action === "toggle-pin") {
-      saveSettingsPatch({ pinned: !state.settings.pinned });
+      const nextPinned = !state.settings.pinned;
+      if (nextPinned && state.settings.layoutMode === "floating") {
+        saveSettingsPatch({ pinned: true });
+      } else {
+        saveSettingsPatch({ pinned: nextPinned });
+      }
       return;
     }
     if (action === "reset-position") {
       const dock = state.settings.dockPosition === "hidden" ? "bottom-right" : state.settings.dockPosition;
-      saveSettingsPatch({ dockPosition: dock, layoutMode: "docked", floatX: null, floatY: null });
+      saveSettingsPatch({ dockPosition: dock, layoutMode: "docked", pinned: true, floatX: null, floatY: null });
       return;
     }
     if (action === "reset-telemetry") {
@@ -7561,6 +10144,72 @@ function createStudioPanel(options) {
         applyThemeToHost(state.appearanceDraft);
         renderStructure();
       }
+      return;
+    }
+    if (action === "set-uistyle-preset") {
+      const id = actionEl.getAttribute("data-id") || "antigravity";
+      const valid = id === "claude-code" || id === "codex" || id === "opencode" ? id : "antigravity";
+      pushAppearanceUndo();
+      if (!state.appearanceDraft.uiStyle) state.appearanceDraft.uiStyle = spDefaultUiStyle();
+      state.appearanceDraft.uiStyle.preset = valid;
+      state.appearanceDraft.uiStyle.composer = valid;
+      state.appearanceDraft.uiStyle.chat = valid;
+      state.appearanceDraft.uiStyle.modelSelector = valid;
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "set-uistyle-part") {
+      const part = actionEl.getAttribute("data-part") || "";
+      const val = actionEl.getAttribute("data-val") || "antigravity";
+      const valid = val === "claude-code" || val === "codex" || val === "opencode" ? val : "antigravity";
+      if (part === "composer" || part === "chat" || part === "modelSelector") {
+        pushAppearanceUndo();
+        if (!state.appearanceDraft.uiStyle) state.appearanceDraft.uiStyle = spDefaultUiStyle();
+        state.appearanceDraft.uiStyle[part] = valid;
+        const us = state.appearanceDraft.uiStyle;
+        us.preset = us.composer === us.chat && us.chat === us.modelSelector ? us.composer : "custom";
+        markAppearanceDirty();
+        renderStructure();
+      }
+      return;
+    }
+    if (action === "set-uistyle-opt") {
+      const field = actionEl.getAttribute("data-field") || "";
+      const val = actionEl.getAttribute("data-val") || "preset";
+      if (
+        field === "composerShadow" ||
+        field === "userBubbleAlign" ||
+        field === "agentAccentBar" ||
+        field === "modelBtnStyle" ||
+        field === "modelMenuDensity"
+      ) {
+        pushAppearanceUndo();
+        if (!state.appearanceDraft.uiStyle) state.appearanceDraft.uiStyle = spDefaultUiStyle();
+        state.appearanceDraft.uiStyle[field] = val;
+        markAppearanceDirty();
+        renderStructure();
+      }
+      return;
+    }
+    if (action === "reset-uistyle") {
+      pushAppearanceUndo();
+      state.appearanceDraft.uiStyle = spDefaultUiStyle();
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "reset-uistyle-fine") {
+      pushAppearanceUndo();
+      const cur = state.appearanceDraft.uiStyle || spDefaultUiStyle();
+      state.appearanceDraft.uiStyle = Object.assign(spDefaultUiStyle(), {
+        preset: cur.preset,
+        composer: cur.composer,
+        chat: cur.chat,
+        modelSelector: cur.modelSelector,
+      });
+      markAppearanceDirty();
+      renderStructure();
       return;
     }
     if (action === "select-theme-preset") {
@@ -8057,6 +10706,15 @@ function createStudioPanel(options) {
       updateLiveCornersPreviewDom();
     } else if (field.startsWith("studioUi.")) {
       const sub = field.split(".")[1];
+      if (sub === "widgetFont" || sub === "widgetFontCustom") {
+        const strVal = String(rawVal || (sub === "widgetFont" ? "inherit" : "")).trim();
+        const uiPatch = { [sub]: strVal };
+        state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, uiPatch));
+        syncTheme();
+        invokeIpc("agy-studio:save-settings", { studioUi: uiPatch });
+        if (sub === "widgetFont") renderStructure();
+        return true;
+      }
       const rawNum = Number(rawVal) || 0;
       const val = sub === "widgetRadius" && rawNum >= 25 ? 999 : Math.round(rawNum);
       const uiPatch = { [sub]: val };
@@ -8194,6 +10852,30 @@ function createStudioPanel(options) {
       const n = Math.round(Number(rawVal) || 0);
       draft.typography.chatMaxWidth = n < 680 ? 0 : n;
       labelText = draft.typography.chatMaxWidth >= 680 ? `${draft.typography.chatMaxWidth}px` : tr.appChatWidthAuto;
+    } else if (field.startsWith("uiStyle.")) {
+      const sub = field.split(".")[1];
+      const n = Math.round(Number(rawVal) || 0);
+      const autoLbl = state.locale !== "en" ? "По стилю" : "Preset";
+      if (!draft.uiStyle) draft.uiStyle = spDefaultUiStyle();
+      if (sub === "composerRadius") {
+        draft.uiStyle.composerRadius = n < 4 ? 0 : Math.min(32, n);
+        labelText = draft.uiStyle.composerRadius > 0 ? `${draft.uiStyle.composerRadius}px` : autoLbl;
+      } else if (sub === "composerMaxWidth") {
+        draft.uiStyle.composerMaxWidth = n < 560 ? 0 : Math.min(1120, n);
+        labelText = draft.uiStyle.composerMaxWidth >= 560 ? `${draft.uiStyle.composerMaxWidth}px` : autoLbl;
+      } else if (sub === "composerPadY") {
+        draft.uiStyle.composerPadY = n < 6 ? 0 : Math.min(24, n);
+        labelText = draft.uiStyle.composerPadY >= 6 ? `${draft.uiStyle.composerPadY}px` : autoLbl;
+      } else if (sub === "userBubbleMaxWidth") {
+        draft.uiStyle.userBubbleMaxWidth = n < 45 ? 0 : Math.min(100, n);
+        labelText = draft.uiStyle.userBubbleMaxWidth >= 45 ? `${draft.uiStyle.userBubbleMaxWidth}%` : autoLbl;
+      } else if (sub === "chatGap") {
+        draft.uiStyle.chatGap = n < 4 ? 0 : Math.min(28, n);
+        labelText = draft.uiStyle.chatGap >= 4 ? `${draft.uiStyle.chatGap}px` : autoLbl;
+      } else {
+        return false;
+      }
+      updateLiveUiStylePreviewDom();
     } else {
       return false;
     }
@@ -8603,19 +11285,75 @@ function createStudioPanel(options) {
       const lf = target.getAttribute("data-limits-field");
       if (lf) {
         const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
-        if (lf === "fontSize" || lf === "scale" || lf === "bgOpacity" || lf === "borderRadius" || lf === "blur") {
-          lw[lf] = Math.round(Number(target.value) || 0);
-        } else {
-          lw[lf] = target.value || "";
+        if (lf === "fontSize" || lf === "scale" || lf === "bgOpacity" || lf === "borderRadius" || lf === "blur" || lf === "width") {
+          const numV = Math.round(Number(target.value) || 0);
+          lw[lf] = lf === "width" && numV < 180 ? 0 : numV;
+          state.settings.limitsWidget = lw;
+          renderLimitsWidgetMount();
+          if (modalMountEl) {
+            const lbl = lf === "scale" || lf === "bgOpacity"
+              ? `${lw[lf]}%`
+              : (lf === "width" ? (lw.width >= 180 ? `${lw.width}px` : (state.locale !== "en" ? "Авто" : "Auto")) : `${lw[lf]}px`);
+            setLiveSlot(modalMountEl, `[data-live-lim-val="${lf}"]`, lbl, false);
+            const prevStage = modalMountEl.querySelector(".preview-stage");
+            if (prevStage && typeof rv5BuildLimitsWidgetHtml === "function") {
+              prevStage.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName || "", state.locale !== "en", true);
+            }
+          }
+          invokeIpc("agy-studio:save-settings", { limitsWidget: lw });
+          return;
         }
+        lw[lf] = target.value || "";
         saveSettingsPatch({ limitsWidget: lw });
+        return;
+      }
+      const inspRangeProp = target.getAttribute("data-insp-range");
+      if (inspRangeProp) {
+        const val = Math.round(Number(target.value));
+        if (Number.isFinite(val)) {
+          if (pickerMountEl) {
+            const pairNum = pickerMountEl.querySelector(`[data-insp-num="${inspRangeProp}"]`);
+            if (pairNum) pairNum.value = String(val);
+            const wrap = pickerMountEl.querySelector(`[data-insp-wrap="${inspRangeProp}"]`);
+            if (wrap) wrap.classList.add("is-custom");
+            const badge = pickerMountEl.querySelector(`[data-insp-badge="${inspRangeProp}"]`);
+            if (badge) badge.textContent = inspRangeProp === "bgOpacity" ? `${val}%` : (state.locale !== "en" ? "изменено" : "custom");
+          }
+          upsertSelectedElementStyle(inspRangeProp, val, { preserveDom: true, liveOnly: true, skipUndo: true });
+        }
+        return;
+      }
+      const inspNumProp = target.getAttribute("data-insp-num");
+      if (inspNumProp) {
+        const rawStr = String(target.value || "").trim();
+        if (rawStr === "") return; // Wait until user finishes typing or clears on blur/change
+        const val = Math.round(Number(rawStr));
+        if (Number.isFinite(val)) {
+          const minAttr = Number(target.getAttribute("min"));
+          const maxAttr = Number(target.getAttribute("max"));
+          if (pickerMountEl) {
+            const pairRange = pickerMountEl.querySelector(`[data-insp-range="${inspNumProp}"]`);
+            if (pairRange) pairRange.value = String(Math.max(minAttr || 0, Math.min(maxAttr || 1600, val)));
+            const wrap = pickerMountEl.querySelector(`[data-insp-wrap="${inspNumProp}"]`);
+            if (wrap) wrap.classList.add("is-custom");
+            const badge = pickerMountEl.querySelector(`[data-insp-badge="${inspNumProp}"]`);
+            if (badge) badge.textContent = inspNumProp === "bgOpacity" ? `${val}%` : (state.locale !== "en" ? "изменено" : "custom");
+          }
+          // Only apply live once value is within valid bounds so typing multi-digit numbers (e.g. "16" or "320") never jumps
+          if ((!Number.isFinite(minAttr) || val >= minAttr) && (!Number.isFinite(maxAttr) || val <= maxAttr)) {
+            upsertSelectedElementStyle(inspNumProp, val, { preserveDom: true, liveOnly: true, skipUndo: true });
+          }
+        }
         return;
       }
       const inspProp = target.getAttribute("data-insp-style");
       if (inspProp) {
-        const numProps = new Set(["fontSize", "fontWeight", "borderWidth", "borderRadius", "padding", "width", "minHeight"]);
-        const val = numProps.has(inspProp) ? (target.value === "" ? -1 : Number(target.value)) : (target.value || "");
-        upsertSelectedElementStyle(inspProp, val);
+        const isColor = target.type === "color";
+        if (isColor && pickerMountEl) {
+          const hexEl = pickerMountEl.querySelector(`[data-insp-hex="${inspProp}"]`);
+          if (hexEl) hexEl.textContent = String(target.value || "").toLowerCase();
+        }
+        upsertSelectedElementStyle(inspProp, target.value || "", { preserveDom: isColor, liveOnly: isColor, skipUndo: isColor });
         return;
       }
       const wsDraftKey = target.getAttribute("data-ws-draft");
@@ -8779,6 +11517,24 @@ function createStudioPanel(options) {
         saveSettingsPatch({ limitsWidget: lw });
       } else if (target.tagName === "SELECT" && target.getAttribute("data-insp-style")) {
         upsertSelectedElementStyle(target.getAttribute("data-insp-style"), target.value || "");
+      } else if (target.getAttribute("data-insp-range") || target.getAttribute("data-insp-num")) {
+        const prop = target.getAttribute("data-insp-range") || target.getAttribute("data-insp-num");
+        const rawStr = String(target.value || "").trim();
+        const negOneProps = new Set(["borderWidth", "borderRadius", "padding", "opacity"]);
+        if (rawStr === "") {
+          upsertSelectedElementStyle(prop, negOneProps.has(prop) ? -1 : 0);
+        } else {
+          const minAttr = Number(target.getAttribute("min"));
+          const maxAttr = Number(target.getAttribute("max"));
+          let val = Math.round(Number(rawStr));
+          if (Number.isFinite(val)) {
+            if (Number.isFinite(minAttr)) val = Math.max(minAttr, val);
+            if (Number.isFinite(maxAttr)) val = Math.min(maxAttr, val);
+            upsertSelectedElementStyle(prop, val);
+          }
+        }
+      } else if (target.type === "color" && target.getAttribute("data-insp-style")) {
+        upsertSelectedElementStyle(target.getAttribute("data-insp-style"), target.value || "");
       } else if (target.tagName === "SELECT" && target.getAttribute("data-live-inline-field")) {
         const cur = Object.assign({}, state.settings.liveEditInline || {});
         cur[target.getAttribute("data-live-inline-field")] = target.value || "enter";
@@ -8838,6 +11594,9 @@ function createStudioPanel(options) {
         clampWidgetToViewport();
         positionPopover();
         positionChatDock();
+        if (annotatorCtrl && typeof annotatorCtrl.isOpen === "function" && annotatorCtrl.isOpen() && typeof annotatorCtrl.fitCanvasDisplay === "function") {
+          annotatorCtrl.fitCanvasDisplay();
+        }
       };
       win.addEventListener("resize", resizeHandler);
 
@@ -8853,11 +11612,19 @@ function createStudioPanel(options) {
         });
       };
       win.addEventListener("focus", focusSyncHandler);
+
+      beforeUnloadDraftHandler = () => {
+        flushComposerDraftSync(state.activeChatKey || "__new__", state.activeChatTitle || "");
+      };
+      win.addEventListener("beforeunload", beforeUnloadDraftHandler);
+      win.addEventListener("pagehide", beforeUnloadDraftHandler);
     }
 
     if (doc && typeof doc.addEventListener === "function") {
       visChangeHandler = () => {
-        if (!doc.hidden && !state.destroyed && state.mounted) {
+        if (doc.hidden) {
+          flushComposerDraftSync(state.activeChatKey || "__new__", state.activeChatTitle || "");
+        } else if (!state.destroyed && state.mounted) {
           state.lastPollAt = 0;
           pollStream();
         }
@@ -8866,6 +11633,10 @@ function createStudioPanel(options) {
 
       keydownHandler = (e) => {
         if (!e) return;
+        // 0. Screenshot Annotator shortcuts (Esc / Ctrl+Z / Ctrl+Y / Text Enter)
+        if (annotatorCtrl && typeof annotatorCtrl.handleKeydown === "function" && annotatorCtrl.handleKeydown(e)) {
+          return;
+        }
         // 1. Keybinding recorder mode
         if (state.recordingKeybindingId && typeof rv5FormatKeyboardEvent === "function") {
           const formatted = rv5FormatKeyboardEvent(e);
@@ -8895,6 +11666,11 @@ function createStudioPanel(options) {
             renderPickerMount();
             return;
           }
+          if (state.usagePopOpen) {
+            state.usagePopOpen = false;
+            renderModelUsagePopover();
+            return;
+          }
           if (state.agentPopoverOpen) {
             state.agentPopoverOpen = false;
             renderChatDockMount();
@@ -8908,34 +11684,72 @@ function createStudioPanel(options) {
           }
           return;
         }
-        // 3. Inline live-edit capture inside native Antigravity composer while agent is running
-        const le = state.settings.liveEditInline;
-        if (
-          le &&
-          le.enabled &&
-          le.sendKey !== "button-only" &&
-          state.telemetry.isGenerating &&
-          !e.isComposing &&
-          e.key === "Enter" &&
-          !e.shiftKey &&
-          !e.altKey
-        ) {
-          const wantCtrl = le.sendKey === "ctrl+enter";
-          const hasCtrl = Boolean(e.ctrlKey || e.metaKey);
-          if (wantCtrl === hasCtrl && typeof rv5FindNativeComposer === "function") {
+        // 2.5 Auto-close Agent Tools popover whenever the user submits a message via Enter
+        if (state.agentPopoverOpen && !e.isComposing && e.key === "Enter" && !e.shiftKey && !e.altKey) {
+          if (typeof rv5FindNativeComposer === "function") {
             const { editable } = rv5FindNativeComposer(doc);
             if (editable && (e.target === editable || (typeof editable.contains === "function" && editable.contains(e.target)))) {
-              const txt = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
-              if (txt) {
-                if (typeof e.preventDefault === "function") e.preventDefault();
-                if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
-                sendInlineLiveEditFromComposer();
+              state.agentPopoverOpen = false;
+              renderChatDockMount();
+            }
+          }
+        }
+        // 3. Inline live-edit capture OR normal user prompt submission capture (clears draft & saves to last-20 history)
+        const le = state.settings.liveEditInline;
+        if (!e.isComposing && e.key === "Enter" && !e.shiftKey && !e.altKey && typeof rv5FindNativeComposer === "function") {
+          const { container, editable } = rv5FindNativeComposer(doc);
+          if (editable && (e.target === editable || (typeof editable.contains === "function" && editable.contains(e.target)))) {
+            const runningNow = isAgentRunningNow();
+            const hasCtrl = Boolean(e.ctrlKey || e.metaKey);
+            if (le && le.enabled && runningNow) {
+              const wantCtrl = le.sendKey === "ctrl+enter";
+              if (wantCtrl === hasCtrl) {
+                const txt = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+                const hasAtt = hasComposerAttachments(container, editable);
+                if (txt || hasAtt) {
+                  if (typeof e.preventDefault === "function") e.preventDefault();
+                  if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+                  if (typeof e.stopPropagation === "function") e.stopPropagation();
+                  sendInlineLiveEditFromComposer();
+                }
               }
+            } else if (!runningNow && !hasCtrl) {
+              captureAndRecordUserSubmission(container, editable, "chat");
             }
           }
         }
       };
       doc.addEventListener("keydown", keydownHandler, true);
+
+      composerSendClickHandler = (e) => {
+        if (!e || !e.target || typeof e.target.closest !== "function") return;
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        if (hostEl && (btn === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(btn)))) return;
+        if (btn.hasAttribute("data-rudex-img-edit-btn") || btn.hasAttribute("data-rudex-native-entry")) return;
+        if (typeof rv5FindNativeComposer !== "function") return;
+        const { container, editable } = rv5FindNativeComposer(doc);
+        if (!container || !editable || (typeof container.contains === "function" && !container.contains(btn))) return;
+        const tid = String(btn.getAttribute("data-testid") || "").toLowerCase();
+        const lbl = String(btn.getAttribute("aria-label") || btn.getAttribute("title") || "").toLowerCase();
+        const typeAttr = String(btn.getAttribute("type") || "").toLowerCase();
+        if (/cancel|stop|abort|останов|отмен|model|mode|mic|voice|attach|upload|plus|add|remove|delete|close|удал|закры/.test(tid + " " + lbl)) return;
+        const looksSend = typeAttr === "submit" || /send|submit|отправ/.test(tid + " " + lbl);
+        if (!looksSend) return;
+        const txt = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+        const hasAtt = hasComposerAttachments(container, editable);
+        if (!txt && !hasAtt) return;
+        const le = state.settings.liveEditInline;
+        if (le && le.enabled && isAgentRunningNow()) {
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+          if (typeof e.stopPropagation === "function") e.stopPropagation();
+          sendInlineLiveEditFromComposer();
+        } else if (!isAgentRunningNow()) {
+          captureAndRecordUserSubmission(container, editable, "chat");
+        }
+      };
+      doc.addEventListener("click", composerSendClickHandler, true);
 
       cancelClickHandler = (e) => {
         const tEl = e && e.target;
@@ -8945,6 +11759,134 @@ function createStudioPanel(options) {
         }
       };
       doc.addEventListener("click", cancelClickHandler, true);
+
+      docPasteHandler = (e) => {
+        if (annotatorCtrl && typeof annotatorCtrl.isOpen === "function" && annotatorCtrl.isOpen()) {
+          annotatorCtrl.handlePaste(e);
+          return;
+        }
+        // Passively cache full-resolution pasted images & files before Antigravity downscales thumbnails
+        const items = e && e.clipboardData && e.clipboardData.items;
+        if (items && items.length) {
+          let sawFile = false;
+          for (let i = 0; i < items.length; i += 1) {
+            if (items[i] && items[i].kind === "file" && typeof items[i].getAsFile === "function") {
+              cacheOriginalComposerFile(items[i].getAsFile());
+              sawFile = true;
+            }
+          }
+          if (sawFile && !isRestoringDraft) scheduleComposerDraftSave(450);
+        }
+      };
+      doc.addEventListener("paste", docPasteHandler, true);
+
+      docDropHandler = (e) => {
+        const files = e && e.dataTransfer && e.dataTransfer.files;
+        if (files && files.length) {
+          for (let i = 0; i < files.length; i += 1) {
+            if (files[i]) cacheOriginalComposerFile(files[i]);
+          }
+          if (!isRestoringDraft) scheduleComposerDraftSave(450);
+        }
+      };
+      doc.addEventListener("drop", docDropHandler, true);
+
+      docFileChangeHandler = (e) => {
+        const inp = e && e.target;
+        if (!inp || inp.tagName !== "INPUT" || inp.type !== "file" || !inp.files) return;
+        if (hostEl && typeof hostEl.contains === "function" && hostEl.contains(inp)) return;
+        for (let i = 0; i < inp.files.length; i += 1) {
+          if (inp.files[i]) cacheOriginalComposerFile(inp.files[i]);
+        }
+        if (inp.files.length > 0 && !isRestoringDraft) scheduleComposerDraftSave(450);
+      };
+      doc.addEventListener("change", docFileChangeHandler, true);
+
+      docInputHandler = (e) => {
+        if (state.destroyed || isRestoringDraft || state.settings.composerDraftsEnabled === false) return;
+        const tEl = e && e.target;
+        if (!tEl || (hostEl && (tEl === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(tEl))))) return;
+        if (typeof rv5FindNativeComposer === "function") {
+          const { editable } = rv5FindNativeComposer(doc);
+          if (editable && (tEl === editable || (typeof editable.contains === "function" && editable.contains(tEl)))) {
+            scheduleComposerDraftSave(350);
+          }
+        }
+      };
+      doc.addEventListener("input", docInputHandler, true);
+
+      outsidePopoverHandler = (e) => {
+        if (!e) return;
+        const cPath = typeof e.composedPath === "function" ? e.composedPath() : [];
+        if (state.agentPopoverOpen) {
+          const insideDock = Boolean(chatDockMountEl && (cPath.indexOf(chatDockMountEl) !== -1 || e.target === chatDockMountEl)) ||
+            (cPath.length === 0 && hostEl && (e.target === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(e.target))));
+          if (!insideDock) {
+            state.agentPopoverOpen = false;
+            renderChatDockMount();
+          }
+        }
+        if (state.usagePopOpen) {
+          const insideUsage = Boolean(usagePopMountEl && (cPath.indexOf(usagePopMountEl) !== -1 || e.target === usagePopMountEl));
+          const trig = typeof doc.querySelector === "function" ? doc.querySelector('[data-testid="model-selector-trigger"]') : null;
+          let onTrigger = false;
+          if (trig) {
+            if (e.target === trig || (typeof trig.contains === "function" && trig.contains(e.target))) {
+              onTrigger = true;
+            } else if (typeof trig.getBoundingClientRect === "function" && typeof e.clientX === "number" && typeof e.clientY === "number") {
+              const r = trig.getBoundingClientRect();
+              if (r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) onTrigger = true;
+            }
+          }
+          if (!insideUsage && !onTrigger) {
+            state.usagePopOpen = false;
+            renderModelUsagePopover();
+          }
+        }
+      };
+      doc.addEventListener("pointerdown", outsidePopoverHandler, true);
+
+      modelTriggerClickHandler = (e) => {
+        if (state.destroyed || !e || (typeof e.button === "number" && e.button !== 0)) return;
+        if (hostEl && e.target && (e.target === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(e.target)))) return;
+        let trig = null;
+        if (e.target && typeof e.target.closest === "function") {
+          trig = e.target.closest('[data-testid="model-selector-trigger"]');
+        }
+        if (!trig && typeof doc.querySelector === "function" && typeof e.clientX === "number" && typeof e.clientY === "number") {
+          const cand = doc.querySelector('[data-testid="model-selector-trigger"]');
+          if (cand && typeof cand.getBoundingClientRect === "function") {
+            const r = cand.getBoundingClientRect();
+            if (r && r.width > 12 && r.height > 8 && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+              trig = cand;
+            }
+          }
+        }
+        if (!trig) return;
+        const isDisabled = Boolean(
+          trig.disabled ||
+          (typeof trig.getAttribute === "function" && (trig.getAttribute("disabled") !== null || trig.getAttribute("aria-disabled") === "true" || trig.getAttribute("data-disabled") !== null))
+        );
+        if (!isDisabled && !state.telemetry.isGenerating) {
+          scheduleQuotaDomScrapeBurst();
+          return;
+        }
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        if (typeof e.stopPropagation === "function") e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+        state.usagePopOpen = !state.usagePopOpen;
+        if (state.usagePopOpen) {
+          try { if (typeof trig.blur === "function") trig.blur(); } catch (_e) {}
+          try { state.usagePopAnchor = typeof trig.getBoundingClientRect === "function" ? trig.getBoundingClientRect() : null; } catch (_e) {}
+          invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+            if (!state.destroyed && qs) {
+              applyQuotaSummary(qs);
+            }
+          });
+        }
+        renderModelUsagePopover();
+      };
+      doc.addEventListener("pointerdown", modelTriggerClickHandler, true);
     }
   }
 
@@ -8980,8 +11922,13 @@ function createStudioPanel(options) {
     limitsMountEl.className = "rx-limits-mount rx-zen-hidden";
     chatDockMountEl = doc.createElement("div");
     chatDockMountEl.className = "rx-chat-dock";
+    usagePopMountEl = doc.createElement("div");
+    usagePopMountEl.className = "rx-usage-pop-mount";
+    usagePopMountEl.style.display = "none";
     pickerMountEl = doc.createElement("div");
     pickerMountEl.className = "rx-picker-mount";
+    annotatorMountEl = doc.createElement("div");
+    annotatorMountEl.className = "rx-annotator-mount";
     popoverMountEl = doc.createElement("div");
     popoverMountEl.className = "le-popover-mount";
     updateToastMountEl = doc.createElement("div");
@@ -8992,12 +11939,42 @@ function createStudioPanel(options) {
     rootEl.appendChild(widgetMountEl);
     rootEl.appendChild(limitsMountEl);
     rootEl.appendChild(chatDockMountEl);
+    rootEl.appendChild(usagePopMountEl);
     rootEl.appendChild(popoverMountEl);
     rootEl.appendChild(updateToastMountEl);
     rootEl.appendChild(modalMountEl);
     rootEl.appendChild(pickerMountEl);
+    rootEl.appendChild(annotatorMountEl);
     shadowRoot.appendChild(styleEl);
     shadowRoot.appendChild(rootEl);
+
+    if (typeof createScreenshotAnnotator === "function") {
+      annotatorCtrl = createScreenshotAnnotator({
+        mountEl: annotatorMountEl,
+        doc,
+        win,
+        invokeIpc,
+        getLocale: () => state.locale,
+        isGenerating: () => Boolean(state.telemetry.isGenerating),
+        onSendLiveEdit: ({ dataUrl, text }) => {
+          invokeIpc("agy-studio:send-live-edit", {
+            chatKey: state.activeChatKey || "__new__",
+            title: state.activeChatTitle || "",
+            text: text || (state.locale !== "en" ? "Скриншот с правками карандашом" : "Annotated screenshot"),
+            images: [{ name: `rudex-edit-${Date.now()}.png`, dataUrl }],
+            fallbackAny: state.activeChatKey === "__new__" || state.activeChatKey.startsWith("chat-"),
+          }).then((res) => {
+            if (!state.destroyed && res && res.ok) {
+              applyLiveEditsPayload(res);
+              renderChatDockMount();
+            }
+          });
+        },
+        onNotify: (msg) => {
+          setToast(msg, false);
+        },
+      });
+    }
 
     if (limitsMountEl) {
       limitsMountEl.addEventListener("pointerdown", (e) => {
@@ -9021,6 +11998,14 @@ function createStudioPanel(options) {
 
     if (win && typeof win.setInterval === "function") {
       pollTimer = win.setInterval(() => pollStream(), 120);
+    }
+    if (win && typeof win.setTimeout === "function") {
+      titleBarBootTimer = win.setTimeout(() => {
+        titleBarBootTimer = null;
+        if (!state.destroyed && state.settings && state.settings.appearance && state.settings.appearance.presetId !== "native") {
+          syncHostTitleBarOverlay(state.settings.appearance, true);
+        }
+      }, 1300);
     }
 
     if (typeof win !== "undefined" && typeof win.MutationObserver === "function" && doc.body) {
@@ -9137,7 +12122,15 @@ function createStudioPanel(options) {
     if (next && opts && typeof opts === "object") {
       if (opts.tab) {
         const reqTab = String(opts.tab);
-        state.activeTab = reqTab === "live-edits" ? "monitor" : reqTab;
+        if (reqTab === "monitor" || reqTab === "live-edits") {
+          state.activeTab = "settings";
+          if (!opts.subTab) {
+            state.settingsSubTab = "widget";
+            state.widgetSubSection = "limits";
+          }
+        } else {
+          state.activeTab = reqTab;
+        }
       }
       if (opts.subTab) state.settingsSubTab = String(opts.subTab);
       if (opts.appSubTab) state.appearanceSubTab = String(opts.appSubTab);
@@ -9166,27 +12159,24 @@ function createStudioPanel(options) {
       applyThemeFastToHost(state.appearanceDraft);
       if (state.appearanceSubTab === "wallpaper") refreshMediaLibrary();
     }
-    if (next && state.activeTab === "monitor") {
+    if (next && state.activeTab === "settings" && state.settingsSubTab === "widget") {
       loadSystemFontsOnce();
-      invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
-        if (!state.destroyed && qs) {
-          state.quotaSummary = qs;
-          if (state.isOpen && state.activeTab === "monitor") renderStructure();
-        }
+      invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+        if (!state.destroyed && qs) applyQuotaSummary(qs);
       });
     }
     if (next && state.activeTab === "settings" && state.settingsSubTab === "workshop") {
       refreshWorkshopData();
     }
+    if (next && state.activeTab === "settings" && state.settingsSubTab === "history") {
+      refreshInputHistory();
+    }
     if (next && state.activeTab === "live-edits") {
       refreshLiveEdits();
     }
     if (next && state.activeTab === "settings" && state.settingsSubTab === "export") {
-      invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
-        if (!state.destroyed && qs) {
-          state.quotaSummary = qs;
-          if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "export") renderStructure();
-        }
+      invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+        if (!state.destroyed && qs) applyQuotaSummary(qs);
       });
     }
     renderStructure();
@@ -9242,10 +12232,14 @@ function createStudioPanel(options) {
       cancelPendingResizeHold(studioResizeState, sh);
       studioResizeState = null;
     }
-    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer]) {
+    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftRestoreTimer, titleBarBootTimer]) {
       if (timer && win && typeof win.clearTimeout === "function") win.clearTimeout(timer);
     }
-    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = null;
+    for (const qt of quotaScrapeTimers) {
+      if (qt && win && typeof win.clearTimeout === "function") win.clearTimeout(qt);
+    }
+    quotaScrapeTimers = [];
+    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftRestoreTimer = titleBarBootTimer = null;
     restoreAllThinkingNodes();
     thinkingCache.clear();
     thinkingInflight.clear();
@@ -9268,20 +12262,42 @@ function createStudioPanel(options) {
       if (blurDragHandler) win.removeEventListener("blur", blurDragHandler);
       if (resizeHandler) win.removeEventListener("resize", resizeHandler);
       if (focusSyncHandler) win.removeEventListener("focus", focusSyncHandler);
+      if (beforeUnloadDraftHandler) {
+        win.removeEventListener("beforeunload", beforeUnloadDraftHandler);
+        win.removeEventListener("pagehide", beforeUnloadDraftHandler);
+      }
     }
     if (doc && typeof doc.removeEventListener === "function") {
       if (visChangeHandler) doc.removeEventListener("visibilitychange", visChangeHandler);
       if (keydownHandler) doc.removeEventListener("keydown", keydownHandler, true);
+      if (composerSendClickHandler) doc.removeEventListener("click", composerSendClickHandler, true);
       if (cancelClickHandler) doc.removeEventListener("click", cancelClickHandler, true);
+      if (docPasteHandler) doc.removeEventListener("paste", docPasteHandler, true);
+      if (docDropHandler) doc.removeEventListener("drop", docDropHandler, true);
+      if (docFileChangeHandler) doc.removeEventListener("change", docFileChangeHandler, true);
+      if (docInputHandler) doc.removeEventListener("input", docInputHandler, true);
+      if (outsidePopoverHandler) doc.removeEventListener("pointerdown", outsidePopoverHandler, true);
+      if (modelTriggerClickHandler) doc.removeEventListener("pointerdown", modelTriggerClickHandler, true);
     }
     revokeCachedMedia("");
     mediaLoadInflight.clear();
     stopElementPicker();
+    setPickerCursorStyle(false);
+    setUsagePopTooltipGuard(false);
+    if (annotatorCtrl && typeof annotatorCtrl.close === "function") annotatorCtrl.close();
+    annotatorCtrl = null;
+    removeAllLiveChatBubbleSlots();
+    if (doc && typeof doc.getElementById === "function") {
+      const leStyle = doc.getElementById("rudex-live-chat-style");
+      if (leStyle && leStyle.parentNode) leStyle.parentNode.removeChild(leStyle);
+      const ugStyle = doc.getElementById("rudex-usage-pop-guard");
+      if (ugStyle && ugStyle.parentNode) ugStyle.parentNode.removeChild(ugStyle);
+    }
     if (hostEl && hostEl.parentNode) hostEl.parentNode.removeChild(hostEl);
     if (themeEngine && typeof themeEngine.destroy === "function") {
       try { themeEngine.destroy(); } catch (_e) {}
     }
-    hostEl = shadowRoot = rootEl = widgetMountEl = limitsMountEl = chatDockMountEl = pickerMountEl = popoverMountEl = updateToastMountEl = modalMountEl = null;
+    hostEl = shadowRoot = rootEl = widgetMountEl = limitsMountEl = chatDockMountEl = usagePopMountEl = pickerMountEl = annotatorMountEl = popoverMountEl = updateToastMountEl = modalMountEl = null;
   }
 
   return {
@@ -9293,7 +12309,9 @@ function createStudioPanel(options) {
     handleHotkeyAction,
     startElementPicker,
     stopElementPicker,
+    openAnnotator,
     applyLiveEditsUpdate,
+    applyQuotaSummary,
     applyUpdateStatus,
     setViewMode,
     setLocale,
