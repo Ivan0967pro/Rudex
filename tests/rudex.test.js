@@ -4446,6 +4446,8 @@ test("Modal dimming z-index, right appearance drawer offset, light-theme live ed
   const limitsZ = Number((/\.rx-limits-mount\s*\{[^}]*z-index:\s*(\d+)/.exec(extraCss) || [])[1] || 0);
   const dockZ = Number((/\.rx-chat-dock\s*\{[^}]*z-index:\s*(\d+)/.exec(extraCss) || [])[1] || 0);
   assert.ok(backdropZ > 0 && limitsZ > 0 && dockZ > 0, "Expected valid z-index tokens");
+  assert.ok(limitsZ < 50, `Limits mount z-index (${limitsZ}) must stay below native z-50 tooltips & menus`);
+  assert.ok(dockZ < 50, `Chat dock z-index (${dockZ}) must stay below native z-50 tooltips & menus`);
   assert.ok(limitsZ < backdropZ, `Limits mount z-index (${limitsZ}) must be strictly below modal backdrop (${backdropZ})`);
   assert.ok(dockZ < backdropZ, `Chat dock z-index (${dockZ}) must be strictly below modal backdrop (${backdropZ})`);
 
@@ -4574,6 +4576,19 @@ test("Modal dimming z-index, right appearance drawer offset, light-theme live ed
     assert.ok(limMount.className.includes("rx-zen-hidden"), `Expected right-side limits mount to yield cleanly while right appearance drawer is open, got class: ${limMount.className}`);
     panel.setOpen(false);
     assert.equal(limMount.className.includes("rx-zen-hidden"), false, "Limits mount must reappear immediately when right appearance drawer closes");
+
+    // Right-pane header clearance: when a right side panel (Implementation Plan) is open with a 32px titlebar + 64px top-right [◫] toggle button,
+    // Limits widget MUST sit strictly below the top-right button (top >= 78px), NEVER overlapping it!
+    const titleBarHdr = doc.createElement("header");
+    titleBarHdr.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1600, bottom: 32, width: 1600, height: 32 });
+    const rightPaneBtn = doc.createElement("button");
+    rightPaneBtn.setAttribute("aria-label", "Переключить боковую панель");
+    rightPaneBtn.getBoundingClientRect = () => ({ left: 1554, top: 36, right: 1586, bottom: 64, width: 32, height: 28 });
+    doc.body.appendChild(titleBarHdr);
+    doc.body.appendChild(rightPaneBtn);
+    panel.applyQuotaSummary(quotaSnap);
+    const limTopPx = parseInt(limMount.style.top || "0", 10);
+    assert.ok(limTopPx >= 78, `Expected top-right Limits widget to sit cleanly below top-right [◫] button (bottom=64), got top=${limMount.style.top}`);
 
     // Clicking disabled model-selector-trigger while agent is running opens Usage popover with live limits
     const pdEvt = {

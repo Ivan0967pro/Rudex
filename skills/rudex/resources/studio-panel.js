@@ -4235,7 +4235,7 @@ function createStudioPanel(options) {
     if (now - (state.lastHostMetricsAt || 0) > 900) {
       state.lastHostMetricsAt = now;
       const hm = measureHostUiMetrics();
-      const mSig = `${hm.sidebarRight}|${hm.headerTop}|${hm.headerBottom}|${hm.headerRightClear}`;
+      const mSig = `${hm.sidebarRight}|${hm.headerTop}|${hm.headerBottom}|${hm.headerRightClear}|${hm.composerLeft}|${hm.composerRight}`;
       if (mSig !== state.lastHostMetricsSig) {
         state.lastHostMetricsSig = mSig;
         applyWidgetPosition();
@@ -6736,19 +6736,28 @@ function createStudioPanel(options) {
             }
           }
         }
-        // 3. Measure right-side header action cluster ("Открыть IDE" / "Open IDE" + pane icons) so inline-header widgets NEVER collide with it
-        const btns = doc.querySelectorAll('button, [role="button"], a');
+        // 3. Measure header action buttons & right-pane tab bar ("Открыть IDE", top-right toggle-panel [◫], artifact tabs)
+        // so docked top-right / inline-header widgets NEVER cover header controls even when a right side panel is open!
+        const btns = doc.querySelectorAll('button, [role="button"], [role="tab"], [role="tablist"], a');
         let ideLeft = vw;
         let ideTop = 0;
         let ideBottom = 0;
+        let topBarMaxBottom = headerBottom;
         for (let i = 0; btns && i < btns.length; i += 1) {
           const b = btns[i];
           if (!b || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(b))) continue;
           if (typeof b.getBoundingClientRect !== "function") continue;
           const r = b.getBoundingClientRect();
-          if (!r || r.width < 12 || r.height < 12 || r.top < 0 || r.bottom > 110 || r.left < vw * 0.55) continue;
+          if (!r || r.width < 12 || r.height < 12 || r.height > 56 || r.top < 0 || r.bottom > 106) continue;
           const txt = String(b.textContent || "").trim().toLowerCase();
-          if (txt.includes("открыть ide") || txt.includes("open ide") || (headerBottom > 0 && r.top >= headerTop - 2 && r.bottom <= headerBottom + 4)) {
+          const role = typeof b.getAttribute === "function" ? (b.getAttribute("role") || "") : "";
+          const isIdeBtn = txt.includes("открыть ide") || txt.includes("open ide");
+          const isTopRightCtrl = r.right > vw - 260 && r.top >= 20 && r.bottom <= 104;
+          const isTopTab = (role === "tab" || role === "tablist") && r.top >= 20 && r.bottom <= 104 && r.right > vw * 0.35;
+          if (isIdeBtn || isTopRightCtrl || isTopTab) {
+            if (r.bottom + 6 > topBarMaxBottom) topBarMaxBottom = Math.round(r.bottom) + 6;
+          }
+          if (r.left >= vw * 0.55 && (isIdeBtn || isTopRightCtrl || (headerBottom > 0 && r.top >= headerTop - 2 && r.bottom <= headerBottom + 4))) {
             if (r.left < ideLeft) ideLeft = Math.round(r.left);
             if (r.bottom > ideBottom) {
               ideTop = Math.round(r.top);
@@ -6756,8 +6765,12 @@ function createStudioPanel(options) {
             }
           }
         }
+        if (topBarMaxBottom > headerBottom) {
+          if (headerTop <= 0 && ideTop > 0) headerTop = Math.max(0, ideTop - 4);
+          headerBottom = topBarMaxBottom;
+        }
         if (ideBottom > 0) {
-          if (headerBottom === 0 || ideBottom > headerBottom) {
+          if (headerBottom === 0 || ideBottom + 5 > headerBottom) {
             headerTop = Math.max(0, ideTop - 4);
             headerBottom = ideBottom + 5;
           }

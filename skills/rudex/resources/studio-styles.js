@@ -245,7 +245,7 @@ function buildStudioStyles() {
     /* === Floating Widget === */
     .widget-wrap {
       position: fixed;
-      z-index: 2147483000;
+      z-index: 40;
       user-select: none;
       -webkit-user-select: none;
       touch-action: none;

@@ -661,7 +661,7 @@ function rv5BuildExtraShadowCss() {
 /* Standalone Limits Widget (strictly below .modal-backdrop 2147483200 so it dims cleanly behind Studio modal) */
 .rx-limits-mount {
   position: fixed;
-  z-index: 2147483005;
+  z-index: 41;
   pointer-events: auto;
   user-select: none;
   max-width: calc(100vw - 24px);
@@ -757,11 +757,14 @@ function rv5BuildExtraShadowCss() {
 /* Slim Chat Quick Bar & Inline Live-Edit Capsule (anchored cleanly above composer, below modal backdrop) */
 .rx-chat-dock {
   position: fixed;
-  z-index: 2147483010;
+  z-index: 42;
   display: flex;
   flex-direction: column;
   gap: 5px;
   pointer-events: none;
+}
+.rx-chat-dock:has(.rx-agent-popover) {
+  z-index: 2147483140;
 }
 .rx-chat-dock-row {
   display: flex;
