@@ -2200,6 +2200,51 @@ const DYNAMIC_RULES = [
     re: /^Added MCP server "(.+?)", but it failed to start: (.+)$/,
     fn: (_, n, e) => `MCP-сервер «${n}» добавлен, но не удалось его запустить: ${e}`,
   },
+  // 14. Tooltips while running & compact multi-unit step durations (e.g. "2m 10s", "1h 5m")
+  {
+    re: /^(.+?) cannot be changed while the agent is running\.?$/i,
+    fn: (_, what) => {
+      const low = String(what || "").trim().toLowerCase();
+      const map = {
+        model: "модель",
+        mode: "режим",
+        agent: "агента",
+        workspace: "рабочую область",
+        project: "проект",
+        settings: "настройки",
+        "reasoning effort": "глубину рассуждений",
+        "thinking effort": "глубину мышления",
+      };
+      return `Нельзя изменить ${map[low] || `«${what}»`}, пока агент работает`;
+    },
+  },
+  {
+    re: /^Cannot (?:change|switch) (.+?) while the agent is running\.?$/i,
+    fn: (_, what) => {
+      const low = String(what || "").trim().toLowerCase();
+      const map = {
+        model: "модель",
+        mode: "режим",
+        agent: "агента",
+        workspace: "рабочую область",
+        project: "проект",
+        settings: "настройки",
+      };
+      return `Нельзя переключить ${map[low] || `«${what}»`}, пока агент работает`;
+    },
+  },
+  {
+    re: /^Thought for (\d+\s*h\s+\d+\s*m(?:\s+\d+\s*s)?|\d+\s*m\s+\d+\s*s)$/i,
+    fn: (_, d) => `Думал ${translateCompactDuration(d)}`,
+  },
+  {
+    re: /^(\d+\s*h\s+\d+\s*m(?:\s+\d+\s*s)?|\d+\s*m\s+\d+\s*s)$/i,
+    fn: (_, d) => translateCompactDuration(d),
+  },
+  {
+    re: /^(.+?)\s+(\d+h\s+\d+m(?:\s+\d+s)?|\d+m\s+\d+s)$/i,
+    fn: (_, head, d) => `${head} ${translateCompactDuration(d)}`,
+  },
 ];
 
 function applyDynamicRules(text) {

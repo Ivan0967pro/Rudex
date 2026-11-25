@@ -1,5 +1,17 @@
 "use strict";
 
+// Node test-runner fallback when studio-panel.js is required standalone without preload bundle
+if (typeof RUDEX_AGENT_PRESETS === "undefined" && typeof require === "function") {
+  try {
+    Object.assign(globalThis, require("./rudex-v5-core.js"));
+  } catch (_e) {}
+}
+if (typeof rv5RenderAgentHubTabHtml === "undefined" && typeof require === "function") {
+  try {
+    Object.assign(globalThis, require("./rudex-v5-ui.js"));
+  } catch (_e) {}
+}
+
 const MAX_PERSONA_BODY_BYTES = 23000;
 const DOCK_POSITIONS = ["bottom-right", "top-right", "middle-right", "bottom-left", "hidden"];
 const MINI_FIELD_KEYS = ["status", "lang", "tps", "respTokens", "chatTokens", "model", "quota"];
@@ -1733,6 +1745,37 @@ function createStudioPanel(options) {
       appearanceProfiles: [],
       greeting: spCloneGreeting(null),
       studioUi: Object.assign({}, DEFAULT_STUDIO_UI),
+      customLabels: [],
+      limitsWidget: typeof RUDEX_LIMITS_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_LIMITS_DEFAULTS) : { enabled: false },
+      keybindings: typeof RUDEX_KEYBINDINGS_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_KEYBINDINGS_DEFAULTS) : {},
+      zenMode: false,
+      liveEditInline: typeof RUDEX_LIVE_EDIT_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_LIVE_EDIT_DEFAULTS) : { enabled: true, sendKey: "enter", urgentIntercept: false },
+      agentProfileDefault: typeof RUDEX_AGENT_PROFILE_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_AGENT_PROFILE_DEFAULTS) : { enabled: false },
+      customAgentPresets: [],
+    },
+    chatAgentProfile: typeof RUDEX_AGENT_PROFILE_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_AGENT_PROFILE_DEFAULTS) : { enabled: false },
+    agentPopoverOpen: false,
+    inlineUrgent: false,
+    hasComposerText: false,
+    pickerActive: false,
+    pickerSelected: null,
+    pickerHoverRect: null,
+    pickerHoverLabel: "",
+    systemFonts: [],
+    appearanceUndoStack: [],
+    appearanceRedoStack: [],
+    recordingKeybindingId: "",
+    settingsSearchQuery: "",
+    newLabelMatch: "",
+    newLabelText: "",
+    newAgentPresetName: "",
+    lastNativeInjectAt: 0,
+    workshop: {
+      loading: false,
+      scope: "global",
+      sub: "rules",
+      data: null,
+      draft: {},
     },
     appearanceDraft: spCloneAppearance(spDefaultAppearance()),
     greetingDraft: spCloneGreeting(null),
@@ -1793,6 +1836,12 @@ function createStudioPanel(options) {
   let popoverMountEl = null;
   let updateToastMountEl = null;
   let modalMountEl = null;
+  let limitsMountEl = null;
+  let chatDockMountEl = null;
+  let pickerMountEl = null;
+  let limitsDragState = null;
+  let pickerMoveHandler = null;
+  let pickerClickHandler = null;
   let thinkingScanTimer = null;
   let isApplyingThinkingTranslation = false;
   const thinkingNodeMap = new WeakMap();
@@ -2217,6 +2266,48 @@ function createStudioPanel(options) {
       }
       if (rawSettings.studioUi && typeof rawSettings.studioUi === "object") {
         state.settings.studioUi = spNormalizeStudioUi(rawSettings.studioUi);
+      }
+      if (Array.isArray(rawSettings.customLabels)) {
+        state.settings.customLabels = rawSettings.customLabels.slice(0, 120);
+        if (translator && typeof translator.setCustomLabels === "function") {
+          try { translator.setCustomLabels(state.settings.customLabels); } catch (_e) {}
+        }
+      }
+      if (rawSettings.limitsWidget && typeof rawSettings.limitsWidget === "object") {
+        state.settings.limitsWidget = typeof rv5NormalizeLimitsWidget === "function"
+          ? rv5NormalizeLimitsWidget(rawSettings.limitsWidget)
+          : Object.assign({}, state.settings.limitsWidget, rawSettings.limitsWidget);
+      }
+      if (rawSettings.keybindings && typeof rawSettings.keybindings === "object") {
+        state.settings.keybindings = typeof rv5NormalizeKeybindings === "function"
+          ? rv5NormalizeKeybindings(rawSettings.keybindings)
+          : Object.assign({}, state.settings.keybindings, rawSettings.keybindings);
+      }
+      if (typeof rawSettings.zenMode === "boolean") {
+        state.settings.zenMode = rawSettings.zenMode;
+      }
+      if (rawSettings.liveEditInline && typeof rawSettings.liveEditInline === "object") {
+        state.settings.liveEditInline = Object.assign({}, state.settings.liveEditInline, rawSettings.liveEditInline);
+        if (typeof rawSettings.liveEditInline.urgentIntercept === "boolean" && !state.inlineUrgent) {
+          state.inlineUrgent = rawSettings.liveEditInline.urgentIntercept;
+        }
+      }
+      if (rawSettings.agentProfileDefault && typeof rawSettings.agentProfileDefault === "object") {
+        state.settings.agentProfileDefault = typeof rv5NormalizeAgentProfile === "function"
+          ? rv5NormalizeAgentProfile(rawSettings.agentProfileDefault)
+          : Object.assign({}, state.settings.agentProfileDefault, rawSettings.agentProfileDefault);
+      }
+      if (Array.isArray(rawSettings.customAgentPresets)) {
+        state.settings.customAgentPresets = rawSettings.customAgentPresets.slice(0, 20);
+      }
+    }
+    if (remote.chat && remote.chat.agentProfile && typeof remote.chat.agentProfile === "object") {
+      state.chatAgentProfile = typeof rv5NormalizeAgentProfile === "function"
+        ? rv5NormalizeAgentProfile(remote.chat.agentProfile)
+        : Object.assign({}, remote.chat.agentProfile);
+    } else if (!state.chatAgentProfile || !state.chatAgentProfile.enabled) {
+      if (state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats && state.settings.agentProfileDefault.enabled) {
+        state.chatAgentProfile = Object.assign({}, state.settings.agentProfileDefault);
       }
     }
     if (remote.quotaSummary && typeof remote.quotaSummary === "object") {
@@ -3779,6 +3870,15 @@ function createStudioPanel(options) {
     scrapeDomQuotaSnapshot(false);
     if (state.settings.thinkingInRussian) scanThinkingBlocks(false);
     updateLiveDom();
+    syncChatDockLiveState();
+    if (typeof rv5InjectNativeSettingsEntries === "function" && now - state.lastNativeInjectAt > 1600) {
+      state.lastNativeInjectAt = now;
+      rv5InjectNativeSettingsEntries(doc, state.locale !== "en", (tab, sub) => {
+        if (sub && tab === "settings") state.settingsSubTab = sub;
+        setOpen(true, { tab: tab || "appearance", subTab: sub });
+        if (sub === "workshop") refreshWorkshopData();
+      });
+    }
   }
 
   function formatChatBadgeLabel() {
@@ -4167,11 +4267,12 @@ function createStudioPanel(options) {
 
     const subTabs = [
       { id: "theme", label: tr.appSubTheme },
+      { id: "elements", label: isRu ? "🎯 Элементы" : "🎯 Elements" },
+      { id: "text", label: tr.appSubText },
+      { id: "surface", label: tr.appSubSurface },
       { id: "wallpaper", label: tr.appSubWallpaper },
       { id: "corners", label: tr.appSubCorners },
-      { id: "surface", label: tr.appSubSurface },
       { id: "greeting", label: tr.appSubGreeting },
-      { id: "text", label: tr.appSubText },
     ];
 
     const themeLabel = presetObj ? (isRu ? presetObj.nameRu : presetObj.nameEn) : draft.presetId;
@@ -4194,6 +4295,18 @@ function createStudioPanel(options) {
 
     let inner = "";
     if (sub === "theme") inner = renderAppearanceThemeSub(tr, isRu);
+    else if (sub === "elements" && typeof rv5RenderElementsBuilderHtml === "function") {
+      inner = rv5RenderElementsBuilderHtml({
+        draft,
+        customLabels: state.settings.customLabels || [],
+        isRu,
+        pickerActive: state.pickerActive,
+        canUndo: state.appearanceUndoStack.length > 0,
+        canRedo: state.appearanceRedoStack.length > 0,
+        newLabelMatch: state.newLabelMatch,
+        newLabelText: state.newLabelText,
+      });
+    }
     else if (sub === "wallpaper") inner = renderAppearanceWallpaperSub(tr, isRu);
     else if (sub === "corners") inner = renderAppearanceCornersSub(tr, isRu);
     else if (sub === "surface") inner = renderAppearanceSurfaceSub(tr, isRu);
@@ -4766,6 +4879,8 @@ function createStudioPanel(options) {
     ];
 
     return `
+      ${typeof rv5RenderBorderPresetSectionHtml === "function" ? rv5RenderBorderPresetSectionHtml(draft, _isRu) : ""}
+
       <div class="section-group">
         <span class="section-label">${escHtml(tr.appMsgStyleLabel)}</span>
         <div class="subtab-bar is-segmented">
@@ -4954,6 +5069,8 @@ function createStudioPanel(options) {
         </div>
       </div>
 
+      ${typeof rv5RenderDetailedTypographyHtml === "function" ? rv5RenderDetailedTypographyHtml(draft, state.systemFonts, isRu) : ""}
+
       <div class="control-grid-2">
         <div class="slider-box">
           <div class="slider-head"><span>${escHtml(tr.appFontSize)}</span><b class="num" data-live-app-val="typography.fontSize">${ty.fontSize}px</b></div>
@@ -5140,13 +5257,17 @@ function createStudioPanel(options) {
     const isRu = state.locale !== "en";
     const sub = state.settingsSubTab || "system";
     const subTabs = [
+      { id: "workshop", label: isRu ? "🧩 Мастерская AGY" : "🧩 AGY Workshop" },
+      { id: "hotkeys", label: isRu ? "⌨ Клавиши" : "⌨ Hotkeys" },
       { id: "system", label: tr.setSubSystem },
       { id: "studio", label: tr.setSubStudio },
       { id: "widget", label: tr.setSubWidget },
       { id: "export", label: tr.setSubExport },
     ];
     let body = "";
-    if (sub === "studio") body = renderStudioDesignSub(tr, isRu);
+    if (sub === "workshop" && typeof rv5RenderWorkshopHtml === "function") body = rv5RenderWorkshopHtml(state.workshop, isRu);
+    else if (sub === "hotkeys" && typeof rv5RenderKeybindingsHtml === "function") body = rv5RenderKeybindingsHtml(state.settings.keybindings, state.recordingKeybindingId, isRu);
+    else if (sub === "studio") body = renderStudioDesignSub(tr, isRu);
     else if (sub === "widget") body = renderWidgetSub(tr, isRu);
     else if (sub === "export") body = renderExportSub(tr);
     else body = renderSystemSub(tr);
@@ -5619,6 +5740,16 @@ function createStudioPanel(options) {
       <div class="section-group">
         <span class="section-label">${escHtml(tr.pluginInfoTitle)}</span>
         <div class="card">
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${state.locale !== "en" ? "Резервная копия профиля Rudex (JSON)" : "Backup / Share Rudex Profile (JSON)"}</span>
+              <span class="row-desc">${state.locale !== "en" ? "Темы, шрифты, правки элементов, переименования, хоткеи, лимиты и пресеты агента" : "Themes, fonts, element overrides, custom labels, hotkeys, limits & agent presets"}</span>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <button type="button" class="btn btn-sm" data-action="export-config-json">${state.locale !== "en" ? "Экспорт" : "Export"}</button>
+              <button type="button" class="btn btn-sm" data-action="import-config-json">${state.locale !== "en" ? "Импорт" : "Import"}</button>
+            </div>
+          </div>
           <div class="row-item"><span class="row-title">${escHtml(tr.pluginVersion)}</span><span class="kbd num">${escHtml(verDisplay)}</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.pluginDict)}</span><span class="row-title num">${Number(dictCount).toLocaleString()}</span></div>
           <div class="row-item"><span class="row-title">${escHtml(tr.pluginRules)}</span><span class="row-title num">${Number(dynCount).toLocaleString()}</span></div>
@@ -5635,20 +5766,59 @@ function createStudioPanel(options) {
     if (!state.isOpen) return "";
     const tr = t();
     const sui = spNormalizeStudioUi(state.settings.studioUi);
+    const isRu = state.locale !== "en";
     const tabs = [
-      { id: "monitor", label: tr.navMonitor, ic: "activity", title: tr.modalTitleMonitor, sub: tr.modalSubMonitor },
-      { id: "appearance", label: tr.navAppearance, ic: "palette", title: tr.modalTitleAppearance, sub: tr.modalSubAppearance },
-      { id: "persona", label: tr.navPersona, ic: "persona", title: tr.modalTitlePersona, sub: tr.modalSubPersona, dot: state.chatPersona.enabled },
-      { id: "settings", label: tr.navSettings, ic: "gear", title: tr.modalTitleSettings, sub: tr.modalSubSettings, dot: Boolean(state.update && state.update.available) },
+      { id: "persona", label: isRu ? "Агент" : "Agent", ic: "persona", title: isRu ? "Агент, пресеты и правки на лету" : "Agent, Presets & Live Edits", sub: isRu ? "Тумблеры фишек, пресеты для новых чатов, правки без остановки и характер" : "Feature toggles, new-chat defaults, inline live edits & persona", dot: Boolean(state.chatPersona.enabled || (state.chatAgentProfile && state.chatAgentProfile.enabled)) },
+      { id: "appearance", label: isRu ? "Внешний вид" : "Appearance", ic: "palette", title: tr.modalTitleAppearance, sub: isRu ? "Темы, 4 слота шрифтов, прицел по элементам, границы, обои и масштаб" : "Themes, 4 font slots, element picker, borders, wallpaper & scale" },
+      { id: "monitor", label: isRu ? "Лимиты и Экран" : "Limits & Screen", ic: "activity", title: isRu ? "Лимиты Antigravity и Монитор" : "Antigravity Limits & Monitor", sub: isRu ? "Окошко лимитов на главный экран, скорость TPS и экспорт чата" : "On-screen limits widget, TPS monitor & ZIP export", dot: Boolean(state.settings.limitsWidget && state.settings.limitsWidget.enabled) },
+      { id: "settings", label: isRu ? "Мастерская и Система" : "Workshop & System", ic: "gear", title: isRu ? "Мастерская AGY, клавиши и система" : "AGY Workshop, Hotkeys & System", sub: isRu ? "Правила, скиллы, MCP-серверы, горячие клавиши, язык и бекап" : "Rules, skills, MCP servers, hotkeys, language & backup", dot: Boolean(state.update && state.update.available) },
     ];
     const current = tabs.find((x) => x.id === state.activeTab) || tabs[0];
     const isAppearanceTab = current.id === "appearance";
     const isAppearanceDrawer = isAppearanceTab && Boolean(state.appearanceDockedRight);
     let bodyHtml = "";
-    if (current.id === "monitor") bodyHtml = renderMonitorTab();
-    else if (current.id === "appearance") bodyHtml = renderAppearanceDrawerBody();
-    else if (current.id === "persona") bodyHtml = renderPersonaTab();
-    else bodyHtml = renderSettingsTab();
+    if (current.id === "monitor") {
+      bodyHtml = typeof rv5RenderLimitsTabHtml === "function"
+        ? rv5RenderLimitsTabHtml({
+            limitsWidget: state.settings.limitsWidget,
+            quotaSummary: state.quotaSummary,
+            systemFonts: state.systemFonts,
+            monitorHtml: renderMonitorTab(),
+            exportHtml: renderExportSub(tr),
+            isRu,
+          })
+        : renderMonitorTab();
+    } else if (current.id === "appearance") {
+      bodyHtml = renderAppearanceDrawerBody();
+    } else if (current.id === "persona") {
+      bodyHtml = typeof rv5RenderAgentHubTabHtml === "function"
+        ? rv5RenderAgentHubTabHtml({
+            agentProfile: state.chatAgentProfile,
+            defaultProfile: state.settings.agentProfileDefault,
+            customPresets: state.settings.customAgentPresets || [],
+            liveEditInline: state.settings.liveEditInline,
+            thinkingRu: Boolean(state.settings.thinkingInRussian),
+            personaHtml: renderPersonaTab(),
+            isRu,
+            newAgentPresetName: state.newAgentPresetName,
+          })
+        : renderPersonaTab();
+    } else {
+      bodyHtml = renderSettingsTab();
+    }
+
+    const searchQ = String(state.settingsSearchQuery || "").trim().toLowerCase();
+    const quickIndex = searchQ ? [
+      { k: "шрифт font типографика ввод агент код", label: isRu ? "Шрифты (4 слота)" : "Fonts (4 slots)", tab: "appearance", appSub: "text" },
+      { k: "прицел элемент цвет размер переимен скрыть picker rename", label: isRu ? "🎯 Прицел и переименование элементов" : "🎯 Element Picker & Rename", tab: "appearance", appSub: "elements" },
+      { k: "границ обводк стекло прозрачн border surface", label: isRu ? "Границы блоков и обводка" : "Block Borders & Surface", tab: "appearance", appSub: "surface" },
+      { k: "обои градиент видео картинк wallpaper", label: isRu ? "Обои и градиенты" : "Wallpaper & Gradients", tab: "appearance", appSub: "wallpaper" },
+      { k: "лимит квот экран 5ч недел quota limit", label: isRu ? "Окошко «Только лимиты»" : "Limits Screen Widget", tab: "monitor" },
+      { k: "субагент тумблер пресет инструмент чат на лету правк характер agent preset subagent", label: isRu ? "Пульт агента, пресеты и правки на лету" : "Agent Presets & Live Edits", tab: "persona" },
+      { k: "клавиш хоткей shortcut hotkey keybind дзен", label: isRu ? "⌨ Редактор горячих клавиш" : "⌨ Keybindings Editor", tab: "settings", setSub: "hotkeys" },
+      { k: "правил скилл skill rule mcp хук hook плагин кастом workshop", label: isRu ? "🧩 Мастерская AGY (Rules / Skills / MCP)" : "🧩 AGY Workshop", tab: "settings", setSub: "workshop" },
+      { k: "масштаб scale zoom язык бекап экспорт json", label: isRu ? "Система, масштаб и JSON-бекап" : "System, Scale & JSON Backup", tab: "settings", setSub: "system" },
+    ].filter((it) => it.k.includes(searchQ) || it.label.toLowerCase().includes(searchQ)) : [];
 
     return `
       <div class="modal-backdrop${isAppearanceDrawer ? " is-appearance-live" : ""}" data-action="backdrop-close">
@@ -5660,7 +5830,15 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "4.4.7")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.0.0")}</span>
+              </div>
+              <div class="rx-search-wrap" style="padding:0 10px 8px">
+                <input type="text" class="rx-search-input" data-role="settingsSearch" value="${escAttr(state.settingsSearchQuery || "")}" placeholder="${isRu ? "Поиск настроек…" : "Search settings…"}"/>
+                ${quickIndex.length > 0 ? `
+                  <div style="display:flex;flex-direction:column;gap:3px;margin-top:6px">
+                    ${quickIndex.slice(0, 5).map((q) => `<button type="button" class="btn btn-sm" style="justify-content:flex-start;text-align:left;font-size:11px" data-action="jump-search-hit" data-tab="${escAttr(q.tab)}" data-app-sub="${escAttr(q.appSub || "")}" data-set-sub="${escAttr(q.setSub || "")}">${escHtml(q.label)}</button>`).join("")}
+                  </div>
+                ` : ""}
               </div>
               <nav class="nav-list">
                 ${tabs.map((tb) => `
@@ -5736,7 +5914,7 @@ function createStudioPanel(options) {
     const s = state.settings;
     const sui = spNormalizeStudioUi(s.studioUi);
     const dock = normalizeDockPosition(s.dockPosition);
-    const shouldHide = dock === "hidden";
+    const shouldHide = dock === "hidden" || Boolean(state.settings.zenMode) || Boolean(state.settings.limitsWidget && state.settings.limitsWidget.enabled && state.settings.limitsWidget.onlyLimitsMode);
     const lockedCls = s.pinned ? " is-locked" : "";
     widgetMountEl.setAttribute("data-widget-theme", sui.widgetTheme);
     widgetMountEl.setAttribute("data-widget-scale", sui.widgetScale);
@@ -5946,6 +6124,426 @@ function createStudioPanel(options) {
     if (updateToastMountEl) {
       renderUpdateToast();
     }
+    renderLimitsWidgetMount();
+    renderChatDockMount();
+    renderPickerMount();
+  }
+
+  // === RUDEX 5.0 LIVE CONTROLLERS ===
+
+  function loadSystemFontsOnce() {
+    if (state.systemFonts && state.systemFonts.length > 0) return;
+    invokeIpc("agy-studio:list-system-fonts").then((res) => {
+      if (!state.destroyed && res && Array.isArray(res.fonts)) {
+        state.systemFonts = res.fonts;
+        if (state.isOpen) renderStructure();
+      }
+    });
+  }
+
+  function refreshWorkshopData() {
+    state.workshop.loading = true;
+    invokeIpc("agy-studio:workshop-list", { workspacePath: "" }).then((res) => {
+      if (state.destroyed) return;
+      state.workshop.loading = false;
+      if (res && res.ok) state.workshop.data = res;
+      if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "workshop") {
+        renderStructure();
+      }
+    });
+  }
+
+  function pushAppearanceUndo() {
+    try {
+      state.appearanceUndoStack.push(JSON.stringify(state.appearanceDraft));
+      if (state.appearanceUndoStack.length > 25) state.appearanceUndoStack.shift();
+      state.appearanceRedoStack = [];
+    } catch (_e) {}
+  }
+
+  function saveChatAgentProfile(nextProf, extraOpts) {
+    const norm = typeof rv5NormalizeAgentProfile === "function" ? rv5NormalizeAgentProfile(nextProf) : Object.assign({}, nextProf);
+    state.chatAgentProfile = norm;
+    const optsObj = extraOpts && typeof extraOpts === "object" ? extraOpts : {};
+    if (optsObj.setAsDefault) {
+      state.settings.agentProfileDefault = Object.assign({}, norm);
+    }
+    renderChatDockMount();
+    if (state.isOpen) renderStructure();
+    return invokeIpc("agy-studio:save-chat-agent-profile", {
+      chatKey: state.activeChatKey || "__new__",
+      title: state.activeChatTitle || "",
+      profile: norm,
+      setAsDefault: Boolean(optsObj.setAsDefault),
+    }).then((res) => {
+      if (!state.destroyed && res && res.state) applyRemoteState(res.state, false);
+      return res;
+    });
+  }
+
+  function renderLimitsWidgetMount() {
+    if (!limitsMountEl) return;
+    const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : state.settings.limitsWidget;
+    const hidden = !lw || !lw.enabled || Boolean(state.settings.zenMode);
+    if (hidden) {
+      limitsMountEl.className = "rx-limits-mount rx-zen-hidden";
+      limitsMountEl.innerHTML = "";
+      return;
+    }
+    const posCls = lw.layout === "inline-header" ? "pos-inline-header" : (lw.position === "floating" ? "" : `pos-${lw.position || "top-right"}`);
+    limitsMountEl.className = `rx-limits-mount ${posCls}`.trim();
+    if (lw.position === "floating" && typeof lw.floatX === "number" && typeof lw.floatY === "number") {
+      limitsMountEl.style.left = `${Math.max(8, Math.round(lw.floatX))}px`;
+      limitsMountEl.style.top = `${Math.max(8, Math.round(lw.floatY))}px`;
+      limitsMountEl.style.right = "";
+      limitsMountEl.style.bottom = "";
+    } else {
+      limitsMountEl.style.left = "";
+      limitsMountEl.style.top = "";
+      limitsMountEl.style.right = "";
+      limitsMountEl.style.bottom = "";
+    }
+    if (typeof rv5BuildLimitsWidgetHtml === "function") {
+      limitsMountEl.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName, state.locale !== "en");
+    }
+  }
+
+  function positionChatDock() {
+    if (!chatDockMountEl || !doc || typeof rv5FindNativeComposer !== "function") return;
+    if (state.settings.zenMode) {
+      chatDockMountEl.style.display = "none";
+      return;
+    }
+    const { container } = rv5FindNativeComposer(doc);
+    if (!container || typeof container.getBoundingClientRect !== "function") {
+      chatDockMountEl.style.display = "none";
+      return;
+    }
+    const rect = container.getBoundingClientRect();
+    if (!rect || rect.width < 120 || rect.height < 24) {
+      chatDockMountEl.style.display = "none";
+      return;
+    }
+    chatDockMountEl.style.display = "flex";
+    chatDockMountEl.style.left = `${Math.max(8, Math.round(rect.left))}px`;
+    chatDockMountEl.style.width = `${Math.round(rect.width)}px`;
+    const vh = (win && win.innerHeight) || 800;
+    chatDockMountEl.style.bottom = `${Math.max(12, Math.round(vh - rect.top + 6))}px`;
+  }
+
+  function renderChatDockMount() {
+    if (!chatDockMountEl || typeof rv5BuildChatDockHtml !== "function") return;
+    if (state.settings.zenMode) {
+      chatDockMountEl.className = "rx-chat-dock rx-zen-hidden";
+      chatDockMountEl.innerHTML = "";
+      return;
+    }
+    chatDockMountEl.className = "rx-chat-dock";
+    chatDockMountEl.innerHTML = rv5BuildChatDockHtml({
+      agentProfile: state.chatAgentProfile,
+      defaultProfile: state.settings.agentProfileDefault,
+      customPresets: state.settings.customAgentPresets || [],
+      liveEdits: state.liveEdits || [],
+      isGenerating: Boolean(state.telemetry.isGenerating),
+      hasComposerText: Boolean(state.hasComposerText),
+      liveEditInline: state.settings.liveEditInline,
+      urgentMode: Boolean(state.inlineUrgent),
+      popoverOpen: Boolean(state.agentPopoverOpen),
+      isRu: state.locale !== "en",
+    });
+    positionChatDock();
+  }
+
+  function syncChatDockLiveState() {
+    if (!doc || typeof rv5FindNativeComposer !== "function") return;
+    const { editable } = rv5FindNativeComposer(doc);
+    const hasTxt = Boolean(editable && typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).length > 0);
+    if (hasTxt !== state.hasComposerText) {
+      state.hasComposerText = hasTxt;
+      renderChatDockMount();
+    } else {
+      positionChatDock();
+    }
+  }
+
+  function sendInlineLiveEditFromComposer() {
+    if (!doc || typeof rv5FindNativeComposer !== "function") return false;
+    const { editable } = rv5FindNativeComposer(doc);
+    if (!editable || typeof rv5ReadEditableText !== "function") return false;
+    const text = rv5ReadEditableText(editable);
+    if (!text) return false;
+    if (typeof rv5ClearEditableText === "function") rv5ClearEditableText(editable, win);
+    state.hasComposerText = false;
+    const urgent = Boolean(state.inlineUrgent || (state.settings.liveEditInline && state.settings.liveEditInline.urgentIntercept));
+    invokeIpc("agy-studio:send-live-edit", {
+      chatKey: state.activeChatKey || "__new__",
+      title: state.activeChatTitle || "",
+      text,
+      images: [],
+      urgent,
+      fallbackAny: state.activeChatKey === "__new__" || state.activeChatKey.startsWith("chat-"),
+    }).then((res) => {
+      if (!state.destroyed && res && res.ok) {
+        applyLiveEditsPayload(res);
+        renderChatDockMount();
+      }
+    });
+    renderChatDockMount();
+    return true;
+  }
+
+  function renderPickerMount() {
+    if (!pickerMountEl) return;
+    const isRu = state.locale !== "en";
+    const parts = [];
+    if (state.pickerActive) {
+      parts.push(`
+        <div class="rx-picker-banner">
+          <span>🎯 ${isRu ? "Прицел активен — кликните по любому элементу Antigravity (Esc — выход)" : "Picker active — click any Antigravity element (Esc to exit)"}</span>
+          <button type="button" class="btn btn-sm" data-action="stop-element-picker">${isRu ? "Готово" : "Done"}</button>
+        </div>
+      `);
+      if (state.pickerHoverRect) {
+        const r = state.pickerHoverRect;
+        parts.push(`
+          <div class="rx-picker-highlight" style="left:${Math.round(r.left)}px;top:${Math.round(r.top)}px;width:${Math.round(r.width)}px;height:${Math.round(r.height)}px">
+            <span class="rx-picker-tag">${escHtml(state.pickerHoverLabel || "")}</span>
+          </div>
+        `);
+      }
+    }
+    if (state.pickerSelected && typeof rv5BuildElementInspectorHtml === "function") {
+      parts.push(rv5BuildElementInspectorHtml(
+        state.pickerSelected,
+        state.appearanceDraft,
+        state.settings.customLabels || [],
+        state.systemFonts,
+        isRu
+      ));
+    }
+    pickerMountEl.innerHTML = parts.join("");
+  }
+
+  function stopElementPicker() {
+    state.pickerActive = false;
+    state.pickerHoverRect = null;
+    state.pickerHoverLabel = "";
+    if (doc && typeof doc.removeEventListener === "function") {
+      if (pickerMoveHandler) { doc.removeEventListener("mousemove", pickerMoveHandler, true); pickerMoveHandler = null; }
+      if (pickerClickHandler) { doc.removeEventListener("click", pickerClickHandler, true); pickerClickHandler = null; }
+    }
+    renderPickerMount();
+    if (state.isOpen) renderStructure();
+  }
+
+  function startElementPicker() {
+    if (state.pickerActive) {
+      stopElementPicker();
+      return;
+    }
+    loadSystemFontsOnce();
+    state.pickerActive = true;
+    state.appearanceDraft = spCloneAppearance(state.settings.appearance);
+    state.appearanceLivePreview = true;
+    if (state.isOpen) setOpen(false);
+    const isRu = state.locale !== "en";
+    pickerMoveHandler = (e) => {
+      if (!state.pickerActive || !e || !e.target) return;
+      const el = e.target;
+      if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) return;
+      if (typeof el.getBoundingClientRect !== "function") return;
+      const rect = el.getBoundingClientRect();
+      if (!rect || rect.width < 4 || rect.height < 4) return;
+      state.pickerHoverRect = rect;
+      const origTxt = translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(el) : "";
+      state.pickerHoverLabel = typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(el, isRu, origTxt) : (el.tagName || "");
+      renderPickerMount();
+    };
+    pickerClickHandler = (e) => {
+      if (!state.pickerActive || !e || !e.target) return;
+      const el = e.target;
+      if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) return;
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
+      const origTxt = translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(el) : "";
+      const curTxt = String(el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
+      const exactSel = typeof rv5BuildSmartSelector === "function" ? rv5BuildSmartSelector(el, "exact") : "";
+      const simSel = typeof rv5BuildSmartSelector === "function" ? rv5BuildSmartSelector(el, "similar") : exactSel;
+      const friendly = typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(el, isRu, origTxt) : exactSel;
+      const renameable = typeof rv5IsRenameSafeElement === "function" ? rv5IsRenameSafeElement(el) : false;
+      state.pickerSelected = {
+        name: friendly,
+        selector: exactSel,
+        exactSelector: exactSel,
+        similarSelector: simSel,
+        scope: "exact",
+        canToggleScope: exactSel !== simSel,
+        renameable,
+        origText: origTxt || curTxt,
+        currentText: curTxt,
+        zone: "",
+      };
+      stopElementPicker();
+      renderPickerMount();
+    };
+    if (doc && typeof doc.addEventListener === "function") {
+      doc.addEventListener("mousemove", pickerMoveHandler, true);
+      doc.addEventListener("click", pickerClickHandler, true);
+    }
+    renderPickerMount();
+  }
+
+  function upsertSelectedElementStyle(prop, rawVal) {
+    if (!state.pickerSelected || !state.pickerSelected.selector) return;
+    pushAppearanceUndo();
+    const sel = state.pickerSelected;
+    const list = Array.isArray(state.appearanceDraft.elementOverrides) ? state.appearanceDraft.elementOverrides.slice() : [];
+    let idx = list.findIndex((o) => o.id === sel.overrideId || o.selector === sel.selector);
+    let item = idx >= 0 ? Object.assign({}, list[idx], { styles: Object.assign({}, list[idx].styles) }) : {
+      id: sel.overrideId || ("ov-" + Date.now()),
+      name: sel.name || sel.selector,
+      selector: sel.selector,
+      zone: sel.zone || "",
+      scope: sel.scope || "exact",
+      enabled: true,
+      styles: {},
+    };
+    sel.overrideId = item.id;
+    item.styles[prop] = rawVal;
+    if (idx >= 0) list[idx] = item;
+    else list.push(item);
+    state.appearanceDraft.elementOverrides = list;
+    applyThemeFastToHost(state.appearanceDraft);
+    saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+    renderPickerMount();
+  }
+
+  function triggerQuotaSyncClick() {
+    scrapeDomQuotaSnapshot(true);
+    invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
+      if (!state.destroyed && qs) {
+        state.quotaSummary = qs;
+        renderLimitsWidgetMount();
+        if (state.isOpen) renderStructure();
+      }
+    });
+    // Also check if View Usage button exists in DOM to trigger native refresh if user has no snapshot
+    if (doc && typeof doc.querySelectorAll === "function") {
+      const qs = state.quotaSummary;
+      const hasSnap = Boolean(qs && qs.families && (qs.families.gemini.fiveHourRem !== null || qs.families.claudeGpt.fiveHourRem !== null));
+      if (!hasSnap) {
+        const btns = doc.querySelectorAll("button, a");
+        for (let i = 0; i < btns.length; i += 1) {
+          const b = btns[i];
+          if (!b || (hostEl && hostEl.contains(b))) continue;
+          const txt = (b.textContent || "").trim().toLowerCase();
+          if (txt === "посмотреть использование" || txt === "view usage") {
+            try { b.click(); } catch (_e) {}
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  function handleHotkeyAction(action) {
+    if (!action || state.destroyed) return;
+    if (action === "toggleZenUi") {
+      saveSettingsPatch({ zenMode: !state.settings.zenMode });
+      return;
+    }
+    if (action === "togglePicker") {
+      startElementPicker();
+      return;
+    }
+    if (action === "toggleLimitsWidget") {
+      const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : state.settings.limitsWidget;
+      saveSettingsPatch({ limitsWidget: Object.assign({}, lw, { enabled: !lw.enabled }) });
+      return;
+    }
+    if (action === "toggleAgentPopover") {
+      state.agentPopoverOpen = !state.agentPopoverOpen;
+      renderChatDockMount();
+      return;
+    }
+    if (action === "cycleAgentPreset" && typeof RUDEX_AGENT_PRESETS !== "undefined") {
+      const curId = state.chatAgentProfile && state.chatAgentProfile.enabled ? state.chatAgentProfile.presetId : "default";
+      const idx = RUDEX_AGENT_PRESETS.findIndex((p) => p.id === curId);
+      const next = RUDEX_AGENT_PRESETS[(idx + 1) % RUDEX_AGENT_PRESETS.length];
+      if (next) saveChatAgentProfile(Object.assign({}, next.profile, { applyToNewChats: Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats) }));
+      return;
+    }
+    if (action === "cycleWallpaper") {
+      const app = spCloneAppearance(state.settings.appearance);
+      const grads = spGetGradientPresets();
+      if (state.mediaLibrary && state.mediaLibrary.length > 0 && app.wallpaper.type === "image") {
+        const curIdx = state.mediaLibrary.findIndex((m) => m.fileName === app.wallpaper.mediaFile);
+        const nxt = state.mediaLibrary[(curIdx + 1) % state.mediaLibrary.length];
+        if (nxt) {
+          app.wallpaper.mediaFile = nxt.fileName;
+          app.wallpaper.mediaUrl = nxt.url;
+          app.wallpaper.type = nxt.type === "video" ? "video" : "image";
+        }
+      } else {
+        const curIdx = grads.findIndex((g) => g.id === app.wallpaper.gradientPreset);
+        const nxt = grads[(curIdx + 1) % grads.length];
+        app.wallpaper.type = "gradient";
+        app.wallpaper.gradientPreset = nxt.id;
+        app.wallpaper.gradColors = nxt.colors.slice();
+        app.wallpaper.gradAngle = nxt.angle;
+      }
+      state.appearanceDraft = spCloneAppearance(app);
+      saveSettingsPatch({ appearance: app });
+      return;
+    }
+    if (action === "toggleWallpaper") {
+      const app = spCloneAppearance(state.settings.appearance);
+      app.wallpaper.type = app.wallpaper.type === "none" ? (app.wallpaper.mediaUrl ? "image" : "gradient") : "none";
+      state.appearanceDraft = spCloneAppearance(app);
+      saveSettingsPatch({ appearance: app });
+      return;
+    }
+    if (action === "cycleTheme") {
+      const presets = spGetThemePresets();
+      const app = spCloneAppearance(state.settings.appearance);
+      const idx = presets.findIndex((p) => p.id === app.presetId);
+      const next = presets[(idx + 1) % presets.length];
+      if (next) {
+        app.presetId = next.id;
+        if (next.vars) {
+          app.accentColor = next.vars.accentColor;
+          app.canvasBg = next.vars.canvasBg;
+          app.cardBg = next.vars.cardBg;
+        }
+        state.appearanceDraft = spCloneAppearance(app);
+        saveSettingsPatch({ appearance: app });
+      }
+      return;
+    }
+    if (action === "toggleDarkLight") {
+      const app = spCloneAppearance(state.settings.appearance);
+      const nextId = app.presetId === "claude-code-light" ? "claude-code-dark" : "claude-code-light";
+      const found = spFindThemePreset(nextId);
+      if (found) {
+        app.presetId = found.id;
+        app.accentColor = found.vars.accentColor;
+        app.canvasBg = found.vars.canvasBg;
+        app.cardBg = found.vars.cardBg;
+        state.appearanceDraft = spCloneAppearance(app);
+        saveSettingsPatch({ appearance: app });
+      }
+      return;
+    }
+    if (action === "openTabAgent") { setOpen(true, { tab: "persona" }); return; }
+    if (action === "openTabDesign") { setOpen(true, { tab: "appearance" }); return; }
+    if (action === "openTabLimits") { setOpen(true, { tab: "monitor" }); return; }
+    if (action === "openTabWorkshop") { setOpen(true, { tab: "settings", subTab: "workshop" }); refreshWorkshopData(); return; }
+    if (action === "emergencyResetOverrides") {
+      const app = spCloneAppearance(state.settings.appearance);
+      app.overridesPaused = !app.overridesPaused;
+      state.appearanceDraft = spCloneAppearance(app);
+      saveSettingsPatch({ appearance: app });
+    }
   }
 
   function selectPreset(id) {
@@ -6049,6 +6647,480 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "close-modal") { setOpen(false); return; }
+    // === RUDEX 5.0 ACTIONS ===
+    if (action === "jump-search-hit") {
+      const tab = actionEl.getAttribute("data-tab") || "appearance";
+      const appSub = actionEl.getAttribute("data-app-sub") || "";
+      const setSub = actionEl.getAttribute("data-set-sub") || "";
+      state.settingsSearchQuery = "";
+      state.activeTab = tab;
+      if (appSub) state.appearanceSubTab = appSub;
+      if (setSub) state.settingsSubTab = setSub;
+      if (tab === "appearance" && (appSub === "text" || appSub === "elements")) loadSystemFontsOnce();
+      if (setSub === "workshop") refreshWorkshopData();
+      renderStructure();
+      return;
+    }
+    if (action === "set-border-preset") {
+      const val = actionEl.getAttribute("data-val") || "crisp";
+      pushAppearanceUndo();
+      state.appearanceDraft.borderPreset = val === "airy" || val === "contrast" ? val : "crisp";
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "undo-appearance") {
+      if (state.appearanceUndoStack.length > 0) {
+        state.appearanceRedoStack.push(JSON.stringify(state.appearanceDraft));
+        const prevJson = state.appearanceUndoStack.pop();
+        try {
+          state.appearanceDraft = spCloneAppearance(JSON.parse(prevJson));
+          markAppearanceDirty();
+          saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+        } catch (_e) {}
+      }
+      return;
+    }
+    if (action === "redo-appearance") {
+      if (state.appearanceRedoStack.length > 0) {
+        state.appearanceUndoStack.push(JSON.stringify(state.appearanceDraft));
+        const nextJson = state.appearanceRedoStack.pop();
+        try {
+          state.appearanceDraft = spCloneAppearance(JSON.parse(nextJson));
+          markAppearanceDirty();
+          saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+        } catch (_e) {}
+      }
+      return;
+    }
+    if (action === "start-element-picker") { startElementPicker(); return; }
+    if (action === "stop-element-picker") { stopElementPicker(); return; }
+    if (action === "close-element-inspector") { state.pickerSelected = null; renderPickerMount(); return; }
+    if (action === "toggle-overrides-paused") {
+      pushAppearanceUndo();
+      state.appearanceDraft.overridesPaused = !state.appearanceDraft.overridesPaused;
+      saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+      return;
+    }
+    if (action === "edit-ui-zone" && typeof RUDEX_UI_ZONES !== "undefined") {
+      loadSystemFontsOnce();
+      const zid = actionEl.getAttribute("data-zone-id");
+      const zone = RUDEX_UI_ZONES.find((z) => z.id === zid);
+      if (zone) {
+        const existing = (state.appearanceDraft.elementOverrides || []).find((o) => o.zone === zone.id || o.selector === zone.selector);
+        state.pickerSelected = {
+          overrideId: existing ? existing.id : ("zone-" + zone.id),
+          name: state.locale !== "en" ? zone.nameRu : zone.nameEn,
+          selector: zone.selector,
+          zone: zone.id,
+          scope: "similar",
+          canToggleScope: false,
+          renameable: false,
+          origText: "",
+        };
+        renderPickerMount();
+      }
+      return;
+    }
+    if (action === "edit-override-item") {
+      loadSystemFontsOnce();
+      const oid = actionEl.getAttribute("data-id");
+      const ov = (state.appearanceDraft.elementOverrides || []).find((o) => o.id === oid);
+      if (ov) {
+        state.pickerSelected = {
+          overrideId: ov.id,
+          name: ov.name || ov.selector,
+          selector: ov.selector,
+          zone: ov.zone || "",
+          scope: ov.scope || "exact",
+          canToggleScope: false,
+          renameable: false,
+          origText: "",
+        };
+        renderPickerMount();
+      }
+      return;
+    }
+    if (action === "toggle-override-item") {
+      pushAppearanceUndo();
+      const oid = actionEl.getAttribute("data-id");
+      state.appearanceDraft.elementOverrides = (state.appearanceDraft.elementOverrides || []).map((o) =>
+        o.id === oid ? Object.assign({}, o, { enabled: o.enabled === false }) : o
+      );
+      saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+      return;
+    }
+    if (action === "delete-override-item") {
+      pushAppearanceUndo();
+      const oid = actionEl.getAttribute("data-id");
+      state.appearanceDraft.elementOverrides = (state.appearanceDraft.elementOverrides || []).filter((o) => o.id !== oid);
+      if (state.pickerSelected && state.pickerSelected.overrideId === oid) state.pickerSelected = null;
+      saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+      renderPickerMount();
+      return;
+    }
+    if (action === "clear-all-overrides") {
+      pushAppearanceUndo();
+      state.appearanceDraft.elementOverrides = [];
+      state.pickerSelected = null;
+      saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+      renderPickerMount();
+      return;
+    }
+    if (action === "inspector-set-scope" && state.pickerSelected) {
+      const sc = actionEl.getAttribute("data-val") === "similar" ? "similar" : "exact";
+      state.pickerSelected.scope = sc;
+      state.pickerSelected.selector = sc === "similar" ? state.pickerSelected.similarSelector : state.pickerSelected.exactSelector;
+      renderPickerMount();
+      return;
+    }
+    if (action === "inspector-clear-style" && state.pickerSelected) {
+      const prop = actionEl.getAttribute("data-prop");
+      if (prop) upsertSelectedElementStyle(prop, "");
+      return;
+    }
+    if (action === "inspector-toggle-hidden" && state.pickerSelected) {
+      const ov = (state.appearanceDraft.elementOverrides || []).find((o) => o.id === state.pickerSelected.overrideId || o.selector === state.pickerSelected.selector);
+      upsertSelectedElementStyle("hidden", !(ov && ov.styles && ov.styles.hidden));
+      return;
+    }
+    if (action === "inspector-reset-element" && state.pickerSelected) {
+      pushAppearanceUndo();
+      const sel = state.pickerSelected;
+      state.appearanceDraft.elementOverrides = (state.appearanceDraft.elementOverrides || []).filter((o) => o.id !== sel.overrideId && o.selector !== sel.selector);
+      saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+      renderPickerMount();
+      return;
+    }
+    if (action === "inspector-save-rename" && state.pickerSelected) {
+      const inp = pickerMountEl ? pickerMountEl.querySelector('[data-role="inspectorRenameInput"]') : null;
+      const nextLbl = inp ? String(inp.value || "").trim() : "";
+      const match = String(state.pickerSelected.origText || "").trim();
+      if (match && nextLbl) {
+        const cur = (state.settings.customLabels || []).filter((l) => l.match.toLowerCase() !== match.toLowerCase());
+        cur.push({ id: "lbl-" + Date.now(), matchType: "exact", match, label: nextLbl, enabled: true });
+        saveSettingsPatch({ customLabels: cur });
+        renderPickerMount();
+      }
+      return;
+    }
+    if (action === "add-custom-label") {
+      const m = String(state.newLabelMatch || "").trim();
+      const l = String(state.newLabelText || "").trim();
+      if (m && l) {
+        const next = (state.settings.customLabels || []).concat([{ id: "lbl-" + Date.now(), matchType: "exact", match: m, label: l, enabled: true }]);
+        state.newLabelMatch = "";
+        state.newLabelText = "";
+        saveSettingsPatch({ customLabels: next });
+      }
+      return;
+    }
+    if (action === "toggle-custom-label") {
+      const lid = actionEl.getAttribute("data-id");
+      const next = (state.settings.customLabels || []).map((l) => l.id === lid ? Object.assign({}, l, { enabled: l.enabled === false }) : l);
+      saveSettingsPatch({ customLabels: next });
+      return;
+    }
+    if (action === "delete-custom-label") {
+      const lid = actionEl.getAttribute("data-id");
+      const next = (state.settings.customLabels || []).filter((l) => l.id !== lid);
+      saveSettingsPatch({ customLabels: next });
+      return;
+    }
+    if (action === "toggle-agent-popover") {
+      state.agentPopoverOpen = !state.agentPopoverOpen;
+      renderChatDockMount();
+      return;
+    }
+    if (action === "open-agent-full") {
+      state.agentPopoverOpen = false;
+      setOpen(true, { tab: "persona" });
+      return;
+    }
+    if (action === "toggle-agent-enabled") {
+      const next = Object.assign({}, state.chatAgentProfile, { enabled: !state.chatAgentProfile.enabled });
+      saveChatAgentProfile(next);
+      return;
+    }
+    if (action === "toggle-agent-default-new") {
+      const curDef = Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats && state.settings.agentProfileDefault.enabled);
+      const next = Object.assign({}, state.chatAgentProfile, { enabled: !curDef ? true : state.chatAgentProfile.enabled, applyToNewChats: !curDef });
+      saveChatAgentProfile(next, { setAsDefault: true });
+      return;
+    }
+    if (action === "apply-agent-preset" && typeof RUDEX_AGENT_PRESETS !== "undefined") {
+      const pid = actionEl.getAttribute("data-id");
+      const preset = RUDEX_AGENT_PRESETS.find((p) => p.id === pid);
+      if (preset) {
+        const keepDef = Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats);
+        const next = Object.assign({}, state.chatAgentProfile, preset.profile, { applyToNewChats: keepDef });
+        saveChatAgentProfile(next, { setAsDefault: keepDef });
+      }
+      return;
+    }
+    if (action === "apply-custom-agent-preset") {
+      if (targetEl.closest && targetEl.closest('[data-action="delete-custom-agent-preset"]')) return;
+      const pid = actionEl.getAttribute("data-id");
+      const found = (state.settings.customAgentPresets || []).find((p) => p.id === pid);
+      if (found && found.profile) {
+        saveChatAgentProfile(Object.assign({}, found.profile, { presetId: found.id, presetLabel: found.name, enabled: true }));
+      }
+      return;
+    }
+    if (action === "delete-custom-agent-preset") {
+      const pid = actionEl.getAttribute("data-id");
+      const next = (state.settings.customAgentPresets || []).filter((p) => p.id !== pid);
+      saveSettingsPatch({ customAgentPresets: next });
+      return;
+    }
+    if (action === "save-custom-agent-preset") {
+      const name = String(state.newAgentPresetName || "").trim().slice(0, 44);
+      if (!name) return;
+      const id = "ap-" + Date.now();
+      const next = (state.settings.customAgentPresets || []).concat([{
+        id,
+        name,
+        icon: "⚡",
+        profile: Object.assign({}, state.chatAgentProfile, { presetId: id, presetLabel: name, enabled: true }),
+      }]).slice(-20);
+      state.newAgentPresetName = "";
+      saveSettingsPatch({ customAgentPresets: next });
+      return;
+    }
+    if (action === "set-agent-field") {
+      const f = actionEl.getAttribute("data-field");
+      const v = actionEl.getAttribute("data-val");
+      if (f && v) {
+        const next = Object.assign({}, state.chatAgentProfile, { [f]: v, enabled: true, presetId: "custom" });
+        saveChatAgentProfile(next, { setAsDefault: Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats) });
+      }
+      return;
+    }
+    if (action === "toggle-agent-bool") {
+      const f = actionEl.getAttribute("data-field");
+      if (f) {
+        const next = Object.assign({}, state.chatAgentProfile, { [f]: !state.chatAgentProfile[f], enabled: true, presetId: "custom" });
+        saveChatAgentProfile(next, { setAsDefault: Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats) });
+      }
+      return;
+    }
+    if (action === "quick-toggle-agent") {
+      const k = actionEl.getAttribute("data-key");
+      const next = Object.assign({}, state.chatAgentProfile, { enabled: true, presetId: "custom" });
+      if (k === "subagents") next.subagents = next.subagents === "parallel" ? "auto" : "parallel";
+      else if (k === "webSearch") next.webSearch = next.webSearch === "always" ? "auto" : "always";
+      else if (k === "browser") next.browser = next.browser === "verify" ? "auto" : "verify";
+      else if (k === "planFirst") next.planFirst = next.planFirst === "strict" ? "auto" : "strict";
+      else if (k === "autoVerify") next.autoVerify = !next.autoVerify;
+      else if (k === "readonly") next.safetyMode = next.safetyMode === "readonly" ? "normal" : "readonly";
+      saveChatAgentProfile(next);
+      return;
+    }
+    if (action === "toggle-live-inline") {
+      const f = actionEl.getAttribute("data-field");
+      if (f) {
+        const cur = Object.assign({}, state.settings.liveEditInline || {});
+        cur[f] = !cur[f];
+        if (f === "urgentIntercept") state.inlineUrgent = Boolean(cur[f]);
+        saveSettingsPatch({ liveEditInline: cur });
+      }
+      return;
+    }
+    if (action === "toggle-urgent-live") {
+      state.inlineUrgent = !state.inlineUrgent;
+      renderChatDockMount();
+      return;
+    }
+    if (action === "send-inline-live-edit") {
+      sendInlineLiveEditFromComposer();
+      return;
+    }
+    if (action === "cancel-live-edit") {
+      const eid = actionEl.getAttribute("data-id");
+      if (eid) {
+        invokeIpc("agy-studio:cancel-live-edit", { id: eid, chatKey: state.activeChatKey || "__new__" }).then((res) => {
+          if (!state.destroyed && res && res.ok) {
+            applyLiveEditsPayload(res);
+            renderChatDockMount();
+          }
+        });
+      }
+      return;
+    }
+    if (action === "toggle-limits-bool") {
+      const f = actionEl.getAttribute("data-field");
+      if (f) {
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+        lw[f] = !lw[f];
+        if (f === "onlyLimitsMode" && lw.onlyLimitsMode) lw.enabled = true;
+        saveSettingsPatch({ limitsWidget: lw });
+      }
+      return;
+    }
+    if (action === "set-limits-field") {
+      const f = actionEl.getAttribute("data-field");
+      const v = actionEl.getAttribute("data-val");
+      if (f) {
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+        lw[f] = v;
+        saveSettingsPatch({ limitsWidget: lw });
+      }
+      return;
+    }
+    if (action === "reset-limits-colors") {
+      const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+      lw.bgColor = "";
+      lw.textColor = "";
+      lw.borderColor = "";
+      saveSettingsPatch({ limitsWidget: lw });
+      return;
+    }
+    if (action === "sync-limits-now") { triggerQuotaSyncClick(); return; }
+    if (action === "open-limits-settings") { setOpen(true, { tab: "monitor" }); return; }
+    if (action === "record-keybinding") {
+      const id = actionEl.getAttribute("data-id") || "";
+      state.recordingKeybindingId = state.recordingKeybindingId === id ? "" : id;
+      renderStructure();
+      return;
+    }
+    if (action === "clear-keybinding") {
+      const id = actionEl.getAttribute("data-id") || "";
+      if (id) {
+        const kb = Object.assign({}, state.settings.keybindings || {});
+        kb[id] = "";
+        saveSettingsPatch({ keybindings: kb });
+      }
+      return;
+    }
+    if (action === "reset-all-keybindings" && typeof RUDEX_KEYBINDINGS_DEFAULTS !== "undefined") {
+      state.recordingKeybindingId = "";
+      saveSettingsPatch({ keybindings: Object.assign({}, RUDEX_KEYBINDINGS_DEFAULTS) });
+      return;
+    }
+    if (action === "ws-set-scope") {
+      state.workshop.scope = actionEl.getAttribute("data-val") || "global";
+      renderStructure();
+      return;
+    }
+    if (action === "ws-set-sub") {
+      state.workshop.sub = actionEl.getAttribute("data-val") || "rules";
+      renderStructure();
+      return;
+    }
+    if (action === "ws-refresh") { refreshWorkshopData(); return; }
+    if (action === "ws-open-path") {
+      const fp = actionEl.getAttribute("data-path");
+      if (fp) invokeIpc("agy-studio:open-path", { path: fp });
+      return;
+    }
+    if (action === "ws-save-rule") {
+      const d = state.workshop.draft || {};
+      if (!String(d.ruleBody || "").trim()) return;
+      invokeIpc("agy-studio:workshop-save-rule", {
+        scope: state.workshop.scope === "workspace" ? "workspace" : "global",
+        fileName: d.ruleFileName || "custom-rule.md",
+        body: d.ruleBody,
+        enabled: true,
+      }).then((res) => {
+        if (res && res.ok) {
+          state.workshop.draft.ruleFileName = "";
+          state.workshop.draft.ruleBody = "";
+          refreshWorkshopData();
+        }
+      });
+      return;
+    }
+    if (action === "ws-toggle-rule") {
+      const fp = actionEl.getAttribute("data-path");
+      const wasEn = actionEl.getAttribute("data-enabled") === "1";
+      if (fp) {
+        invokeIpc("agy-studio:workshop-save-rule", { path: fp, enabled: !wasEn }).then(() => refreshWorkshopData());
+      }
+      return;
+    }
+    if (action === "ws-delete-rule") {
+      const fp = actionEl.getAttribute("data-path");
+      if (fp) invokeIpc("agy-studio:workshop-delete-rule", { path: fp }).then(() => refreshWorkshopData());
+      return;
+    }
+    if (action === "ws-save-skill") {
+      const d = state.workshop.draft || {};
+      if (!String(d.skillName || "").trim()) return;
+      invokeIpc("agy-studio:workshop-save-skill", {
+        scope: state.workshop.scope === "workspace" ? "workspace" : "global",
+        name: d.skillName,
+        description: d.skillDesc || "",
+        body: d.skillBody || "",
+      }).then((res) => {
+        if (res && res.ok) {
+          state.workshop.draft.skillName = "";
+          state.workshop.draft.skillDesc = "";
+          state.workshop.draft.skillBody = "";
+          refreshWorkshopData();
+        }
+      });
+      return;
+    }
+    if (action === "ws-pin-skill") {
+      const sname = actionEl.getAttribute("data-name");
+      if (sname) {
+        const cur = Array.isArray(state.chatAgentProfile.pinnedSkills) ? state.chatAgentProfile.pinnedSkills.slice() : [];
+        if (!cur.includes(sname)) cur.push(sname);
+        saveChatAgentProfile(Object.assign({}, state.chatAgentProfile, { pinnedSkills: cur, enabled: true }));
+        setToast(state.locale !== "en" ? `Скилл «${sname}» прикреплён к агенту` : `Pinned "${sname}" to Agent`, false);
+      }
+      return;
+    }
+    if (action === "ws-save-mcp") {
+      const d = state.workshop.draft || {};
+      if (!String(d.mcpName || "").trim()) return;
+      invokeIpc("agy-studio:workshop-save-mcp", {
+        scope: state.workshop.scope === "workspace" ? "workspace" : "global",
+        name: d.mcpName,
+        command: d.mcpCommand || "",
+        argsText: d.mcpArgs || "",
+        url: d.mcpUrl || "",
+      }).then((res) => {
+        if (res && res.ok) {
+          state.workshop.draft.mcpName = "";
+          state.workshop.draft.mcpCommand = "";
+          state.workshop.draft.mcpArgs = "";
+          state.workshop.draft.mcpUrl = "";
+          refreshWorkshopData();
+        }
+      });
+      return;
+    }
+    if (action === "ws-toggle-mcp") {
+      const mname = actionEl.getAttribute("data-name");
+      const mscope = actionEl.getAttribute("data-scope") || "global";
+      const wasDis = actionEl.getAttribute("data-disabled") === "1";
+      if (mname) {
+        invokeIpc("agy-studio:workshop-save-mcp", { scope: mscope, name: mname, disabled: !wasDis }).then(() => refreshWorkshopData());
+      }
+      return;
+    }
+    if (action === "ws-delete-mcp") {
+      const mname = actionEl.getAttribute("data-name");
+      const mscope = actionEl.getAttribute("data-scope") || "global";
+      if (mname) invokeIpc("agy-studio:workshop-delete-mcp", { scope: mscope, name: mname }).then(() => refreshWorkshopData());
+      return;
+    }
+    if (action === "export-config-json") {
+      invokeIpc("agy-studio:export-config-json").then((res) => {
+        if (res && res.ok) setToast(state.locale !== "en" ? "Профиль Rudex сохранён в JSON" : "Rudex profile exported to JSON", false);
+      });
+      return;
+    }
+    if (action === "import-config-json") {
+      invokeIpc("agy-studio:import-config-json").then((res) => {
+        if (res && res.ok && res.state) {
+          applyRemoteState(res.state, false);
+          setToast(state.locale !== "en" ? "Профиль Rudex импортирован" : "Rudex profile imported", false);
+        }
+      });
+      return;
+    }
     if (action === "open-settings") { setOpen(true); return; }
     if (action === "open-persona-tab") { state.activeTab = "persona"; setOpen(true); return; }
     if (action === "open-export-limits") {
@@ -6171,12 +7243,14 @@ function createStudioPanel(options) {
       const sub = actionEl.getAttribute("data-val") || "theme";
       state.appearanceSubTab = sub;
       if (sub === "wallpaper") refreshMediaLibrary();
+      if (sub === "text" || sub === "elements") loadSystemFontsOnce();
       renderStructure();
       return;
     }
     if (action === "set-settings-subtab") {
       const sub = actionEl.getAttribute("data-val") || "widget";
       state.settingsSubTab = sub;
+      if (sub === "workshop") refreshWorkshopData();
       if (sub === "export") {
         invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
           if (!state.destroyed && qs) {
@@ -7060,9 +8134,41 @@ function createStudioPanel(options) {
       else if (sub === "rotate" || sub === "hue") labelText = `${n}°`;
       else labelText = `${n}%`;
       updateLiveWallpaperPreviewDom();
-    } else if (field === "typography.uiFont" || field === "typography.monoFont") {
+    } else if (
+      field === "typography.uiFont" ||
+      field === "typography.monoFont" ||
+      field === "typography.inputFont" ||
+      field === "typography.userMsgFont" ||
+      field === "typography.agentFont" ||
+      field === "typography.thinkingFont"
+    ) {
       const sub = field.split(".")[1];
+      pushAppearanceUndo();
       draft.typography[sub] = String(rawVal || "system");
+      markAppearanceDirty();
+      renderStructure();
+      return true;
+    } else if (
+      field === "typography.uiFontCustom" ||
+      field === "typography.inputFontCustom" ||
+      field === "typography.userMsgFontCustom" ||
+      field === "typography.agentFontCustom" ||
+      field === "typography.thinkingFontCustom" ||
+      field === "typography.monoFontCustom"
+    ) {
+      const sub = field.split(".")[1];
+      draft.typography[sub] = String(rawVal || "").slice(0, 64);
+      markAppearanceDirty();
+      return true;
+    } else if (
+      field === "typography.uiFontSize" ||
+      field === "typography.inputFontSize" ||
+      field === "typography.agentFontSize" ||
+      field === "typography.codeFontSize"
+    ) {
+      const sub = field.split(".")[1];
+      const n = Math.round(Number(rawVal) || 0);
+      draft.typography[sub] = n > 0 ? n : 0;
       markAppearanceDirty();
       renderStructure();
       return true;
@@ -7301,6 +8407,24 @@ function createStudioPanel(options) {
       updateLiveWallpaperPreviewDom();
       return;
     }
+    if (limitsDragState && limitsMountEl) {
+      const dx = e.clientX - limitsDragState.startX;
+      const dy = e.clientY - limitsDragState.startY;
+      if (!limitsDragState.moved && Math.hypot(dx, dy) < 5) return;
+      limitsDragState.moved = true;
+      const vw = (win && win.innerWidth) || 1280;
+      const vh = (win && win.innerHeight) || 800;
+      const nx = Math.max(8, Math.min(vw - 120, Math.round(limitsDragState.origLeft + dx)));
+      const ny = Math.max(8, Math.min(vh - 40, Math.round(limitsDragState.origTop + dy)));
+      limitsDragState.lastX = nx;
+      limitsDragState.lastY = ny;
+      limitsMountEl.className = "rx-limits-mount";
+      limitsMountEl.style.left = `${nx}px`;
+      limitsMountEl.style.top = `${ny}px`;
+      limitsMountEl.style.right = "";
+      limitsMountEl.style.bottom = "";
+      return;
+    }
     if (!dragState || !widgetMountEl || state.settings.pinned) return;
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
@@ -7364,6 +8488,18 @@ function createStudioPanel(options) {
           try { stageEl.releasePointerCapture(pid); } catch (_e) {}
         }
       }
+    }
+    if (limitsDragState) {
+      const ls = limitsDragState;
+      limitsDragState = null;
+      if (ls.moved) {
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+        lw.position = "floating";
+        lw.floatX = ls.lastX;
+        lw.floatY = ls.lastY;
+        saveSettingsPatch({ limitsWidget: lw });
+      }
+      return;
     }
     if (!dragState) return;
     const wasMoved = dragState.moved;
@@ -7447,6 +8583,15 @@ function createStudioPanel(options) {
         state.newPresetName = target.value || "";
       } else if (role === "newProfileInput") {
         state.newProfileName = target.value || "";
+      } else if (role === "settingsSearch") {
+        state.settingsSearchQuery = target.value || "";
+        renderStructure();
+      } else if (role === "newLabelMatch") {
+        state.newLabelMatch = target.value || "";
+      } else if (role === "newLabelText") {
+        state.newLabelText = target.value || "";
+      } else if (role === "newAgentPresetName") {
+        state.newAgentPresetName = target.value || "";
       } else if (role === "liveEditInput") {
         state.liveEditDraftText = target.value || "";
         const canSend = Boolean(state.liveEditDraftText.trim() || (state.liveEditDraftImages && state.liveEditDraftImages.length > 0)) && !state.liveEditBusy;
@@ -7454,6 +8599,42 @@ function createStudioPanel(options) {
         for (let b = 0; b < sendBtns.length; b += 1) {
           sendBtns[b].disabled = !canSend;
         }
+      }
+      const lf = target.getAttribute("data-limits-field");
+      if (lf) {
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+        if (lf === "fontSize" || lf === "scale" || lf === "bgOpacity" || lf === "borderRadius" || lf === "blur") {
+          lw[lf] = Math.round(Number(target.value) || 0);
+        } else {
+          lw[lf] = target.value || "";
+        }
+        saveSettingsPatch({ limitsWidget: lw });
+        return;
+      }
+      const inspProp = target.getAttribute("data-insp-style");
+      if (inspProp) {
+        const numProps = new Set(["fontSize", "fontWeight", "borderWidth", "borderRadius", "padding", "width", "minHeight"]);
+        const val = numProps.has(inspProp) ? (target.value === "" ? -1 : Number(target.value)) : (target.value || "");
+        upsertSelectedElementStyle(inspProp, val);
+        return;
+      }
+      const wsDraftKey = target.getAttribute("data-ws-draft");
+      if (wsDraftKey) {
+        state.workshop.draft[wsDraftKey] = target.value || "";
+        return;
+      }
+      const agentListKey = target.getAttribute("data-agent-list");
+      if (agentListKey) {
+        const arr = String(target.value || "").split(",").map((s) => s.trim()).filter(Boolean);
+        saveChatAgentProfile(Object.assign({}, state.chatAgentProfile, { [agentListKey]: arr, enabled: true }));
+        return;
+      }
+      const liveInlineField = target.getAttribute("data-live-inline-field");
+      if (liveInlineField) {
+        const cur = Object.assign({}, state.settings.liveEditInline || {});
+        cur[liveInlineField] = target.value || "enter";
+        saveSettingsPatch({ liveEditInline: cur });
+        return;
       }
     });
 
@@ -7591,6 +8772,17 @@ function createStudioPanel(options) {
       if (!target || typeof target.getAttribute !== "function") return;
       if (target.tagName === "SELECT" && target.getAttribute("data-app-field")) {
         handleAppearanceFieldInput(target);
+      } else if (target.tagName === "SELECT" && target.getAttribute("data-limits-field")) {
+        const lf = target.getAttribute("data-limits-field");
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+        lw[lf] = target.value || "";
+        saveSettingsPatch({ limitsWidget: lw });
+      } else if (target.tagName === "SELECT" && target.getAttribute("data-insp-style")) {
+        upsertSelectedElementStyle(target.getAttribute("data-insp-style"), target.value || "");
+      } else if (target.tagName === "SELECT" && target.getAttribute("data-live-inline-field")) {
+        const cur = Object.assign({}, state.settings.liveEditInline || {});
+        cur[target.getAttribute("data-live-inline-field")] = target.value || "enter";
+        saveSettingsPatch({ liveEditInline: cur });
       }
     });
 
@@ -7645,6 +8837,7 @@ function createStudioPanel(options) {
         syncTheme();
         clampWidgetToViewport();
         positionPopover();
+        positionChatDock();
       };
       win.addEventListener("resize", resizeHandler);
 
@@ -7672,12 +8865,73 @@ function createStudioPanel(options) {
       doc.addEventListener("visibilitychange", visChangeHandler);
 
       keydownHandler = (e) => {
-        if (e && e.key === "Escape") {
+        if (!e) return;
+        // 1. Keybinding recorder mode
+        if (state.recordingKeybindingId && typeof rv5FormatKeyboardEvent === "function") {
+          const formatted = rv5FormatKeyboardEvent(e);
+          if (formatted) {
+            if (typeof e.preventDefault === "function") e.preventDefault();
+            if (typeof e.stopPropagation === "function") e.stopPropagation();
+            if (formatted === "__CANCEL__") {
+              state.recordingKeybindingId = "";
+              renderStructure();
+              return;
+            }
+            const kb = Object.assign({}, state.settings.keybindings || {});
+            kb[state.recordingKeybindingId] = formatted === "__CLEAR__" ? "" : formatted;
+            state.recordingKeybindingId = "";
+            saveSettingsPatch({ keybindings: kb });
+            return;
+          }
+        }
+        // 2. Escape closes Picker / Inspector / Popovers / Studio
+        if (e.key === "Escape") {
+          if (state.pickerActive) {
+            stopElementPicker();
+            return;
+          }
+          if (state.pickerSelected) {
+            state.pickerSelected = null;
+            renderPickerMount();
+            return;
+          }
+          if (state.agentPopoverOpen) {
+            state.agentPopoverOpen = false;
+            renderChatDockMount();
+            return;
+          }
           if (state.liveEditOpen) {
             state.liveEditOpen = false;
             renderPopoverStructure();
           } else if (state.isOpen) {
             setOpen(false);
+          }
+          return;
+        }
+        // 3. Inline live-edit capture inside native Antigravity composer while agent is running
+        const le = state.settings.liveEditInline;
+        if (
+          le &&
+          le.enabled &&
+          le.sendKey !== "button-only" &&
+          state.telemetry.isGenerating &&
+          !e.isComposing &&
+          e.key === "Enter" &&
+          !e.shiftKey &&
+          !e.altKey
+        ) {
+          const wantCtrl = le.sendKey === "ctrl+enter";
+          const hasCtrl = Boolean(e.ctrlKey || e.metaKey);
+          if (wantCtrl === hasCtrl && typeof rv5FindNativeComposer === "function") {
+            const { editable } = rv5FindNativeComposer(doc);
+            if (editable && (e.target === editable || (typeof editable.contains === "function" && editable.contains(e.target)))) {
+              const txt = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+              if (txt) {
+                if (typeof e.preventDefault === "function") e.preventDefault();
+                if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+                sendInlineLiveEditFromComposer();
+              }
+            }
           }
         }
       };
@@ -7717,11 +8971,17 @@ function createStudioPanel(options) {
     }
 
     styleEl = doc.createElement("style");
-    styleEl.textContent = stylesFn();
+    styleEl.textContent = stylesFn() + (typeof rv5BuildExtraShadowCss === "function" ? "\n" + rv5BuildExtraShadowCss() : "");
     rootEl = doc.createElement("div");
     rootEl.className = "studio-root";
     widgetMountEl = doc.createElement("div");
     widgetMountEl.className = "widget-wrap";
+    limitsMountEl = doc.createElement("div");
+    limitsMountEl.className = "rx-limits-mount rx-zen-hidden";
+    chatDockMountEl = doc.createElement("div");
+    chatDockMountEl.className = "rx-chat-dock";
+    pickerMountEl = doc.createElement("div");
+    pickerMountEl.className = "rx-picker-mount";
     popoverMountEl = doc.createElement("div");
     popoverMountEl.className = "le-popover-mount";
     updateToastMountEl = doc.createElement("div");
@@ -7730,11 +8990,27 @@ function createStudioPanel(options) {
     modalMountEl.className = "modal-mount";
 
     rootEl.appendChild(widgetMountEl);
+    rootEl.appendChild(limitsMountEl);
+    rootEl.appendChild(chatDockMountEl);
     rootEl.appendChild(popoverMountEl);
     rootEl.appendChild(updateToastMountEl);
     rootEl.appendChild(modalMountEl);
+    rootEl.appendChild(pickerMountEl);
     shadowRoot.appendChild(styleEl);
     shadowRoot.appendChild(rootEl);
+
+    if (limitsMountEl) {
+      limitsMountEl.addEventListener("pointerdown", (e) => {
+        if (!e || (typeof e.button === "number" && e.button !== 0)) return;
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : state.settings.limitsWidget;
+        if (lw && lw.pinned) return;
+        const tEl = e.target;
+        if (!tEl || typeof tEl.closest !== "function" || tEl.closest("button")) return;
+        if (!tEl.closest('[data-limits-drag="1"]')) return;
+        const rect = typeof limitsMountEl.getBoundingClientRect === "function" ? limitsMountEl.getBoundingClientRect() : { left: 20, top: 44, width: 240, height: 60 };
+        limitsDragState = { startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top, lastX: rect.left, lastY: rect.top, moved: false };
+      });
+    }
 
     attachDomEvents();
     state.mounted = true;
@@ -7882,12 +9158,25 @@ function createStudioPanel(options) {
     state.isOpen = next;
     if (next && state.activeTab === "appearance") {
       state.appearanceLivePreview = true;
+      loadSystemFontsOnce();
       if (!state.appearanceDirty) {
         state.appearanceDraft = spCloneAppearance(state.settings.appearance);
         state.greetingDraft = spCloneGreeting(state.settings.greeting);
       }
       applyThemeFastToHost(state.appearanceDraft);
       if (state.appearanceSubTab === "wallpaper") refreshMediaLibrary();
+    }
+    if (next && state.activeTab === "monitor") {
+      loadSystemFontsOnce();
+      invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
+        if (!state.destroyed && qs) {
+          state.quotaSummary = qs;
+          if (state.isOpen && state.activeTab === "monitor") renderStructure();
+        }
+      });
+    }
+    if (next && state.activeTab === "settings" && state.settingsSubTab === "workshop") {
+      refreshWorkshopData();
     }
     if (next && state.activeTab === "live-edits") {
       refreshLiveEdits();
@@ -7927,6 +9216,7 @@ function createStudioPanel(options) {
   function applyLiveEditsUpdate(payload) {
     applyLiveEditsPayload(payload);
     renderPopoverStructure();
+    renderChatDockMount();
     updateLiveDom();
     if (state.isOpen && state.activeTab === "live-edits") renderStructure();
   }
@@ -7986,11 +9276,12 @@ function createStudioPanel(options) {
     }
     revokeCachedMedia("");
     mediaLoadInflight.clear();
+    stopElementPicker();
     if (hostEl && hostEl.parentNode) hostEl.parentNode.removeChild(hostEl);
     if (themeEngine && typeof themeEngine.destroy === "function") {
       try { themeEngine.destroy(); } catch (_e) {}
     }
-    hostEl = shadowRoot = rootEl = widgetMountEl = popoverMountEl = updateToastMountEl = modalMountEl = null;
+    hostEl = shadowRoot = rootEl = widgetMountEl = limitsMountEl = chatDockMountEl = pickerMountEl = popoverMountEl = updateToastMountEl = modalMountEl = null;
   }
 
   return {
@@ -7999,6 +9290,9 @@ function createStudioPanel(options) {
     setOpen,
     toggleOpen,
     toggleLiveEditPopover,
+    handleHotkeyAction,
+    startElementPicker,
+    stopElementPicker,
     applyLiveEditsUpdate,
     applyUpdateStatus,
     setViewMode,

@@ -2,8 +2,8 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "rudex",
   "displayName": "Rudex",
-  "version": "4.4.7",
-  "description": "Русификатор Google Antigravity 2.0: русский интерфейс и мысли агента, цвета и шрифты Claude Code, обновлённая панель Rudex Studio, обои, монитор скорости и квот, характер чата и экспорт в ZIP.",
+  "version": "5.0.0",
+  "description": "Rudex 5.0 для Google Antigravity 2.0: русский интерфейс, 4 раздельных слота шрифтов, визуальный «Прицел» и переименование любых элементов, чёткие обводки, экранное окно «Только лимиты», правки агенту на лету прямо из чата, «Пульт агента» с пресетами и PreToolUse, редактор горячих клавиш и визуальная «Мастерская AGY».",
   "logo": "assets/logo.svg",
   "author": {
     "name": "Ivan0967pro",

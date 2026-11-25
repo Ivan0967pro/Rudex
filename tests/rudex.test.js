@@ -399,22 +399,24 @@ function createMockDom() {
 // =============================================================================
 // 1. Metadata, Hooks Schema & Installer Helpers
 // =============================================================================
-test("Manifest & hooks.json follow Rudex v4.2.1 architecture without PostInvocation", () => {
+test("Manifest & hooks.json follow Rudex v5.0 architecture with PreToolUse and without PostInvocation", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "4.4.7");
+  assert.equal(pkg.version, "5.0.0");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
+  assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "agy-workshop.js")), "agy-workshop.js must exist");
   assert.equal(typeof dictionary, "object");
   assert.ok(Object.keys(dictionary).length >= 4000);
-  assert.equal(DYNAMIC_RULES.length, 474);
+  assert.equal(DYNAMIC_RULES.length, 479);
 
   const hooks = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "hooks.json"), "utf8"));
   const group = hooks["rudex-studio"];
   assert.ok(group, "rudex-studio hook group missing");
   assert.ok(Array.isArray(group.SessionStart) && group.SessionStart.length === 1);
   assert.ok(Array.isArray(group.PreInvocation) && group.PreInvocation.length === 1);
+  assert.ok(Array.isArray(group.PreToolUse) && group.PreToolUse.length === 1);
   assert.ok(Array.isArray(group.Stop) && group.Stop.length === 1);
   assert.equal(group.PostInvocation, undefined, "PostInvocation must NOT exist (causes silent live-edit loss)");
 
@@ -3503,4 +3505,290 @@ test("Theme engine v4.4.7: no double border on nested user-message-content, no d
     solidCardNoBorderCss.includes("padding: 14px 18px !important;"),
     "Solid agent-response cards without wallpaper must still get breathing padding even when borderStrength is 0"
   );
+});
+
+// =============================================================================
+// 31–35. Rudex 5.0 Comprehensive Feature Tests
+// =============================================================================
+test("Rudex 5.0 translations: running tooltips, 2m 10s compact durations, and customLabels with chat protection", () => {
+  assert.equal(
+    dictionary["Model cannot be changed while the agent is running"],
+    "Нельзя сменить модель, пока агент работает"
+  );
+  assert.equal(applyDynamicRules("2m 10s"), "2 мин 10 с");
+  assert.equal(applyDynamicRules("Проверка CSS 2m 10s"), "Проверка CSS 2 мин 10 с");
+  assert.equal(applyDynamicRules("Reasoning effort cannot be changed while the agent is running"), "Нельзя изменить глубину рассуждений, пока агент работает");
+
+  const { doc, win } = createMockDom();
+  const btn = doc.createElement("button");
+  btn.textContent = "New Conversation";
+  const tip = doc.createElement("div");
+  tip.setAttribute("role", "tooltip");
+  tip.textContent = "Model cannot be changed while the agent is running";
+  const dur = doc.createElement("span");
+  dur.textContent = "2m 10s";
+  const userMsg = doc.createElement("div");
+  userMsg.setAttribute("data-testid", "user-message-content");
+  userMsg.textContent = "New Conversation";
+  doc.body.appendChild(btn);
+  doc.body.appendChild(tip);
+  doc.body.appendChild(dur);
+  doc.body.appendChild(userMsg);
+
+  const tr = createDomTranslator({
+    document: doc,
+    window: win,
+    dictionary,
+    applyDynamicRules,
+    initialLocale: "ru",
+  });
+  tr.init();
+  assert.equal(tip.textContent, "Нельзя сменить модель, пока агент работает");
+  assert.equal(dur.textContent, "2 мин 10 с");
+
+  // Custom rename overrides UI chrome but never modifies user chat messages
+  tr.setCustomLabels([{ id: "l1", matchType: "exact", match: "New Conversation", label: "🚀 Новая миссия", enabled: true }]);
+  assert.equal(btn.textContent, "🚀 Новая миссия");
+  assert.equal(userMsg.textContent, "New Conversation");
+
+  // Removing custom label restores Russian translation cleanly
+  tr.setCustomLabels([]);
+  assert.equal(btn.textContent, dictionary["New Conversation"]);
+  tr.destroy();
+});
+
+test("Rudex 5.0 typography (4 font slots + custom system fonts), crisp borders by default, and elementOverrides", () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const cfg = te.normalizeAppearance({
+    presetId: "claude-code-dark",
+    borderPreset: "crisp",
+    typography: {
+      uiFont: "claude-sans",
+      inputFont: "claude-mono",
+      agentFont: "claude-serif",
+      thinkingFont: "claude-lora",
+      monoFont: "custom",
+      monoFontCustom: "Cascadia Code",
+      uiFontSize: 13,
+      inputFontSize: 15,
+      agentFontSize: 16,
+      codeFontSize: 12,
+    },
+    elementOverrides: [
+      {
+        id: "ov-1",
+        name: "Sidebar",
+        selector: '[data-testid="sidebar"]',
+        enabled: true,
+        styles: { width: 280, bgColor: "#112233", color: "#eeeeee", borderRadius: 8 },
+      },
+    ],
+  });
+  const css = te.buildThemeCss(cfg, { hostIsLight: false });
+  assert.ok(css.includes("--default-font-family:"), "UI font must override Tailwind v4 --default-font-family");
+  assert.ok(css.includes('[data-rudex-theme-composer="1"] :where(button, span, div, p, label)'), "UI font must reach composer bottom toolbar");
+  assert.ok(css.includes('font-size: 15px !important;'), "Input font size slot must emit CSS");
+  assert.ok(css.includes('font-size: 16px !important;'), "Agent font size slot must emit CSS");
+  assert.ok(css.includes('"Cascadia Code"'), "Custom system font must be quoted safely");
+  assert.ok(css.includes('[data-rudex-zone="steps"]'), "Crisp structural borders for steps/thinking must be present by default");
+  assert.ok(css.includes('[data-testid="sidebar"]') && css.includes("width: 280px !important;"), "Element overrides CSS must be emitted");
+
+  const pausedCss = te.buildThemeCss(Object.assign({}, cfg, { overridesPaused: true }), { hostIsLight: false });
+  assert.equal(pausedCss.includes("width: 280px !important;"), false, "Paused element overrides must immediately stop emitting CSS");
+
+  const wfUrl = te.teBuildWebFontUrl(cfg);
+  assert.ok(wfUrl.includes("JetBrains+Mono") && wfUrl.includes("Source+Serif+4") && wfUrl.includes("Lora"), "Web font URL must include all active font slots");
+});
+
+test("Rudex 5.0 standalone Limits Widget, Keybinding matcher/formatter, and Studio 4-section layout", () => {
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+
+  // Load i18n-main.js with lightweight Electron stub to exercise real sanitizers & hotkey matcher
+  const Module = require("node:module");
+  const origLoad = Module._load;
+  let i18nMain;
+  try {
+    Module._load = function (req, parent, isMain) {
+      if (req === "electron") {
+        return {
+          app: { getPath: () => os.tmpdir(), on: () => {} },
+          ipcMain: { handle: () => {}, on: () => {} },
+          webContents: { getAllWebContents: () => [] },
+          dialog: {},
+          shell: {},
+          protocol: {},
+          BrowserWindow: { getAllWindows: () => [] },
+        };
+      }
+      return origLoad.apply(this, arguments);
+    };
+    const resolvedPath = require.resolve(path.join(SCRIPTS_DIR, "i18n-main.js"));
+    delete require.cache[resolvedPath];
+    i18nMain = require(resolvedPath);
+  } finally {
+    Module._load = origLoad;
+  }
+
+  const { matchInputToCombo, sanitizeLimitsWidget, sanitizeKeybindings } = i18nMain;
+
+  // Keybindings matching & formatting
+  assert.equal(matchInputToCombo({ control: true, alt: true, shift: false, code: "KeyW", key: "w" }, "Ctrl+Alt+W"), true);
+  assert.equal(matchInputToCombo({ control: true, alt: true, shift: true, code: "KeyW", key: "w" }, "Ctrl+Alt+W"), false);
+  assert.equal(v5Core.rv5FormatKeyboardEvent({ ctrlKey: true, altKey: true, shiftKey: false, code: "KeyQ", key: "q" }), "Ctrl+Alt+Q");
+  assert.equal(v5Core.rv5FormatKeyboardEvent({ key: "Escape" }), "__CANCEL__");
+  assert.equal(v5Core.rv5FormatKeyboardEvent({ key: "Backspace" }), "__CLEAR__");
+
+  const cleanKb = sanitizeKeybindings({ toggleStudio: "ctrl+shift+k", cycleWallpaper: "" });
+  assert.equal(cleanKb.toggleStudio, "Ctrl+Shift+K");
+  assert.equal(cleanKb.cycleWallpaper, "");
+
+  // Limits widget rendering (pill & bars with custom font & traffic light)
+  const lw = sanitizeLimitsWidget({ enabled: true, onlyLimitsMode: true, layout: "bars", fontSize: 13, bgColor: "#1a1a1a", families: "both" });
+  const html = v5Core.rv5BuildLimitsWidgetHtml(lw, {
+    families: {
+      gemini: { fiveHourRem: 78, weeklyRem: 91, fiveHourReset: "3ч 10м" },
+      claudeGpt: { fiveHourRem: 14, weeklyRem: 60, fiveHourReset: "1ч 20м" },
+    },
+  }, "Gemini 4 Neon", true);
+  assert.ok(html.includes("Лимиты Antigravity"));
+  assert.ok(html.includes("78%") && html.includes("14%") && html.includes("#ef4444"), "Low quota must render red traffic-light bar");
+  assert.ok(html.includes("3ч 10м"), "Reset timer must be displayed");
+
+  // Native settings & customization entry injection
+  const { doc } = createMockDom();
+  const nav = doc.createElement("nav");
+  const b1 = doc.createElement("button");
+  b1.textContent = "Общие";
+  const b2 = doc.createElement("button");
+  b2.textContent = "Модели и использование";
+  nav.appendChild(b1);
+  nav.appendChild(b2);
+  doc.body.appendChild(nav);
+  let openedTab = "";
+  v5Ui.rv5InjectNativeSettingsEntries(doc, true, (tab) => { openedTab = tab; });
+  const injected = nav.querySelector('[data-rudex-native-entry="settings"]');
+  assert.ok(injected, "Rudex Settings entry must be injected into native Antigravity Settings nav");
+  injected.dispatchEvent({ type: "click", target: injected, preventDefault() {}, stopPropagation() {} });
+  assert.equal(openedTab, "appearance");
+});
+
+test("Rudex 5.0 rudex-hook.js: Agent Profile default for new chats, PreToolUse hardware gating, and urgent live-edit intercept", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-v5-hook-"));
+  try {
+    const hookScript = path.join(SCRIPTS_DIR, "rudex-hook.js");
+    const runHook = (payload) => {
+      const res = spawnSync(process.execPath, [hookScript], {
+        input: JSON.stringify(payload),
+        encoding: "utf8",
+        env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpDir, RUDEX_SKIP_AUTO_REPATCH: "1" }),
+      });
+      assert.equal(res.status, 0, res.stderr);
+      return JSON.parse(res.stdout || "{}");
+    };
+
+    // Configure default profile for all new chats: Read-Only + Parallel subagents + Offline web
+    fs.writeFileSync(path.join(tmpDir, "agy_studio_settings.json"), JSON.stringify({
+      agentProfileDefault: {
+        presetId: "architect-ro",
+        presetLabel: "Архитектор (Read-Only)",
+        enabled: true,
+        applyToNewChats: true,
+        subagents: "parallel",
+        webSearch: "off",
+        browser: "off",
+        planFirst: "strict",
+        autoVerify: true,
+        deepMode: true,
+        safetyMode: "readonly",
+        pinnedSkills: ["rudex"],
+        disabledTools: ["mcp:custom-db"],
+      },
+    }));
+    fs.writeFileSync(path.join(tmpDir, "agy_studio_agent_profile.flag"), "1\n");
+    fs.writeFileSync(path.join(tmpDir, "agy_studio_tool_policy.flag"), "1\n");
+
+    // 1. SessionStart auto-claims default profile for new chat and injects directive
+    const sRes = runHook({ hookEventName: "SessionStart", conversationId: "conv-new-1", initialNumSteps: 0 });
+    assert.ok(Array.isArray(sRes.injectSteps) && sRes.injectSteps.length === 1);
+    assert.ok(sRes.injectSteps[0].systemMessage.systemMessage.includes("СУБАГЕНТЫ (АКТИВНО)"));
+    assert.ok(sRes.injectSteps[0].systemMessage.systemMessage.includes("РЕЖИМ ТОЛЬКО ЧТЕНИЕ"));
+    assert.ok(sRes.injectSteps[0].systemMessage.systemMessage.includes("rudex"));
+
+    // 2. PreToolUse hardware blocks write_file (readonly), search_web (off), browser subagent (off), and disabled MCP
+    const denyWrite = runHook({ hookEventName: "PreToolUse", conversationId: "conv-new-1", toolCall: { name: "write_file", args: {} } });
+    assert.equal(denyWrite.decision, "deny");
+    const allowRead = runHook({ hookEventName: "PreToolUse", conversationId: "conv-new-1", toolCall: { name: "read_file", args: {} } });
+    assert.equal(allowRead.decision, undefined);
+    const denyWeb = runHook({ hookEventName: "PreToolUse", conversationId: "conv-new-1", toolCall: { name: "search_web", args: {} } });
+    assert.equal(denyWeb.decision, "deny");
+    const denyBrowser = runHook({ hookEventName: "PreToolUse", conversationId: "conv-new-1", toolCall: { name: "invoke_subagent", args: { TypeName: "browser" } } });
+    assert.equal(denyBrowser.decision, "deny");
+    const denyMcp = runHook({ hookEventName: "PreToolUse", conversationId: "conv-new-1", toolCall: { name: "call_mcp_tool", args: { ServerName: "custom-db" } } });
+    assert.equal(denyMcp.decision, "deny");
+
+    // 3. Urgent live edit intercepts mutating tool call immediately and delivers instruction
+    const qDir = path.join(tmpDir, "studio_live_edits", "queue");
+    fs.mkdirSync(qDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "studio_live_edits", "pending.flag"), "1\n");
+    fs.writeFileSync(path.join(qDir, "le-urgent-1.json"), JSON.stringify({
+      id: "le-urgent-1",
+      chatKey: "conv-urgent-2",
+      text: "Стой, не меняй CSS, сделай через переменную!",
+      urgent: true,
+      status: "pending",
+      createdAt: Date.now(),
+    }));
+    const urgentRes = runHook({ hookEventName: "PreToolUse", conversationId: "conv-urgent-2", toolCall: { name: "edit_file", args: {} } });
+    assert.equal(urgentRes.decision, "deny");
+    assert.ok(urgentRes.reason.includes("СРОЧНАЯ ПРАВКА НА ЛЕТУ"));
+    assert.ok(urgentRes.reason.includes("не меняй CSS"));
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("Rudex 5.0 AGY Workshop safely manages Rules, Skills, MCP servers, and blocks path traversal", () => {
+  const ws = require(path.join(SCRIPTS_DIR, "agy-workshop.js"));
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-v5-ws-"));
+  const fakeGlobal = path.join(tmpRoot, "global-config");
+  const fakeWorkspace = path.join(tmpRoot, "my-project");
+  fs.mkdirSync(fakeGlobal, { recursive: true });
+  fs.mkdirSync(fakeWorkspace, { recursive: true });
+  const prevEnv = process.env.RUDEX_AGY_CONFIG_DIR;
+  process.env.RUDEX_AGY_CONFIG_DIR = fakeGlobal;
+  try {
+    // Save, toggle off, toggle on, and list Rule
+    const r1 = ws.saveRule({ scope: "global", fileName: "russian-style.md", body: "Отвечай кратко и по делу." });
+    assert.equal(r1.ok, true);
+    assert.ok(fs.existsSync(r1.path));
+
+    const rOff = ws.saveRule({ path: r1.path, enabled: false });
+    assert.equal(rOff.ok, true);
+    assert.ok(rOff.path.endsWith(".md.disabled"));
+
+    // Create Skill with YAML frontmatter
+    const s1 = ws.saveSkill({ scope: "workspace", workspacePath: fakeWorkspace, name: "Deploy Helper", description: "Deploys app cleanly", body: "# Steps\n1. Run build" });
+    assert.equal(s1.ok, true);
+    const skillText = fs.readFileSync(s1.path, "utf8");
+    assert.ok(skillText.includes("name: Deploy Helper") && skillText.includes("description: Deploys app cleanly"));
+
+    // Save, disable, and delete MCP server
+    const m1 = ws.saveMcpServer({ scope: "global", name: "demo-mcp", command: "npx", argsText: "-y demo-server" });
+    assert.equal(m1.ok, true);
+    const listed = ws.listCustomizations({ workspacePath: fakeWorkspace });
+    assert.equal(listed.ok, true);
+    assert.ok(listed.rules.some((r) => r.fileName === "russian-style.md" && r.enabled === false));
+    assert.ok(listed.skills.some((s) => s.name === "Deploy Helper" && s.scope === "workspace"));
+    assert.ok(listed.mcpServers.some((m) => m.name === "demo-mcp" && m.command === "npx"));
+
+    // Security: block path traversal outside config/workspace roots
+    const badDel = ws.deleteRule({ path: path.join(os.tmpdir(), "outside-file.md"), workspacePath: fakeWorkspace });
+    assert.equal(badDel.ok, false);
+    assert.equal(badDel.error, "PATH_NOT_ALLOWED");
+  } finally {
+    if (prevEnv === undefined) delete process.env.RUDEX_AGY_CONFIG_DIR;
+    else process.env.RUDEX_AGY_CONFIG_DIR = prevEnv;
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
 });

@@ -124,8 +124,107 @@ function createDomTranslator(options) {
     "code-block-raw-button",
   ]);
 
-  const TRANSLATABLE_ATTRS = ["placeholder", "data-placeholder", "title", "aria-label", "alt"];
+  const TRANSLATABLE_ATTRS = ["placeholder", "data-placeholder", "title", "aria-label", "alt", "data-tooltip"];
   const COMPOSER_PLACEHOLDER_RE = /^Ask anything(?:,\s*@ to mention(?:,\s*\/ for (?:actions|workflows))?)?$/i;
+
+  // User-defined custom UI element label overrides (highest priority over dictionary, React-safe)
+  let customLabels = [];
+  let customLabelExactMap = new Map();
+  let customLabelTestIdMap = new Map();
+  let customLabelSelectors = [];
+
+  function normalizeCustomLabels(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    for (let i = 0; i < raw.length && out.length < 120; i += 1) {
+      const it = raw[i];
+      if (!it || typeof it !== "object") continue;
+      const matchType = it.matchType === "testid" || it.matchType === "selector" ? it.matchType : "exact";
+      const match = typeof it.match === "string" ? it.match.trim().slice(0, 180) : "";
+      const label = typeof it.label === "string" ? it.label.slice(0, 160) : "";
+      if (!match || !label.trim()) continue;
+      out.push({
+        id: typeof it.id === "string" && it.id ? it.id.slice(0, 64) : "lbl-" + i,
+        matchType,
+        match,
+        label,
+        enabled: it.enabled !== false,
+      });
+    }
+    return out;
+  }
+
+  function rebuildCustomLabelIndexes() {
+    customLabelExactMap = new Map();
+    customLabelTestIdMap = new Map();
+    customLabelSelectors = [];
+    for (let i = 0; i < customLabels.length; i += 1) {
+      const rule = customLabels[i];
+      if (!rule || rule.enabled === false) continue;
+      if (rule.matchType === "testid") {
+        customLabelTestIdMap.set(rule.match, rule.label);
+      } else if (rule.matchType === "selector") {
+        customLabelSelectors.push(rule);
+      } else {
+        const keyNorm = normalizePunct(rule.match).toLowerCase();
+        if (keyNorm) customLabelExactMap.set(keyNorm, rule.label);
+      }
+    }
+  }
+
+  function isInsideProtectedChatContent(el) {
+    let cur = el;
+    let depth = 0;
+    while (cur && cur.nodeType === 1 && depth < 14) {
+      const tid = getAttrSafe(cur, "data-testid");
+      if (tid && CHROME_INSIDE_CONTENT_TESTIDS.has(tid)) return false;
+      if (tid === "user-message-content" || tid === "user-message-bubble" || tid === "agent-response") return true;
+      if (getAttrSafe(cur, "data-markdown-root") !== null) return true;
+      cur = cur.parentElement || cur.parentNode;
+      depth += 1;
+    }
+    return false;
+  }
+
+  function resolveCustomLabel(origCore, el) {
+    if (customLabels.length === 0) return null;
+    if (el && isInsideProtectedChatContent(el)) return null;
+    if (el && customLabelTestIdMap.size > 0) {
+      let cur = el;
+      let d = 0;
+      while (cur && cur.nodeType === 1 && d < 3) {
+        const tid = getAttrSafe(cur, "data-testid");
+        if (tid && customLabelTestIdMap.has(tid)) return customLabelTestIdMap.get(tid);
+        cur = cur.parentElement;
+        d += 1;
+      }
+    }
+    if (el && customLabelSelectors.length > 0 && typeof el.matches === "function") {
+      for (let i = 0; i < customLabelSelectors.length; i += 1) {
+        const r = customLabelSelectors[i];
+        try {
+          if (el.matches(r.match) || (el.parentElement && typeof el.parentElement.matches === "function" && el.parentElement.matches(r.match))) {
+            return r.label;
+          }
+        } catch (_e) {}
+      }
+    }
+    if (origCore && customLabelExactMap.size > 0) {
+      const normOrig = normalizePunct(origCore).toLowerCase();
+      if (customLabelExactMap.has(normOrig)) return customLabelExactMap.get(normOrig);
+      const ruVersion = translateTrimmed(origCore);
+      if (ruVersion) {
+        const normRu = normalizePunct(ruVersion).toLowerCase();
+        if (customLabelExactMap.has(normRu)) return customLabelExactMap.get(normRu);
+      }
+    }
+    return null;
+  }
+
+  if (Array.isArray(options.initialCustomLabels)) {
+    customLabels = normalizeCustomLabels(options.initialCustomLabels);
+    rebuildCustomLabelIndexes();
+  }
 
   function getAttrSafe(el, name) {
     if (!el || typeof el.getAttribute !== "function") return null;
@@ -408,7 +507,12 @@ function createDomTranslator(options) {
 
   function shouldSkipString(trimmed) {
     if (!trimmed || trimmed.length < 2) return true;
-    if (!/[A-Za-z]{2,}/.test(trimmed) && !/^\d+(?:s|m|h|d|w|y)$/i.test(trimmed)) return true;
+    if (
+      !/[A-Za-z]{2,}/.test(trimmed) &&
+      !/^\d+\s*(?:s|m|h|d|w|y)(?:\s+\d+\s*(?:s|m|h|d|w|y))*$/i.test(trimmed)
+    ) {
+      return true;
+    }
     if (/^(?:https?:|wss?:|ws:|file:|mailto:|data:|blob:)/i.test(trimmed)) return true;
     if (/^[A-Za-z]:\\/.test(trimmed)) return true;
     if (/^\/(?:Users|home|var|etc|tmp|usr|opt|mnt|Volumes|Applications|System|Library)(?:\/|$)/.test(trimmed)) return true;
@@ -510,6 +614,13 @@ function createDomTranslator(options) {
       applyGreetingAttrs(el, null);
     }
 
+    const customOverride = core ? resolveCustomLabel(core, el) : null;
+    if (customOverride !== null) {
+      applyTextNodeValue(textNodes[0], wrapWhitespace(joined, customOverride));
+      for (let i = 1; i < textNodes.length; i++) applyTextNodeValue(textNodes[i], "");
+      return true;
+    }
+
     if (currentLocale === "en") {
       for (let i = 0; i < textNodes.length; i++) {
         applyTextNodeValue(textNodes[i], originals[i]);
@@ -554,6 +665,12 @@ function createDomTranslator(options) {
       applyGreetingAttrs(parent, null);
     }
 
+    const customOverride = core ? resolveCustomLabel(core, parent) : null;
+    if (customOverride !== null) {
+      applyTextNodeValue(node, wrapWhitespace(orig, customOverride));
+      return;
+    }
+
     if (currentLocale === "en") {
       applyTextNodeValue(node, orig);
       return;
@@ -561,6 +678,8 @@ function createDomTranslator(options) {
     const nextVal = translatePreservingWhitespace(orig);
     if (nextVal !== null) {
       applyTextNodeValue(node, nextVal);
+    } else if (node.nodeValue !== orig) {
+      applyTextNodeValue(node, orig);
     }
   }
 
@@ -605,6 +724,15 @@ function createDomTranslator(options) {
         continue;
       }
 
+      const attrCustom = resolveCustomLabel(orig.trim(), el);
+      if (attrCustom !== null) {
+        if (cur !== attrCustom) {
+          lastMap.set(attr, attrCustom);
+          el.setAttribute(attr, attrCustom);
+        }
+        continue;
+      }
+
       if (currentLocale === "en") {
         if (cur !== orig) {
           lastMap.set(attr, orig);
@@ -612,9 +740,14 @@ function createDomTranslator(options) {
         }
       } else {
         const nextVal = translatePreservingWhitespace(orig);
-        if (nextVal !== null && cur !== nextVal) {
-          lastMap.set(attr, nextVal);
-          el.setAttribute(attr, nextVal);
+        if (nextVal !== null) {
+          if (cur !== nextVal) {
+            lastMap.set(attr, nextVal);
+            el.setAttribute(attr, nextVal);
+          }
+        } else if (cur !== orig) {
+          lastMap.set(attr, orig);
+          el.setAttribute(attr, orig);
         }
       }
     }
@@ -795,6 +928,41 @@ function createDomTranslator(options) {
     return capturedUserName;
   }
 
+  function setCustomLabels(nextList) {
+    customLabels = normalizeCustomLabels(nextList);
+    rebuildCustomLabelIndexes();
+    translateDocument();
+  }
+
+  function getCustomLabels() {
+    return customLabels.map((r) => Object.assign({}, r));
+  }
+
+  function getOriginalTextForElement(el) {
+    if (!el || el.nodeType !== 1) return "";
+    const parts = [];
+    const walk = (n) => {
+      if (!n) return;
+      if (n.nodeType === 3) {
+        const orig = textOriginals.has(n) ? textOriginals.get(n) : (n.nodeValue || "");
+        if (orig && orig.trim()) parts.push(orig.trim());
+        return;
+      }
+      if (n.nodeType === 1 && n.childNodes) {
+        for (let i = 0; i < n.childNodes.length; i += 1) walk(n.childNodes[i]);
+      }
+    };
+    walk(el);
+    if (parts.length > 0) return parts.join(" ").trim();
+    const attrMap = attrOriginals.get(el);
+    if (attrMap) {
+      for (const a of ["placeholder", "data-placeholder", "aria-label", "title"]) {
+        if (attrMap.has(a)) return String(attrMap.get(a) || "").trim();
+      }
+    }
+    return String(getAttrSafe(el, "placeholder") || getAttrSafe(el, "aria-label") || getAttrSafe(el, "title") || "").trim();
+  }
+
   function getLocale() {
     return currentLocale;
   }
@@ -819,6 +987,9 @@ function createDomTranslator(options) {
     getLocale,
     setGreetingConfig,
     getGreetingConfig,
+    setCustomLabels,
+    getCustomLabels,
+    getOriginalTextForElement,
     getCapturedUserName,
     resolveGreetingTemplate,
     getTimeGreeting,

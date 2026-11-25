@@ -86,8 +86,11 @@ const VALID_GRADIENT_STYLES = new Set(["linear", "radial", "mesh"]);
 const VALID_WALLPAPER_FITS = new Set(["cover", "contain", "fill"]);
 const VALID_TINT_BLENDS = new Set(["normal", "multiply", "screen", "overlay", "soft-light"]);
 const VALID_MESSAGE_STYLES = new Set(["glass", "solid", "minimal"]);
-const VALID_UI_FONTS = new Set(["system", "claude-sans", "claude-serif", "claude-lora", "claude-mono-ui", "geist", "segoe", "inter", "rubik", "ibm-plex", "georgia"]);
-const VALID_MONO_FONTS = new Set(["system", "claude-mono", "geist-mono", "ibm-plex-mono", "cascadia", "jetbrains", "consolas", "fira"]);
+const VALID_BORDER_PRESETS = new Set(["airy", "crisp", "contrast"]);
+const VALID_UI_FONTS = new Set(["system", "custom", "claude-sans", "claude-serif", "claude-lora", "claude-mono-ui", "geist", "segoe", "inter", "rubik", "ibm-plex", "georgia"]);
+const VALID_MONO_FONTS = new Set(["system", "custom", "claude-mono", "geist-mono", "ibm-plex-mono", "cascadia", "jetbrains", "consolas", "fira"]);
+const VALID_ANY_SLOT_FONTS = new Set(["inherit", "custom", ...VALID_UI_FONTS, ...VALID_MONO_FONTS]);
+const SAFE_FONT_NAME_RE = /[^a-zA-Zа-яА-ЯёЁ0-9 _\-().]/g;
 const VALID_DENSITIES = new Set(["compact", "comfortable", "spacious"]);
 const VALID_STUDIO_THEMES = new Set(["obsidian", "claude-dark", "claude-light", "frosted", "neon-cyber", "minimal-mono", "aurora"]);
 const VALID_STUDIO_LAYOUTS = new Set(["sidebar", "rail", "topbar", "floating-glass"]);
@@ -140,8 +143,11 @@ const DEFAULT_APPEARANCE = {
   glassBlur: 12,
   messageCardOpacity: 74,
   messageStyle: "glass",
+  borderPreset: "crisp",
   borderStrength: 50,
   highContrastText: true,
+  overridesPaused: false,
+  elementOverrides: [],
   radius: 12,
   corners: {
     mode: "linked",
@@ -192,7 +198,21 @@ const DEFAULT_APPEARANCE = {
   typography: {
     uiFont: "system",
     monoFont: "system",
+    inputFont: "inherit",
+    userMsgFont: "inherit",
+    agentFont: "inherit",
+    thinkingFont: "inherit",
+    uiFontCustom: "",
+    inputFontCustom: "",
+    userMsgFontCustom: "",
+    agentFontCustom: "",
+    thinkingFontCustom: "",
+    monoFontCustom: "",
     fontSize: 14,
+    uiFontSize: 0,
+    inputFontSize: 0,
+    agentFontSize: 0,
+    codeFontSize: 0,
     lineHeight: 1.55,
     chatMaxWidth: 0,
     density: "comfortable",
@@ -259,6 +279,70 @@ function sanitizeGreeting(raw) {
   };
 }
 
+function sanitizeCustomFontName(raw) {
+  if (typeof raw !== "string") return "";
+  return raw.replace(SAFE_FONT_NAME_RE, "").trim().slice(0, 64);
+}
+
+function sanitizeElementOverrides(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (let i = 0; i < raw.length && out.length < 80; i += 1) {
+    const it = raw[i];
+    if (!it || typeof it !== "object") continue;
+    const selector = typeof it.selector === "string" ? it.selector.trim().slice(0, 260) : "";
+    if (!selector || /[{}<>\\]/.test(selector) || /url\s*\(|expression\s*\(|@import/i.test(selector)) continue;
+    const st = it.styles && typeof it.styles === "object" ? it.styles : {};
+    out.push({
+      id: typeof it.id === "string" && it.id ? it.id.slice(0, 64) : "ov-" + i,
+      name: typeof it.name === "string" ? it.name.trim().slice(0, 80) : selector.slice(0, 48),
+      selector,
+      zone: typeof it.zone === "string" ? it.zone.trim().slice(0, 48) : "",
+      scope: it.scope === "similar" ? "similar" : "exact",
+      enabled: it.enabled !== false,
+      styles: {
+        fontFamily: typeof st.fontFamily === "string" ? st.fontFamily.trim().slice(0, 64) : "",
+        fontFamilyCustom: sanitizeCustomFontName(st.fontFamilyCustom),
+        fontSize: Number.isFinite(Number(st.fontSize)) && Number(st.fontSize) > 0 ? Math.round(clampNum(st.fontSize, 9, 42, 0)) : 0,
+        fontWeight: Number.isFinite(Number(st.fontWeight)) && Number(st.fontWeight) > 0 ? Math.round(clampNum(st.fontWeight, 300, 900, 0)) : 0,
+        lineHeight: Number.isFinite(Number(st.lineHeight)) && Number(st.lineHeight) > 0 ? Math.round(clampNum(st.lineHeight, 1.0, 2.4, 0) * 100) / 100 : 0,
+        color: sanitizeHexColor(st.color, ""),
+        bgColor: sanitizeHexColor(st.bgColor, ""),
+        bgOpacity: Number.isFinite(Number(st.bgOpacity)) ? Math.round(clampNum(st.bgOpacity, 0, 100, 100)) : 100,
+        borderColor: sanitizeHexColor(st.borderColor, ""),
+        borderWidth: Number.isFinite(Number(st.borderWidth)) && Number(st.borderWidth) >= 0 ? Math.round(clampNum(st.borderWidth, 0, 6, -1)) : -1,
+        borderRadius: Number.isFinite(Number(st.borderRadius)) && Number(st.borderRadius) >= 0 ? Math.round(clampNum(st.borderRadius, 0, 40, -1)) : -1,
+        padding: Number.isFinite(Number(st.padding)) && Number(st.padding) >= 0 ? Math.round(clampNum(st.padding, 0, 48, -1)) : -1,
+        width: Number.isFinite(Number(st.width)) && Number(st.width) > 0 ? Math.round(clampNum(st.width, 40, 1600, 0)) : 0,
+        minHeight: Number.isFinite(Number(st.minHeight)) && Number(st.minHeight) > 0 ? Math.round(clampNum(st.minHeight, 18, 600, 0)) : 0,
+        hidden: Boolean(st.hidden),
+      },
+    });
+  }
+  return out;
+}
+
+function sanitizeCustomLabels(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (let i = 0; i < raw.length && out.length < 120; i += 1) {
+    const it = raw[i];
+    if (!it || typeof it !== "object") continue;
+    const matchType = it.matchType === "testid" || it.matchType === "selector" ? it.matchType : "exact";
+    const match = typeof it.match === "string" ? it.match.trim().slice(0, 180) : "";
+    const label = typeof it.label === "string" ? it.label.slice(0, 160) : "";
+    if (!match || !label.trim()) continue;
+    out.push({
+      id: typeof it.id === "string" && it.id ? it.id.slice(0, 64) : "lbl-" + i,
+      matchType,
+      match,
+      label,
+      enabled: it.enabled !== false,
+    });
+  }
+  return out;
+}
+
 function sanitizeAppearance(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const presetId = VALID_APPEARANCE_PRESETS.has(src.presetId) ? src.presetId : "native";
@@ -320,8 +404,11 @@ function sanitizeAppearance(raw) {
     glassBlur: Math.round(clampNum(src.glassBlur, 0, 36, DEFAULT_APPEARANCE.glassBlur)),
     messageCardOpacity: Math.round(clampNum(src.messageCardOpacity, 0, 96, DEFAULT_APPEARANCE.messageCardOpacity)),
     messageStyle: VALID_MESSAGE_STYLES.has(src.messageStyle) ? src.messageStyle : "glass",
+    borderPreset: VALID_BORDER_PRESETS.has(src.borderPreset) ? src.borderPreset : "crisp",
     borderStrength: Math.round(clampNum(src.borderStrength, 0, 100, DEFAULT_APPEARANCE.borderStrength)),
     highContrastText: src.highContrastText !== false,
+    overridesPaused: Boolean(src.overridesPaused),
+    elementOverrides: sanitizeElementOverrides(src.elementOverrides),
     radius: effRadius,
     corners,
     wallpaper: {
@@ -361,7 +448,21 @@ function sanitizeAppearance(raw) {
     typography: {
       uiFont: VALID_UI_FONTS.has(tySrc.uiFont) ? tySrc.uiFont : "system",
       monoFont: VALID_MONO_FONTS.has(tySrc.monoFont) ? tySrc.monoFont : "system",
+      inputFont: VALID_ANY_SLOT_FONTS.has(tySrc.inputFont) ? tySrc.inputFont : "inherit",
+      userMsgFont: VALID_ANY_SLOT_FONTS.has(tySrc.userMsgFont) ? tySrc.userMsgFont : "inherit",
+      agentFont: VALID_ANY_SLOT_FONTS.has(tySrc.agentFont) ? tySrc.agentFont : "inherit",
+      thinkingFont: VALID_ANY_SLOT_FONTS.has(tySrc.thinkingFont) ? tySrc.thinkingFont : "inherit",
+      uiFontCustom: sanitizeCustomFontName(tySrc.uiFontCustom),
+      inputFontCustom: sanitizeCustomFontName(tySrc.inputFontCustom),
+      userMsgFontCustom: sanitizeCustomFontName(tySrc.userMsgFontCustom),
+      agentFontCustom: sanitizeCustomFontName(tySrc.agentFontCustom),
+      thinkingFontCustom: sanitizeCustomFontName(tySrc.thinkingFontCustom),
+      monoFontCustom: sanitizeCustomFontName(tySrc.monoFontCustom),
       fontSize: Math.round(clampNum(tySrc.fontSize, 12, 18, 14)),
+      uiFontSize: Number(tySrc.uiFontSize) > 0 ? Math.round(clampNum(tySrc.uiFontSize, 11, 20, 0)) : 0,
+      inputFontSize: Number(tySrc.inputFontSize) > 0 ? Math.round(clampNum(tySrc.inputFontSize, 12, 22, 0)) : 0,
+      agentFontSize: Number(tySrc.agentFontSize) > 0 ? Math.round(clampNum(tySrc.agentFontSize, 12, 22, 0)) : 0,
+      codeFontSize: Number(tySrc.codeFontSize) > 0 ? Math.round(clampNum(tySrc.codeFontSize, 11, 20, 0)) : 0,
       lineHeight,
       chatMaxWidth,
       density: VALID_DENSITIES.has(tySrc.density) ? tySrc.density : "comfortable",
@@ -561,6 +662,273 @@ function getPersonaRulePath() {
   return getLegacyGlobalPersonaRulePath();
 }
 
+const DEFAULT_LIMITS_WIDGET = {
+  enabled: false,
+  onlyLimitsMode: false,
+  layout: "bars", // "pill" | "bars" | "card" | "inline-header"
+  position: "top-right", // "top-right" | "top-left" | "bottom-right" | "bottom-left" | "floating"
+  floatX: null,
+  floatY: null,
+  pinned: false,
+  fontFamily: "inherit",
+  fontFamilyCustom: "",
+  fontSize: 12,
+  bgColor: "",
+  bgOpacity: 88,
+  textColor: "",
+  borderColor: "",
+  borderRadius: 12,
+  blur: 14,
+  scale: 100,
+  trafficLight: true,
+  barColor: "",
+  families: "both", // "active" | "both" | "gemini" | "claudeGpt"
+  show5h: true,
+  showWeekly: true,
+  showResetTimer: true,
+  displayMode: "remaining", // "remaining" | "used"
+};
+
+const DEFAULT_KEYBINDINGS = {
+  toggleStudio: "Ctrl+Alt+P",
+  toggleZenUi: "Ctrl+Alt+H",
+  toggleLocale: "Ctrl+Alt+L",
+  togglePicker: "Ctrl+Alt+E",
+  toggleLimitsWidget: "Ctrl+Alt+Q",
+  toggleAgentPopover: "Ctrl+Alt+A",
+  cycleAgentPreset: "Ctrl+Alt+Shift+A",
+  cycleWallpaper: "Ctrl+Alt+W",
+  toggleWallpaper: "Ctrl+Alt+Shift+W",
+  cycleTheme: "Ctrl+Alt+T",
+  toggleDarkLight: "Ctrl+Alt+D",
+  openTabAgent: "",
+  openTabDesign: "",
+  openTabLimits: "",
+  openTabWorkshop: "",
+  emergencyResetOverrides: "Ctrl+Alt+Shift+R",
+};
+
+const DEFAULT_LIVE_EDIT_INLINE = {
+  enabled: true,
+  sendKey: "enter", // "enter" | "ctrl+enter" | "button-only"
+  urgentIntercept: false,
+};
+
+const DEFAULT_AGENT_PROFILE = {
+  presetId: "default",
+  presetLabel: "",
+  enabled: false,
+  applyToNewChats: false,
+  subagents: "auto", // "off" | "auto" | "parallel"
+  webSearch: "auto", // "off" | "auto" | "always"
+  browser: "auto", // "off" | "auto" | "verify"
+  planFirst: "auto", // "skip" | "auto" | "strict"
+  autoVerify: false,
+  deepMode: false,
+  conciseness: "balanced", // "short" | "balanced" | "detailed"
+  safetyMode: "normal", // "normal" | "cautious" | "readonly"
+  pinnedSkills: [],
+  disabledTools: [],
+};
+
+const VALID_LIMITS_LAYOUTS = new Set(["pill", "bars", "card", "inline-header"]);
+const VALID_LIMITS_POSITIONS = new Set(["top-right", "top-left", "bottom-right", "bottom-left", "floating"]);
+const VALID_LIMITS_FAMILIES = new Set(["active", "both", "gemini", "claudeGpt"]);
+const VALID_AGENT_SUBAGENTS = new Set(["off", "auto", "parallel"]);
+const VALID_AGENT_WEB = new Set(["off", "auto", "always"]);
+const VALID_AGENT_BROWSER = new Set(["off", "auto", "verify"]);
+const VALID_AGENT_PLAN = new Set(["skip", "auto", "strict"]);
+const VALID_AGENT_CONCISE = new Set(["short", "balanced", "detailed"]);
+const VALID_AGENT_SAFETY = new Set(["normal", "cautious", "readonly"]);
+
+function sanitizeLimitsWidget(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  return {
+    enabled: Boolean(src.enabled),
+    onlyLimitsMode: Boolean(src.onlyLimitsMode),
+    layout: VALID_LIMITS_LAYOUTS.has(src.layout) ? src.layout : DEFAULT_LIMITS_WIDGET.layout,
+    position: VALID_LIMITS_POSITIONS.has(src.position) ? src.position : DEFAULT_LIMITS_WIDGET.position,
+    floatX: typeof src.floatX === "number" && Number.isFinite(src.floatX) ? Math.round(src.floatX) : null,
+    floatY: typeof src.floatY === "number" && Number.isFinite(src.floatY) ? Math.round(src.floatY) : null,
+    pinned: Boolean(src.pinned),
+    fontFamily: VALID_ANY_SLOT_FONTS.has(src.fontFamily) ? src.fontFamily : "inherit",
+    fontFamilyCustom: sanitizeCustomFontName(src.fontFamilyCustom),
+    fontSize: Math.round(clampNum(src.fontSize, 10, 20, DEFAULT_LIMITS_WIDGET.fontSize)),
+    bgColor: sanitizeHexColor(src.bgColor, ""),
+    bgOpacity: Math.round(clampNum(src.bgOpacity, 20, 100, DEFAULT_LIMITS_WIDGET.bgOpacity)),
+    textColor: sanitizeHexColor(src.textColor, ""),
+    borderColor: sanitizeHexColor(src.borderColor, ""),
+    borderRadius: Math.round(clampNum(src.borderRadius, 0, 28, DEFAULT_LIMITS_WIDGET.borderRadius)),
+    blur: Math.round(clampNum(src.blur, 0, 32, DEFAULT_LIMITS_WIDGET.blur)),
+    scale: Math.round(clampNum(src.scale, 75, 150, DEFAULT_LIMITS_WIDGET.scale)),
+    trafficLight: src.trafficLight !== false,
+    barColor: sanitizeHexColor(src.barColor, ""),
+    families: VALID_LIMITS_FAMILIES.has(src.families) ? src.families : DEFAULT_LIMITS_WIDGET.families,
+    show5h: src.show5h !== false,
+    showWeekly: src.showWeekly !== false,
+    showResetTimer: src.showResetTimer !== false,
+    displayMode: src.displayMode === "used" ? "used" : "remaining",
+  };
+}
+
+function normalizeKeybindingCombo(raw) {
+  if (typeof raw !== "string") return "";
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const parts = trimmed.split("+").map((p) => p.trim()).filter(Boolean);
+  let ctrl = false;
+  let alt = false;
+  let shift = false;
+  let mainKey = "";
+  for (let i = 0; i < parts.length; i += 1) {
+    const low = parts[i].toLowerCase();
+    if (low === "ctrl" || low === "control" || low === "cmd" || low === "meta" || low === "cmdorctrl") ctrl = true;
+    else if (low === "alt" || low === "option") alt = true;
+    else if (low === "shift") shift = true;
+    else mainKey = parts[i].length === 1 ? parts[i].toUpperCase() : parts[i];
+  }
+  if (!mainKey) return "";
+  const out = [];
+  if (ctrl) out.push("Ctrl");
+  if (alt) out.push("Alt");
+  if (shift) out.push("Shift");
+  out.push(mainKey.slice(0, 16));
+  return out.join("+");
+}
+
+function sanitizeKeybindings(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const out = {};
+  for (const key of Object.keys(DEFAULT_KEYBINDINGS)) {
+    if (Object.prototype.hasOwnProperty.call(src, key)) {
+      out[key] = normalizeKeybindingCombo(src[key]);
+    } else {
+      out[key] = DEFAULT_KEYBINDINGS[key];
+    }
+  }
+  return out;
+}
+
+function sanitizeLiveEditInline(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const sendKey = src.sendKey === "ctrl+enter" || src.sendKey === "button-only" ? src.sendKey : "enter";
+  return {
+    enabled: src.enabled !== false,
+    sendKey,
+    urgentIntercept: Boolean(src.urgentIntercept),
+  };
+}
+
+function sanitizeStringList(raw, maxItems, maxLen) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (let i = 0; i < raw.length && out.length < maxItems; i += 1) {
+    const s = typeof raw[i] === "string" ? raw[i].trim().slice(0, maxLen) : "";
+    if (s && !seen.has(s)) {
+      seen.add(s);
+      out.push(s);
+    }
+  }
+  return out;
+}
+
+function sanitizeAgentProfile(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  return {
+    presetId: typeof src.presetId === "string" && src.presetId.trim() ? src.presetId.trim().slice(0, 48) : "default",
+    presetLabel: typeof src.presetLabel === "string" ? src.presetLabel.trim().slice(0, 64) : "",
+    enabled: Boolean(src.enabled),
+    applyToNewChats: Boolean(src.applyToNewChats),
+    subagents: VALID_AGENT_SUBAGENTS.has(src.subagents) ? src.subagents : "auto",
+    webSearch: VALID_AGENT_WEB.has(src.webSearch) ? src.webSearch : "auto",
+    browser: VALID_AGENT_BROWSER.has(src.browser) ? src.browser : "auto",
+    planFirst: VALID_AGENT_PLAN.has(src.planFirst) ? src.planFirst : "auto",
+    autoVerify: Boolean(src.autoVerify),
+    deepMode: Boolean(src.deepMode),
+    conciseness: VALID_AGENT_CONCISE.has(src.conciseness) ? src.conciseness : "balanced",
+    safetyMode: VALID_AGENT_SAFETY.has(src.safetyMode) ? src.safetyMode : "normal",
+    pinnedSkills: sanitizeStringList(src.pinnedSkills, 20, 64),
+    disabledTools: sanitizeStringList(src.disabledTools, 30, 80),
+  };
+}
+
+function sanitizeCustomAgentPresets(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (let i = 0; i < raw.length && out.length < 20; i += 1) {
+    const it = raw[i];
+    if (!it || typeof it !== "object") continue;
+    const name = typeof it.name === "string" ? it.name.trim().slice(0, 48) : "";
+    if (!name) continue;
+    out.push({
+      id: typeof it.id === "string" && it.id ? it.id.slice(0, 48) : "ap-" + i,
+      name,
+      icon: typeof it.icon === "string" ? it.icon.trim().slice(0, 8) : "⚡",
+      profile: sanitizeAgentProfile(it.profile),
+      personaText: typeof it.personaText === "string" ? truncateUtf8Bytes(it.personaText, MAX_PERSONA_BODY_BYTES) : "",
+    });
+  }
+  return out;
+}
+
+function profileHasToolPolicy(prof) {
+  if (!prof || !prof.enabled) return false;
+  return (
+    prof.safetyMode === "readonly" ||
+    prof.safetyMode === "cautious" ||
+    prof.subagents === "off" ||
+    prof.webSearch === "off" ||
+    prof.browser === "off" ||
+    (Array.isArray(prof.disabledTools) && prof.disabledTools.length > 0)
+  );
+}
+
+function syncAgentProfileFlags(settingsArg, chatsArg) {
+  try {
+    const userDataDir = app.getPath("userData");
+    const agentFlag = path.join(userDataDir, "agy_studio_agent_profile.flag");
+    const policyFlag = path.join(userDataDir, "agy_studio_tool_policy.flag");
+    const s = settingsArg || loadStudioSettings();
+    const chats = chatsArg || loadStudioChats();
+    const defProf = s && s.agentProfileDefault ? s.agentProfileDefault : null;
+    let needAgent = Boolean(defProf && defProf.enabled && defProf.applyToNewChats);
+    let needPolicy = Boolean(defProf && defProf.applyToNewChats && profileHasToolPolicy(defProf));
+    if (chats && typeof chats === "object") {
+      for (const k of Object.keys(chats)) {
+        const c = chats[k];
+        const ap = c && c.agentProfile ? c.agentProfile : null;
+        if (ap && ap.enabled) {
+          needAgent = true;
+          if (profileHasToolPolicy(ap)) needPolicy = true;
+        }
+      }
+    }
+    if (needAgent) writeFileAtomic(agentFlag, "1\n");
+    else if (fs.existsSync(agentFlag)) try { fs.unlinkSync(agentFlag); } catch {}
+    if (needPolicy) writeFileAtomic(policyFlag, "1\n");
+    else if (fs.existsSync(policyFlag)) try { fs.unlinkSync(policyFlag); } catch {}
+  } catch {}
+}
+
+let cachedWorkshopMod = null;
+function loadWorkshopMod() {
+  if (cachedWorkshopMod) return cachedWorkshopMod;
+  const candidates = [
+    path.join(__dirname, "i18nData", "agy-workshop.js"),
+    path.join(__dirname, "agy-workshop.js"),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) {
+        cachedWorkshopMod = require(p);
+        return cachedWorkshopMod;
+      }
+    } catch {}
+  }
+  return null;
+}
+
 function sanitizeStudioSettings(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const rawDock = src.dockPosition;
@@ -621,6 +989,13 @@ function sanitizeStudioSettings(raw) {
     appearanceProfiles: sanitizeAppearanceProfiles(src.appearanceProfiles),
     greeting: sanitizeGreeting(src.greeting),
     studioUi: sanitizeStudioUi(src.studioUi),
+    customLabels: sanitizeCustomLabels(src.customLabels),
+    limitsWidget: sanitizeLimitsWidget(src.limitsWidget),
+    keybindings: sanitizeKeybindings(src.keybindings),
+    zenMode: Boolean(src.zenMode),
+    liveEditInline: sanitizeLiveEditInline(src.liveEditInline),
+    agentProfileDefault: sanitizeAgentProfile(src.agentProfileDefault),
+    customAgentPresets: sanitizeCustomAgentPresets(src.customAgentPresets),
   };
 }
 
@@ -650,6 +1025,18 @@ function saveStudioSettings(patch) {
   if (pObj.studioUi && typeof pObj.studioUi === "object") {
     pObj.studioUi = Object.assign({}, current.studioUi || DEFAULT_STUDIO_UI, pObj.studioUi);
   }
+  if (pObj.limitsWidget && typeof pObj.limitsWidget === "object") {
+    pObj.limitsWidget = Object.assign({}, current.limitsWidget || DEFAULT_LIMITS_WIDGET, pObj.limitsWidget);
+  }
+  if (pObj.keybindings && typeof pObj.keybindings === "object") {
+    pObj.keybindings = Object.assign({}, current.keybindings || DEFAULT_KEYBINDINGS, pObj.keybindings);
+  }
+  if (pObj.liveEditInline && typeof pObj.liveEditInline === "object") {
+    pObj.liveEditInline = Object.assign({}, current.liveEditInline || DEFAULT_LIVE_EDIT_INLINE, pObj.liveEditInline);
+  }
+  if (pObj.agentProfileDefault && typeof pObj.agentProfileDefault === "object") {
+    pObj.agentProfileDefault = Object.assign({}, current.agentProfileDefault || DEFAULT_AGENT_PROFILE, pObj.agentProfileDefault);
+  }
   if (pObj.appearance && typeof pObj.appearance === "object") {
     const curApp = current.appearance || DEFAULT_APPEARANCE;
     pObj.appearance = Object.assign({}, curApp, pObj.appearance, {
@@ -664,6 +1051,9 @@ function saveStudioSettings(patch) {
     writeJsonAtomic(getStudioSettingsPath(), next);
   } catch (err) {
     console.warn("[Rudex] Failed to persist studio settings:", err && err.message ? err.message : err);
+  }
+  if (pObj.agentProfileDefault) {
+    syncAgentProfileFlags(next, loadStudioChats());
   }
   if (pObj.studioUi && Object.prototype.hasOwnProperty.call(pObj.studioUi, "appScale")) {
     applyAppScaleToWindows(next.studioUi.appScale);
@@ -901,6 +1291,7 @@ function sanitizeChatRecord(raw) {
     personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
     personaText: typeof src.personaText === "string" ? src.personaText : "",
     personaStrict: src.personaStrict !== false,
+    agentProfile: src.agentProfile && typeof src.agentProfile === "object" ? sanitizeAgentProfile(src.agentProfile) : null,
     telemetry: sanitizeChatTelemetry(src.telemetry),
     quota: sanitizeChatQuota(src.quota),
   };
@@ -2320,6 +2711,66 @@ function toggleLiveEditFromHotkey(contents) {
   } catch {}
 }
 
+let lastCustomHotkeyAt = 0;
+
+function matchInputToCombo(input, comboStr) {
+  if (!input || !comboStr) return false;
+  const parts = String(comboStr).split("+").map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return false;
+  let wantCtrl = false;
+  let wantAlt = false;
+  let wantShift = false;
+  let wantKey = "";
+  for (let i = 0; i < parts.length; i += 1) {
+    const low = parts[i].toLowerCase();
+    if (low === "ctrl" || low === "control" || low === "cmd" || low === "meta") wantCtrl = true;
+    else if (low === "alt") wantAlt = true;
+    else if (low === "shift") wantShift = true;
+    else wantKey = parts[i].toLowerCase();
+  }
+  if (!wantKey) return false;
+  const hasCtrl = Boolean(input.control || input.meta);
+  const hasAlt = Boolean(input.alt);
+  const hasShift = Boolean(input.shift);
+  if (hasCtrl !== wantCtrl || hasAlt !== wantAlt || hasShift !== wantShift) return false;
+  const inKey = typeof input.key === "string" ? input.key.toLowerCase() : "";
+  const inCode = typeof input.code === "string" ? input.code.toLowerCase() : "";
+  if (inKey === wantKey) return true;
+  if (wantKey.length === 1 && inCode === "key" + wantKey) return true;
+  if (/^\d$/.test(wantKey) && inCode === "digit" + wantKey) return true;
+  if (inCode === wantKey) return true;
+  return false;
+}
+
+function handleKeybindingEvent(contents, input) {
+  if (!input || input.type !== "keyDown" || input.isAutoRepeat) return false;
+  const settings = loadStudioSettings();
+  const kb = settings && settings.keybindings ? settings.keybindings : DEFAULT_KEYBINDINGS;
+  for (const action of Object.keys(kb)) {
+    const combo = kb[action];
+    if (!combo) continue;
+    if (!matchInputToCombo(input, combo)) continue;
+    const now = Date.now();
+    if (now - lastCustomHotkeyAt < 160) return true;
+    lastCustomHotkeyAt = now;
+    if (action === "toggleLocale") {
+      toggleLocaleFromHotkey();
+      return true;
+    }
+    if (action === "toggleStudio") {
+      togglePanelFromHotkey(contents);
+      return true;
+    }
+    try {
+      if (contents && !contents.isDestroyed()) {
+        contents.send("agy-studio:hotkey-action", { action });
+      }
+    } catch {}
+    return true;
+  }
+  return false;
+}
+
 function getLiveEditsDir() {
   return path.join(app.getPath("userData"), "studio_live_edits");
 }
@@ -3409,6 +3860,7 @@ function registerI18nIpc() {
       text,
       images: savedImgs,
       status: "pending",
+      urgent: Boolean(p.urgent),
       fallbackAny: Boolean(p.fallbackAny || key === "__new__" || key.startsWith("chat-")),
       createdAt: now,
       deliveredAt: 0,
@@ -3611,6 +4063,185 @@ function registerI18nIpc() {
       };
     }
   });
+  ipcMain.handle("agy-studio:cancel-live-edit", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const editId = typeof p.id === "string" ? p.id.trim() : "";
+    const key = normalizeChatKey(p.chatKey || lastActiveChatKey);
+    if (!editId || /[^a-zA-Z0-9._-]/.test(editId)) return { ok: false, error: "INVALID_ID" };
+    const queueFile = path.join(getLiveEditsQueueDir(), `${editId}.json`);
+    try {
+      if (fs.existsSync(queueFile)) fs.unlinkSync(queueFile);
+    } catch {}
+    const { items, hasPending } = loadAllLiveEdits();
+    syncLiveEditsPendingFlag(hasPending);
+    broadcastLiveEditsChanged(items);
+    return { ok: true, items: filterLiveEditsForChat(items, key), allItems: items.slice(-30) };
+  });
+  ipcMain.handle("agy-studio:update-live-edit", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const editId = typeof p.id === "string" ? p.id.trim() : "";
+    const nextText = typeof p.text === "string" ? p.text.trim().slice(0, 8000) : "";
+    const key = normalizeChatKey(p.chatKey || lastActiveChatKey);
+    if (!editId || /[^a-zA-Z0-9._-]/.test(editId) || !nextText) return { ok: false, error: "INVALID_ARGS" };
+    const queueFile = path.join(getLiveEditsQueueDir(), `${editId}.json`);
+    if (!fs.existsSync(queueFile)) return { ok: false, error: "NOT_IN_QUEUE" };
+    try {
+      const cur = JSON.parse(fs.readFileSync(queueFile, "utf8"));
+      cur.text = nextText;
+      if (typeof p.urgent === "boolean") cur.urgent = p.urgent;
+      writeJsonAtomic(queueFile, cur);
+    } catch {
+      return { ok: false, error: "WRITE_FAILED" };
+    }
+    const { items } = loadAllLiveEdits();
+    broadcastLiveEditsChanged(items);
+    return { ok: true, items: filterLiveEditsForChat(items, key), allItems: items.slice(-30) };
+  });
+  ipcMain.handle("agy-studio:save-chat-agent-profile", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey || lastActiveChatKey);
+    const prof = sanitizeAgentProfile(p.profile);
+    if (p.setAsDefault === true || prof.applyToNewChats === true) {
+      saveStudioSettings({ agentProfileDefault: Object.assign({}, prof, { applyToNewChats: Boolean(prof.applyToNewChats) }) });
+    }
+    if (key !== "__new__") {
+      const chats = loadStudioChats();
+      const prev = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(p.title || "");
+      chats[key] = sanitizeChatRecord(Object.assign({}, prev, {
+        title: typeof p.title === "string" && p.title.trim() ? p.title.trim().slice(0, 80) : prev.title,
+        agentProfile: prof,
+        updatedAt: Date.now(),
+      }));
+      saveStudioChats(chats);
+      syncAgentProfileFlags(loadStudioSettings(), chats);
+    } else {
+      syncAgentProfileFlags(loadStudioSettings(), loadStudioChats());
+    }
+    const state = getStudioState(key);
+    broadcastStudioSettings(state);
+    return { ok: true, chatKey: key, agentProfile: prof, state };
+  });
+  ipcMain.handle("agy-studio:list-system-fonts", () => {
+    try {
+      const ws = loadWorkshopMod();
+      if (ws && typeof ws.listSystemFonts === "function") {
+        return { ok: true, fonts: ws.listSystemFonts() };
+      }
+    } catch {}
+    return { ok: true, fonts: ["Segoe UI", "Inter", "JetBrains Mono", "Consolas", "Georgia", "Arial"] };
+  });
+  ipcMain.handle("agy-studio:workshop-list", (_event, payload) => {
+    try {
+      const ws = loadWorkshopMod();
+      if (!ws) return { ok: false, error: "WORKSHOP_UNAVAILABLE" };
+      return ws.listCustomizations(payload && typeof payload === "object" ? payload : {});
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "WORKSHOP_LIST_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:workshop-save-rule", (_event, payload) => {
+    try {
+      const ws = loadWorkshopMod();
+      if (!ws) return { ok: false, error: "WORKSHOP_UNAVAILABLE" };
+      return ws.saveRule(payload && typeof payload === "object" ? payload : {});
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "RULE_SAVE_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:workshop-delete-rule", (_event, payload) => {
+    try {
+      const ws = loadWorkshopMod();
+      if (!ws) return { ok: false, error: "WORKSHOP_UNAVAILABLE" };
+      return ws.deleteRule(payload && typeof payload === "object" ? payload : {});
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "RULE_DELETE_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:workshop-save-skill", (_event, payload) => {
+    try {
+      const ws = loadWorkshopMod();
+      if (!ws) return { ok: false, error: "WORKSHOP_UNAVAILABLE" };
+      return ws.saveSkill(payload && typeof payload === "object" ? payload : {});
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "SKILL_SAVE_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:workshop-save-mcp", (_event, payload) => {
+    try {
+      const ws = loadWorkshopMod();
+      if (!ws) return { ok: false, error: "WORKSHOP_UNAVAILABLE" };
+      return ws.saveMcpServer(payload && typeof payload === "object" ? payload : {});
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "MCP_SAVE_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:workshop-delete-mcp", (_event, payload) => {
+    try {
+      const ws = loadWorkshopMod();
+      if (!ws) return { ok: false, error: "WORKSHOP_UNAVAILABLE" };
+      return ws.deleteMcpServer(payload && typeof payload === "object" ? payload : {});
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "MCP_DELETE_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:open-path", async (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const rawPath = typeof p.path === "string" ? p.path.trim() : "";
+    if (!rawPath) return { ok: false, error: "EMPTY_PATH" };
+    try {
+      const target = path.resolve(rawPath);
+      if (fs.existsSync(target) && shell) {
+        if (fs.statSync(target).isDirectory() && typeof shell.openPath === "function") {
+          await shell.openPath(target);
+        } else if (typeof shell.showItemInFolder === "function") {
+          shell.showItemInFolder(target);
+        }
+        return { ok: true };
+      }
+      return { ok: false, error: "NOT_FOUND" };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "OPEN_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:export-config-json", async () => {
+    if (!dialog || typeof dialog.showSaveDialog !== "function") return { ok: false, error: "DIALOG_UNAVAILABLE" };
+    const parentWin = getFocusedOrFirstWindow();
+    const res = await dialog.showSaveDialog(parentWin, {
+      title: tr("Экспорт профиля Rudex", "Export Rudex Profile"),
+      defaultPath: path.join(os.homedir(), "Desktop", "rudex-profile-v5.json"),
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!res || res.canceled || !res.filePath) return { ok: false, canceled: true };
+    const s = loadStudioSettings();
+    const bundle = {
+      format: "rudex-profile-v5",
+      exportedAt: new Date().toISOString(),
+      settings: s,
+    };
+    writeJsonAtomic(res.filePath, bundle);
+    return { ok: true, filePath: res.filePath };
+  });
+  ipcMain.handle("agy-studio:import-config-json", async () => {
+    if (!dialog || typeof dialog.showOpenDialog !== "function") return { ok: false, error: "DIALOG_UNAVAILABLE" };
+    const parentWin = getFocusedOrFirstWindow();
+    const res = await dialog.showOpenDialog(parentWin, {
+      title: tr("Импорт профиля Rudex", "Import Rudex Profile"),
+      properties: ["openFile"],
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!res || res.canceled || !Array.isArray(res.filePaths) || !res.filePaths[0]) return { ok: false, canceled: true };
+    try {
+      const parsed = JSON.parse(fs.readFileSync(res.filePaths[0], "utf8"));
+      const rawSettings = parsed && parsed.settings && typeof parsed.settings === "object" ? parsed.settings : parsed;
+      if (!rawSettings || typeof rawSettings !== "object") return { ok: false, error: "INVALID_PROFILE" };
+      saveStudioSettings(rawSettings);
+      const state = getStudioState(lastActiveChatKey);
+      broadcastStudioSettings(state);
+      return { ok: true, state };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "IMPORT_FAILED" };
+    }
+  });
 }
 
 exports.getLocale = getLocale;
@@ -3619,6 +4250,14 @@ exports.toggleLocale = toggleLocale;
 exports.toggleLocaleFromHotkey = toggleLocaleFromHotkey;
 exports.togglePanelFromHotkey = togglePanelFromHotkey;
 exports.toggleLiveEditFromHotkey = toggleLiveEditFromHotkey;
+exports.handleKeybindingEvent = handleKeybindingEvent;
+exports.matchInputToCombo = matchInputToCombo;
+exports.sanitizeLimitsWidget = sanitizeLimitsWidget;
+exports.sanitizeKeybindings = sanitizeKeybindings;
+exports.sanitizeAgentProfile = sanitizeAgentProfile;
+exports.DEFAULT_LIMITS_WIDGET = DEFAULT_LIMITS_WIDGET;
+exports.DEFAULT_KEYBINDINGS = DEFAULT_KEYBINDINGS;
+exports.DEFAULT_AGENT_PROFILE = DEFAULT_AGENT_PROFILE;
 exports.isRu = isRu;
 exports.tr = tr;
 exports.ruPlural = ruPlural;

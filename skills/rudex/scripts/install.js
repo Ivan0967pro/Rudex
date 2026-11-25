@@ -431,6 +431,10 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
   const telSrc = loadStripped("telemetry-engine.js");
   const themeSrc = loadStripped("theme-engine.js");
   const stylesSrc = loadStripped("studio-styles.js");
+  const v5CorePath = path.join(resourcesDir, "rudex-v5-core.js");
+  const v5CoreSrc = fs.existsSync(v5CorePath) ? loadStripped("rudex-v5-core.js") : "";
+  const v5UiPath = path.join(resourcesDir, "rudex-v5-ui.js");
+  const v5UiSrc = fs.existsSync(v5UiPath) ? loadStripped("rudex-v5-ui.js") : "";
   const panelSrc = loadStripped("studio-panel.js");
 
   const snippet = [
@@ -447,6 +451,8 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     `const STUDIO_META = ${JSON.stringify(pluginMeta)};`,
     themeSrc,
     stylesSrc,
+    v5CoreSrc,
+    v5UiSrc,
     panelSrc,
     `const _rawBootLocale = (() => { try { return _ipc.sendSync("agy-i18n:get-locale-sync"); } catch (_e) { return "ru"; } })();`,
     `if (_rawBootLocale === "__disabled__") return;`,
@@ -456,6 +462,7 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     `_ipc.on("agy-i18n:locale-changed", (_event, nextLocale) => { try { _translator.setLocale(nextLocale); } catch (_e) {} try { _studioPanel.setLocale(nextLocale); } catch (_e) {} });`,
     `_ipc.on("agy-studio:toggle-panel", () => { try { _studioPanel.toggleOpen(); } catch (_e) {} });`,
     `_ipc.on("agy-studio:toggle-live-edit", () => { try { _studioPanel.toggleLiveEditPopover(); } catch (_e) {} });`,
+    `_ipc.on("agy-studio:hotkey-action", (_event, payload) => { try { if (typeof _studioPanel.handleHotkeyAction === "function") _studioPanel.handleHotkeyAction(payload && payload.action); } catch (_e) {} });`,
     `_ipc.on("agy-studio:live-edits-changed", (_event, payload) => { try { _studioPanel.applyLiveEditsUpdate(payload); } catch (_e) {} });`,
     `_ipc.on("agy-studio:settings-changed", (_event, nextState) => { try { _studioPanel.applyRemoteState(nextState); } catch (_e) {} });`,
     `_ipc.on("agy-studio:update-status", (_event, payload) => { try { _studioPanel.applyUpdateStatus(payload); } catch (_e) {} });`,
@@ -479,6 +486,10 @@ function copyI18nDataFiles(distDir, resourcesDir = RESOURCES_SRC_DIR, scriptsDir
   fs.copyFileSync(path.join(scriptsDir, "zip-builder.js"), path.join(dataDir, "zip-builder.js"));
   fs.copyFileSync(path.join(scriptsDir, "updater-core.js"), path.join(dataDir, "updater-core.js"));
   fs.copyFileSync(path.join(scriptsDir, "thinking-translator.js"), path.join(dataDir, "thinking-translator.js"));
+  const wsPath = path.join(scriptsDir, "agy-workshop.js");
+  if (fs.existsSync(wsPath)) {
+    fs.copyFileSync(wsPath, path.join(dataDir, "agy-workshop.js"));
+  }
 }
 
 function hasSystemNode() {

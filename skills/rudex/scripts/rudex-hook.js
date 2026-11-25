@@ -657,14 +657,281 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
   } catch {}
 }
 
+function buildAgentProfileDirective(prof) {
+  const lines = [
+    "[Rudex · Профиль возможностей агента]",
+    "Следуй активной конфигурации инструментов и стратегии для этого чата с первого шага:",
+  ];
+  if (prof.subagents === "parallel") {
+    lines.push("- СУБАГЕНТЫ (АКТИВНО): сразу разбивай сложные и многокомпонентные задачи на независимые потоки и параллельно делегируй их через invoke_subagent (research / self), не откладывая.");
+  } else if (prof.subagents === "off") {
+    lines.push("- СУБАГЕНТЫ (ВЫКЛ): выполняй задачу самостоятельно без запуска субагентов.");
+  }
+  if (prof.webSearch === "always") {
+    lines.push("- ВЕБ-ПОИСК (АКТИВНО): проверяй актуальную документацию, версии и факты через search_web перед принятием решений.");
+  } else if (prof.webSearch === "off") {
+    lines.push("- ВЕБ-ПОИСК (ВЫКЛ): работай строго офлайн, не используй search_web.");
+  }
+  if (prof.browser === "verify") {
+    lines.push("- БРАУЗЕР (АВТОПРОВЕРКА): после изменений в UI/веб-страницах проверяй визуальный результат через браузерного субагента или Chrome DevTools.");
+  } else if (prof.browser === "off") {
+    lines.push("- БРАУЗЕР (ВЫКЛ): не используй браузерного субагента и Chrome DevTools.");
+  }
+  if (prof.planFirst === "strict") {
+    lines.push("- ПЛАНИРОВАНИЕ: перед правками обязательно составь краткий чёткий план и веди живой чеклист через update_steps.");
+  } else if (prof.planFirst === "skip") {
+    lines.push("- БЫСТРЫЙ СТАРТ: без длинных планов и лишних вступлений сразу переходи к действиям и решению.");
+  }
+  if (prof.autoVerify) {
+    lines.push("- АВТОПРОВЕРКА: перед завершением ответа обязательно запускай релевантные тесты, сборку или проверку синтаксиса.");
+  }
+  if (prof.deepMode) {
+    lines.push("- РЕЖИМ «ДО КОНЦА»: не останавливайся на полпути и не задавай лишних вопросов на очевидных шагах — доводи задачу до полностью готового рабочего состояния.");
+  }
+  if (prof.conciseness === "short") {
+    lines.push("- ФОРМАТ ОТВЕТА: отвечай максимально кратко, сжато и по делу.");
+  } else if (prof.conciseness === "detailed") {
+    lines.push("- ФОРМАТ ОТВЕТА: давай подробные, структурированные объяснения решений и компромиссов.");
+  }
+  if (prof.safetyMode === "readonly") {
+    lines.push("- РЕЖИМ ТОЛЬКО ЧТЕНИЕ: изменение файлов и выполнение команд терминала запрещены политикой чата. Проводи только анализ, поиск и аудит.");
+  } else if (prof.safetyMode === "cautious") {
+    lines.push("- ОСТОРОЖНЫЙ РЕЖИМ: объясняй каждый запуск команды терминала и избегай рискованных операций без явной причины.");
+  }
+  if (Array.isArray(prof.pinnedSkills) && prof.pinnedSkills.length > 0) {
+    lines.push(`- ПРИОРИТЕТНЫЕ СКИЛЛЫ/ИНСТРУМЕНТЫ ЧАТА: обязательно опирайся на ${prof.pinnedSkills.join(", ")}.`);
+  }
+  if (Array.isArray(prof.disabledTools) && prof.disabledTools.length > 0) {
+    lines.push(`- ОТКЛЮЧЁННЫЕ ИНСТРУМЕНТЫ: не пытайся вызывать ${prof.disabledTools.join(", ")}.`);
+  }
+  return lines.join("\n");
+}
+
+function resolveEffectiveAgentProfile(userDataDir, convId) {
+  const { chatsPath, store } = loadChatsStore(userDataDir);
+  const settings = readJsonSafe(path.join(userDataDir, "agy_studio_settings.json"));
+  const defaultProf = settings && settings.agentProfileDefault && typeof settings.agentProfileDefault === "object"
+    ? settings.agentProfileDefault
+    : null;
+  let rec = convId ? (store.chats[convId] || null) : null;
+  let prof = rec && rec.agentProfile && typeof rec.agentProfile === "object" ? rec.agentProfile : null;
+  if (!prof && defaultProf && defaultProf.applyToNewChats === true && defaultProf.enabled === true) {
+    prof = Object.assign({}, defaultProf);
+    if (convId) {
+      store.chats[convId] = Object.assign({}, rec || { title: "" }, {
+        agentProfile: prof,
+        updatedAt: Date.now(),
+      });
+      try { safeWriteJsonAtomic(chatsPath, store); } catch {}
+    }
+  }
+  if (!prof || prof.enabled !== true) return null;
+  return prof;
+}
+
+function runAgentProfileEngine(userDataDir, payload, injectSteps) {
+  const eventName = String(payload.hookEventName || "");
+  if (eventName !== "SessionStart" && eventName !== "PreInvocation") return;
+  const flagPath = path.join(userDataDir, "agy_studio_agent_profile.flag");
+  if (!fs.existsSync(flagPath)) return;
+
+  const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
+  const prof = resolveEffectiveAgentProfile(userDataDir, convId);
+  const anchorsPath = path.join(userDataDir, "studio_agent_anchors.json");
+  const anchorsRaw = readJsonSafe(anchorsPath);
+  const anchorsStore = anchorsRaw && typeof anchorsRaw === "object" && anchorsRaw.anchors && typeof anchorsRaw.anchors === "object"
+    ? anchorsRaw
+    : { version: 1, anchors: {} };
+  const anchors = anchorsStore.anchors;
+  const prev = convId ? (anchors[convId] || null) : null;
+  const stepNum = Number(payload.initialNumSteps) || 0;
+  const now = Date.now();
+  let dirty = false;
+
+  if (prof) {
+    const directive = buildAgentProfileDirective(prof);
+    const curHash = crypto.createHash("sha1").update(directive).digest("hex").slice(0, 16);
+    if (!prev || prev.hash !== curHash) {
+      injectSteps.push({
+        systemMessage: {
+          systemMessage: directive,
+          metadata: { user_markdown: `⚡ *Профиль агента активен${prof.presetLabel ? `: ${prof.presetLabel}` : ""}*` },
+        },
+      });
+      if (convId) {
+        anchors[convId] = { hash: curHash, enabled: true, stepCount: stepNum, updatedAt: now };
+        dirty = true;
+      }
+    } else if (eventName === "PreInvocation" && (stepNum - (Number(prev.stepCount) || 0) >= 6)) {
+      injectSteps.push({
+        systemMessage: {
+          systemMessage: `[Rudex · Напоминание профиля агента]\n${directive}`,
+          metadata: { user_markdown: "\u200B" },
+        },
+      });
+      if (convId) {
+        anchors[convId] = Object.assign({}, prev, { stepCount: stepNum, updatedAt: now });
+        dirty = true;
+      }
+    }
+  } else if (prev && prev.enabled === true) {
+    injectSteps.push({
+      systemMessage: {
+        systemMessage: "The user disabled the custom Rudex agent profile for this chat. Return to standard tool and workflow behavior.",
+        metadata: { user_markdown: "⚡ *Профиль агента отключён*" },
+      },
+    });
+    if (convId) {
+      anchors[convId] = { hash: "OFF", enabled: false, stepCount: stepNum, updatedAt: now };
+      dirty = true;
+    }
+  }
+
+  if (dirty) {
+    anchorsStore.anchors = pruneAnchors(anchors);
+    try { safeWriteJsonAtomic(anchorsPath, anchorsStore); } catch {}
+  }
+}
+
+const MUTATING_TOOLS = new Set([
+  "write_file",
+  "edit_file",
+  "run_command",
+  "replace_file_content",
+  "multi_replace_file_content",
+  "write_to_file",
+]);
+
+function claimUrgentLiveEditsForTool(userDataDir, payload) {
+  const leDir = path.join(userDataDir, "studio_live_edits");
+  const flagPath = path.join(leDir, "pending.flag");
+  const queueDir = path.join(leDir, "queue");
+  const deliveredDir = path.join(leDir, "delivered");
+  if (!fs.existsSync(flagPath) || !fs.existsSync(queueDir)) return [];
+  const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
+  const now = Date.now();
+  let files = [];
+  try {
+    files = fs.readdirSync(queueDir).filter((n) => n.endsWith(".json") && !n.includes(".tmp-")).sort();
+  } catch {
+    return [];
+  }
+  const matched = [];
+  for (let i = 0; i < files.length; i += 1) {
+    const fn = files[i];
+    const full = path.join(queueDir, fn);
+    const it = readJsonSafe(full);
+    if (!it || it.urgent !== true || (it.status && it.status !== "pending")) continue;
+    const itemChat = typeof it.chatKey === "string" ? it.chatKey.trim().toLowerCase() : "";
+    if ((convId && itemChat && itemChat === convId) || (!itemChat && it.fallbackAny === true)) {
+      const claimed = moveQueueFileTo(full, deliveredDir, fn, (obj) => Object.assign({}, obj, {
+        status: "delivered",
+        deliveredAt: now,
+        deliveredConversationId: convId || itemChat,
+        deliveredVia: "PreToolUse",
+      }));
+      if (claimed) matched.push(claimed);
+    }
+  }
+  try {
+    const rem = fs.readdirSync(queueDir).filter((n) => n.endsWith(".json") && !n.includes(".tmp-")).length;
+    if (rem === 0 && fs.existsSync(flagPath)) fs.unlinkSync(flagPath);
+  } catch {}
+  return matched;
+}
+
+function runPreToolUseEngine(userDataDir, payload) {
+  const tc = payload && payload.toolCall && typeof payload.toolCall === "object" ? payload.toolCall : null;
+  const toolName = tc && typeof tc.name === "string" ? tc.name.trim() : "";
+  const toolArgs = tc && tc.args && typeof tc.args === "object" ? tc.args : {};
+  if (!toolName) return null;
+
+  // 1. Urgent live edit intercept before mutating tool call
+  if (MUTATING_TOOLS.has(toolName)) {
+    const urgentEdits = claimUrgentLiveEditsForTool(userDataDir, payload);
+    if (urgentEdits.length > 0) {
+      return {
+        decision: "deny",
+        reason: `⚡ СРОЧНАЯ ПРАВКА НА ЛЕТУ (НЕ прерывай задачу — сразу учти правку и скорректируй действие):\n\n${formatSupplementInstruction(urgentEdits)}`,
+      };
+    }
+  }
+
+  // 2. Agent profile tool policies (fast-path guarded by flag file)
+  const policyFlagPath = path.join(userDataDir, "agy_studio_tool_policy.flag");
+  if (!fs.existsSync(policyFlagPath)) return null;
+
+  const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
+  const prof = resolveEffectiveAgentProfile(userDataDir, convId);
+  if (!prof) return null;
+
+  if (prof.safetyMode === "readonly" && MUTATING_TOOLS.has(toolName)) {
+    return {
+      decision: "deny",
+      reason: `[Rudex · Read-Only] Инструмент "${toolName}" заблокирован: в профиле этого чата включён режим «Только чтение».`,
+    };
+  }
+  if (prof.safetyMode === "cautious" && toolName === "run_command") {
+    return {
+      decision: "force_ask",
+      reason: "[Rudex · Осторожный режим] Требуется подтверждение пользователя перед запуском команды терминала.",
+    };
+  }
+  if (prof.webSearch === "off" && (toolName === "search_web" || toolName === "read_url_content")) {
+    return {
+      decision: "deny",
+      reason: `[Rudex] Инструмент "${toolName}" отключён в профиле этого чата (Веб-поиск выключен).`,
+    };
+  }
+  if (prof.browser === "off") {
+    const isBrowserSub = toolName === "invoke_subagent" && String(toolArgs.TypeName || "").toLowerCase() === "browser";
+    const isDevtoolsMcp = toolName === "call_mcp_tool" && String(toolArgs.ServerName || "").toLowerCase().includes("chrome-devtools");
+    if (isBrowserSub || isDevtoolsMcp || toolName.startsWith("browser_")) {
+      return {
+        decision: "deny",
+        reason: "[Rudex] Браузер и Chrome DevTools отключены в профиле этого чата.",
+      };
+    }
+  }
+  if (prof.subagents === "off" && toolName === "invoke_subagent") {
+    const isBrowserSub = String(toolArgs.TypeName || "").toLowerCase() === "browser";
+    if (!isBrowserSub || prof.browser === "off") {
+      return {
+        decision: "deny",
+        reason: "[Rudex] Запуск субагентов отключён в профиле этого чата.",
+      };
+    }
+  }
+  if (Array.isArray(prof.disabledTools) && prof.disabledTools.length > 0) {
+    const mcpKey = toolName === "call_mcp_tool" && toolArgs.ServerName ? `mcp:${String(toolArgs.ServerName)}` : "";
+    if (prof.disabledTools.includes(toolName) || (mcpKey && prof.disabledTools.includes(mcpKey))) {
+      return {
+        decision: "deny",
+        reason: `[Rudex] Инструмент "${mcpKey || toolName}" отключён в настройках чата.`,
+      };
+    }
+  }
+  return null;
+}
+
 function main() {
   const userDataDir = getUserDataDir();
   const leFlagPath = path.join(userDataDir, "studio_live_edits", "pending.flag");
   const personaFlagPath = path.join(userDataDir, "agy_studio_persona_active.flag");
   const thinkingFlagPath = path.join(userDataDir, "agy_studio_thinking_ru.flag");
+  const agentFlagPath = path.join(userDataDir, "agy_studio_agent_profile.flag");
+  const toolPolicyFlagPath = path.join(userDataDir, "agy_studio_tool_policy.flag");
 
   const payload = readStdinSyncSafe();
   const eventName = String(payload.hookEventName || "");
+
+  if (eventName === "PreToolUse") {
+    if (!fs.existsSync(toolPolicyFlagPath) && !fs.existsSync(leFlagPath)) {
+      outAndExit({});
+    }
+    const toolRes = runPreToolUseEngine(userDataDir, payload);
+    outAndExit(toolRes || {});
+  }
 
   if (eventName === "Stop") {
     if (!fs.existsSync(leFlagPath)) {
@@ -685,13 +952,15 @@ function main() {
     injectSteps.length === 0 &&
     !fs.existsSync(leFlagPath) &&
     !fs.existsSync(personaFlagPath) &&
-    !fs.existsSync(thinkingFlagPath)
+    !fs.existsSync(thinkingFlagPath) &&
+    !fs.existsSync(agentFlagPath)
   ) {
     outAndExit({});
   }
 
   runPersonaEngine(userDataDir, payload, injectSteps);
   runThinkingLanguageEngine(userDataDir, payload, injectSteps);
+  runAgentProfileEngine(userDataDir, payload, injectSteps);
   runLiveEditsEngine(userDataDir, payload, injectSteps);
 
   if (injectSteps.length > 0) {

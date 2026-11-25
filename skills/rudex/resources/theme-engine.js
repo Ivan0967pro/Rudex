@@ -436,8 +436,11 @@ const DEFAULT_APPEARANCE = {
   glassBlur: 12,
   messageCardOpacity: 74,
   messageStyle: "glass",
+  borderPreset: "crisp", // "airy" | "crisp" | "contrast"
   borderStrength: 50,
   highContrastText: true,
+  overridesPaused: false,
+  elementOverrides: [],
   radius: 12,
   corners: {
     mode: "linked",
@@ -488,7 +491,21 @@ const DEFAULT_APPEARANCE = {
   typography: {
     uiFont: "system",
     monoFont: "system",
+    inputFont: "inherit",
+    userMsgFont: "inherit",
+    agentFont: "inherit",
+    thinkingFont: "inherit",
+    uiFontCustom: "",
+    inputFontCustom: "",
+    userMsgFontCustom: "",
+    agentFontCustom: "",
+    thinkingFontCustom: "",
+    monoFontCustom: "",
     fontSize: 14,
+    uiFontSize: 0,
+    inputFontSize: 0,
+    agentFontSize: 0,
+    codeFontSize: 0,
     lineHeight: 1.55,
     chatMaxWidth: 0,
     density: "comfortable",
@@ -496,6 +513,134 @@ const DEFAULT_APPEARANCE = {
 };
 
 const TE_HEX_RE = /^#[0-9a-fA-F]{6}$/;
+const TE_SAFE_FONT_NAME_RE = /[^a-zA-Zа-яА-ЯёЁ0-9 _\-().]/g;
+
+function teSanitizeCustomFontName(raw) {
+  if (typeof raw !== "string") return "";
+  return raw.replace(TE_SAFE_FONT_NAME_RE, "").trim().slice(0, 64);
+}
+
+function teFindFontAny(preferredGroup, id) {
+  if (!id || id === "inherit") return { id: "inherit", stack: "", googleQuery: "" };
+  if (id === "custom") return { id: "custom", stack: "", googleQuery: "" };
+  const primary = FONT_PRESETS[preferredGroup] || [];
+  for (let i = 0; i < primary.length; i += 1) {
+    if (primary[i].id === id) return primary[i];
+  }
+  const altGroup = preferredGroup === "mono" ? "ui" : "mono";
+  const secondary = FONT_PRESETS[altGroup] || [];
+  for (let i = 0; i < secondary.length; i += 1) {
+    if (secondary[i].id === id) return secondary[i];
+  }
+  return null;
+}
+
+function teResolveFontStack(preferredGroup, fontId, customName) {
+  if (!fontId || fontId === "system" || fontId === "inherit") return "";
+  if (fontId === "custom") {
+    const clean = teSanitizeCustomFontName(customName);
+    if (!clean) return "";
+    return preferredGroup === "mono"
+      ? `"${clean}", "JetBrains Mono", Consolas, monospace`
+      : `"${clean}", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  }
+  const found = teFindFontAny(preferredGroup, fontId);
+  return found && found.stack ? found.stack : "";
+}
+
+function teNormalizeElementOverrides(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const hexOrRgba = (v) => {
+    if (typeof v !== "string") return "";
+    const s = v.trim();
+    if (TE_HEX_RE.test(s)) return s.toLowerCase();
+    return "";
+  };
+  for (let i = 0; i < raw.length && out.length < 80; i += 1) {
+    const it = raw[i];
+    if (!it || typeof it !== "object") continue;
+    const selector = typeof it.selector === "string" ? it.selector.trim().slice(0, 260) : "";
+    if (!selector || /[{}<>\\]/.test(selector) || /url\s*\(|expression\s*\(|@import/i.test(selector)) continue;
+    const st = it.styles && typeof it.styles === "object" ? it.styles : {};
+    out.push({
+      id: typeof it.id === "string" && it.id ? it.id.slice(0, 64) : "ov-" + i,
+      name: typeof it.name === "string" ? it.name.trim().slice(0, 80) : selector.slice(0, 48),
+      selector,
+      zone: typeof it.zone === "string" ? it.zone.trim().slice(0, 48) : "",
+      scope: it.scope === "similar" ? "similar" : "exact",
+      enabled: it.enabled !== false,
+      styles: {
+        fontFamily: typeof st.fontFamily === "string" ? st.fontFamily.trim().slice(0, 64) : "",
+        fontFamilyCustom: teSanitizeCustomFontName(st.fontFamilyCustom),
+        fontSize: Number.isFinite(Number(st.fontSize)) && Number(st.fontSize) > 0 ? Math.round(teClamp(st.fontSize, 9, 42, 0)) : 0,
+        fontWeight: Number.isFinite(Number(st.fontWeight)) && Number(st.fontWeight) > 0 ? Math.round(teClamp(st.fontWeight, 300, 900, 0)) : 0,
+        lineHeight: Number.isFinite(Number(st.lineHeight)) && Number(st.lineHeight) > 0 ? Math.round(teClamp(st.lineHeight, 1.0, 2.4, 0) * 100) / 100 : 0,
+        color: hexOrRgba(st.color),
+        bgColor: hexOrRgba(st.bgColor),
+        bgOpacity: Number.isFinite(Number(st.bgOpacity)) ? Math.round(teClamp(st.bgOpacity, 0, 100, 100)) : 100,
+        borderColor: hexOrRgba(st.borderColor),
+        borderWidth: Number.isFinite(Number(st.borderWidth)) && Number(st.borderWidth) >= 0 ? Math.round(teClamp(st.borderWidth, 0, 6, -1)) : -1,
+        borderRadius: Number.isFinite(Number(st.borderRadius)) && Number(st.borderRadius) >= 0 ? Math.round(teClamp(st.borderRadius, 0, 40, -1)) : -1,
+        padding: Number.isFinite(Number(st.padding)) && Number(st.padding) >= 0 ? Math.round(teClamp(st.padding, 0, 48, -1)) : -1,
+        width: Number.isFinite(Number(st.width)) && Number(st.width) > 0 ? Math.round(teClamp(st.width, 40, 1600, 0)) : 0,
+        minHeight: Number.isFinite(Number(st.minHeight)) && Number(st.minHeight) > 0 ? Math.round(teClamp(st.minHeight, 18, 600, 0)) : 0,
+        hidden: Boolean(st.hidden),
+      },
+    });
+  }
+  return out;
+}
+
+function teBuildElementOverridesCss(overrides, paused) {
+  if (paused || !Array.isArray(overrides) || overrides.length === 0) return "";
+  const blocks = [];
+  for (let i = 0; i < overrides.length; i += 1) {
+    const ov = overrides[i];
+    if (!ov || ov.enabled === false || !ov.selector) continue;
+    const st = ov.styles || {};
+    const decls = [];
+    if (st.hidden) {
+      decls.push("display: none !important;");
+    } else {
+      const fStack = st.fontFamily ? teResolveFontStack("ui", st.fontFamily, st.fontFamilyCustom) : "";
+      if (fStack) decls.push(`font-family: ${fStack} !important;`);
+      if (st.fontSize > 0) decls.push(`font-size: ${st.fontSize}px !important;`);
+      if (st.fontWeight > 0) decls.push(`font-weight: ${st.fontWeight} !important;`);
+      if (st.lineHeight > 0) decls.push(`line-height: ${st.lineHeight} !important;`);
+      if (st.color) decls.push(`color: ${st.color} !important;`);
+      if (st.bgColor) {
+        const bgVal = st.bgOpacity < 100 ? teHexToRgba(st.bgColor, st.bgOpacity) : st.bgColor;
+        decls.push(`background-color: ${bgVal} !important;`);
+      }
+      if (st.borderColor && st.borderWidth >= 0) {
+        decls.push(st.borderWidth === 0 ? "border: none !important;" : `border: ${st.borderWidth}px solid ${st.borderColor} !important;`);
+      } else if (st.borderColor) {
+        decls.push(`border-color: ${st.borderColor} !important;`);
+      } else if (st.borderWidth === 0) {
+        decls.push("border: none !important;");
+      } else if (st.borderWidth > 0) {
+        decls.push(`border-width: ${st.borderWidth}px !important; border-style: solid !important;`);
+      }
+      if (st.borderRadius >= 0) decls.push(`border-radius: ${st.borderRadius}px !important;`);
+      if (st.padding >= 0) decls.push(`padding: ${st.padding}px !important;`);
+      if (st.width > 0) decls.push(`width: ${st.width}px !important; max-width: ${st.width}px !important;`);
+      if (st.minHeight > 0) decls.push(`min-height: ${st.minHeight}px !important;`);
+    }
+    if (decls.length > 0) {
+      blocks.push(`${ov.selector} {\n  ${decls.join("\n  ")}\n}`);
+      if (!st.hidden && (st.fontFamily || st.fontSize > 0 || st.color)) {
+        const subDecls = [];
+        const fStack = st.fontFamily ? teResolveFontStack("ui", st.fontFamily, st.fontFamilyCustom) : "";
+        if (fStack) subDecls.push(`font-family: ${fStack} !important;`);
+        if (st.fontSize > 0) subDecls.push(`font-size: inherit !important;`);
+        if (st.color) subDecls.push(`color: ${st.color} !important;`);
+        blocks.push(`${ov.selector} :where(span, p, div, a, label):not(code):not(pre):not(#rudex-studio-host *) {\n  ${subDecls.join("\n  ")}\n}`);
+      }
+    }
+  }
+  return blocks.join("\n");
+}
 
 function teClamp(val, min, max, fallback) {
   const n = Number(val);
@@ -532,8 +677,6 @@ function teFindFont(group, id) {
 function teBuildWebFontUrl(rawOrNormalized) {
   const cfg = rawOrNormalized && rawOrNormalized.typography ? rawOrNormalized : normalizeAppearance(rawOrNormalized);
   const ty = cfg.typography || DEFAULT_APPEARANCE.typography;
-  const uiFont = teFindFont("ui", ty.uiFont);
-  const monoFont = teFindFont("mono", ty.monoFont);
   const parts = [];
   const seen = new Set();
   const pushQuery = (q) => {
@@ -547,8 +690,26 @@ function teBuildWebFontUrl(rawOrNormalized) {
       }
     }
   };
-  pushQuery(uiFont.googleQuery);
-  pushQuery(monoFont.googleQuery);
+  const slotDefs = [
+    ["ui", ty.uiFont],
+    ["mono", ty.monoFont],
+    ["ui", ty.inputFont],
+    ["ui", ty.userMsgFont],
+    ["ui", ty.agentFont],
+    ["ui", ty.thinkingFont],
+  ];
+  for (let i = 0; i < slotDefs.length; i += 1) {
+    const f = teFindFontAny(slotDefs[i][0], slotDefs[i][1]);
+    if (f && f.googleQuery) pushQuery(f.googleQuery);
+  }
+  const ovs = Array.isArray(cfg.elementOverrides) ? cfg.elementOverrides : [];
+  for (let i = 0; i < ovs.length; i += 1) {
+    const ov = ovs[i];
+    if (ov && ov.enabled !== false && ov.styles && ov.styles.fontFamily) {
+      const f = teFindFontAny("ui", ov.styles.fontFamily);
+      if (f && f.googleQuery) pushQuery(f.googleQuery);
+    }
+  }
   if (parts.length === 0) return "";
   return `https://fonts.googleapis.com/css2?${parts.join("&")}&display=swap`;
 }
@@ -785,8 +946,18 @@ function normalizeAppearance(raw) {
   ];
 
   const tySrc = src.typography && typeof src.typography === "object" ? src.typography : {};
-  const uiFontId = teFindFont("ui", tySrc.uiFont).id;
-  const monoFontId = teFindFont("mono", tySrc.monoFont).id;
+  const sanitizeSlotFont = (val, fallback, group) => {
+    if (val === "inherit") return fallback === "inherit" ? "inherit" : fallback;
+    if (val === "custom") return "custom";
+    const found = teFindFontAny(group, val);
+    return found ? found.id : fallback;
+  };
+  const uiFontId = tySrc.uiFont === "custom" ? "custom" : teFindFont("ui", tySrc.uiFont).id;
+  const monoFontId = tySrc.monoFont === "custom" ? "custom" : teFindFont("mono", tySrc.monoFont).id;
+  const inputFontId = sanitizeSlotFont(tySrc.inputFont, "inherit", "ui");
+  const userMsgFontId = sanitizeSlotFont(tySrc.userMsgFont, "inherit", "ui");
+  const agentFontId = sanitizeSlotFont(tySrc.agentFont, "inherit", "ui");
+  const thinkingFontId = sanitizeSlotFont(tySrc.thinkingFont, "inherit", "ui");
   const rawChatW = teClamp(Math.round(Number(tySrc.chatMaxWidth) || 0), 0, 1200, 0);
   const chatMaxWidth = rawChatW > 0 && rawChatW < 680 ? 680 : rawChatW;
   const density =
@@ -796,6 +967,11 @@ function normalizeAppearance(raw) {
   const lineHeight = Number.isFinite(rawLineHeight)
     ? Math.round(teClamp(rawLineHeight, 1.25, 1.9, 1.55) * 100) / 100
     : 1.55;
+  const normSlotSize = (val, min, max) => {
+    const n = Number(val);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.round(teClamp(n, min, max, 0));
+  };
 
   const mediaFile =
     typeof wpSrc.mediaFile === "string" && /^[a-zA-Z0-9._-]{1,120}$/.test(wpSrc.mediaFile.trim())
@@ -857,8 +1033,11 @@ function normalizeAppearance(raw) {
     glassBlur: Math.round(teClamp(src.glassBlur, 0, 36, DEFAULT_APPEARANCE.glassBlur)),
     messageCardOpacity: Math.round(teClamp(src.messageCardOpacity, 0, 96, DEFAULT_APPEARANCE.messageCardOpacity)),
     messageStyle,
+    borderPreset: src.borderPreset === "airy" || src.borderPreset === "contrast" ? src.borderPreset : "crisp",
     borderStrength: Math.round(teClamp(src.borderStrength, 0, 100, DEFAULT_APPEARANCE.borderStrength)),
     highContrastText: src.highContrastText !== false,
+    overridesPaused: Boolean(src.overridesPaused),
+    elementOverrides: teNormalizeElementOverrides(src.elementOverrides),
     radius: effRadius,
     corners,
     wallpaper: {
@@ -898,7 +1077,21 @@ function normalizeAppearance(raw) {
     typography: {
       uiFont: uiFontId,
       monoFont: monoFontId,
+      inputFont: inputFontId,
+      userMsgFont: userMsgFontId,
+      agentFont: agentFontId,
+      thinkingFont: thinkingFontId,
+      uiFontCustom: teSanitizeCustomFontName(tySrc.uiFontCustom),
+      inputFontCustom: teSanitizeCustomFontName(tySrc.inputFontCustom),
+      userMsgFontCustom: teSanitizeCustomFontName(tySrc.userMsgFontCustom),
+      agentFontCustom: teSanitizeCustomFontName(tySrc.agentFontCustom),
+      thinkingFontCustom: teSanitizeCustomFontName(tySrc.thinkingFontCustom),
+      monoFontCustom: teSanitizeCustomFontName(tySrc.monoFontCustom),
       fontSize: Math.round(teClamp(tySrc.fontSize, 12, 18, DEFAULT_APPEARANCE.typography.fontSize)),
+      uiFontSize: normSlotSize(tySrc.uiFontSize, 11, 20),
+      inputFontSize: normSlotSize(tySrc.inputFontSize, 12, 22),
+      agentFontSize: normSlotSize(tySrc.agentFontSize, 12, 22),
+      codeFontSize: normSlotSize(tySrc.codeFontSize, 11, 20),
       lineHeight,
       chatMaxWidth,
       density,
@@ -955,7 +1148,15 @@ function teHasCustomTypography(cfg) {
   return (
     ty.uiFont !== "system" ||
     ty.monoFont !== "system" ||
+    ty.inputFont !== "inherit" ||
+    ty.userMsgFont !== "inherit" ||
+    ty.agentFont !== "inherit" ||
+    ty.thinkingFont !== "inherit" ||
     ty.fontSize !== 14 ||
+    ty.uiFontSize !== 0 ||
+    ty.inputFontSize !== 0 ||
+    ty.agentFontSize !== 0 ||
+    ty.codeFontSize !== 0 ||
     ty.lineHeight !== 1.55 ||
     ty.chatMaxWidth !== 0 ||
     ty.density !== "comfortable"
@@ -973,12 +1174,14 @@ function isAppearanceNativeDefault(raw) {
     cfg.presetId === "native" &&
     !cfg.customAccent &&
     cfg.uiPolish === true &&
+    cfg.borderPreset === "crisp" &&
     cfg.borderStrength === 50 &&
     cfg.radius === 12 &&
     !teHasCustomCorners(cfg) &&
     cfg.messageStyle === "glass" &&
     cfg.wallpaper.type === "none" &&
-    !teHasCustomTypography(cfg)
+    !teHasCustomTypography(cfg) &&
+    (!Array.isArray(cfg.elementOverrides) || cfg.elementOverrides.length === 0)
   );
 }
 
@@ -1146,10 +1349,12 @@ function buildThemeCss(rawAppearance, options) {
   const hasWallpaper = teHasActiveWallpaper(cfg);
   const hasCustomTypo = teHasCustomTypography(cfg);
   const hasCornersOverride = teHasCustomCorners(cfg);
+  const hasBorderPreset = cfg.borderPreset !== "crisp";
+  const hasElementOverrides = !cfg.overridesPaused && Array.isArray(cfg.elementOverrides) && cfg.elementOverrides.length > 0;
   const hasSurfaceOverride =
-    hasCornersOverride || cfg.radius !== 12 || cfg.borderStrength !== 50 || cfg.messageStyle !== "glass";
+    hasCornersOverride || hasBorderPreset || cfg.radius !== 12 || cfg.borderStrength !== 50 || cfg.messageStyle !== "glass";
 
-  if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !cfg.uiPolish) {
+  if (!hasThemeOverride && !hasAccentOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !hasElementOverrides && !cfg.uiPolish) {
     return "";
   }
 
@@ -1159,9 +1364,21 @@ function buildThemeCss(rawAppearance, options) {
   const uiFontObj = teFindFont("ui", ty.uiFont);
   const monoFontObj = teFindFont("mono", ty.monoFont);
   const isLight = hasThemeOverride ? vars.mode === "light" : Boolean(opts.hostIsLight);
-  const borderAlpha = Math.round(teClamp(cfg.borderStrength, 0, 100, 50) * (isLight ? 0.28 : 0.26)) / 100;
+  const borderPresetMult = cfg.borderPreset === "contrast" ? 1.55 : (cfg.borderPreset === "airy" ? 0.55 : 1.0);
+  const baseBorderAlpha = Math.round(teClamp(cfg.borderStrength, 0, 100, 50) * (isLight ? 0.28 : 0.26) * borderPresetMult) / 100;
+  const borderAlpha = Math.min(0.55, baseBorderAlpha);
   const dynamicBorderCol = isLight ? `rgba(15, 23, 42, ${borderAlpha})` : `rgba(255, 255, 255, ${borderAlpha})`;
-  const effectiveBorder = cfg.borderStrength !== 50 ? dynamicBorderCol : vars.borderColor;
+  const effectiveBorder = (cfg.borderStrength !== 50 || cfg.borderPreset !== "crisp") ? dynamicBorderCol : vars.borderColor;
+  const crispFloorAlpha = cfg.borderStrength === 0
+    ? 0
+    : Math.min(0.48, Math.max(borderAlpha, cfg.borderPreset === "airy" ? 0.08 : (cfg.borderPreset === "contrast" ? 0.28 : (isLight ? 0.14 : 0.17))));
+  const crispBorderCol = crispFloorAlpha <= 0
+    ? "transparent"
+    : (isLight ? `rgba(15, 23, 42, ${crispFloorAlpha})` : `rgba(255, 255, 255, ${crispFloorAlpha})`);
+  const stepBorderCol = crispFloorAlpha <= 0
+    ? "transparent"
+    : (isLight ? `rgba(15, 23, 42, ${Math.min(0.36, Math.round(crispFloorAlpha * 0.85 * 100) / 100)})` : `rgba(255, 255, 255, ${Math.min(0.34, Math.round(crispFloorAlpha * 0.85 * 100) / 100)})`);
+  const stepSurfaceBg = isLight ? "rgba(15, 23, 42, 0.03)" : "rgba(255, 255, 255, 0.028)";
   const primaryFg = teGetYiq(vars.accentColor) > 155 ? "#111216" : "#ffffff";
   const chunks = [];
 
@@ -1863,28 +2080,138 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
     chunks.push(teBuildCornerRadiusCss(cfg, cRadii));
   }
 
-  if (uiFontObj.stack) {
+  // Crisp structural block borders across themes so user bubbles, steps/thinking, code, and composer are effortless to scan
+  if ((hasThemeOverride || hasBorderPreset || cfg.borderStrength !== 50) && cfg.borderStrength > 0) {
+    const contrastAgentCss = cfg.borderPreset === "contrast" && !hasWallpaper && cfg.messageStyle !== "minimal"
+      ? `
+[data-testid="agent-response"] {
+  border: 1px solid ${crispBorderCol} !important;
+  border-radius: ${cRadii.messages}px !important;
+  padding: 12px 16px !important;
+}`
+      : "";
+    chunks.push(`
+[data-testid="user-message-bubble"],
+[data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
+  border: 1px solid ${crispBorderCol} !important;
+  box-shadow: ${isLight ? "0 1px 4px rgba(15, 23, 42, 0.06)" : "0 2px 10px rgba(0, 0, 0, 0.26)"};
+}
+[data-testid="user-message-bubble"] [data-testid="user-message-content"] {
+  border: none !important;
+  box-shadow: none !important;
+}
+[data-rudex-theme-composer="1"] {
+  border: 1px solid ${crispBorderCol} !important;
+}
+[data-rudex-bg-sidebar="1"],
+aside:not(#rudex-studio-host *),
+[data-testid="sidebar"] {
+  border-right: 1px solid ${crispBorderCol} !important;
+}
+[data-rudex-bg-header="1"],
+header:not(#rudex-studio-host *) {
+  border-bottom: 1px solid ${crispBorderCol} !important;
+}
+main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="step-group"], [data-testid*="tool-call"], [data-rudex-zone="steps"], [data-rudex-zone="thinking"]):not(#rudex-studio-host *) {
+  border: 1px solid ${stepBorderCol} !important;
+  border-left: 2px solid color-mix(in srgb, ${vars.accentColor} 58%, ${stepBorderCol}) !important;
+  background-color: ${stepSurfaceBg} !important;
+  border-radius: ${Math.max(6, cRadii.cards)}px !important;
+  padding: 8px 12px !important;
+}
+main :where([data-slot="collapsible"]):not([data-testid="agent-response"]):not(#rudex-studio-host *):has(> button) {
+  border: 1px solid ${stepBorderCol} !important;
+  border-left: 2px solid color-mix(in srgb, ${vars.accentColor} 46%, ${stepBorderCol}) !important;
+  background-color: ${stepSurfaceBg};
+  border-radius: ${Math.max(6, Math.min(12, cRadii.cards))}px !important;
+  padding: 6px 10px !important;
+  margin-block: 4px !important;
+}
+:where([data-testid="agent-response"], [data-markdown-root], main) pre:not(#rudex-studio-host *) {
+  border: 1px solid ${crispBorderCol} !important;
+}${contrastAgentCss}
+`);
+  }
+
+  const uiStack = teResolveFontStack("ui", ty.uiFont, ty.uiFontCustom);
+  const monoStack = teResolveFontStack("mono", ty.monoFont, ty.monoFontCustom);
+  const inputStack = teResolveFontStack("ui", ty.inputFont, ty.inputFontCustom);
+  const userMsgStack = teResolveFontStack("ui", ty.userMsgFont, ty.userMsgFontCustom);
+  const agentStack = teResolveFontStack("ui", ty.agentFont, ty.agentFontCustom);
+  const thinkingStack = teResolveFontStack("ui", ty.thinkingFont, ty.thinkingFontCustom);
+
+  if (uiStack) {
     const isSerifUi = uiFontObj.id === "claude-serif" || uiFontObj.id === "claude-lora" || uiFontObj.id === "georgia";
     chunks.push(`
 :root, html, body {
-  --font-sans: ${uiFontObj.stack};
-  --font-body: ${uiFontObj.stack};
+  --font-sans: ${uiStack} !important;
+  --font-body: ${uiStack} !important;
+  --default-font-family: ${uiStack} !important;
+  --font-ui: ${uiStack} !important;
 }
-body, input, textarea, button, select, [data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"] {
-  font-family: ${uiFontObj.stack} !important;
+body, input, textarea, button, button *, [role="button"], [role="button"] *, select, label, [role="tooltip"], [role="tooltip"] *, [role="menu"], [role="menu"] *, [role="listbox"], [role="listbox"] *, [data-rudex-theme-composer="1"] :where(button, span, div, p, label):not(code):not(pre), :where([class~="font-sans"]):not(#rudex-studio-host):not(#rudex-studio-host *), [data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"] {
+  font-family: ${uiStack} !important;
   ${isSerifUi ? 'text-rendering: optimizeLegibility; font-feature-settings: "kern" 1, "liga" 1;' : ""}
 }
 `);
   }
 
-  if (monoFontObj.stack) {
+  if (ty.uiFontSize > 0) {
     chunks.push(`
-:root, html, body {
-  --font-mono: ${monoFontObj.stack};
+:where(aside, nav[aria-label], [data-testid="sidebar"], [data-rudex-bg-sidebar="1"], header:not(#rudex-studio-host *), [data-rudex-bg-header="1"], [role="menu"], [role="listbox"], [role="tooltip"], [data-rudex-theme-composer="1"] button):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  font-size: ${ty.uiFontSize}px !important;
 }
-code, pre, kbd, samp, [class*="font-mono"] {
-  font-family: ${monoFontObj.stack} !important;
-  font-variant-ligatures: contextual;
+`);
+  }
+
+  if (inputStack || ty.inputFontSize > 0) {
+    chunks.push(`
+[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"], [contenteditable="true"] *),
+form:not(#rudex-studio-host *) :where(textarea, [contenteditable="true"]),
+[data-testid="composer"] :where(textarea, [contenteditable="true"], [contenteditable="true"] *) {
+  ${inputStack ? `font-family: ${inputStack} !important;` : ""}
+  ${ty.inputFontSize > 0 ? `font-size: ${ty.inputFontSize}px !important;` : ""}
+}
+`);
+  }
+
+  const effUserMsgStack = userMsgStack || inputStack;
+  if (effUserMsgStack || ty.inputFontSize > 0) {
+    chunks.push(`
+[data-testid="user-message-bubble"],
+[data-testid="user-message-content"],
+[data-testid="user-message-content"] :where(p, span, div, li):not(code):not(pre):not(code *):not(pre *) {
+  ${effUserMsgStack ? `font-family: ${effUserMsgStack} !important;` : ""}
+  ${ty.inputFontSize > 0 ? `font-size: ${ty.inputFontSize}px !important;` : ""}
+}
+`);
+  }
+
+  if (agentStack || ty.agentFontSize > 0) {
+    chunks.push(`
+[data-testid="agent-response"],
+[data-testid="agent-response"] :where([data-markdown-root], p, li, span, div, h1, h2, h3, h4, td, th, blockquote):not(code):not(pre):not(code *):not(pre *):not([data-testid*="thought"] *):not([data-testid*="thinking"] *) {
+  ${agentStack ? `font-family: ${agentStack} !important;` : ""}
+  ${ty.agentFontSize > 0 ? `font-size: ${ty.agentFontSize}px !important;` : ""}
+}
+`);
+  }
+
+  if (thinkingStack) {
+    chunks.push(`
+[data-testid*="thought"], [data-testid*="thought"] :where(p, span, div, li):not(code):not(pre),
+[data-testid*="thinking"], [data-testid*="thinking"] :where(p, span, div, li):not(code):not(pre),
+[data-rudex-zone="thinking"], [data-rudex-zone="thinking"] * {
+  font-family: ${thinkingStack} !important;
+}
+`);
+  }
+
+  if (monoStack || ty.codeFontSize > 0) {
+    chunks.push(`
+${monoStack ? `:root, html, body {\n  --font-mono: ${monoStack} !important;\n}\n` : ""}code, pre, pre *, kbd, samp, [class*="font-mono"] {
+  ${monoStack ? `font-family: ${monoStack} !important;\n  font-variant-ligatures: contextual;` : ""}
+  ${ty.codeFontSize > 0 ? `font-size: ${ty.codeFontSize}px !important;` : ""}
 }
 `);
   }
@@ -1982,6 +2309,11 @@ form:has(textarea[placeholder]:focus-within):not([data-rudex-theme-composer="1"]
   box-shadow: 0 8px 24px -10px color-mix(in srgb, ${vars.accentColor} 22%, transparent) !important;
 }
 `);
+  }
+
+  const overridesCss = teBuildElementOverridesCss(cfg.elementOverrides, cfg.overridesPaused);
+  if (overridesCss) {
+    chunks.push(overridesCss);
   }
 
   return chunks.join("\n").trim();
@@ -3346,6 +3678,10 @@ if (typeof module !== "undefined" && module.exports) {
     isAppearanceNativeDefault,
     teResolveCornerRadii,
     teFindFont,
+    teFindFontAny,
+    teResolveFontStack,
+    teNormalizeElementOverrides,
+    teBuildElementOverridesCss,
     teMixHex,
     teBuildWebFontUrl,
     detectHostIsLight,

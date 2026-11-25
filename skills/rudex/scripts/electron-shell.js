@@ -205,27 +205,28 @@ function patchMainJs(src, stampVersion, warnings) {
         !(0, captureWindow_1.isBrowserStreamSession)(contents.session)) {
         contents.on('before-input-event', (event, input) => {
             const notAltGr = !(Array.isArray(input.modifiers) && input.modifiers.includes('altgraph'));
-            if (notAltGr && input.type === 'keyDown' &&
-                (input.control || input.meta) &&
+            if (!notAltGr || input.type !== 'keyDown' || input.isAutoRepeat) return;
+            if (typeof i18nMain_1.handleKeybindingEvent === 'function') {
+                if (i18nMain_1.handleKeybindingEvent(contents, input)) {
+                    event.preventDefault();
+                }
+                return;
+            }
+            if ((input.control || input.meta) &&
                 input.alt &&
                 !input.shift &&
-                !input.isAutoRepeat &&
                 (input.code === 'KeyL' || (input.key && input.key.toLowerCase() === 'l'))) {
                 event.preventDefault();
                 i18nMain_1.toggleLocaleFromHotkey();
-            } else if (notAltGr && input.type === 'keyDown' &&
-                (input.control || input.meta) &&
+            } else if ((input.control || input.meta) &&
                 input.alt &&
                 !input.shift &&
-                !input.isAutoRepeat &&
                 (input.code === 'KeyP' || (input.key && input.key.toLowerCase() === 'p'))) {
                 event.preventDefault();
                 i18nMain_1.togglePanelFromHotkey(contents);
-            } else if (notAltGr && input.type === 'keyDown' &&
-                (input.control || input.meta) &&
+            } else if ((input.control || input.meta) &&
                 input.alt &&
                 !input.shift &&
-                !input.isAutoRepeat &&
                 (input.code === 'KeyE' || (input.key && input.key.toLowerCase() === 'e'))) {
                 event.preventDefault();
                 i18nMain_1.toggleLiveEditFromHotkey(contents);
