@@ -4955,8 +4955,103 @@ test("Final polish: live-edit bubble matches native user bubble style, Claude Co
     await new Promise((r) => setTimeout(r, 700));
     panel.pollStream();
     assert.ok(!root.classList.contains("is-auth-screen"), "Returning to workspace must remove is-auth-screen class");
+
+    // 5) Update toast yields cleanly whenever Settings modal / right Appearance drawer is open or top-right corner is occupied
+    panel.applyUpdateStatus({
+      status: "available",
+      available: true,
+      dismissed: false,
+      installed: { version: "5.0.0" },
+      remote: { version: "5.0.1", commitMessage: "Update" },
+    });
+    const toastMount = root.querySelector(".update-toast-mount");
+    assert.ok(toastMount && toastMount.innerHTML.includes("5.0.1"), "Update toast must show when Settings is closed");
+    panel.setOpen(true, { tab: "settings", subTab: "system" });
+    assert.equal(toastMount.innerHTML, "", "Update toast must NOT overlap Rudex Studio Settings modal");
+    panel.setOpen(false);
+    assert.ok(toastMount.innerHTML.includes("5.0.1"), "Update toast must reappear after closing Settings modal");
+    panel.setOpen(true, { tab: "appearance", dockedRight: true });
+    assert.equal(toastMount.innerHTML, "", "Update toast must NOT overlap right-docked Appearance drawer");
+    panel.setOpen(false);
   } finally {
     panel.destroy();
+  }
+
+  // 6) New Chat Claude Code composer: intermediate inner card gets data-rudex-comp-stack, Voice Mode gets data-rudex-comp-voice (position: static, order: -8), and sendBtn stays centered inside Reply box
+  const { doc: ncDoc, win: ncWin } = createMockDom();
+  ncWin.innerWidth = 1400;
+  ncWin.innerHeight = 900;
+  const outerComp = ncDoc.createElement("div");
+  outerComp.style.borderRadius = "16px";
+  outerComp.style.backgroundColor = "rgb(30, 30, 28)";
+  outerComp.getBoundingClientRect = () => ({ left: 260, top: 600, right: 1060, bottom: 740, width: 800, height: 140 });
+  const topBar = ncDoc.createElement("div");
+  topBar.textContent = "Этот компьютер antigravity-ru main";
+  topBar.getBoundingClientRect = () => ({ left: 260, top: 600, right: 1060, bottom: 632, width: 800, height: 32 });
+  const innerCard = ncDoc.createElement("div");
+  innerCard.style.backgroundColor = "rgb(38, 38, 36)";
+  innerCard.style.borderRadius = "14px";
+  innerCard.getBoundingClientRect = () => ({ left: 260, top: 638, right: 1060, bottom: 740, width: 800, height: 102 });
+  const stackDiv = ncDoc.createElement("div");
+  stackDiv.getBoundingClientRect = () => ({ left: 260, top: 638, right: 1060, bottom: 740, width: 800, height: 102 });
+  const inRow = ncDoc.createElement("div");
+  inRow.getBoundingClientRect = () => ({ left: 260, top: 638, right: 1060, bottom: 696, width: 800, height: 58 });
+  const ce = ncDoc.createElement("div");
+  ce.setAttribute("contenteditable", "true");
+  ce.getBoundingClientRect = () => ({ left: 276, top: 652, right: 1000, bottom: 680, width: 724, height: 28 });
+  inRow.appendChild(ce);
+  const tBar = ncDoc.createElement("div");
+  tBar.getBoundingClientRect = () => ({ left: 260, top: 696, right: 1060, bottom: 740, width: 800, height: 44 });
+  const bPlus = ncDoc.createElement("button");
+  bPlus.textContent = "+";
+  bPlus.getBoundingClientRect = () => ({ left: 270, top: 704, right: 298, bottom: 732, width: 28, height: 28 });
+  const bModel = ncDoc.createElement("button");
+  bModel.setAttribute("data-testid", "model-selector-trigger");
+  bModel.textContent = "Gemini 4 Neon";
+  bModel.getBoundingClientRect = () => ({ left: 310, top: 704, right: 470, bottom: 732, width: 160, height: 28 });
+  const bMode = ncDoc.createElement("button");
+  bMode.textContent = "Турбо";
+  bMode.getBoundingClientRect = () => ({ left: 840, top: 704, right: 900, bottom: 732, width: 60, height: 28 });
+  const bMic = ncDoc.createElement("button");
+  bMic.setAttribute("aria-label", "Dictate");
+  bMic.getBoundingClientRect = () => ({ left: 910, top: 704, right: 938, bottom: 732, width: 28, height: 28 });
+  const bVoice = ncDoc.createElement("button");
+  bVoice.setAttribute("aria-label", "Start voice mode");
+  bVoice.setAttribute("class", "bg-white text-black rounded-full");
+  bVoice.getBoundingClientRect = () => ({ left: 950, top: 704, right: 978, bottom: 732, width: 28, height: 28 });
+  const bSend = ncDoc.createElement("button");
+  bSend.setAttribute("type", "submit");
+  bSend.setAttribute("aria-label", "Send");
+  bSend.getBoundingClientRect = () => ({ left: 990, top: 704, right: 1018, bottom: 732, width: 28, height: 28 });
+  tBar.appendChild(bPlus);
+  tBar.appendChild(bModel);
+  tBar.appendChild(bMode);
+  tBar.appendChild(bMic);
+  tBar.appendChild(bVoice);
+  tBar.appendChild(bSend);
+  stackDiv.appendChild(inRow);
+  stackDiv.appendChild(tBar);
+  innerCard.appendChild(stackDiv);
+  outerComp.appendChild(topBar);
+  outerComp.appendChild(innerCard);
+  ncDoc.body.appendChild(outerComp);
+
+  const ncTe = te.createThemeEngine({ document: ncDoc, window: ncWin });
+  try {
+    ncTe.apply({ presetId: "claude-code-dark", uiStyle: { preset: "claude-code" } });
+    assert.equal(outerComp.getAttribute("data-rudex-theme-composer"), "1");
+    assert.equal(innerCard.getAttribute("data-rudex-comp-stack"), "1", "Intermediate innerCard wrapper on New Chat must receive data-rudex-comp-stack");
+    assert.equal(stackDiv.getAttribute("data-rudex-comp-stack"), "1");
+    assert.equal(bVoice.getAttribute("data-rudex-comp-voice"), "1", "Voice mode button must receive data-rudex-comp-voice (not send!)");
+    assert.equal(bVoice.getAttribute("data-rudex-comp-send"), null, "Voice mode button must never be marked as send");
+    assert.equal(bSend.getAttribute("data-rudex-comp-send"), "1", "Submit send button must receive data-rudex-comp-send");
+    assert.equal(bMic.getAttribute("data-rudex-comp-mic"), "1");
+    assert.equal(bPlus.getAttribute("data-rudex-comp-plus"), "1");
+    assert.equal(bMode.getAttribute("data-rudex-comp-mode"), "1");
+    // topPx must center send inside Reply text line (ce center 666) relative to outerComp (top 600) => 666 - 600 - 14 = 52px
+    assert.equal(outerComp.style.getPropertyValue("--rudex-cc-send-top"), "52px", "Send arrow must center inside Reply box below New Chat top-bar");
+  } finally {
+    ncTe.destroy();
   }
 });
 

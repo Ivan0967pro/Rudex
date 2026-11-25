@@ -2383,10 +2383,13 @@ function buildStudioStyles() {
       position: fixed;
       right: 16px;
       top: 52px;
-      z-index: 2147483500;
+      z-index: 2147483180;
       pointer-events: none;
     }
+    .update-toast-mount.is-preview { z-index: 2147483500; }
     .update-toast-mount.is-bottom { top: auto; bottom: 16px; }
+    .update-toast-mount.is-bottom-high { top: auto; bottom: 68px; }
+    .update-toast-mount.is-left-bottom { left: 16px; right: auto; top: auto; bottom: 16px; }
     .update-toast {
       pointer-events: auto;
       width: min(356px, calc(100vw - 24px));

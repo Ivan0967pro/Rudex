@@ -943,7 +943,8 @@ function rv5BuildExtraShadowCss() {
 .studio-root.is-auth-screen .rx-limits-mount,
 .studio-root.is-auth-screen .rx-chat-dock,
 .studio-root.is-auth-screen .rx-usage-pop-mount,
-.studio-root.is-auth-screen .le-popover-mount {
+.studio-root.is-auth-screen .le-popover-mount,
+.studio-root.is-auth-screen .update-toast-mount {
   display: none !important;
 }
 .rx-usage-pop-mount {

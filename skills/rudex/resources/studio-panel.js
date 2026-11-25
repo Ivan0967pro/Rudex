@@ -3506,20 +3506,34 @@ function createStudioPanel(options) {
     const hasErrOnToast = st === "error" && Boolean(u.available) && !u.dismissed;
     const shouldShow = isPreview || isBusyStage || hasErrOnToast || (Boolean(u.available) && !u.dismissed);
 
-    if (!shouldShow) {
+    // Never cover Rudex Studio Settings modal or auth screen with an unsolicited floating update popup
+    if (!shouldShow || state.onAuthScreen || (state.isOpen && !isPreview && !isBusyStage)) {
       updateToastMountEl.innerHTML = "";
       return;
     }
 
     const vw = win && win.innerWidth ? Number(win.innerWidth) : 1280;
+    const isRightDrawerOpen = Boolean(state.isOpen && state.activeTab === "appearance" && state.appearanceDockedRight);
+    const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : (state.settings.limitsWidget || {});
+    const limitsAtTopRight = Boolean(lw && lw.enabled && lw.position === "top-right");
+    const limitsAtBottomRight = Boolean(lw && lw.enabled && lw.position === "bottom-right");
     const isTopRightDocked = state.settings.layoutMode === "docked" && state.settings.dockPosition === "top-right";
+    const isBottomRightDocked = state.settings.layoutMode === "docked" && state.settings.dockPosition === "bottom-right";
     const isTopRightFloating =
       state.settings.layoutMode === "floating" &&
       typeof state.settings.floatY === "number" &&
       typeof state.settings.floatX === "number" &&
       state.settings.floatY < 160 &&
       state.settings.floatX > Math.max(0, vw - 460);
-    updateToastMountEl.className = "update-toast-mount" + ((isTopRightDocked || isTopRightFloating) ? " is-bottom" : "");
+
+    let posCls = "";
+    if (isRightDrawerOpen || (state.isOpen && isPreview)) {
+      // Park cleanly at bottom-left so Settings modal / Appearance drawer is 100% unobstructed
+      posCls = " is-left-bottom";
+    } else if (isTopRightDocked || isTopRightFloating || limitsAtTopRight) {
+      posCls = (isBottomRightDocked || limitsAtBottomRight) ? " is-left-bottom" : " is-bottom";
+    }
+    updateToastMountEl.className = "update-toast-mount" + posCls + (isPreview ? " is-preview" : "");
 
     const verLabel = formatUpdateVersionBadge(u);
     const stageText = formatUpdateStatusLabel(u, tr);

@@ -1250,6 +1250,9 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   border-radius: 0 !important;
   overflow: visible !important;
 }
+[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+  position: static !important;
+}
 [data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"] {
   margin-bottom: 7px !important;
 }
@@ -1282,6 +1285,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   border-color: color-mix(in srgb, ${fgCol} 32%, ${cBrd}) !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+  position: static !important;
   display: flex !important;
   align-items: center !important;
   justify-content: flex-start !important;
@@ -1299,6 +1303,9 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   display: contents !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
@@ -1311,12 +1318,23 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   min-width: 28px !important;
   min-height: 28px !important;
   padding: 0 !important;
-  display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
   color: ${mutedCol} !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg:not([fill="none"]) {
+  fill: currentColor !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg[fill="none"] {
+  stroke: currentColor !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg [fill]:not([fill="none"]) {
+  fill: currentColor !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg [stroke]:not([stroke="none"]) {
+  stroke: currentColor !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):hover {
   background-color: ${hoverBg} !important;
@@ -1330,6 +1348,9 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-mic="1"] {
   order: -9 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-voice="1"] {
+  order: -8 !important;
 }
 [data-rudex-theme-composer="1"] [data-testid="model-selector-trigger"] {
   order: 20 !important;
@@ -3494,6 +3515,7 @@ function createThemeEngine(options = {}) {
     "data-rudex-comp-group",
     "data-rudex-comp-plus",
     "data-rudex-comp-mic",
+    "data-rudex-comp-voice",
     "data-rudex-comp-mode",
     "data-rudex-comp-send",
   ];
@@ -3505,6 +3527,7 @@ function createThemeEngine(options = {}) {
     "data-rudex-comp-group",
     "data-rudex-comp-plus",
     "data-rudex-comp-mic",
+    "data-rudex-comp-voice",
     "data-rudex-comp-mode",
     "data-rudex-comp-send",
   ];
@@ -3645,7 +3668,7 @@ function createThemeEngine(options = {}) {
     if (!doc || typeof doc.querySelectorAll !== "function") return;
     try {
       const marked = doc.querySelectorAll(
-        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-theme-composer], [data-rudex-theme-accent-dot], [data-rudex-light-fix], [data-rudex-light-text], [data-rudex-header-btn-fix], [data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-mode], [data-rudex-comp-send]"
+        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-theme-composer], [data-rudex-theme-accent-dot], [data-rudex-light-fix], [data-rudex-light-text], [data-rudex-header-btn-fix], [data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-voice], [data-rudex-comp-mode], [data-rudex-comp-send]"
       );
       for (let i = 0; marked && i < marked.length; i += 1) {
         if (marked[i] && marked[i].style && typeof marked[i].style.removeProperty === "function") {
@@ -3980,7 +4003,7 @@ function createThemeEngine(options = {}) {
       const composerInfos = [];
       try {
         const inputs = doc.querySelectorAll('textarea, [contenteditable="true"]');
-        const maxComposerW = Math.min(Math.round(vw * 0.78), 1080);
+        const maxComposerW = Math.min(Math.round(vw * 0.94), 1160);
         const maxComposerH = Math.min(340, Math.round(vh * 0.44));
         for (let i = 0; inputs && i < inputs.length && i < 6; i += 1) {
           const inp = inputs[i];
@@ -4021,11 +4044,14 @@ function createThemeEngine(options = {}) {
           }
         }
 
-        // Pass C2: Semantic annotation of composer sub-parts (input row, bottom toolbar, +, mic, mode, send)
+        // Pass C2: Semantic annotation of composer sub-parts (input row, bottom toolbar, +, mic, voice, mode, send)
         // Zero DOM node moves (100% React-safe) — powers true Claude Code / Codex / OpenCode layouts!
+        const compDesiredAttrs = new Map();
         const markCompPart = (el, attr) => {
           if (!el || el.nodeType !== 1) return;
           compPartSet.add(el);
+          if (!compDesiredAttrs.has(el)) compDesiredAttrs.set(el, new Set());
+          compDesiredAttrs.get(el).add(attr);
           compPartFixes.push({ el, attr, val: "1" });
         };
         const directChildUnder = (ancestor, node) => {
@@ -4090,11 +4116,16 @@ function createThemeEngine(options = {}) {
           const toolbar = directChildUnder(stack, anchorBtn);
           if (!inputRow || !toolbar || inputRow === toolbar) continue;
 
-          if (stack !== comp) markCompPart(stack, "data-rudex-comp-stack");
+          // Mark stack AND every intermediate wrapper up to comp so New Chat's inner card never keeps a dark box or relative offsetParent!
+          let stackAnc = stack;
+          while (stackAnc && stackAnc !== comp && comp.contains(stackAnc)) {
+            markCompPart(stackAnc, "data-rudex-comp-stack");
+            stackAnc = stackAnc.parentElement;
+          }
           markCompPart(inputRow, "data-rudex-comp-input-row");
           markCompPart(toolbar, "data-rudex-comp-toolbar");
 
-          // Mark any row above inputRow (e.g., attachments or host bar) as top-row
+          // Mark any row above inputRow (e.g., attachments or New Chat host/repo/branch bar) as top-row
           if (stack.children && stack.children.length > 2) {
             for (let si = 0; si < stack.children.length; si += 1) {
               const ch = stack.children[si];
@@ -4111,21 +4142,30 @@ function createThemeEngine(options = {}) {
             return r && r.width > 4 && r.height > 4;
           });
 
+          const getBtnMeta = (b) => {
+            const tid = String((b && b.getAttribute && b.getAttribute("data-testid")) || "").toLowerCase();
+            const al = String((b && b.getAttribute && (b.getAttribute("aria-label") || b.getAttribute("title"))) || "").toLowerCase();
+            const txt = String((b && b.textContent) || "").trim();
+            return { tid, al, txt };
+          };
+          const isVoiceModeLabel = (meta) => /voice\s*mode|live\s*voice|talk|speak|conversation|audio\s*mode|голосов[а-яё]*\s*режим|разговор|живой\s*голос/i.test(meta.tid + " " + meta.al);
+
           let sendBtn = toolbar.querySelector('[data-testid="input-cancel-button"], [data-testid*="send"], button[type="submit"], button[aria-label*="send" i], button[aria-label*="отправ" i], button[aria-label*="stop" i], button[aria-label*="останов" i]');
+          if (sendBtn && isVoiceModeLabel(getBtnMeta(sendBtn))) sendBtn = null;
           if (!sendBtn) {
             const prevSend = toolbar.querySelector('[data-rudex-comp-send="1"]');
-            if (prevSend && prevSend !== modelTrig && (!prevSend.getAttribute || prevSend.getAttribute("data-rudex-comp-mode") !== "1")) {
+            if (prevSend && prevSend !== modelTrig && !isVoiceModeLabel(getBtnMeta(prevSend)) && (!prevSend.getAttribute || prevSend.getAttribute("data-rudex-comp-mode") !== "1")) {
               sendBtn = prevSend;
             }
           }
           if (!sendBtn && barBtns.length > 0) {
-            // Prefer the rightmost icon-only button (never steal text mode buttons like "Турбо"/"Manual" after Claude Code re-orders them!)
+            // Prefer the rightmost icon-only button (never steal text mode buttons or Voice Mode buttons!)
             let maxRight = -Infinity;
             for (let bi = 0; bi < barBtns.length; bi += 1) {
               const b = barBtns[bi];
-              if (b === modelTrig || (b.getAttribute && b.getAttribute("data-rudex-comp-mode") === "1")) continue;
-              const bTxt = String(b.textContent || "").trim();
-              if (bTxt.length >= 2) continue;
+              const meta = getBtnMeta(b);
+              if (b === modelTrig || isVoiceModeLabel(meta) || (b.getAttribute && b.getAttribute("data-rudex-comp-mode") === "1")) continue;
+              if (meta.txt.length >= 2) continue;
               const br = typeof b.getBoundingClientRect === "function" ? b.getBoundingClientRect() : null;
               const rv = br ? br.right : bi;
               if (rv >= maxRight) {
@@ -4140,31 +4180,40 @@ function createThemeEngine(options = {}) {
           let plusBtn = null;
           let micBtn = null;
           let modeBtn = null;
+          const voiceBtns = [];
 
           for (let bi = 0; bi < barBtns.length; bi += 1) {
             const b = barBtns[bi];
             if (b === sendBtn || b === modelTrig) continue;
             const br = typeof b.getBoundingClientRect === "function" ? b.getBoundingClientRect() : null;
-            const txt = String(b.textContent || "").trim();
-            const al = String((b.getAttribute && (b.getAttribute("aria-label") || b.getAttribute("title"))) || "").toLowerCase();
+            const meta = getBtnMeta(b);
+            const txt = meta.txt;
+            const al = meta.al;
             if (!plusBtn && (txt === "+" || /attach|add|upload|файл|прикреп|добав/.test(al) || (modelRect && br && br.right <= modelRect.left + 8 && br.width <= 44))) {
               plusBtn = b;
               continue;
             }
-            if (!micBtn && (/mic|voice|dictat|speech|голос|микроф|диктов/.test(al) || (!txt && br && br.width <= 42 && (!modelRect || br.left > modelRect.left)))) {
+            if (!modeBtn && txt.length >= 2 && txt.length <= 28) {
+              modeBtn = b;
+              continue;
+            }
+            if (!micBtn && !isVoiceModeLabel(meta) && (/mic|dictat|speech|микроф|диктов/.test(al) || (!txt && br && br.width <= 42 && !teHasClass(b, "bg-white") && !teHasClass(b, "dark:bg-white") && (!modelRect || br.left > modelRect.left)))) {
               micBtn = b;
               continue;
             }
-            if (!modeBtn && txt.length >= 2 && txt.length <= 28) {
-              modeBtn = b;
+            if (!txt || isVoiceModeLabel(meta)) {
+              voiceBtns.push(b);
             }
           }
           if (plusBtn) markCompPart(plusBtn, "data-rudex-comp-plus");
           if (micBtn) markCompPart(micBtn, "data-rudex-comp-mic");
           if (modeBtn) markCompPart(modeBtn, "data-rudex-comp-mode");
+          for (let vi = 0; vi < voiceBtns.length; vi += 1) {
+            markCompPart(voiceBtns[vi], "data-rudex-comp-voice");
+          }
 
           // Mark direct grouping wrappers inside toolbar so Claude Code can flatten & re-order cleanly via display:contents
-          const keyItems = Array.from(new Set([plusBtn, micBtn, modelTrig, modeBtn, sendBtn, ...barBtns].filter(Boolean)));
+          const keyItems = Array.from(new Set([plusBtn, micBtn, ...voiceBtns, modelTrig, modeBtn, sendBtn, ...barBtns].filter(Boolean)));
           for (let ki = 0; ki < keyItems.length; ki += 1) {
             let p = keyItems[ki].parentElement;
             while (p && p !== toolbar && toolbar.contains(p)) {
@@ -4174,19 +4223,21 @@ function createThemeEngine(options = {}) {
             }
           }
 
-          // Compute exact vertical center of send button inside inputRow for Claude Code split layout
+          // Compute exact vertical center of send button inside inputRow using sendBtn's actual offsetParent (so New Chat's top-row never shifts ↵!)
           if (info.rect && typeof inputRow.getBoundingClientRect === "function") {
+            const refParent = sendBtn && sendBtn.offsetParent && comp.contains(sendBtn.offsetParent) ? sendBtn.offsetParent : comp;
+            const refRect = refParent && typeof refParent.getBoundingClientRect === "function" ? refParent.getBoundingClientRect() : info.rect;
             const ir = inputRow.getBoundingClientRect();
             const sr = sendBtn && typeof sendBtn.getBoundingClientRect === "function" ? sendBtn.getBoundingClientRect() : null;
             const sendH = sr && sr.height >= 16 && sr.height <= 40 ? sr.height : 28;
-            if (ir && ir.height >= 24) {
+            if (ir && refRect && ir.height >= 24) {
               let centerY = ir.top + ir.height / 2;
               if (inpRect && inpRect.height >= 16 && inpRect.height <= 52 && ir.height > inpRect.height + 28) {
                 centerY = inpRect.top + inpRect.height / 2;
               }
-              const minTop = Math.max(4, Math.round(ir.top - info.rect.top) + 6);
-              const maxTop = Math.max(minTop, Math.round(ir.bottom - info.rect.top) - sendH - 6);
-              const rawTop = Math.round((centerY - info.rect.top) - sendH / 2);
+              const minTop = Math.max(4, Math.round(ir.top - refRect.top) + 6);
+              const maxTop = Math.max(minTop, Math.round(ir.bottom - refRect.top) - sendH - 6);
+              const rawTop = Math.round((centerY - refRect.top) - sendH / 2);
               const topPx = Math.max(minTop, Math.min(maxTop, rawTop));
               compSendOffsets.push({ el: comp, topPx });
             }
@@ -4553,13 +4604,16 @@ function createThemeEngine(options = {}) {
       }
       if (typeof compPartFixes !== "undefined") {
         const prevCompParts = doc.querySelectorAll(
-          "[data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-mode], [data-rudex-comp-send]"
+          "[data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-voice], [data-rudex-comp-mode], [data-rudex-comp-send]"
         );
         for (let i = 0; prevCompParts && i < prevCompParts.length; i += 1) {
           const pc = prevCompParts[i];
-          if (!compPartSet.has(pc) && typeof pc.removeAttribute === "function") {
-            for (let a = 0; a < COMP_PART_ATTRS.length; a += 1) {
-              if (pc.hasAttribute(COMP_PART_ATTRS[a])) pc.removeAttribute(COMP_PART_ATTRS[a]);
+          if (!pc || typeof pc.removeAttribute !== "function") continue;
+          const desired = typeof compDesiredAttrs !== "undefined" ? compDesiredAttrs.get(pc) : null;
+          for (let a = 0; a < COMP_PART_ATTRS.length; a += 1) {
+            const attrName = COMP_PART_ATTRS[a];
+            if (pc.hasAttribute(attrName) && (!desired || !desired.has(attrName))) {
+              pc.removeAttribute(attrName);
             }
           }
         }
@@ -4578,7 +4632,7 @@ function createThemeEngine(options = {}) {
             }
           }
         }
-        // Re-measure exact vertical center of Claude Code return arrow after layout settles with new padding
+        // Re-measure exact vertical center of Claude Code return arrow after layout settles with new padding & static stacks
         if (compSendOffsets.length > 0 && win && typeof win.requestAnimationFrame === "function") {
           const toAlign = compSendOffsets.map((c) => c.el);
           win.requestAnimationFrame(() => {
@@ -4587,7 +4641,9 @@ function createThemeEngine(options = {}) {
               if (!comp || typeof comp.querySelector !== "function" || typeof comp.getBoundingClientRect !== "function") continue;
               const inRow = comp.querySelector('[data-rudex-comp-input-row="1"]');
               if (!inRow || typeof inRow.getBoundingClientRect !== "function") continue;
-              const cr = comp.getBoundingClientRect();
+              const sendEl = comp.querySelector('[data-rudex-comp-send="1"]');
+              const refParent = sendEl && sendEl.offsetParent && comp.contains(sendEl.offsetParent) ? sendEl.offsetParent : comp;
+              const cr = refParent && typeof refParent.getBoundingClientRect === "function" ? refParent.getBoundingClientRect() : comp.getBoundingClientRect();
               const ir = inRow.getBoundingClientRect();
               const inpEl = inRow.querySelector('textarea, [contenteditable="true"], [role="textbox"]');
               const inpR = inpEl && typeof inpEl.getBoundingClientRect === "function" ? inpEl.getBoundingClientRect() : null;
