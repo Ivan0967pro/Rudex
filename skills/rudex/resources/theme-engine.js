@@ -1239,7 +1239,8 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 
     compBlocks.push(`
 [data-rudex-theme-composer="1"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *),
+:where(div, form, section):has(> [data-rudex-theme-composer="1"]):not(main):not(body):not([data-rudex-bg-shell="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
@@ -1269,6 +1270,20 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   box-shadow: ${effShadow || "none"} !important;
   ${hasWallpaper && effectiveBlurPx > 0 ? `backdrop-filter: blur(${effectiveBlurPx}px) saturate(160%); -webkit-backdrop-filter: blur(${effectiveBlurPx}px) saturate(160%);` : ""}
   transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+[data-rudex-theme-composer="1"]:not(:has([data-rudex-comp-send="1"])) [data-rudex-comp-input-row="1"]:not(textarea)::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  background-color: ${mutedCol};
+  opacity: 0.48;
+  pointer-events: none;
+  -webkit-mask: ${ccSendIconMask} center / contain no-repeat;
+  mask: ${ccSendIconMask} center / contain no-repeat;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(textarea) {
   display: flex !important;
@@ -1302,10 +1317,16 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 [data-rudex-theme-composer="1"] [data-rudex-comp-group="1"] {
   display: contents !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
-  position: static !important;
-  inset: auto !important;
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
   transform: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
@@ -1318,16 +1339,18 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   min-width: 28px !important;
   min-height: 28px !important;
   padding: 0 !important;
-  align-items: center !important;
-  justify-content: center !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span, path, rect, circle, g) {
   color: ${mutedCol} !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg:not([fill="none"]) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg:not([fill="none"]),
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg:not([fill="none"]) :where(path, rect, circle, polygon):not([fill="none"]) {
   fill: currentColor !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg[fill="none"] {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg[fill="none"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg[fill="none"] :where(path, rect, circle, line, polyline, polygon) {
   stroke: currentColor !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg [fill]:not([fill="none"]) {
@@ -1336,11 +1359,14 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg [stroke]:not([stroke="none"]) {
   stroke: currentColor !important;
 }
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) :where(div, span)[class*="bg-"] {
+  background-color: currentColor !important;
+}
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):hover {
   background-color: ${hoverBg} !important;
   color: ${fgCol} !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):hover :where(svg, span) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):hover :where(svg, span, path, rect, circle, g) {
   color: ${fgCol} !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-plus="1"] {
@@ -4148,30 +4174,25 @@ function createThemeEngine(options = {}) {
             const txt = String((b && b.textContent) || "").trim();
             return { tid, al, txt };
           };
-          const isVoiceModeLabel = (meta) => /voice\s*mode|live\s*voice|talk|speak|conversation|audio\s*mode|голосов[а-яё]*\s*режим|разговор|живой\s*голос/i.test(meta.tid + " " + meta.al);
+          const isPlusLabel = (meta) => meta.txt === "+" || /attach|add|upload|context|контекст|файл|прикреп|добав/i.test(meta.tid + " " + meta.al);
+          const isMicLabel = (meta) => /mic|dictat|микроф|диктов/i.test(meta.tid + " " + meta.al);
+          const isVoiceModeLabel = (meta) => /voice\s*mode|live\s*voice|talk|conversation|audio\s*mode|голосов[а-яё]*\s*режим|разговор|живой\s*голос/i.test(meta.tid + " " + meta.al);
+          const isExplicitSend = (b, meta) => {
+            if (!b || b === modelTrig) return false;
+            if (isPlusLabel(meta) || isMicLabel(meta) || isVoiceModeLabel(meta)) return false;
+            if (b.getAttribute && b.getAttribute("data-testid") === "input-cancel-button") return true;
+            if (b.getAttribute && String(b.getAttribute("type") || "").toLowerCase() === "submit") return true;
+            if (/send|submit|cancel|stop|отправ|останов|отмен/i.test(meta.tid + " " + meta.al)) return true;
+            if (teHasClass(b, "bg-primary") && meta.txt.length <= 2) return true;
+            return false;
+          };
 
-          let sendBtn = toolbar.querySelector('[data-testid="input-cancel-button"], [data-testid*="send"], button[type="submit"], button[aria-label*="send" i], button[aria-label*="отправ" i], button[aria-label*="stop" i], button[aria-label*="останов" i]');
-          if (sendBtn && isVoiceModeLabel(getBtnMeta(sendBtn))) sendBtn = null;
-          if (!sendBtn) {
-            const prevSend = toolbar.querySelector('[data-rudex-comp-send="1"]');
-            if (prevSend && prevSend !== modelTrig && !isVoiceModeLabel(getBtnMeta(prevSend)) && (!prevSend.getAttribute || prevSend.getAttribute("data-rudex-comp-mode") !== "1")) {
-              sendBtn = prevSend;
-            }
-          }
-          if (!sendBtn && barBtns.length > 0) {
-            // Prefer the rightmost icon-only button (never steal text mode buttons or Voice Mode buttons!)
-            let maxRight = -Infinity;
-            for (let bi = 0; bi < barBtns.length; bi += 1) {
-              const b = barBtns[bi];
-              const meta = getBtnMeta(b);
-              if (b === modelTrig || isVoiceModeLabel(meta) || (b.getAttribute && b.getAttribute("data-rudex-comp-mode") === "1")) continue;
-              if (meta.txt.length >= 2) continue;
-              const br = typeof b.getBoundingClientRect === "function" ? b.getBoundingClientRect() : null;
-              const rv = br ? br.right : bi;
-              if (rv >= maxRight) {
-                maxRight = rv;
-                sendBtn = b;
-              }
+          let sendBtn = null;
+          for (let bi = 0; bi < barBtns.length; bi += 1) {
+            const b = barBtns[bi];
+            if (isExplicitSend(b, getBtnMeta(b))) {
+              sendBtn = b;
+              if (b.getAttribute && b.getAttribute("data-testid") === "input-cancel-button") break;
             }
           }
           if (sendBtn) markCompPart(sendBtn, "data-rudex-comp-send");
@@ -4188,8 +4209,7 @@ function createThemeEngine(options = {}) {
             const br = typeof b.getBoundingClientRect === "function" ? b.getBoundingClientRect() : null;
             const meta = getBtnMeta(b);
             const txt = meta.txt;
-            const al = meta.al;
-            if (!plusBtn && (txt === "+" || /attach|add|upload|файл|прикреп|добав/.test(al) || (modelRect && br && br.right <= modelRect.left + 8 && br.width <= 44))) {
+            if (!plusBtn && (isPlusLabel(meta) || (modelRect && br && br.right <= modelRect.left + 8 && br.width <= 44))) {
               plusBtn = b;
               continue;
             }
@@ -4197,11 +4217,11 @@ function createThemeEngine(options = {}) {
               modeBtn = b;
               continue;
             }
-            if (!micBtn && !isVoiceModeLabel(meta) && (/mic|dictat|speech|микроф|диктов/.test(al) || (!txt && br && br.width <= 42 && !teHasClass(b, "bg-white") && !teHasClass(b, "dark:bg-white") && (!modelRect || br.left > modelRect.left)))) {
+            if (!micBtn && !isVoiceModeLabel(meta) && (isMicLabel(meta) || (!txt && br && br.width <= 42 && !teHasClass(b, "bg-white") && !teHasClass(b, "dark:bg-white") && (!modelRect || br.left > modelRect.left)))) {
               micBtn = b;
               continue;
             }
-            if (!txt || isVoiceModeLabel(meta)) {
+            if (!txt || isVoiceModeLabel(meta) || teHasClass(b, "bg-white") || teHasClass(b, "dark:bg-white")) {
               voiceBtns.push(b);
             }
           }

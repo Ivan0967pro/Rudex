@@ -5050,6 +5050,14 @@ test("Final polish: live-edit bubble matches native user bubble style, Claude Co
     assert.equal(bMode.getAttribute("data-rudex-comp-mode"), "1");
     // topPx must center send inside Reply text line (ce center 666) relative to outerComp (top 600) => 666 - 600 - 14 = 52px
     assert.equal(outerComp.style.getPropertyValue("--rudex-cc-send-top"), "52px", "Send arrow must center inside Reply box below New Chat top-bar");
+
+    // 7) Empty idle input (NO submit/cancel button in DOM): '+' MUST NEVER be stolen as send, Voice Mode stays data-rudex-comp-voice!
+    tBar.removeChild(bSend);
+    ncTe.scanWallpaperShells();
+    assert.equal(bPlus.getAttribute("data-rudex-comp-plus"), "1", "Empty idle input must keep '+' as plus");
+    assert.equal(bPlus.getAttribute("data-rudex-comp-send"), null, "Empty idle input must NEVER steal '+' as send");
+    assert.equal(bMic.getAttribute("data-rudex-comp-mic"), "1", "Empty idle input must keep mic as mic");
+    assert.equal(bVoice.getAttribute("data-rudex-comp-voice"), "1", "Empty idle input must keep Voice Mode as voice");
   } finally {
     ncTe.destroy();
   }
