@@ -1238,9 +1238,9 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
     }
 
     compBlocks.push(`
-[data-rudex-theme-composer="1"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-:where(div, form, section):has(> [data-rudex-theme-composer="1"]):not(main):not(body):not([data-rudex-bg-shell="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg),
+[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg),
+:where(div, form, section):has(> [data-rudex-theme-composer="1"]):not(main):not(body):not([data-rudex-bg-shell="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
@@ -1251,7 +1251,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   border-radius: 0 !important;
   overflow: visible !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
   position: static !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"] {
@@ -1299,7 +1299,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 [data-rudex-theme-composer="1"]:focus-within [data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
   border-color: color-mix(in srgb, ${fgCol} 32%, ${cBrd}) !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
   position: static !important;
   display: flex !important;
   align-items: center !important;
@@ -1317,7 +1317,8 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 [data-rudex-theme-composer="1"] [data-rudex-comp-group="1"] {
   display: contents !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg),
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]) :where(button, [role="button"]):not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
   position: relative !important;
   top: auto !important;
   right: auto !important;
@@ -1342,31 +1343,31 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   margin: 0 !important;
   flex-shrink: 0 !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span, path, rect, circle, g) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) :where(svg, span, path, rect, circle, g) {
   color: ${mutedCol} !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg:not([fill="none"]),
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg:not([fill="none"]) :where(path, rect, circle, polygon):not([fill="none"]) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg:not([fill="none"]),
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg:not([fill="none"]) :where(path, rect, circle, polygon):not([fill="none"]) {
   fill: currentColor !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg[fill="none"],
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg[fill="none"] :where(path, rect, circle, line, polyline, polygon) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg[fill="none"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg[fill="none"] :where(path, rect, circle, line, polyline, polygon) {
   stroke: currentColor !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg [fill]:not([fill="none"]) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg [fill]:not([fill="none"]) {
   fill: currentColor !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *) svg [stroke]:not([stroke="none"]) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg [stroke]:not([stroke="none"]) {
   stroke: currentColor !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) :where(div, span)[class*="bg-"] {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) :where(div, span)[class*="bg-"] {
   background-color: currentColor !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):hover {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):hover {
   background-color: ${hoverBg} !important;
   color: ${fgCol} !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"]):not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):hover :where(svg, span, path, rect, circle, g) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):hover :where(svg, span, path, rect, circle, g) {
   color: ${fgCol} !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-plus="1"] {
@@ -1378,11 +1379,13 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 [data-rudex-theme-composer="1"] [data-rudex-comp-voice="1"] {
   order: -8 !important;
 }
-[data-rudex-theme-composer="1"] [data-testid="model-selector-trigger"] {
+[data-rudex-theme-composer="1"] [data-testid="model-selector-trigger"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-model="1"] {
   order: 20 !important;
   margin-left: auto !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-mode="1"] {
+[data-rudex-theme-composer="1"] [data-rudex-comp-mode="1"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-mode="1"] :where(button, [role="button"]) {
   order: 21 !important;
   background: transparent !important;
   border: none !important;
@@ -1390,8 +1393,11 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   color: ${fgCol} !important;
   font-weight: 600 !important;
   font-size: 12.5px !important;
-  padding: 3px 7px !important;
   border-radius: 7px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-mode="1"] :where(button, [role="button"]),
+[data-rudex-theme-composer="1"] button[data-rudex-comp-mode="1"] {
+  padding: 3px 7px !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-mode="1"]:hover {
   background-color: ${hoverBg} !important;
@@ -3542,6 +3548,7 @@ function createThemeEngine(options = {}) {
     "data-rudex-comp-plus",
     "data-rudex-comp-mic",
     "data-rudex-comp-voice",
+    "data-rudex-comp-model",
     "data-rudex-comp-mode",
     "data-rudex-comp-send",
   ];
@@ -3554,6 +3561,7 @@ function createThemeEngine(options = {}) {
     "data-rudex-comp-plus",
     "data-rudex-comp-mic",
     "data-rudex-comp-voice",
+    "data-rudex-comp-model",
     "data-rudex-comp-mode",
     "data-rudex-comp-send",
   ];
@@ -3694,7 +3702,7 @@ function createThemeEngine(options = {}) {
     if (!doc || typeof doc.querySelectorAll !== "function") return;
     try {
       const marked = doc.querySelectorAll(
-        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-theme-composer], [data-rudex-theme-accent-dot], [data-rudex-light-fix], [data-rudex-light-text], [data-rudex-header-btn-fix], [data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-voice], [data-rudex-comp-mode], [data-rudex-comp-send]"
+        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-theme-composer], [data-rudex-theme-accent-dot], [data-rudex-light-fix], [data-rudex-light-text], [data-rudex-header-btn-fix], [data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-voice], [data-rudex-comp-model], [data-rudex-comp-mode], [data-rudex-comp-send]"
       );
       for (let i = 0; marked && i < marked.length; i += 1) {
         if (marked[i] && marked[i].style && typeof marked[i].style.removeProperty === "function") {
@@ -4225,19 +4233,50 @@ function createThemeEngine(options = {}) {
               voiceBtns.push(b);
             }
           }
-          if (plusBtn) markCompPart(plusBtn, "data-rudex-comp-plus");
-          if (micBtn) markCompPart(micBtn, "data-rudex-comp-mic");
-          if (modeBtn) markCompPart(modeBtn, "data-rudex-comp-mode");
-          for (let vi = 0; vi < voiceBtns.length; vi += 1) {
-            markCompPart(voiceBtns[vi], "data-rudex-comp-voice");
+          // Preserve atomic single-button wrappers (e.g. Voice Mode <div class="relative"><button/><svg class="absolute"/></div>
+          // or Radix Tooltip triggers): ONLY flatten multi-button layout groups (2+ buttons) with display:contents!
+          const getAtomicSlot = (btn) => {
+            if (!btn) return null;
+            let slot = btn;
+            let p = btn.parentElement;
+            while (p && p !== toolbar && toolbar.contains(p)) {
+              const subBtns = typeof p.querySelectorAll === "function" ? p.querySelectorAll('button, [role="button"]') : null;
+              if (subBtns && subBtns.length === 1) {
+                slot = p;
+                p = p.parentElement;
+                continue;
+              }
+              break;
+            }
+            return slot;
+          };
+
+          const plusSlot = getAtomicSlot(plusBtn);
+          const micSlot = getAtomicSlot(micBtn);
+          const modeSlot = getAtomicSlot(modeBtn);
+          const modelSlot = getAtomicSlot(modelTrig);
+          const voiceSlots = voiceBtns.map(getAtomicSlot).filter(Boolean);
+
+          if (plusSlot) markCompPart(plusSlot, "data-rudex-comp-plus");
+          if (micSlot) markCompPart(micSlot, "data-rudex-comp-mic");
+          if (modeSlot) markCompPart(modeSlot, "data-rudex-comp-mode");
+          if (modelSlot && modelSlot !== modelTrig) markCompPart(modelSlot, "data-rudex-comp-model");
+          for (let vi = 0; vi < voiceSlots.length; vi += 1) {
+            markCompPart(voiceSlots[vi], "data-rudex-comp-voice");
           }
 
-          // Mark direct grouping wrappers inside toolbar so Claude Code can flatten & re-order cleanly via display:contents
-          const keyItems = Array.from(new Set([plusBtn, micBtn, ...voiceBtns, modelTrig, modeBtn, sendBtn, ...barBtns].filter(Boolean)));
-          for (let ki = 0; ki < keyItems.length; ki += 1) {
-            let p = keyItems[ki].parentElement;
+          // Mark ONLY multi-button layout wrappers ABOVE atomic slots (plus sendBtn's own wrappers so sendBtn leaves 0 gap in toolbar)
+          const slotAnchors = [plusSlot, micSlot, modeSlot, modelSlot, ...voiceSlots].filter(Boolean);
+          for (let ki = 0; ki < slotAnchors.length; ki += 1) {
+            let p = slotAnchors[ki].parentElement;
             while (p && p !== toolbar && toolbar.contains(p)) {
-              if (modelTrig && p === modelTrig) break;
+              markCompPart(p, "data-rudex-comp-group");
+              p = p.parentElement;
+            }
+          }
+          if (sendBtn) {
+            let p = sendBtn.parentElement;
+            while (p && p !== toolbar && toolbar.contains(p)) {
               markCompPart(p, "data-rudex-comp-group");
               p = p.parentElement;
             }
@@ -4624,7 +4663,7 @@ function createThemeEngine(options = {}) {
       }
       if (typeof compPartFixes !== "undefined") {
         const prevCompParts = doc.querySelectorAll(
-          "[data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-voice], [data-rudex-comp-mode], [data-rudex-comp-send]"
+          "[data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-voice], [data-rudex-comp-model], [data-rudex-comp-mode], [data-rudex-comp-send]"
         );
         for (let i = 0; prevCompParts && i < prevCompParts.length; i += 1) {
           const pc = prevCompParts[i];

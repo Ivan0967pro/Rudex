@@ -4843,8 +4843,8 @@ test("Final polish: live-edit bubble matches native user bubble style, Claude Co
   const ccCss = te.buildThemeCss({ presetId: "claude-code-dark", uiStyle: { preset: "claude-code" } });
   assert.ok(ccCss.includes("flex-direction: column !important;"), "Claude Code input-row must stack attachments vertically");
   assert.ok(
-    ccCss.includes(':not([data-rudex-comp-send="1"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-mode="1"]):not(#rudex-studio-host):not(#rudex-studio-host *)'),
-    "Claude Code toolbar must neutralize stray bg-white icon buttons with high specificity"
+    ccCss.includes(':where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg)'),
+    "Claude Code toolbar must neutralize stray bg-white icon buttons & atomic voice wrappers with (3,x,0) specificity"
   );
 
   // 2) Live-edit chat bubble copies exact computed color/border/radius from native user-message-bubble
@@ -5015,10 +5015,14 @@ test("Final polish: live-edit bubble matches native user bubble style, Claude Co
   const bMic = ncDoc.createElement("button");
   bMic.setAttribute("aria-label", "Dictate");
   bMic.getBoundingClientRect = () => ({ left: 910, top: 704, right: 938, bottom: 732, width: 28, height: 28 });
+  const bVoiceWrap = ncDoc.createElement("div");
+  bVoiceWrap.setAttribute("class", "relative bg-white rounded-full");
   const bVoice = ncDoc.createElement("button");
-  bVoice.setAttribute("aria-label", "Start voice mode");
-  bVoice.setAttribute("class", "bg-white text-black rounded-full");
+  bVoice.setAttribute("aria-label", "Включить голосовой режим");
   bVoice.getBoundingClientRect = () => ({ left: 950, top: 704, right: 978, bottom: 732, width: 28, height: 28 });
+  const bVoiceSiblingSvg = ncDoc.createElement("svg");
+  bVoiceWrap.appendChild(bVoice);
+  bVoiceWrap.appendChild(bVoiceSiblingSvg);
   const bSend = ncDoc.createElement("button");
   bSend.setAttribute("type", "submit");
   bSend.setAttribute("aria-label", "Send");
@@ -5027,7 +5031,7 @@ test("Final polish: live-edit bubble matches native user bubble style, Claude Co
   tBar.appendChild(bModel);
   tBar.appendChild(bMode);
   tBar.appendChild(bMic);
-  tBar.appendChild(bVoice);
+  tBar.appendChild(bVoiceWrap);
   tBar.appendChild(bSend);
   stackDiv.appendChild(inRow);
   stackDiv.appendChild(tBar);
@@ -5042,7 +5046,8 @@ test("Final polish: live-edit bubble matches native user bubble style, Claude Co
     assert.equal(outerComp.getAttribute("data-rudex-theme-composer"), "1");
     assert.equal(innerCard.getAttribute("data-rudex-comp-stack"), "1", "Intermediate innerCard wrapper on New Chat must receive data-rudex-comp-stack");
     assert.equal(stackDiv.getAttribute("data-rudex-comp-stack"), "1");
-    assert.equal(bVoice.getAttribute("data-rudex-comp-voice"), "1", "Voice mode button must receive data-rudex-comp-voice (not send!)");
+    assert.equal(bVoiceWrap.getAttribute("data-rudex-comp-voice"), "1", "Atomic single-button Voice Mode wrapper (with sibling SVG) must receive data-rudex-comp-voice");
+    assert.equal(bVoiceWrap.getAttribute("data-rudex-comp-group"), null, "Atomic single-button Voice Mode wrapper MUST NOT get display:contents (would detach sibling SVG!)");
     assert.equal(bVoice.getAttribute("data-rudex-comp-send"), null, "Voice mode button must never be marked as send");
     assert.equal(bSend.getAttribute("data-rudex-comp-send"), "1", "Submit send button must receive data-rudex-comp-send");
     assert.equal(bMic.getAttribute("data-rudex-comp-mic"), "1");
@@ -5051,13 +5056,13 @@ test("Final polish: live-edit bubble matches native user bubble style, Claude Co
     // topPx must center send inside Reply text line (ce center 666) relative to outerComp (top 600) => 666 - 600 - 14 = 52px
     assert.equal(outerComp.style.getPropertyValue("--rudex-cc-send-top"), "52px", "Send arrow must center inside Reply box below New Chat top-bar");
 
-    // 7) Empty idle input (NO submit/cancel button in DOM): '+' MUST NEVER be stolen as send, Voice Mode stays data-rudex-comp-voice!
+    // 7) Empty idle input (NO submit/cancel button in DOM): '+' MUST NEVER be stolen as send, Voice Mode wrapper stays atomic data-rudex-comp-voice!
     tBar.removeChild(bSend);
     ncTe.scanWallpaperShells();
     assert.equal(bPlus.getAttribute("data-rudex-comp-plus"), "1", "Empty idle input must keep '+' as plus");
     assert.equal(bPlus.getAttribute("data-rudex-comp-send"), null, "Empty idle input must NEVER steal '+' as send");
     assert.equal(bMic.getAttribute("data-rudex-comp-mic"), "1", "Empty idle input must keep mic as mic");
-    assert.equal(bVoice.getAttribute("data-rudex-comp-voice"), "1", "Empty idle input must keep Voice Mode as voice");
+    assert.equal(bVoiceWrap.getAttribute("data-rudex-comp-voice"), "1", "Empty idle input must keep Voice Mode wrapper as voice");
   } finally {
     ncTe.destroy();
   }
