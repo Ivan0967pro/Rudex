@@ -1212,7 +1212,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
     // Top: compact single-line bordered Reply box with inline return arrow (↵) inside right edge
     // Bottom (outside box, on canvas): + & mic on left, quiet borderless Model + Mode text on right
     const cRad = us.composerRadius > 0 ? us.composerRadius : 14;
-    const padY = us.composerPadY >= 6 ? us.composerPadY : 11;
+    const padY = us.composerPadY >= 6 ? us.composerPadY : 9;
     const cBg = hasWallpaper
       ? teHexToRgba(hasThemeOverride ? vars.cardBg : (isLight ? "#faf9f5" : "#2b2a27"), Math.min(94, Math.max(76, cfg.glassOpacity || 86)))
       : (hasThemeOverride ? vars.cardBg : (isLight ? "#faf9f5" : "#2b2a27"));
@@ -1247,26 +1247,31 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
+  margin-bottom: 0 !important;
   gap: 0 !important;
   border-radius: 0 !important;
   overflow: visible !important;
+}
+:where(div, section):has(> :where(div, form, section):has(> [data-rudex-theme-composer="1"])):not(main):not(body):not([data-rudex-bg-shell="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
+  padding-bottom: 6px !important;
+  margin-bottom: 0 !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
   position: static !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"] {
-  margin-bottom: 7px !important;
+  margin-bottom: 6px !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *),
 [data-rudex-theme-composer="1"] textarea[data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
   position: relative !important;
   width: 100% !important;
-  min-height: 46px !important;
+  min-height: 42px !important;
   box-sizing: border-box !important;
   background-color: ${cBg} !important;
   border: 1px solid ${cBrd} !important;
   border-radius: ${cRad}px !important;
-  padding: ${padY}px 46px ${padY}px 16px !important;
+  padding: ${padY}px 44px ${padY}px 15px !important;
   box-shadow: ${effShadow || "none"} !important;
   ${hasWallpaper && effectiveBlurPx > 0 ? `backdrop-filter: blur(${effectiveBlurPx}px) saturate(160%); -webkit-backdrop-filter: blur(${effectiveBlurPx}px) saturate(160%);` : ""}
   transition: border-color 0.14s ease, box-shadow 0.14s ease;
@@ -1304,10 +1309,10 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   display: flex !important;
   align-items: center !important;
   justify-content: flex-start !important;
-  gap: 8px !important;
-  padding: 7px 6px 0 !important;
+  gap: 6px !important;
+  padding: 5px 4px 0 !important;
   margin: 0 !important;
-  min-height: 30px !important;
+  min-height: 28px !important;
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
@@ -1370,8 +1375,9 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):hover {
   background-color: ${hoverBg} !important;
   color: ${fgCol} !important;
+  cursor: pointer !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):hover :where(svg, span, path, rect, circle, g) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):hover :where(button, [role="button"], svg, span, path, rect, circle, g) {
   color: ${fgCol} !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-plus="1"] {
