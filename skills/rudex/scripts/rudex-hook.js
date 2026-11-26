@@ -572,30 +572,69 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
   } catch {}
 
   let asarSize = 0;
+  let asarMtimeSec = 0;
   try {
-    asarSize = fs.statSync(info.asarPath).size || 0;
+    const st = fs.statSync(info.asarPath);
+    asarSize = st.size || 0;
+    asarMtimeSec = Math.floor((st.mtimeMs || 0) / 1000);
   } catch {}
   if (!asarSize) return;
 
-  const sig = `${curVer}:${asarSize}`;
+  const sig = `${curVer}:${asarSize}:${asarMtimeSec}`;
   const cooldownPath = path.join(userDataDir, "rudex_auto_repatch.json");
   const prev = readJsonSafe(cooldownPath);
   const now = Date.now();
-  if (prev && prev.sig === sig && now - (Number(prev.at) || 0) < 10 * 60 * 1000) {
+  // Once we've staged/armed recovery for this exact app.asar (version+size+mtime), don't re-spawn
+  // for 6 hours; if a third-party patcher or update modifies app.asar even 1s later, `sig` changes immediately.
+  if (prev && prev.sig === sig && now - (Number(prev.at) || 0) < 6 * 60 * 60 * 1000) {
     return;
   }
+
+  // If resources/app/rudex-patch-meta.json ALREADY matches this exact app.asar AND the silent on-exit
+  // activator lock is still fresh, nothing more to do until Antigravity closes once.
+  try {
+    const appMetaPath = path.join(info.resourcesDir, "app", "rudex-patch-meta.json");
+    const appMeta = readJsonSafe(appMetaPath);
+    const exitLockPath = path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
+    if (appMeta && appMeta.sourceAsarSig === sig && fs.existsSync(exitLockPath)) {
+      const lSt = fs.statSync(exitLockPath);
+      if (now - (lSt.mtimeMs || 0) < 90 * 60 * 1000) {
+        safeWriteJsonAtomic(cooldownPath, { sig, at: now, version: curVer });
+        return;
+      }
+    }
+  } catch {}
+
   try {
     safeWriteJsonAtomic(cooldownPath, { sig, at: now, version: curVer });
   } catch {}
 
   try {
-    const child = spawn(process.execPath, [installJsPath, "--no-sync-plugin", "--on-exit-activate"], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
-      env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1" }),
-    });
-    if (child && typeof child.unref === "function") child.unref();
+    let launched = false;
+    if (process.platform === "win32") {
+      try {
+        const updaterCore = require("./updater-core.js");
+        if (updaterCore && typeof updaterCore.spawnSilentWindowsCommand === "function") {
+          launched = updaterCore.spawnSilentWindowsCommand(
+            process.execPath,
+            [installJsPath, "--no-sync-plugin", "--on-exit-activate"],
+            {
+              env: process.env,
+              envPatch: { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1" },
+            }
+          );
+        }
+      } catch {}
+    }
+    if (!launched) {
+      const child = spawn(process.execPath, [installJsPath, "--no-sync-plugin", "--on-exit-activate"], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+        env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1" }),
+      });
+      if (child && typeof child.unref === "function") child.unref();
+    }
     injectSteps.push({
       systemMessage: {
         systemMessage: "[Rudex · Восстановление после обновления Antigravity] Переустановка патча Rudex запущена автоматически в фоне (--on-exit-activate).",

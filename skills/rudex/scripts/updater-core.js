@@ -5,7 +5,7 @@ const path = require("path");
 const os = require("os");
 const http = require("http");
 const https = require("https");
-const { execFileSync, spawnSync } = require("child_process");
+const { execFileSync, spawn, spawnSync } = require("child_process");
 const { URL } = require("url");
 
 const REPO_OWNER = "Ivan0967pro";
@@ -627,12 +627,16 @@ function extractZipArchive(zipPath, destDir) {
     const psCmd =
       "Add-Type -AssemblyName System.IO.Compression.FileSystem; " +
       "[System.IO.Compression.ZipFile]::ExtractToDirectory($env:RUDEX_ZIP, $env:RUDEX_DEST)";
-    const res = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCmd], {
-      env: Object.assign({}, process.env, { RUDEX_ZIP: resolvedZip, RUDEX_DEST: resolvedDest }),
-      encoding: "utf8",
-      timeout: 60000,
-      windowsHide: true,
-    });
+    const res = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", psCmd],
+      {
+        env: Object.assign({}, process.env, { RUDEX_ZIP: resolvedZip, RUDEX_DEST: resolvedDest }),
+        encoding: "utf8",
+        timeout: 60000,
+        windowsHide: true,
+      }
+    );
     if (res.status !== 0) {
       const msg = (res.stderr || res.stdout || "").trim() || `PowerShell exit ${res.status}`;
       throw new Error(`Failed to extract update ZIP: ${msg}`);
@@ -706,6 +710,199 @@ function writeUpdaterRestartScript(exePath, opts = {}) {
   );
   fs.writeFileSync(outPath, lines.join("\r\n"), "utf8");
   return outPath;
+}
+
+/**
+ * Pure-ASCII ES3 JScript string serializer so WSH handles Cyrillic/Unicode Windows paths on any locale.
+ */
+function wshEscapeJsString(str) {
+  return JSON.stringify(String(str || "")).replace(/[^\x20-\x7E]/g, (ch) => {
+    return "\\u" + ch.charCodeAt(0).toString(16).padStart(4, "0");
+  });
+}
+
+function resolveWscriptExe() {
+  if (process.platform !== "win32") return "";
+  const sysRoot = process.env.SystemRoot || process.env.WINDIR || "C:\\Windows";
+  const candidates = [
+    path.join(sysRoot, "System32", "wscript.exe"),
+    path.join(sysRoot, "SysWOW64", "wscript.exe"),
+  ];
+  for (let i = 0; i < candidates.length; i += 1) {
+    try {
+      if (fs.existsSync(candidates[i])) return candidates[i];
+    } catch (_e) {}
+  }
+  return "";
+}
+
+function quoteWinCmdArg(arg) {
+  const s = String(arg === undefined || arg === null ? "" : arg);
+  if (!s) return '""';
+  if (!/[\s"&|<>^()]/.test(s)) return s;
+  return '"' + s.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, "$1$1") + '"';
+}
+
+/**
+ * Launch a WSH JScript (.js) via wscript.exe (WINDOWS_GUI subsystem).
+ * Never opens a console, cmd.exe, PowerShell, or Windows Terminal window on Windows 10 or 11.
+ */
+function spawnSilentWindowsWsh(scriptPath, opts = {}) {
+  if (process.platform !== "win32" || !scriptPath) return false;
+  const wscriptExe = resolveWscriptExe();
+  if (!wscriptExe) return false;
+  try {
+    const child = spawn(wscriptExe, ["//B", "//Nologo", "//E:JScript", scriptPath], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+      env: opts.env || process.env,
+    });
+    if (child && typeof child.unref === "function") child.unref();
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
+/**
+ * Write a tiny self-deleting WSH JScript wrapper that runs `exe args...` with SW_HIDE (0).
+ * Eliminates the Windows 11 Terminal popup triggered by `spawn(node/cmd, { detached: true })`.
+ */
+function writeSilentCommandRunnerWsh(exePath, args = [], opts = {}) {
+  if (process.platform !== "win32" || !exePath) return "";
+  const ts = Date.now();
+  const rnd = Math.random().toString(36).slice(2, 7);
+  const outPath = opts.outPath || path.join(os.tmpdir(), `rudex-bg-${ts}-${rnd}.js`);
+  const cmdLine = [quoteWinCmdArg(exePath)].concat((args || []).map(quoteWinCmdArg)).join(" ");
+  const envPatch = opts.envPatch && typeof opts.envPatch === "object" ? opts.envPatch : {};
+  const envLines = Object.keys(envPatch).map(
+    (k) => `  procEnv(${wshEscapeJsString(k)}) = ${wshEscapeJsString(envPatch[k])};`
+  );
+  const lines = [
+    "var fso = new ActiveXObject('Scripting.FileSystemObject');",
+    "var sh = new ActiveXObject('WScript.Shell');",
+    "try {",
+    "  var procEnv = sh.Environment('Process');",
+    ...envLines,
+    `  sh.Run(${wshEscapeJsString(cmdLine)}, 0, ${opts.wait ? "true" : "false"});`,
+    "} catch (e) {",
+    "} finally {",
+    "  try { fso.DeleteFile(WScript.ScriptFullName, true); } catch (e2) {}",
+    "}",
+    "",
+  ];
+  try {
+    fs.writeFileSync(outPath, lines.join("\r\n"), "ascii");
+    return outPath;
+  } catch (_e) {
+    return "";
+  }
+}
+
+function spawnSilentWindowsCommand(exePath, args = [], opts = {}) {
+  if (process.platform === "win32") {
+    const wscriptExe = resolveWscriptExe();
+    if (wscriptExe) {
+      const runnerPath = writeSilentCommandRunnerWsh(exePath, args, {
+        envPatch: opts.envPatch || {},
+        wait: false,
+      });
+      if (runnerPath && spawnSilentWindowsWsh(runnerPath, { env: opts.env || process.env })) {
+        return true;
+      }
+      if (runnerPath) {
+        try { fs.unlinkSync(runnerPath); } catch (_e) {}
+      }
+    }
+  }
+  try {
+    const child = spawn(exePath, args || [], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+      env: Object.assign({}, opts.env || process.env, opts.envPatch || {}),
+    });
+    if (child && typeof child.unref === "function") child.unref();
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
+/**
+ * Truly invisible WSH JScript restart helper for self-updates on Windows.
+ * Zero console/PowerShell/Terminal window; waits cleanly for Antigravity exit and relaunches.
+ */
+function writeUpdaterRestartWsh(exePath, opts = {}) {
+  if (process.platform !== "win32" || !exePath) return "";
+  const ts = Date.now();
+  const rnd = Math.random().toString(36).slice(2, 6);
+  const outPath = opts.outPath || path.join(os.tmpdir(), `rudex-update-restart-${ts}-${rnd}.js`);
+  const removeAsar = Boolean(opts.removeAsar && opts.resourcesDir);
+  const resDir = opts.resourcesDir || "";
+  const lines = [
+    "var fso = new ActiveXObject('Scripting.FileSystemObject');",
+    "var sh = new ActiveXObject('WScript.Shell');",
+    `var agyExe = ${wshEscapeJsString(exePath)};`,
+    `var resDir = ${wshEscapeJsString(resDir)};`,
+    `var removeAsar = ${removeAsar ? "true" : "false"};`,
+    "function countAgy() {",
+    "  try {",
+    "    var wmi = GetObject('winmgmts:{impersonationLevel=impersonate}!\\\\\\\\.\\\\root\\\\cimv2');",
+    "    var procs = wmi.ExecQuery(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'Antigravity.exe'\");",
+    "    return procs.Count;",
+    "  } catch (e) { return 0; }",
+    "}",
+    "function hasOrigBackup(dir) {",
+    "  try {",
+    "    var folder = fso.GetFolder(dir);",
+    "    var en = new Enumerator(folder.Files);",
+    "    for (; !en.atEnd(); en.moveNext()) {",
+    "      if (String(en.item().Name).toLowerCase().indexOf('app.asar.orig-') === 0) return true;",
+    "    }",
+    "  } catch (e) {}",
+    "  return false;",
+    "}",
+    "try {",
+    "  WScript.Sleep(1200);",
+    "  if (countAgy() > 0) {",
+    "    try { sh.Run('taskkill /IM Antigravity.exe', 0, true); } catch (e) {}",
+    "    WScript.Sleep(2000);",
+    "  }",
+    "  if (countAgy() > 0) {",
+    "    try { sh.Run('taskkill /F /IM Antigravity.exe', 0, true); } catch (e) {}",
+    "  }",
+    "  for (var i = 0; i < 15; i++) {",
+    "    if (countAgy() === 0) break;",
+    "    WScript.Sleep(1000);",
+    "  }",
+    "  if (removeAsar && resDir) {",
+    "    var asarPath = resDir + '\\\\app.asar';",
+    "    var metaPath = resDir + '\\\\app\\\\rudex-patch-meta.json';",
+    "    if (fso.FileExists(asarPath) && fso.FileExists(metaPath) && hasOrigBackup(resDir)) {",
+    "      for (var r = 0; r < 6; r++) {",
+    "        if (!fso.FileExists(asarPath)) break;",
+    "        try { fso.DeleteFile(asarPath, true); } catch (e) {}",
+    "        if (fso.FileExists(asarPath)) WScript.Sleep(1000);",
+    "      }",
+    "    }",
+    "  }",
+    "  if (fso.FileExists(agyExe)) {",
+    "    sh.Run('\"' + agyExe + '\"', 1, false);",
+    "  }",
+    "} catch (e) {",
+    "} finally {",
+    "  try { fso.DeleteFile(WScript.ScriptFullName, true); } catch (e2) {}",
+    "}",
+    "",
+  ];
+  try {
+    fs.writeFileSync(outPath, lines.join("\r\n"), "ascii");
+    return outPath;
+  } catch (_e) {
+    return "";
+  }
 }
 
 function parseInstallerKeyValues(stdoutText) {
@@ -803,5 +1000,11 @@ module.exports = {
   checkRemoteRelease,
   extractZipArchive,
   writeUpdaterRestartScript,
+  writeUpdaterRestartWsh,
+  wshEscapeJsString,
+  resolveWscriptExe,
+  spawnSilentWindowsWsh,
+  writeSilentCommandRunnerWsh,
+  spawnSilentWindowsCommand,
   installUpdateFromZip,
 };

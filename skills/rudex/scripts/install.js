@@ -6,13 +6,21 @@
 // `app.asar` as a virtual directory and crash with `ENOENT,  not found in ...\app.asar`.
 process.noAsar = true;
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const vm = require("vm");
 const { spawn, spawnSync } = require("child_process");
 const { patchElectronShell } = require("./electron-shell.js");
-const { readZipEocdComment, extractCommitShaFromText, readGitHeadMeta } = require("./updater-core.js");
+const {
+  readZipEocdComment,
+  extractCommitShaFromText,
+  readGitHeadMeta,
+  wshEscapeJsString,
+  resolveWscriptExe,
+  spawnSilentWindowsWsh,
+} = require("./updater-core.js");
 
 const PLUGIN_ROOT = path.resolve(__dirname, "..", "..", "..");
 const RESOURCES_SRC_DIR = path.resolve(__dirname, "..", "resources");
@@ -469,6 +477,8 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     `_ipc.on("agy-studio:live-edits-changed", (_event, payload) => { try { _studioPanel.applyLiveEditsUpdate(payload); } catch (_e) {} });`,
     `_ipc.on("agy-studio:settings-changed", (_event, nextState) => { try { _studioPanel.applyRemoteState(nextState); } catch (_e) {} });`,
     `_ipc.on("agy-studio:quota-updated", (_event, summary) => { try { if (typeof _studioPanel.applyQuotaSummary === "function") _studioPanel.applyQuotaSummary(summary); } catch (_e) {} });`,
+    `_ipc.on("agy-studio:quota-restored", (_event, payload) => { try { if (typeof _studioPanel.handleQuotaRestored === "function") _studioPanel.handleQuotaRestored(payload); } catch (_e) {} });`,
+    `_ipc.on("agy-studio:notification-clicked", (_event, payload) => { try { if (typeof _studioPanel.handleNotificationClicked === "function") _studioPanel.handleNotificationClicked(payload); } catch (_e) {} });`,
     `_ipc.on("agy-studio:update-status", (_event, payload) => { try { _studioPanel.applyUpdateStatus(payload); } catch (_e) {} });`,
     `const _bootRudex = () => { try { _translator.init(); _translator.translateDocument(); } catch (_e) {} try { _studioPanel.init(); } catch (_e) {} };`,
     `if (document.readyState === "loading") { if (document.documentElement) { try { _translator.init(); } catch (_e) {} } document.addEventListener("DOMContentLoaded", _bootRudex, { once: true }); } else { _bootRudex(); }`,
@@ -771,18 +781,51 @@ function deployStagedApp(stagingDir, appDir) {
 }
 
 /**
+ * Compute SHA-256 hex digest of a file (chunked to keep memory bounded on large app.asar files).
+ */
+function hashFileSha256(filePath) {
+  const hash = crypto.createHash("sha256");
+  const fd = fs.openSync(filePath, "r");
+  try {
+    const buf = Buffer.allocUnsafe(256 * 1024);
+    while (true) {
+      const n = fs.readSync(fd, buf, 0, buf.length, null);
+      if (n <= 0) break;
+      hash.update(n === buf.length ? buf : buf.subarray(0, n));
+    }
+    return hash.digest("hex");
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+/**
  * Prepare unpatched clean source ASAR and build patched app in a staging directory.
+ * Always detects content changes (via SHA-256) so third-party patches (e.g. region unblockers)
+ * applied to app.asar — even same-byte-length in-place patches — are faithfully preserved.
  */
 function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts = {}) {
   const dryRun = Boolean(opts && opts.dryRun);
   let cleanAsarPath = info.backups[0] ? info.backups[0].path : "";
   let asarLocked = false;
+  let sourceAsarHash = "";
+  let sourceAsarSize = 0;
+  let sourceAsarMtimeSec = 0;
+  let sourceAsarSig = "";
 
   if (dryRun) {
     if (!cleanAsarPath && fs.existsSync(info.asarPath)) {
       cleanAsarPath = info.asarPath;
     }
   } else if (fs.existsSync(info.asarPath)) {
+    try {
+      const st = fs.statSync(info.asarPath);
+      sourceAsarSize = st.size || 0;
+      sourceAsarMtimeSec = Math.floor((st.mtimeMs || 0) / 1000);
+      sourceAsarHash = hashFileSha256(info.asarPath);
+      sourceAsarSig = `${info.appVersion || "unknown"}:${sourceAsarSize}:${sourceAsarMtimeSec}`;
+    } catch (_e) {}
+
     const newBackupPath = path.join(info.resourcesDir, `app.asar.orig-${info.appVersion || "unknown"}`);
     if (!fs.existsSync(newBackupPath)) {
       try {
@@ -798,9 +841,15 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
       cleanAsarPath = newBackupPath;
     } else {
       try {
-        const bakStat = fs.statSync(newBackupPath);
-        const asarStat = fs.statSync(info.asarPath);
-        if (bakStat.size !== asarStat.size || Math.abs((bakStat.mtimeMs || 0) - (asarStat.mtimeMs || 0)) > 2000) {
+        let differs = true;
+        if (sourceAsarHash) {
+          try {
+            differs = hashFileSha256(newBackupPath) !== sourceAsarHash;
+          } catch (_e) {
+            differs = true;
+          }
+        }
+        if (differs) {
           copyFileSafe(info.asarPath, newBackupPath);
         }
       } catch (err) {
@@ -825,6 +874,15 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
     throw new Error("Neither app.asar nor app.asar.orig-* backup found in Antigravity resources.");
   }
 
+  if (!sourceAsarHash && !dryRun) {
+    try {
+      const st = fs.statSync(cleanAsarPath);
+      sourceAsarSize = st.size || 0;
+      sourceAsarMtimeSec = Math.floor((st.mtimeMs || 0) / 1000);
+      sourceAsarHash = hashFileSha256(cleanAsarPath);
+    } catch (_e) {}
+  }
+
   if (fs.existsSync(stagingDir)) fs.rmSync(stagingDir, { recursive: true, force: true });
   fs.mkdirSync(stagingDir, { recursive: true });
 
@@ -846,7 +904,17 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
     path.join(distDir, "i18nData", "agy-workshop.js"),
   ]);
 
-  return { unpackedCount, patchResult, cleanAsarPath, stampVersion, asarLocked };
+  return {
+    unpackedCount,
+    patchResult,
+    cleanAsarPath,
+    stampVersion,
+    asarLocked,
+    sourceAsarHash,
+    sourceAsarSize,
+    sourceAsarMtimeSec,
+    sourceAsarSig,
+  };
 }
 
 function runDryRun() {
@@ -968,12 +1036,124 @@ function writeOnExitActivateCmd(info, opts = {}) {
   }
 }
 
-function spawnOnExitActivatorIfNeeded(info) {
+/**
+ * Invisible WSH JScript passive exit watcher (runs under wscript.exe WINDOWS_GUI subsystem).
+ * - NEVER opens a console, cmd.exe, PowerShell, or Windows Terminal window.
+ * - NEVER kills Antigravity.exe.
+ * - Waits silently via WScript.Sleep + WMI until Antigravity exits on its own.
+ * - If app.asar still matches the staged snapshot -> deletes app.asar so next boot uses Rudex.
+ * - If app.asar was changed after staging (e.g. third-party unblocker/patcher) -> waits for write
+ *   stability and silently re-layers Rudex on top of the new app.asar via SW_HIDE.
+ */
+function writeOnExitActivateWsh(info, opts = {}) {
+  if (process.platform !== "win32" || !info || !info.resourcesDir) return "";
+  const outPath = opts.outPath || path.join(os.tmpdir(), "rudex-on-exit-activate.js");
+  const lockPath = opts.lockPath || path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
+  const installJs = opts.installJs || path.join(os.homedir(), ".gemini", "config", "plugins", "rudex", "skills", "rudex", "scripts", "install.js");
+  const exePath = (info && info.exePath) || "";
+  const expectedSize = Number(opts.expectedAsarSize) || 0;
+  const expectedMtimeSec = Number(opts.expectedAsarMtimeSec) || 0;
+  const lines = [
+    "var fso = new ActiveXObject('Scripting.FileSystemObject');",
+    "var sh = new ActiveXObject('WScript.Shell');",
+    `var resDir = ${wshEscapeJsString(info.resourcesDir)};`,
+    `var lockFile = ${wshEscapeJsString(lockPath)};`,
+    `var installJs = ${wshEscapeJsString(installJs)};`,
+    `var agyExe = ${wshEscapeJsString(exePath)};`,
+    `var expectedSize = ${expectedSize};`,
+    `var expectedMtimeSec = ${expectedMtimeSec};`,
+    "var asarPath = resDir + '\\\\app.asar';",
+    "var metaPath = resDir + '\\\\app\\\\rudex-patch-meta.json';",
+    "function countProcs(query) {",
+    "  try {",
+    "    var wmi = GetObject('winmgmts:{impersonationLevel=impersonate}!\\\\\\\\.\\\\root\\\\cimv2');",
+    "    var res = wmi.ExecQuery(query);",
+    "    return res.Count;",
+    "  } catch (e) { return -1; }",
+    "}",
+    "function hasOrigBackup(dir) {",
+    "  try {",
+    "    var folder = fso.GetFolder(dir);",
+    "    var en = new Enumerator(folder.Files);",
+    "    for (; !en.atEnd(); en.moveNext()) {",
+    "      if (String(en.item().Name).toLowerCase().indexOf('app.asar.orig-') === 0) return true;",
+    "    }",
+    "  } catch (e) {}",
+    "  return false;",
+    "}",
+    "function fileStamp(p) {",
+    "  try {",
+    "    if (!fso.FileExists(p)) return '';",
+    "    var f = fso.GetFile(p);",
+    "    return String(f.Size) + ':' + String(Math.floor(new Date(f.DateLastModified).getTime() / 1000));",
+    "  } catch (e) { return ''; }",
+    "}",
+    "function runHiddenInstall() {",
+    "  if (!fso.FileExists(installJs)) return;",
+    "  var env = sh.Environment('Process');",
+    "  env('ELECTRON_RUN_AS_NODE') = '1';",
+    "  env('ELECTRON_NO_ASAR') = '1';",
+    "  var runner = (agyExe && fso.FileExists(agyExe)) ? ('\"' + agyExe + '\"') : 'node';",
+    "  try { sh.Run(runner + ' \"' + installJs + '\" --no-sync-plugin', 0, true); } catch (e) {}",
+    "}",
+    "try {",
+    "  var dup = countProcs(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'wscript.exe' AND CommandLine LIKE '%rudex-on-exit-activate.js%'\");",
+    "  if (dup > 1) WScript.Quit(0);",
+    "  for (var i = 0; i < 4320; i++) {",
+    "    if (!fso.FileExists(asarPath)) break;",
+    "    var running = countProcs(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'Antigravity.exe'\");",
+    "    if (running === 0) {",
+    "      WScript.Sleep(1500);",
+    "      if (countProcs(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'Antigravity.exe'\") !== 0) continue;",
+    "      if (!fso.FileExists(asarPath)) break;",
+    "      var curChanged = false;",
+    "      if (expectedSize > 0) {",
+    "        try {",
+    "          var af = fso.GetFile(asarPath);",
+    "          var curM = Math.floor(new Date(af.DateLastModified).getTime() / 1000);",
+    "          if (af.Size !== expectedSize || (expectedMtimeSec > 0 && Math.abs(curM - expectedMtimeSec) > 2)) curChanged = true;",
+    "        } catch (e) {}",
+    "      }",
+    "      if (curChanged) {",
+    "        var s1 = fileStamp(asarPath);",
+    "        WScript.Sleep(2500);",
+    "        var s2 = fileStamp(asarPath);",
+    "        if (s1 && s1 === s2 && countProcs(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'Antigravity.exe'\") === 0) {",
+    "          runHiddenInstall();",
+    "        }",
+    "      } else if (fso.FileExists(metaPath) && hasOrigBackup(resDir)) {",
+    "        for (var r = 0; r < 6; r++) {",
+    "          if (!fso.FileExists(asarPath)) break;",
+    "          try { fso.DeleteFile(asarPath, true); } catch (e) {}",
+    "          if (fso.FileExists(asarPath)) WScript.Sleep(1200);",
+    "        }",
+    "      }",
+    "      break;",
+    "    }",
+    "    WScript.Sleep(2500);",
+    "  }",
+    "} catch (e) {",
+    "} finally {",
+    "  try { if (fso.FileExists(lockFile)) fso.DeleteFile(lockFile, true); } catch (e1) {}",
+    "  try { fso.DeleteFile(WScript.ScriptFullName, true); } catch (e2) {}",
+    "}",
+    "",
+  ];
+  try {
+    fs.writeFileSync(outPath, lines.join("\r\n"), "ascii");
+    return outPath;
+  } catch (_e) {
+    return "";
+  }
+}
+
+function spawnOnExitActivatorIfNeeded(info, extraOpts = {}) {
   if (process.platform !== "win32" || !info || !info.resourcesDir) return false;
+  const wshTarget = path.join(os.tmpdir(), "rudex-on-exit-activate.js");
   const cmdTarget = path.join(os.tmpdir(), "rudex-on-exit-activate.cmd");
   const lockPath = path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
   try {
-    if (fs.existsSync(lockPath) && fs.existsSync(cmdTarget)) {
+    if (fs.existsSync(lockPath) && (fs.existsSync(wshTarget) || fs.existsSync(cmdTarget))) {
       const st = fs.statSync(lockPath);
       if (Date.now() - st.mtimeMs < 90 * 60 * 1000) {
         return true;
@@ -983,6 +1163,17 @@ function spawnOnExitActivatorIfNeeded(info) {
 
   try {
     fs.writeFileSync(lockPath, String(Date.now()), "utf8");
+    if (resolveWscriptExe()) {
+      const wshPath = writeOnExitActivateWsh(info, {
+        outPath: wshTarget,
+        lockPath,
+        expectedAsarSize: extraOpts.expectedAsarSize || 0,
+        expectedAsarMtimeSec: extraOpts.expectedAsarMtimeSec || 0,
+      });
+      if (wshPath && fs.existsSync(wshPath) && spawnSilentWindowsWsh(wshPath)) {
+        return true;
+      }
+    }
     const cmdPath = writeOnExitActivateCmd(info, { outPath: cmdTarget, lockPath });
     if (!cmdPath || !fs.existsSync(cmdPath)) return false;
     const child = spawn("cmd.exe", ["/c", `"${cmdPath}"`], {
@@ -1013,7 +1204,16 @@ function runInstall(options = {}) {
   const stagingDir = path.join(info.resourcesDir, `.rudex-staging-${process.pid}-${Date.now()}`);
 
   try {
-    const { unpackedCount, patchResult, stampVersion, asarLocked } = buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir);
+    const {
+      unpackedCount,
+      patchResult,
+      stampVersion,
+      asarLocked,
+      sourceAsarHash,
+      sourceAsarSize,
+      sourceAsarMtimeSec,
+      sourceAsarSig,
+    } = buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir);
     const metaPayload = {
       name: "rudex",
       displayName: pluginMeta.displayName,
@@ -1025,6 +1225,10 @@ function runInstall(options = {}) {
       appVersion: info.appVersion,
       shellVersion: info.shellVersion,
       stampVersion,
+      sourceAsarHash: sourceAsarHash || "",
+      sourceAsarSize: sourceAsarSize || 0,
+      sourceAsarMtimeSec: sourceAsarMtimeSec || 0,
+      sourceAsarSig: sourceAsarSig || "",
       patchedAt: new Date().toISOString(),
       unpackedCount,
       patchedFiles: patchResult.patchedFiles,
@@ -1059,16 +1263,20 @@ function runInstall(options = {}) {
       console.log(`AGY_EXE=${info.exePath}`);
     }
     if (asarLocked) {
-      const activatorOutPath = options.writeRestartCmd
-        ? path.join(os.homedir(), "Desktop", "Rudex-Apply-Restart.cmd")
-        : path.join(os.tmpdir(), `rudex-activate-${Date.now()}.cmd`);
-      const cmdPath = writeApplyRestartCmd(info, { outPath: activatorOutPath, removeAsar: true });
-      if (cmdPath) {
-        console.log(`ACTIVATOR_PATH=${cmdPath}`);
-        if (options.writeRestartCmd) console.log(`RESTART_CMD=${cmdPath}`);
+      if (options.onExitActivate) {
+        if (spawnOnExitActivatorIfNeeded(info, { expectedAsarSize: sourceAsarSize, expectedAsarMtimeSec: sourceAsarMtimeSec })) {
+          console.log("ON_EXIT_ACTIVATOR=ARMED");
+        }
       }
-      if (options.onExitActivate && spawnOnExitActivatorIfNeeded(info)) {
-        console.log("ON_EXIT_ACTIVATOR=ARMED");
+      if (!options.onExitActivate || options.writeRestartCmd) {
+        const activatorOutPath = options.writeRestartCmd
+          ? path.join(os.homedir(), "Desktop", "Rudex-Apply-Restart.cmd")
+          : path.join(os.tmpdir(), `rudex-activate-${Date.now()}.cmd`);
+        const cmdPath = writeApplyRestartCmd(info, { outPath: activatorOutPath, removeAsar: true });
+        if (cmdPath) {
+          console.log(`ACTIVATOR_PATH=${cmdPath}`);
+          if (options.writeRestartCmd) console.log(`RESTART_CMD=${cmdPath}`);
+        }
       }
       console.log("STATUS=LOCKED_NEEDS_ACTIVATOR");
     } else {
@@ -1150,5 +1358,7 @@ module.exports = {
   buildPreloadSnippet,
   syncPluginToGlobalConfig,
   readPluginMeta,
+  hashFileSha256,
   writeOnExitActivateCmd,
+  writeOnExitActivateWsh,
 };

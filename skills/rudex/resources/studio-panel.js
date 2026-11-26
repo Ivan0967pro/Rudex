@@ -1853,7 +1853,12 @@ function createStudioPanel(options) {
       liveEditInline: typeof RUDEX_LIVE_EDIT_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_LIVE_EDIT_DEFAULTS) : { enabled: true, sendKey: "enter", urgentIntercept: false },
       agentProfileDefault: typeof RUDEX_AGENT_PROFILE_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_AGENT_PROFILE_DEFAULTS) : { enabled: false },
       customAgentPresets: [],
+      quotaAutomation: typeof RUDEX_QUOTA_AUTOMATION_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_QUOTA_AUTOMATION_DEFAULTS) : { notifyOnReset: true, notifyWhenClosed: true, notifySound: true, autoContinueEnabled: false, autoContinueScope: "all", autoContinueChatKeys: [], autoContinueCurrentKey: "", autoContinuePrompt: "", autoContinueRetryFirst: true },
     },
+    quotaAlerts: { waitingChats: {} },
+    lastRateLimitScanAt: 0,
+    autoContinueInflight: false,
+    pendingAutoResume: null,
     chatAgentProfile: typeof RUDEX_AGENT_PROFILE_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_AGENT_PROFILE_DEFAULTS) : { enabled: false },
     agentPopoverOpen: false,
     contextPopoverOpen: false,
@@ -2338,7 +2343,8 @@ function createStudioPanel(options) {
   function computeSettingsStateSig(remote) {
     try {
       const s = remote && remote.settings ? remote.settings : remote;
-      return JSON.stringify({ l: remote && remote.locale, s });
+      const qa = remote && remote.quotaAlerts ? remote.quotaAlerts : null;
+      return JSON.stringify({ l: remote && remote.locale, s, qa });
     } catch (_e) {
       return "";
     }
@@ -2485,6 +2491,18 @@ function createStudioPanel(options) {
       if (Array.isArray(rawSettings.customAgentPresets)) {
         state.settings.customAgentPresets = rawSettings.customAgentPresets.slice(0, 20);
       }
+      if (rawSettings.quotaAutomation && typeof rawSettings.quotaAutomation === "object") {
+        state.settings.quotaAutomation = typeof rv5NormalizeQuotaAutomation === "function"
+          ? rv5NormalizeQuotaAutomation(rawSettings.quotaAutomation)
+          : Object.assign({}, state.settings.quotaAutomation, rawSettings.quotaAutomation);
+      }
+    }
+    if (remote.quotaAlerts && typeof remote.quotaAlerts === "object") {
+      state.quotaAlerts = {
+        waitingChats: remote.quotaAlerts.waitingChats && typeof remote.quotaAlerts.waitingChats === "object"
+          ? Object.assign({}, remote.quotaAlerts.waitingChats)
+          : {},
+      };
     }
     if (remote.chat && remote.chat.agentProfile && typeof remote.chat.agentProfile === "object") {
       state.chatAgentProfile = typeof rv5NormalizeAgentProfile === "function"
@@ -4308,6 +4326,7 @@ function createStudioPanel(options) {
     sampleStreamTick();
     scrapeDomQuotaSnapshot(false);
     pollQuotaSummaryIfDue(now);
+    checkAutoContinueMonitoring(now);
     if (state.settings.thinkingInRussian) scanThinkingBlocks(false);
     updateLiveDom();
     syncChatDockLiveState();
@@ -6102,6 +6121,10 @@ function createStudioPanel(options) {
       return rv5RenderLimitsTabHtml({
         limitsWidget: state.settings.limitsWidget,
         quotaSummary: state.quotaSummary,
+        quotaAutomation: state.settings.quotaAutomation,
+        quotaAlerts: state.quotaAlerts,
+        activeChatKey: state.activeChatKey,
+        activeChatTitle: state.activeChatTitle,
         activeModelName: state.telemetry.modelName,
         systemFonts: state.systemFonts,
         monitorHtml: "",
@@ -6397,8 +6420,15 @@ function createStudioPanel(options) {
       </div>
 
       <div class="section-group">
-        <span class="section-label">${escHtml(isRu ? "Индикаторы в чате" : "In-Chat Indicators")}</span>
+        <span class="section-label">${escHtml(isRu ? "Элементы над полем ввода" : "In-Chat Composer Bar")}</span>
         <div class="card">
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${escHtml(isRu ? "Кнопка «Инструменты» над полем ввода" : "«Tools» button above composer")}</span>
+              <span class="row-desc">${escHtml(isRu ? "Выключите, чтобы полностью скрыть плашку «Инструменты · Авто» над строкой ввода" : "Turn off to hide the «Tools · Auto» pill above the chat input")}</span>
+            </div>
+            <button type="button" class="switch${(!s.liveEditInline || s.liveEditInline.showChatDock !== false) ? " is-on" : ""}" role="switch" aria-checked="${(!s.liveEditInline || s.liveEditInline.showChatDock !== false) ? "true" : "false"}" data-action="toggle-live-inline" data-field="showChatDock"><span class="switch-thumb"></span></button>
+          </div>
           <div class="row-item">
             <div class="row-info">
               <span class="row-title">${escHtml(isRu ? "Контекстное окно модели в чате" : "Model context window meter in chat")}</span>
@@ -6651,8 +6681,8 @@ function createStudioPanel(options) {
       { k: "угл радиус скруглен corner radius", label: isRu ? "Скругление углов" : "Corner Radii", tab: "appearance", appSub: "corners" },
       { k: "приветств экран шаблон greeting welcome placeholder", label: isRu ? "Приветствие на новом чате" : "New Chat Greeting", tab: "appearance", appSub: "greeting" },
       { k: "прицел элемент цвет размер переимен скрыть picker inspector rename override", label: isRu ? "🎯 Прицел и правка элементов" : "🎯 Element Picker & Rename", tab: "appearance", appSub: "elements" },
-      { k: "лимит квот экран 5ч недел quota limit bar", label: isRu ? "Виджет лимитов Antigravity" : "Antigravity Limits Widget", tab: "widgets", widgetSub: "limits" },
-      { k: "мини окно виджет капсул tps плавающ закреп контекст модел заполнен mini widget capsule dock context window meter", label: isRu ? "Мини-окно и контекстное окно модели в чате" : "Mini Widget & Model Context Window Meter", tab: "widgets", widgetSub: "mini" },
+      { k: "лимит квот экран 5ч недел уведомлен восстановлен закрыт автопродолжен продолж quota limit bar notify alert reset auto continue resume", label: isRu ? "Лимиты, уведомления о сбросе и автопродолжение" : "Limits, Reset Notifications & Auto-Continue", tab: "widgets", widgetSub: "limits" },
+      { k: "мини окно виджет капсул tps плавающ закреп контекст модел заполнен инструмент скрыть кнопк mini widget capsule dock context window meter hide tools", label: isRu ? "Мини-окно, кнопка «Инструменты» и контекст модели" : "Mini Widget, Tools Button & Context Window Meter", tab: "widgets", widgetSub: "mini" },
       { k: "монитор tps график экспорт zip архив чат квот monitor export archive", label: isRu ? "Монитор TPS и экспорт чата в ZIP" : "TPS Monitor & Chat ZIP Export", tab: "widgets", widgetSub: "monitor" },
       { k: "инструмент субагент тумблер браузер поиск на лету правк tool subagent browser live edit", label: isRu ? "Инструменты агента и правки на лету" : "Agent Tools & Inline Live Edits", tab: "persona", agentSub: "tools" },
       { k: "характер персона промпт инструкц agents.md persona system prompt", label: isRu ? "Характер агента (для текущего чата)" : "Chat Agent Persona", tab: "persona", agentSub: "persona" },
@@ -7925,6 +7955,9 @@ function createStudioPanel(options) {
         chatTitle: state.activeChatTitle || "",
         isNewChat: !state.activeChatKey || state.activeChatKey === "__new__",
       },
+      waitingEntry: (state.activeChatKey && state.activeChatKey !== "__new__" && state.quotaAlerts && state.quotaAlerts.waitingChats)
+        ? (state.quotaAlerts.waitingChats[state.activeChatKey] || null)
+        : null,
       isRu: state.locale !== "en",
     });
     if (!nextHtml) {
@@ -9857,6 +9890,116 @@ function createStudioPanel(options) {
       }
       return;
     }
+    if (action === "hide-tools-chip") {
+      state.agentPopoverOpen = false;
+      const cur = Object.assign({}, state.settings.liveEditInline || {});
+      cur.showChatDock = false;
+      saveSettingsPatch({ liveEditInline: cur });
+      setToast(state.locale !== "en" ? "Кнопка «Инструменты» скрыта (вернуть: Виджеты → Мини-окно)" : "«Tools» button hidden (restore in Widgets → Mini)", false);
+      return;
+    }
+    if (action === "toggle-quota-auto-bool") {
+      const f = actionEl.getAttribute("data-field");
+      if (f) {
+        const qa = typeof rv5NormalizeQuotaAutomation === "function"
+          ? rv5NormalizeQuotaAutomation(state.settings.quotaAutomation)
+          : Object.assign({}, state.settings.quotaAutomation || {});
+        qa[f] = !qa[f];
+        if (f === "autoContinueEnabled" && qa.autoContinueEnabled && qa.autoContinueScope === "current" && state.activeChatKey && state.activeChatKey !== "__new__") {
+          qa.autoContinueCurrentKey = state.activeChatKey;
+        }
+        saveSettingsPatch({ quotaAutomation: qa });
+      }
+      return;
+    }
+    if (action === "set-quota-auto-scope") {
+      const v = actionEl.getAttribute("data-val") || "all";
+      const qa = typeof rv5NormalizeQuotaAutomation === "function"
+        ? rv5NormalizeQuotaAutomation(state.settings.quotaAutomation)
+        : Object.assign({}, state.settings.quotaAutomation || {});
+      qa.autoContinueScope = (v === "selected" || v === "current") ? v : "all";
+      if (qa.autoContinueScope === "current" && state.activeChatKey && state.activeChatKey !== "__new__") {
+        qa.autoContinueCurrentKey = state.activeChatKey;
+      }
+      saveSettingsPatch({ quotaAutomation: qa });
+      return;
+    }
+    if (action === "toggle-quota-auto-chat") {
+      const ck = String(actionEl.getAttribute("data-chat-key") || "").trim().toLowerCase();
+      if (ck && ck !== "__new__") {
+        const qa = typeof rv5NormalizeQuotaAutomation === "function"
+          ? rv5NormalizeQuotaAutomation(state.settings.quotaAutomation)
+          : Object.assign({}, state.settings.quotaAutomation || {});
+        const list = Array.isArray(qa.autoContinueChatKeys) ? qa.autoContinueChatKeys.slice() : [];
+        const idx = list.indexOf(ck);
+        if (idx >= 0) list.splice(idx, 1);
+        else list.push(ck);
+        qa.autoContinueChatKeys = list.slice(0, 40);
+        saveSettingsPatch({ quotaAutomation: qa });
+      }
+      return;
+    }
+    if (action === "add-current-chat-auto-continue") {
+      const ck = state.activeChatKey && state.activeChatKey !== "__new__" ? state.activeChatKey : "";
+      if (ck) {
+        const qa = typeof rv5NormalizeQuotaAutomation === "function"
+          ? rv5NormalizeQuotaAutomation(state.settings.quotaAutomation)
+          : Object.assign({}, state.settings.quotaAutomation || {});
+        const list = Array.isArray(qa.autoContinueChatKeys) ? qa.autoContinueChatKeys.slice() : [];
+        if (list.indexOf(ck) === -1) list.push(ck);
+        qa.autoContinueChatKeys = list.slice(0, 40);
+        saveSettingsPatch({ quotaAutomation: qa });
+      }
+      return;
+    }
+    if (action === "test-quota-notification") {
+      invokeIpc("agy-studio:test-quota-notification", {}).then((res) => {
+        if (!state.destroyed) {
+          setToast(
+            res && res.ok
+              ? (state.locale !== "en" ? "Тестовое уведомление отправлено" : "Test notification sent")
+              : (state.locale !== "en" ? "Уведомления недоступны в системе" : "Notifications unavailable"),
+            !(res && res.ok)
+          );
+        }
+      });
+      return;
+    }
+    if (action === "arm-current-auto-continue") {
+      const ck = state.activeChatKey && state.activeChatKey !== "__new__" ? state.activeChatKey : "";
+      if (ck) {
+        const fam = classifyModelFamilyLocal(state.telemetry && state.telemetry.modelName);
+        invokeIpc("agy-studio:arm-auto-continue", {
+          chatKey: ck,
+          title: state.activeChatTitle || "",
+          family: fam,
+          modelName: (state.telemetry && state.telemetry.modelName) || "",
+          reason: "manual",
+        }).then((res) => {
+          if (!state.destroyed && res && res.ok) {
+            if (res.quotaAlerts) state.quotaAlerts = res.quotaAlerts;
+            renderChatDockMount();
+            if (state.isOpen) renderStructure();
+            setToast(state.locale !== "en" ? "Чат поставлен в очередь автопродолжения" : "Chat armed for auto-continue", false);
+          }
+        });
+      }
+      return;
+    }
+    if (action === "disarm-auto-continue") {
+      const ck = String(actionEl.getAttribute("data-chat-key") || state.activeChatKey || "").trim().toLowerCase();
+      if (ck && ck !== "__new__") {
+        invokeIpc("agy-studio:disarm-auto-continue", { chatKey: ck }).then((res) => {
+          if (!state.destroyed && res && res.ok) {
+            if (res.quotaAlerts) state.quotaAlerts = res.quotaAlerts;
+            renderChatDockMount();
+            if (state.isOpen) renderStructure();
+            setToast(state.locale !== "en" ? "Автопродолжение для чата отменено" : "Auto-continue cancelled for chat", false);
+          }
+        });
+      }
+      return;
+    }
     if (action === "toggle-live-inline") {
       const f = actionEl.getAttribute("data-field");
       if (f) {
@@ -9864,6 +10007,8 @@ function createStudioPanel(options) {
         const defaultTrue = f === "showChatDock" || f === "showInChat" || f === "showDeliveredBadge" || f === "enabled";
         const prevVal = defaultTrue ? cur[f] !== false : Boolean(cur[f]);
         cur[f] = !prevVal;
+        if (f === "showChatDock" && !cur[f]) state.agentPopoverOpen = false;
+        if (f === "showContextMeter" && !cur[f]) state.contextPopoverOpen = false;
         if (f === "urgentIntercept") state.inlineUrgent = Boolean(cur[f]);
         saveSettingsPatch({ liveEditInline: cur });
       }
@@ -12132,6 +12277,16 @@ function createStudioPanel(options) {
         saveSettingsPatch({ liveEditInline: cur });
         return;
       }
+      const quotaAutoField = target.getAttribute("data-quota-auto-field");
+      if (quotaAutoField) {
+        const qa = typeof rv5NormalizeQuotaAutomation === "function"
+          ? rv5NormalizeQuotaAutomation(state.settings.quotaAutomation)
+          : Object.assign({}, state.settings.quotaAutomation || {});
+        qa[quotaAutoField] = String(target.value || "").slice(0, 500);
+        state.settings.quotaAutomation = qa;
+        saveSettingsPatch({ quotaAutomation: qa });
+        return;
+      }
     });
 
     rootEl.addEventListener("keydown", (e) => {
@@ -12618,11 +12773,12 @@ function createStudioPanel(options) {
       outsidePopoverHandler = (e) => {
         if (!e) return;
         const cPath = typeof e.composedPath === "function" ? e.composedPath() : [];
-        if (state.agentPopoverOpen) {
+        if (state.agentPopoverOpen || state.contextPopoverOpen) {
           const insideDock = Boolean(chatDockMountEl && (cPath.indexOf(chatDockMountEl) !== -1 || e.target === chatDockMountEl)) ||
             (cPath.length === 0 && hostEl && (e.target === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(e.target))));
           if (!insideDock) {
             state.agentPopoverOpen = false;
+            state.contextPopoverOpen = false;
             renderChatDockMount();
           }
         }
@@ -13164,6 +13320,292 @@ function createStudioPanel(options) {
     hostEl = shadowRoot = rootEl = widgetMountEl = limitsMountEl = chatDockMountEl = usagePopMountEl = pickerMountEl = annotatorMountEl = popoverMountEl = updateToastMountEl = modalMountEl = null;
   }
 
+  function classifyModelFamilyLocal(modelName) {
+    const s = String(modelName || "").toLowerCase();
+    if (!s) return "any";
+    if (/gemini|imagen|veo/.test(s)) return "gemini";
+    if (/claude|opus|sonnet|haiku|gpt|codex|o1|o3|o4|anthropic|openai/.test(s)) return "claudeGpt";
+    return "any";
+  }
+
+  function isChatEligibleForAutoContinue(chatKey, qa) {
+    if (!qa || !qa.autoContinueEnabled) return false;
+    const ck = String(chatKey || "").trim().toLowerCase();
+    if (!ck || ck === "__new__") return false;
+    if (qa.autoContinueScope === "all") return true;
+    if (qa.autoContinueScope === "selected") {
+      return Array.isArray(qa.autoContinueChatKeys) && qa.autoContinueChatKeys.includes(ck);
+    }
+    if (qa.autoContinueScope === "current") {
+      const target = qa.autoContinueCurrentKey || state.activeChatKey || "";
+      return Boolean(target && target === ck);
+    }
+    return false;
+  }
+
+  const RATE_LIMIT_TEXT_RE = /model\s+quota\s+limit\s+reached|quota\s+(?:limit\s+)?exceeded|reached\s+your\s+(?:usage|rate|model)\s+limit|rate\s+limit\s+(?:exceeded|reached)|out\s+of\s+quota|usage\s+limit\s+reached|try\s+again\s+(?:in|after)\s+\d|лимит\s+(?:модели|использования|запросов)\s+(?:исчерпан|превышен|достигнут)|исчерпан\s+лимит|превышен\s+лимит|квота\s+исчерпана|попробуйте\s+снова\s+через/i;
+
+  function detectRateLimitInChatDom() {
+    if (!doc || typeof doc.querySelectorAll !== "function") return { detected: false, retryBtn: null };
+    try {
+      const candidates = doc.querySelectorAll('[role="alert"], [data-testid*="error"], [data-testid*="limit"], [data-testid*="quota"], [data-testid="agent-response"], main section, main div');
+      let hitContainer = null;
+      const startIdx = Math.max(0, (candidates ? candidates.length : 0) - 90);
+      for (let i = (candidates ? candidates.length : 0) - 1; i >= startIdx; i -= 1) {
+        const el = candidates[i];
+        if (!el || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(el))) continue;
+        if (typeof el.closest === "function" && el.closest('[data-testid="user-message-content"], [data-testid="user-message-bubble"], pre, code, [data-rudex-live-slot]')) continue;
+        const txt = String(el.textContent || "").replace(/\s+/g, " ").trim();
+        if (!txt || txt.length > 520) continue;
+        if (RATE_LIMIT_TEXT_RE.test(txt)) {
+          hitContainer = el;
+          break;
+        }
+      }
+      if (!hitContainer) return { detected: false, retryBtn: null };
+      let retryBtn = null;
+      const searchScope = hitContainer.parentElement || hitContainer;
+      if (searchScope && typeof searchScope.querySelectorAll === "function") {
+        const btns = searchScope.querySelectorAll("button");
+        for (let b = 0; btns && b < btns.length; b += 1) {
+          const btn = btns[b];
+          if (!btn || btn.disabled) continue;
+          const bTxt = String(btn.textContent || btn.getAttribute("aria-label") || "").trim();
+          if (/^(?:retry|try\s+again|resume|continue|повторить|попробовать\s+снова|продолжить)$/i.test(bTxt)) {
+            retryBtn = btn;
+            break;
+          }
+        }
+      }
+      return { detected: true, retryBtn };
+    } catch (_e) {
+      return { detected: false, retryBtn: null };
+    }
+  }
+
+  function trySelectChatInSidebar(targetChatKey, targetTitle) {
+    if (!doc || typeof doc.querySelectorAll !== "function") return false;
+    const ck = String(targetChatKey || "").trim().toLowerCase();
+    const titleLow = String(targetTitle || "").trim().toLowerCase();
+    try {
+      const links = doc.querySelectorAll('aside a, aside button, nav a, nav button, [data-testid="sidebar"] a, [data-testid="sidebar"] button, [data-rudex-bg-sidebar="1"] a, [data-rudex-bg-sidebar="1"] button');
+      for (let i = 0; links && i < links.length; i += 1) {
+        const el = links[i];
+        if (!el || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(el))) continue;
+        const href = String((el.getAttribute && (el.getAttribute("href") || el.getAttribute("data-conversation-id") || el.getAttribute("data-chat-id"))) || "").toLowerCase();
+        if (ck && href.includes(ck)) {
+          if (typeof el.click === "function") el.click();
+          return true;
+        }
+      }
+      if (titleLow && titleLow.length >= 3) {
+        for (let i = 0; links && i < links.length; i += 1) {
+          const el = links[i];
+          if (!el || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(el))) continue;
+          const txt = String(el.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+          if (txt === titleLow || (txt.length >= 4 && txt.includes(titleLow))) {
+            if (typeof el.click === "function") el.click();
+            return true;
+          }
+        }
+      }
+    } catch (_e) {}
+    return false;
+  }
+
+  function submitTextToNativeComposer(promptText) {
+    if (!doc || typeof rv5FindNativeComposer !== "function") return false;
+    const { container, editable } = rv5FindNativeComposer(doc);
+    if (!editable) return false;
+    try {
+      if (typeof editable.focus === "function") editable.focus();
+      if (typeof rv5ClearEditableText === "function") rv5ClearEditableText(editable);
+      let inserted = false;
+      if (typeof doc.execCommand === "function") {
+        try {
+          inserted = Boolean(doc.execCommand("insertText", false, promptText));
+        } catch (_e) { inserted = false; }
+      }
+      if (!inserted) {
+        if ("value" in editable && (editable.tagName === "TEXTAREA" || editable.tagName === "INPUT")) {
+          editable.value = promptText;
+        } else {
+          editable.textContent = promptText;
+        }
+        try {
+          const Ev = (win && win.InputEvent) || (typeof InputEvent !== "undefined" ? InputEvent : null) || (win && win.Event) || Event;
+          if (Ev) editable.dispatchEvent(new Ev("input", { bubbles: true, cancelable: true, data: promptText }));
+        } catch (_e) {}
+      }
+      const clickSend = () => {
+        try {
+          let sendBtn = null;
+          if (container && typeof container.querySelector === "function") {
+            sendBtn = container.querySelector('[data-rudex-comp-send="1"], button[type="submit"], button[data-testid*="send"], button[aria-label*="Send"], button[aria-label*="Отправить"]');
+          }
+          if (sendBtn && !sendBtn.disabled && typeof sendBtn.click === "function") {
+            sendBtn.click();
+            return true;
+          }
+          const KeyEv = (win && win.KeyboardEvent) || (typeof KeyboardEvent !== "undefined" ? KeyboardEvent : null);
+          if (KeyEv && typeof editable.dispatchEvent === "function") {
+            editable.dispatchEvent(new KeyEv("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+            return true;
+          }
+        } catch (_e) {}
+        return false;
+      };
+      if (win && typeof win.setTimeout === "function") {
+        win.setTimeout(clickSend, 120);
+      } else {
+        clickSend();
+      }
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  async function executeAutoContinueEntry(entry, cycleKey) {
+    if (!entry || !entry.chatKey || state.destroyed || state.autoContinueInflight) return false;
+    const qa = typeof rv5NormalizeQuotaAutomation === "function"
+      ? rv5NormalizeQuotaAutomation(state.settings.quotaAutomation)
+      : state.settings.quotaAutomation;
+    if (!isChatEligibleForAutoContinue(entry.chatKey, qa)) return false;
+    if (state.telemetry && state.telemetry.isGenerating) return false;
+
+    state.autoContinueInflight = true;
+    try {
+      const curKey = state.activeChatKey || "__new__";
+      if (curKey !== entry.chatKey) {
+        const switched = trySelectChatInSidebar(entry.chatKey, entry.title);
+        if (!switched) {
+          state.pendingAutoResume = { entry, cycleKey };
+          return false;
+        }
+        await new Promise((r) => (win && typeof win.setTimeout === "function" ? win.setTimeout(r, 1100) : setTimeout(r, 1100)));
+        if (state.destroyed) return false;
+      }
+
+      const markRes = await invokeIpc("agy-studio:mark-auto-continue-resumed", {
+        chatKey: entry.chatKey,
+        cycleKey: cycleKey || `resumed-${Date.now()}`,
+      });
+      if (!markRes || markRes.alreadyResumed) {
+        return false;
+      }
+      if (markRes.quotaAlerts) state.quotaAlerts = markRes.quotaAlerts;
+      state.pendingAutoResume = null;
+
+      let sent = false;
+      if (qa.autoContinueRetryFirst !== false) {
+        const rl = detectRateLimitInChatDom();
+        if (rl.detected && rl.retryBtn && typeof rl.retryBtn.click === "function") {
+          try {
+            rl.retryBtn.click();
+            sent = true;
+          } catch (_e) {}
+        }
+      }
+      if (!sent) {
+        const isRu = state.locale !== "en";
+        const defaultPrompt = isRu
+          ? "Лимиты восстановились. Продолжи выполнение незавершённой задачи с того места, на котором остановился."
+          : "Limits have been restored. Please continue completing the unfinished task from where you left off.";
+        const promptText = String(qa.autoContinuePrompt || "").trim() || defaultPrompt;
+        sent = submitTextToNativeComposer(promptText);
+      }
+      if (sent) {
+        setToast(state.locale !== "en" ? "⚡ Лимиты восстановились — чат продолжен автоматически" : "⚡ Limits restored — chat resumed automatically", false);
+      }
+      renderChatDockMount();
+      if (state.isOpen) renderStructure();
+      return sent;
+    } finally {
+      state.autoContinueInflight = false;
+    }
+  }
+
+  function checkAutoContinueMonitoring(now) {
+    if (state.destroyed) return;
+    if (now - (state.lastRateLimitScanAt || 0) < 2500) return;
+    state.lastRateLimitScanAt = now;
+    const qa = typeof rv5NormalizeQuotaAutomation === "function"
+      ? rv5NormalizeQuotaAutomation(state.settings.quotaAutomation)
+      : state.settings.quotaAutomation;
+    if (!qa || !qa.autoContinueEnabled) return;
+
+    const curKey = state.activeChatKey && state.activeChatKey !== "__new__" ? state.activeChatKey : "";
+    if (state.pendingAutoResume && curKey && state.pendingAutoResume.entry && state.pendingAutoResume.entry.chatKey === curKey) {
+      const pending = state.pendingAutoResume;
+      state.pendingAutoResume = null;
+      void executeAutoContinueEntry(pending.entry, pending.cycleKey);
+      return;
+    }
+
+    const waitingMap = (state.quotaAlerts && state.quotaAlerts.waitingChats) || {};
+    // Check if an armed chat's targetResetAt already passed (e.g. reopened Antigravity after offline notification!)
+    if (curKey && waitingMap[curKey] && waitingMap[curKey].targetResetAt > 0 && now >= waitingMap[curKey].targetResetAt) {
+      const w = waitingMap[curKey];
+      void executeAutoContinueEntry(w, `${w.family}:offline:${Math.round(w.targetResetAt / 60000)}`);
+      return;
+    }
+
+    if (!curKey || waitingMap[curKey] || (state.telemetry && state.telemetry.isGenerating)) return;
+    if (!isChatEligibleForAutoContinue(curKey, qa)) return;
+
+    const rl = detectRateLimitInChatDom();
+    if (rl.detected) {
+      const fam = classifyModelFamilyLocal(state.telemetry && state.telemetry.modelName);
+      invokeIpc("agy-studio:arm-auto-continue", {
+        chatKey: curKey,
+        title: state.activeChatTitle || "",
+        family: fam,
+        modelName: (state.telemetry && state.telemetry.modelName) || "",
+        reason: "limit-error",
+      }).then((res) => {
+        if (!state.destroyed && res && res.ok) {
+          if (res.quotaAlerts) state.quotaAlerts = res.quotaAlerts;
+          renderChatDockMount();
+          if (state.isOpen) renderStructure();
+        }
+      });
+    }
+  }
+
+  function handleQuotaRestored(payload) {
+    if (state.destroyed || !payload || typeof payload !== "object") return;
+    const fam = payload.family || "any";
+    const cycleKey = payload.cycleKey || `${fam}:${Date.now()}`;
+    if (payload.waitingChats && typeof payload.waitingChats === "object") {
+      state.quotaAlerts = { waitingChats: Object.assign({}, payload.waitingChats) };
+    }
+    invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+      if (!state.destroyed && qs) applyQuotaSummary(qs);
+    });
+    const qa = typeof rv5NormalizeQuotaAutomation === "function"
+      ? rv5NormalizeQuotaAutomation(state.settings.quotaAutomation)
+      : state.settings.quotaAutomation;
+    if (!qa || !qa.autoContinueEnabled) return;
+    const waitingMap = (state.quotaAlerts && state.quotaAlerts.waitingChats) || {};
+    const matching = Object.values(waitingMap).filter(
+      (w) => w && (w.family === "any" || fam === "any" || w.family === fam) && isChatEligibleForAutoContinue(w.chatKey, qa)
+    );
+    if (matching.length === 0) return;
+    // Prefer resuming currently open chat first, otherwise first matching armed chat
+    const preferred = matching.find((w) => w.chatKey === state.activeChatKey) || matching[0];
+    void executeAutoContinueEntry(preferred, cycleKey);
+  }
+
+  function handleNotificationClicked(payload) {
+    if (state.destroyed || !payload || typeof payload !== "object") return;
+    if (payload.type === "quota-reset" || payload.type === "quota-reset-test") {
+      invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+        if (!state.destroyed && qs) applyQuotaSummary(qs);
+      });
+    }
+  }
+
   return {
     init,
     destroy,
@@ -13176,6 +13618,8 @@ function createStudioPanel(options) {
     openAnnotator,
     applyLiveEditsUpdate,
     applyQuotaSummary,
+    handleQuotaRestored,
+    handleNotificationClicked,
     applyUpdateStatus,
     setViewMode,
     setLocale,

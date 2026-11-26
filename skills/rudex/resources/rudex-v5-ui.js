@@ -594,8 +594,8 @@ function rv5RenderAgentHubTabHtml(ctx) {
         </div>
         <div class="row-item">
           <div class="row-info">
-            <span class="row-title">${isRu ? "Быстрый доступ к инструментам над чатом" : "Show Agent Tools chip above composer"}</span>
-            <span class="row-desc">${isRu ? "Компактная кнопка тумблеров прямо над полем ввода" : "Compact tool toggles chip right above input"}</span>
+            <span class="row-title">${isRu ? "Показывать кнопку «Инструменты» над полем ввода" : "Show «Tools» button above chat composer"}</span>
+            <span class="row-desc">${isRu ? "Компактная кнопка тумблеров прямо над полем ввода (можно скрыть в любой момент)" : "Compact tool toggles chip right above input (hide anytime)"}</span>
           </div>
           <button type="button" class="switch${le.showChatDock !== false ? " is-on" : ""}" role="switch" data-action="toggle-live-inline" data-field="showChatDock"><span class="switch-thumb"></span></button>
         </div>
@@ -675,8 +675,39 @@ function rv5RenderAgentHubTabHtml(ctx) {
  * Tab 3: Limits & Screen Hub (Live Preview + Standalone "Only Limits" widget + Monitor/Export).
  */
 function rv5RenderLimitsTabHtml(ctx) {
-  const { limitsWidget, quotaSummary, activeModelName, systemFonts, monitorHtml, exportHtml, isRu, isLight } = ctx;
+  const { limitsWidget, quotaSummary, quotaAutomation, quotaAlerts, activeChatKey, activeChatTitle, activeModelName, systemFonts, monitorHtml, exportHtml, isRu, isLight } = ctx;
   const lw = rv5NormalizeLimitsWidget(limitsWidget);
+  const qa = typeof rv5NormalizeQuotaAutomation === "function"
+    ? rv5NormalizeQuotaAutomation(quotaAutomation)
+    : Object.assign({ notifyOnReset: true, notifyWhenClosed: true, notifySound: true, autoContinueEnabled: false, autoContinueScope: "all", autoContinueChatKeys: [], autoContinueCurrentKey: "", autoContinuePrompt: "", autoContinueRetryFirst: true }, quotaAutomation || {});
+  const waitingMap = (quotaAlerts && quotaAlerts.waitingChats && typeof quotaAlerts.waitingChats === "object") ? quotaAlerts.waitingChats : {};
+  const waitingList = Object.values(waitingMap).filter(Boolean);
+  const curKey = typeof activeChatKey === "string" && activeChatKey && activeChatKey !== "__new__" ? activeChatKey : "";
+  const curTitle = String(activeChatTitle || "").trim() || (isRu ? "Текущий чат" : "Current chat");
+  const curIsArmed = Boolean(curKey && waitingMap[curKey]);
+  const selectedSet = new Set(qa.autoContinueChatKeys || []);
+  const knownChats = [];
+  const seenChatKeys = new Set();
+  if (curKey) {
+    seenChatKeys.add(curKey);
+    knownChats.push({ chatKey: curKey, title: curTitle, isCurrent: true });
+  }
+  const qRows = (quotaSummary && Array.isArray(quotaSummary.chats)) ? quotaSummary.chats : [];
+  for (let i = 0; i < qRows.length && knownChats.length < 14; i += 1) {
+    const r = qRows[i];
+    if (!r || !r.chatKey || seenChatKeys.has(r.chatKey)) continue;
+    seenChatKeys.add(r.chatKey);
+    knownChats.push({ chatKey: r.chatKey, title: r.title || r.chatKey.slice(0, 12), isCurrent: false });
+  }
+  for (let i = 0; i < (qa.autoContinueChatKeys || []).length; i += 1) {
+    const k = qa.autoContinueChatKeys[i];
+    if (!k || seenChatKeys.has(k)) continue;
+    seenChatKeys.add(k);
+    knownChats.push({ chatKey: k, title: k.slice(0, 14), isCurrent: false });
+  }
+  const defaultContinuePrompt = isRu
+    ? "Лимиты восстановились. Продолжи выполнение незавершённой задачи с того места, на котором остановился."
+    : "Limits have been restored. Please continue completing the unfinished task from where you left off.";
   const isDockedUi = Boolean(lw.pinned && lw.position !== "floating");
   const layouts = [
     { id: "pill", label: isRu ? "Пилюля" : "Pill" },
@@ -727,6 +758,109 @@ function rv5RenderLimitsTabHtml(ctx) {
           <button type="button" class="switch${lw.onlyLimitsMode ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="onlyLimitsMode"><span class="switch-thumb"></span></button>
         </div>
       </div>
+    </div>
+
+    <div class="section-group">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span class="section-label">${isRu ? "Уведомления и автопродолжение чата" : "Limit Reset Alerts & Auto-Continue"}</span>
+        <button type="button" class="btn btn-sm btn-ghost" data-action="test-quota-notification">${isRu ? "🔔 Тест уведомления" : "🔔 Test alert"}</button>
+      </div>
+      <div class="card">
+        <div class="row-item">
+          <div class="row-info">
+            <span class="row-title">${isRu ? "Уведомлять на рабочий стол, когда лимиты обновятся" : "Desktop notification when limits restore"}</span>
+            <span class="row-desc">${isRu ? "Кликабельное системное уведомление — нажатие сразу открывает Antigravity (вкл. по умолчанию)." : "Clickable desktop toast — clicking opens & focuses Antigravity (on by default)."}</span>
+          </div>
+          <button type="button" class="switch${qa.notifyOnReset ? " is-on" : ""}" role="switch" aria-checked="${qa.notifyOnReset ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="notifyOnReset"><span class="switch-thumb"></span></button>
+        </div>
+        ${qa.notifyOnReset ? `
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${isRu ? "Присылать уведомление, даже если Antigravity закрыт" : "Notify even when Antigravity is closed"}</span>
+              <span class="row-desc">${isRu ? "Тихое системное напоминание Windows (без консольных окон) — клик запустит Antigravity." : "Silent Windows scheduled notification (zero popups) — clicking launches Antigravity."}</span>
+            </div>
+            <button type="button" class="switch${qa.notifyWhenClosed ? " is-on" : ""}" role="switch" aria-checked="${qa.notifyWhenClosed ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="notifyWhenClosed"><span class="switch-thumb"></span></button>
+          </div>
+        ` : ""}
+        <div class="row-item">
+          <div class="row-info">
+            <span class="row-title">${isRu ? "Автопродолжение чата после восстановления лимитов" : "Auto-continue chat when limits restore"}</span>
+            <span class="row-desc">${isRu ? "Если агент не успел закончить задачу из-за лимита, он автоматически продолжит работу после сброса (выкл. по умолчанию)." : "If the agent stopped due to a quota limit, automatically resume once limits reset (off by default)."}</span>
+          </div>
+          <button type="button" class="switch${qa.autoContinueEnabled ? " is-on" : ""}" role="switch" aria-checked="${qa.autoContinueEnabled ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="autoContinueEnabled"><span class="switch-thumb"></span></button>
+        </div>
+      </div>
+
+      ${qa.autoContinueEnabled ? `
+        <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
+          <div class="section-group" style="gap:5px">
+            <span class="section-label">${isRu ? "Для каких чатов работает автопродолжение" : "Auto-Continue Scope"}</span>
+            <div class="subtab-bar is-segmented">
+              <button type="button" class="subtab-btn${qa.autoContinueScope === "all" ? " is-active" : ""}" data-action="set-quota-auto-scope" data-val="all">${isRu ? "Все чаты" : "All chats"}</button>
+              <button type="button" class="subtab-btn${qa.autoContinueScope === "selected" ? " is-active" : ""}" data-action="set-quota-auto-scope" data-val="selected">${isRu ? "Выбранные" : "Selected"}</button>
+              <button type="button" class="subtab-btn${qa.autoContinueScope === "current" ? " is-active" : ""}" data-action="set-quota-auto-scope" data-val="current">${isRu ? "Текущий чат" : "Current chat"}</button>
+            </div>
+          </div>
+
+          ${qa.autoContinueScope === "selected" ? `
+            <div class="section-group" style="gap:5px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                <span class="section-label">${isRu ? "Выбранные чаты" : "Selected Chats"} (${selectedSet.size})</span>
+                ${curKey && !selectedSet.has(curKey) ? `<button type="button" class="btn btn-sm" data-action="add-current-chat-auto-continue">${isRu ? "+ Добавить текущий" : "+ Add current"}</button>` : ""}
+              </div>
+              ${knownChats.length > 0 ? `
+                <div class="rx-ac-chat-list">
+                  ${knownChats.map((ch) => {
+                    const checked = selectedSet.has(ch.chatKey);
+                    return `
+                      <div class="rx-ac-chat-row">
+                        <span class="rx-ac-chat-name" title="${rv5EscapeHtml(ch.title)}">${rv5EscapeHtml(ch.title)}${ch.isCurrent ? ` <span class="nav-badge" style="margin-left:4px">${isRu ? "текущий" : "active"}</span>` : ""}</span>
+                        <button type="button" class="switch${checked ? " is-on" : ""}" role="switch" aria-checked="${checked ? "true" : "false"}" data-action="toggle-quota-auto-chat" data-chat-key="${rv5EscapeHtml(ch.chatKey)}"><span class="switch-thumb"></span></button>
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+              ` : `<span class="row-desc">${isRu ? "Откройте нужный чат и нажмите «+ Добавить текущий»." : "Open a chat and click «+ Add current»."}</span>`}
+            </div>
+          ` : ""}
+
+          ${qa.autoContinueScope === "current" ? `
+            <div class="row-desc">${curKey
+              ? (isRu ? `Привязано к чату: «${rv5EscapeHtml(curTitle)}»` : `Targeted chat: "${rv5EscapeHtml(curTitle)}"`)
+              : (isRu ? "Откройте нужный чат — автопродолжение применится к нему." : "Open any chat — auto-continue will target it.")}</div>
+          ` : ""}
+
+          <div class="section-group" style="gap:5px">
+            <span class="section-label">${isRu ? "Сообщение для автопродолжения" : "Auto-Continue Prompt"}</span>
+            <input type="text" class="text-input" data-quota-auto-field="autoContinuePrompt" value="${rv5EscapeHtml(qa.autoContinuePrompt || "")}" placeholder="${rv5EscapeHtml(defaultContinuePrompt)}"/>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span class="row-title" style="font-size:12px">${isRu ? "Сначала нажимать родную кнопку «Повторить»" : "Click native «Retry» button first if shown"}</span>
+            <button type="button" class="switch${qa.autoContinueRetryFirst ? " is-on" : ""}" role="switch" aria-checked="${qa.autoContinueRetryFirst ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="autoContinueRetryFirst"><span class="switch-thumb"></span></button>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:4px;border-top:1px solid var(--rx-border)">
+            <span class="row-desc">${waitingList.length > 0
+              ? (isRu ? `В очереди ожидания лимита: ${waitingList.length}` : `Waiting for limit reset: ${waitingList.length}`)
+              : (isRu ? "Сработает автоматически при ошибке лимита или по кнопке справа." : "Triggers automatically on limit error or via the manual arm button.")}</span>
+            ${curKey ? (curIsArmed
+              ? `<button type="button" class="btn btn-sm btn-danger" data-action="disarm-auto-continue" data-chat-key="${rv5EscapeHtml(curKey)}">${isRu ? "✕ Отменить для чата" : "✕ Cancel for chat"}</button>`
+              : `<button type="button" class="btn btn-sm btn-primary" data-action="arm-current-auto-continue">${isRu ? "⏳ Ждать лимит для этого чата" : "⏳ Arm for this chat"}</button>`) : ""}
+          </div>
+
+          ${waitingList.length > 0 ? `
+            <div class="rx-ac-chat-list">
+              ${waitingList.map((w) => `
+                <div class="rx-ac-chat-row">
+                  <span class="rx-ac-chat-name">⏳ ${rv5EscapeHtml(w.title || w.chatKey.slice(0, 12))} · ${rv5EscapeHtml(w.family === "gemini" ? "Gemini" : (w.family === "claudeGpt" ? "Claude/GPT" : (isRu ? "Любой" : "Any")))}</span>
+                  <button type="button" class="btn btn-sm btn-ghost" style="padding:2px 6px" data-action="disarm-auto-continue" data-chat-key="${rv5EscapeHtml(w.chatKey)}" title="${isRu ? "Убрать из очереди" : "Remove"}">✕</button>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+        </div>
+      ` : ""}
     </div>
 
     <div class="section-group">
@@ -1060,7 +1194,7 @@ function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills) {
  * - Queue capsule auto-hides delivered items after 4 seconds (plus manual ✕ dismiss)
  */
 function rv5BuildChatDockHtml(ctx) {
-  const { agentProfile, defaultProfile, liveEdits, dismissedIds, liveEditInline, popoverOpen, contextPopoverOpen, contextInfo, isRu } = ctx;
+  const { agentProfile, defaultProfile, liveEdits, dismissedIds, liveEditInline, popoverOpen, contextPopoverOpen, contextInfo, waitingEntry, isRu } = ctx;
   const ap = rv5NormalizeAgentProfile(agentProfile);
   const le = Object.assign({}, RUDEX_LIVE_EDIT_DEFAULTS, liveEditInline || {});
   const dismissed = dismissedIds || new Set();
@@ -1074,7 +1208,8 @@ function rv5BuildChatDockHtml(ctx) {
 
   const showBar = le.showChatDock !== false;
   const showCtx = le.showContextMeter === true;
-  if (!showBar && !showCtx && queueItems.length === 0 && !popoverOpen && !contextPopoverOpen) return "";
+  const hasWaiting = Boolean(waitingEntry && waitingEntry.chatKey);
+  if (!showBar && !showCtx && !hasWaiting && queueItems.length === 0 && !popoverOpen && !contextPopoverOpen) return "";
 
   let ctxPillHtml = "";
   let ctxPopHtml = "";
@@ -1183,6 +1318,9 @@ function rv5BuildChatDockHtml(ctx) {
           <span style="font-size:11.5px;color:var(--rx-muted)">${isRu ? "По умолчанию для новых чатов" : "Default for new chats"}</span>
           <button type="button" class="switch${isDefaultNew ? " is-on" : ""}" role="switch" data-action="toggle-agent-default-new"><span class="switch-thumb"></span></button>
         </div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;padding-top:4px;border-top:1px solid var(--rx-border)">
+          <button type="button" class="btn btn-sm btn-ghost" style="font-size:11px;padding:2px 7px" data-action="hide-tools-chip">${isRu ? "Скрыть кнопку «Инструменты»" : "Hide «Tools» button"}</button>
+        </div>
       </div>
     ` : ""}
 
@@ -1202,7 +1340,7 @@ function rv5BuildChatDockHtml(ctx) {
       </div>
     ` : ""}
 
-    ${(showBar || showCtx) ? `
+    ${(showBar || showCtx || hasWaiting) ? `
       <div class="rx-chat-dock-row">
         ${showBar ? `
           <button type="button" class="rx-agent-chip${isCustomActive ? " is-active" : ""}" data-action="toggle-agent-popover">
@@ -1210,6 +1348,12 @@ function rv5BuildChatDockHtml(ctx) {
             <span>${rv5EscapeHtml(chipLabel)}</span>
             <span style="opacity:.7">▾</span>
           </button>
+        ` : ""}
+        ${hasWaiting ? `
+          <span class="rx-ac-pill" title="${rv5EscapeHtml(isRu ? "Чат автоматически продолжится, когда лимиты восстановятся" : "Chat will auto-continue once limits restore")}">
+            <span>⏳ ${isRu ? "Автопродолжение после лимита" : "Auto-continue armed"}</span>
+            <button type="button" class="rx-ac-cancel" data-action="disarm-auto-continue" data-chat-key="${rv5EscapeHtml(waitingEntry.chatKey)}" title="${isRu ? "Отменить" : "Cancel"}">✕</button>
+          </span>
         ` : ""}
         ${ctxPillHtml}
       </div>

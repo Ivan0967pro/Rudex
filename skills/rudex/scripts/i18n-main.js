@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const { app, ipcMain, webContents, dialog, shell, protocol, BrowserWindow, clipboard, nativeImage } = require("electron");
+const { app, ipcMain, webContents, dialog, shell, protocol, BrowserWindow, clipboard, nativeImage, Notification } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -26,6 +26,10 @@ let liveEditDebounceTimer = null;
 let liveEditLastBroadcastSig = "";
 let updateBootTimer = null;
 let updateIntervalTimer = null;
+let quotaMonitorTimer = null;
+let quotaQuitHooked = false;
+let quotaAlertsCache = null;
+let lastOfflineQuotaTaskSig = "";
 let updateCheckInflight = null;
 let updateInstallInflight = null;
 let postAppUpdateScheduled = false;
@@ -855,6 +859,45 @@ const DEFAULT_AGENT_PROFILE = {
   disabledTools: [],
 };
 
+const DEFAULT_QUOTA_AUTOMATION = {
+  notifyOnReset: true,
+  notifyWhenClosed: true,
+  notifySound: true,
+  autoContinueEnabled: false,
+  autoContinueScope: "all", // "all" | "selected" | "current"
+  autoContinueChatKeys: [],
+  autoContinueCurrentKey: "",
+  autoContinuePrompt: "",
+  autoContinueRetryFirst: true,
+};
+const VALID_AUTO_CONTINUE_SCOPES = new Set(["all", "selected", "current"]);
+
+function sanitizeQuotaAutomation(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const scope = VALID_AUTO_CONTINUE_SCOPES.has(src.autoContinueScope) ? src.autoContinueScope : DEFAULT_QUOTA_AUTOMATION.autoContinueScope;
+  const rawKeys = Array.isArray(src.autoContinueChatKeys) ? src.autoContinueChatKeys : [];
+  const seen = new Set();
+  const chatKeys = [];
+  for (let i = 0; i < rawKeys.length && chatKeys.length < 40; i += 1) {
+    const k = String(rawKeys[i] || "").trim().toLowerCase();
+    if (!k || k === "__new__" || seen.has(k)) continue;
+    seen.add(k);
+    chatKeys.push(k);
+  }
+  const curKey = typeof src.autoContinueCurrentKey === "string" ? src.autoContinueCurrentKey.trim().toLowerCase().slice(0, 80) : "";
+  return {
+    notifyOnReset: src.notifyOnReset !== false,
+    notifyWhenClosed: src.notifyWhenClosed !== false,
+    notifySound: src.notifySound !== false,
+    autoContinueEnabled: Boolean(src.autoContinueEnabled),
+    autoContinueScope: scope,
+    autoContinueChatKeys: chatKeys,
+    autoContinueCurrentKey: curKey === "__new__" ? "" : curKey,
+    autoContinuePrompt: typeof src.autoContinuePrompt === "string" ? src.autoContinuePrompt.slice(0, 500) : "",
+    autoContinueRetryFirst: src.autoContinueRetryFirst !== false,
+  };
+}
+
 const VALID_LIMITS_LAYOUTS = new Set(["pill", "bars", "card", "inline-header"]);
 const VALID_LIMITS_POSITIONS = new Set(["top-right", "top-left", "bottom-right", "bottom-left", "inline-header", "floating"]);
 const VALID_LIMITS_FAMILIES = new Set(["active", "both", "gemini", "claudeGpt"]);
@@ -1150,6 +1193,7 @@ function sanitizeStudioSettings(raw) {
     liveEditInline: sanitizeLiveEditInline(src.liveEditInline),
     agentProfileDefault: sanitizeAgentProfile(src.agentProfileDefault),
     customAgentPresets: sanitizeCustomAgentPresets(src.customAgentPresets),
+    quotaAutomation: sanitizeQuotaAutomation(src.quotaAutomation),
   };
 }
 
@@ -1181,6 +1225,9 @@ function saveStudioSettings(patch) {
   }
   if (pObj.limitsWidget && typeof pObj.limitsWidget === "object") {
     pObj.limitsWidget = Object.assign({}, current.limitsWidget || DEFAULT_LIMITS_WIDGET, pObj.limitsWidget);
+  }
+  if (pObj.quotaAutomation && typeof pObj.quotaAutomation === "object") {
+    pObj.quotaAutomation = Object.assign({}, current.quotaAutomation || DEFAULT_QUOTA_AUTOMATION, pObj.quotaAutomation);
   }
   if (pObj.keybindings && typeof pObj.keybindings === "object") {
     pObj.keybindings = Object.assign({}, current.keybindings || DEFAULT_KEYBINDINGS, pObj.keybindings);
@@ -2472,7 +2519,7 @@ function getStudioState(activeChatKey) {
   try {
     personaFileExists = fs.existsSync(rulePath);
   } catch {}
-  return {
+  const result = {
     locale: getLocale(),
     settings,
     appZoomSupported: true,
@@ -2480,7 +2527,9 @@ function getStudioState(activeChatKey) {
     personaFilePath: rulePath,
     patchMeta: getPatchMeta(),
     quotaSummary: buildQuotaSummary(activeChatKey || lastActiveChatKey),
+    quotaAlerts: getPublicQuotaAlerts(),
   };
+  return result;
 }
 
 function resolveSafeMediaFile(rawUrl) {
@@ -2977,10 +3026,112 @@ function writePostAppUpdateWatcherScript(opts = {}) {
   }
 }
 
+/**
+ * Invisible WSH JScript post-update watcher (runs under wscript.exe WINDOWS_GUI subsystem).
+ * Zero console/PowerShell/Terminal window; waits for app.asar write stability (so it never races
+ * Antigravity's updater or third-party patchers) and runs install.js silently with --on-exit-activate.
+ */
+function writePostAppUpdateWatcherWsh(opts = {}) {
+  if (process.platform !== "win32") return "";
+  const resDir = opts.resDir || process.resourcesPath || path.resolve(__dirname, "..", "..");
+  const exePath = opts.exePath || process.execPath || "";
+  const installJs = opts.installJs || path.join(getPluginsBaseDir(), "rudex", "skills", "rudex", "scripts", "install.js");
+  if (!resDir || !exePath || !installJs) return "";
+  let wshEsc = (s) => JSON.stringify(String(s || "")).replace(/[^\x20-\x7E]/g, (ch) => "\\u" + ch.charCodeAt(0).toString(16).padStart(4, "0"));
+  try {
+    const uc = loadUpdaterCore();
+    if (uc && typeof uc.wshEscapeJsString === "function") wshEsc = uc.wshEscapeJsString;
+  } catch {}
+  const outPath = opts.outPath || path.join(os.tmpdir(), "rudex-post-app-update.js");
+  const lockPath = opts.lockPath || path.join(os.tmpdir(), "rudex-post-app-update.lock");
+  const lines = [
+    "var fso = new ActiveXObject('Scripting.FileSystemObject');",
+    "var sh = new ActiveXObject('WScript.Shell');",
+    `var resDir = ${wshEsc(resDir)};`,
+    `var agyExe = ${wshEsc(exePath)};`,
+    `var installJs = ${wshEsc(installJs)};`,
+    `var lockFile = ${wshEsc(lockPath)};`,
+    "var asarPath = resDir + '\\\\app.asar';",
+    "function countProcs(q) {",
+    "  try {",
+    "    var wmi = GetObject('winmgmts:{impersonationLevel=impersonate}!\\\\\\\\.\\\\root\\\\cimv2');",
+    "    return wmi.ExecQuery(q).Count;",
+    "  } catch (e) { return -1; }",
+    "}",
+    "function fileStamp(p) {",
+    "  try {",
+    "    if (!fso.FileExists(p)) return '';",
+    "    var f = fso.GetFile(p);",
+    "    return String(f.Size) + ':' + String(Math.floor(new Date(f.DateLastModified).getTime() / 1000));",
+    "  } catch (e) { return ''; }",
+    "}",
+    "try {",
+    "  var dup = countProcs(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'wscript.exe' AND CommandLine LIKE '%rudex-post-app-update.js%'\");",
+    "  if (dup > 1) WScript.Quit(0);",
+    "  var stableCount = 0;",
+    "  var prevStamp = '';",
+    "  for (var i = 0; i < 180; i++) {",
+    "    WScript.Sleep(2000);",
+    "    var cur = fileStamp(asarPath);",
+    "    if (!cur) { stableCount = 0; prevStamp = ''; continue; }",
+    "    if (cur === prevStamp) {",
+    "      stableCount += 1;",
+    "      if (stableCount >= 2) break;",
+    "    } else {",
+    "      prevStamp = cur;",
+    "      stableCount = 0;",
+    "    }",
+    "  }",
+    "  if (stableCount >= 2 && fso.FileExists(asarPath) && fso.FileExists(installJs)) {",
+    "    var env = sh.Environment('Process');",
+    "    env('ELECTRON_RUN_AS_NODE') = '1';",
+    "    env('ELECTRON_NO_ASAR') = '1';",
+    "    var runner = (agyExe && fso.FileExists(agyExe)) ? ('\"' + agyExe + '\"') : 'node';",
+    "    try { sh.Run(runner + ' \"' + installJs + '\" --no-sync-plugin --on-exit-activate', 0, true); } catch (e) {}",
+    "  }",
+    "} catch (e) {",
+    "} finally {",
+    "  try { if (fso.FileExists(lockFile)) fso.DeleteFile(lockFile, true); } catch (e1) {}",
+    "  try { fso.DeleteFile(WScript.ScriptFullName, true); } catch (e2) {}",
+    "}",
+    "",
+  ];
+  try {
+    fs.writeFileSync(outPath, lines.join("\r\n"), "ascii");
+    return outPath;
+  } catch (_e) {
+    return "";
+  }
+}
+
 function schedulePostAppUpdateRepatch() {
   if (postAppUpdateScheduled || process.platform !== "win32" || globalThis.__RUDEX_DISABLED__) return false;
   const installJs = path.join(getPluginsBaseDir(), "rudex", "skills", "rudex", "scripts", "install.js");
   if (!fs.existsSync(installJs)) return false;
+
+  const lockPath = path.join(os.tmpdir(), "rudex-post-app-update.lock");
+  try {
+    if (fs.existsSync(lockPath)) {
+      const st = fs.statSync(lockPath);
+      if (Date.now() - st.mtimeMs < 10 * 60 * 1000) {
+        postAppUpdateScheduled = true;
+        return true;
+      }
+    }
+  } catch {}
+
+  let updaterCore = null;
+  try { updaterCore = loadUpdaterCore(); } catch {}
+
+  if (updaterCore && typeof updaterCore.resolveWscriptExe === "function" && updaterCore.resolveWscriptExe()) {
+    try { fs.writeFileSync(lockPath, String(Date.now()), "utf8"); } catch {}
+    const wshPath = writePostAppUpdateWatcherWsh({ installJs, lockPath });
+    if (wshPath && fs.existsSync(wshPath) && updaterCore.spawnSilentWindowsWsh(wshPath)) {
+      postAppUpdateScheduled = true;
+      return true;
+    }
+  }
+
   const scriptPath = writePostAppUpdateWatcherScript({ installJs });
   if (!scriptPath || !fs.existsSync(scriptPath)) return false;
   postAppUpdateScheduled = true;
@@ -3021,6 +3172,454 @@ function broadcastStudioSettings(state) {
       }
     }
   } catch {}
+}
+
+function focusAntigravityWindow(preferredWin, payload) {
+  let win = preferredWin && typeof preferredWin.isDestroyed === "function" && !preferredWin.isDestroyed() ? preferredWin : null;
+  if (!win && BrowserWindow && typeof BrowserWindow.getAllWindows === "function") {
+    try {
+      const all = BrowserWindow.getAllWindows();
+      win = all.find((w) => w && !w.isDestroyed() && !w.__isWebviewPopupWindow) || all.find((w) => w && !w.isDestroyed()) || null;
+    } catch {}
+  }
+  if (!win) {
+    try { if (app && typeof app.emit === "function") app.emit("activate"); } catch {}
+    return false;
+  }
+  try {
+    if (typeof win.isMinimized === "function" && win.isMinimized()) win.restore();
+    if (typeof win.show === "function") win.show();
+    if (process.platform === "win32") {
+      const wasTop = typeof win.isAlwaysOnTop === "function" ? win.isAlwaysOnTop() : false;
+      if (!wasTop && typeof win.setAlwaysOnTop === "function") {
+        win.setAlwaysOnTop(true);
+        if (typeof win.focus === "function") win.focus();
+        win.setAlwaysOnTop(false);
+      } else if (typeof win.focus === "function") {
+        win.focus();
+      }
+    } else {
+      if (app && typeof app.focus === "function") app.focus({ steal: true });
+      if (typeof win.focus === "function") win.focus();
+    }
+    if (payload && win.webContents && !win.webContents.isDestroyed()) {
+      win.webContents.send("agy-studio:notification-clicked", payload);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function showDesktopNotification(opts = {}) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  try {
+    if (!Notification || (typeof Notification.isSupported === "function" && !Notification.isSupported())) {
+      return false;
+    }
+    const n = new Notification({
+      title: String(o.title || "Antigravity"),
+      body: String(o.body || ""),
+      silent: Boolean(o.silent),
+    });
+    if (typeof n.on === "function") {
+      n.on("click", () => {
+        focusAntigravityWindow(null, o.payload || { type: "generic" });
+      });
+    }
+    if (typeof n.show === "function") n.show();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getQuotaAlertsPath() {
+  return path.join(app.getPath("userData"), "agy_studio_quota_alerts.json");
+}
+
+function sanitizeQuotaAlertsStore(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const notifiedCycles = {};
+  const rawNotif = src.notifiedCycles && typeof src.notifiedCycles === "object" ? src.notifiedCycles : {};
+  const now = Date.now();
+  for (const k of Object.keys(rawNotif)) {
+    const ts = Number(rawNotif[k]) || 0;
+    if (ts > 0 && now - ts < 14 * 24 * 60 * 60 * 1000) notifiedCycles[k] = ts;
+  }
+  const resumedCycles = {};
+  const rawRes = src.resumedCycles && typeof src.resumedCycles === "object" ? src.resumedCycles : {};
+  for (const k of Object.keys(rawRes)) {
+    const ts = Number(rawRes[k]) || 0;
+    if (ts > 0 && now - ts < 14 * 24 * 60 * 60 * 1000) resumedCycles[k] = ts;
+  }
+  const waitingChats = {};
+  const rawWait = src.waitingChats && typeof src.waitingChats === "object" ? src.waitingChats : {};
+  for (const k of Object.keys(rawWait)) {
+    const nk = normalizeChatKey(k);
+    if (nk === "__new__") continue;
+    const item = rawWait[k];
+    if (!item || typeof item !== "object") continue;
+    const armedAt = toNonNegInt(item.armedAt) || now;
+    if (now - armedAt > 7 * 24 * 60 * 60 * 1000) continue;
+    waitingChats[nk] = {
+      chatKey: nk,
+      title: typeof item.title === "string" ? item.title.trim().slice(0, 80) : "",
+      family: item.family === "gemini" ? "gemini" : (item.family === "claudeGpt" ? "claudeGpt" : "any"),
+      modelName: typeof item.modelName === "string" ? item.modelName.trim().slice(0, 80) : "",
+      reason: item.reason === "manual" ? "manual" : "limit-error",
+      armedAt,
+      targetResetAt: toNonNegInt(item.targetResetAt),
+      resumedCycle: typeof item.resumedCycle === "string" ? item.resumedCycle.slice(0, 80) : "",
+    };
+  }
+  return { version: 1, notifiedCycles, resumedCycles, waitingChats };
+}
+
+function loadQuotaAlertsStore() {
+  if (quotaAlertsCache) return quotaAlertsCache;
+  try {
+    const p = getQuotaAlertsPath();
+    if (fs.existsSync(p)) {
+      quotaAlertsCache = sanitizeQuotaAlertsStore(JSON.parse(fs.readFileSync(p, "utf8")));
+      return quotaAlertsCache;
+    }
+  } catch {}
+  quotaAlertsCache = sanitizeQuotaAlertsStore({});
+  return quotaAlertsCache;
+}
+
+function saveQuotaAlertsStore(store) {
+  const next = sanitizeQuotaAlertsStore(store);
+  quotaAlertsCache = next;
+  try {
+    writeJsonAtomic(getQuotaAlertsPath(), next);
+  } catch {}
+  return next;
+}
+
+function getPublicQuotaAlerts() {
+  const st = loadQuotaAlertsStore();
+  return {
+    waitingChats: Object.assign({}, st.waitingChats),
+  };
+}
+
+function formatFamilyDisplayName(famId, loc) {
+  if (famId === "gemini") return "Gemini";
+  if (famId === "claudeGpt") return "Claude / GPT";
+  return loc === "en" ? "AI models" : "модели ИИ";
+}
+
+function formatLocalIsoDateTime(ms) {
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function computeNextUpcomingQuotaReset(nowMs = Date.now()) {
+  const store = loadQuotaStore();
+  const alerts = loadQuotaAlertsStore();
+  const loc = getLocale();
+  const waitingList = Object.values(alerts.waitingChats || {});
+  let best = null;
+  for (const famId of ["gemini", "claudeGpt"]) {
+    const fam = store.families[famId];
+    if (!fam) continue;
+    const hasWaiting = waitingList.some((w) => w && (w.family === famId || w.family === "any"));
+    const windows = [
+      { kind: "5h", raw: fam.fiveHourReset, rem: fam.fiveHourRem },
+      { kind: "weekly", raw: fam.weeklyReset, rem: fam.weeklyRem },
+    ];
+    for (let i = 0; i < windows.length; i += 1) {
+      const w = windows[i];
+      if (!w.raw || !fam.updatedAt) continue;
+      if (!hasWaiting && (w.rem === null || w.rem >= 99.5)) continue;
+      const lr = formatLiveResetRemaining(w.raw, fam.updatedAt, nowMs, loc);
+      if (lr && !lr.expired && lr.resetAtMs > nowMs + 15000 && lr.resetAtMs < nowMs + 7 * 24 * 60 * 60 * 1000) {
+        const cycleKey = `${famId}:${w.kind}:${Math.round(lr.resetAtMs / 60000)}`;
+        if (alerts.notifiedCycles[cycleKey]) continue;
+        if (!best || lr.resetAtMs < best.resetAtMs) {
+          best = { family: famId, window: w.kind, resetAtMs: lr.resetAtMs, cycleKey };
+        }
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Pure-ASCII WSH JScript that displays a clickable native Windows Toast Notification
+ * under Antigravity (electron.app.Antigravity) even when Antigravity is closed.
+ * Clicking the notification launches Antigravity.exe cleanly with zero console flash.
+ */
+function buildOfflineQuotaNotifierWsh(opts = {}) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  let wshEsc = (s) => JSON.stringify(String(s || "")).replace(/[^\x20-\x7E]/g, (ch) => "\\u" + ch.charCodeAt(0).toString(16).padStart(4, "0"));
+  try {
+    const uc = loadUpdaterCore();
+    if (uc && typeof uc.wshEscapeJsString === "function") wshEsc = uc.wshEscapeJsString;
+  } catch {}
+  const title = String(o.title || "Antigravity");
+  const body = String(o.body || "");
+  const exePath = String(o.exePath || process.execPath || "");
+  const alertsPath = String(o.alertsPath || "");
+  const cycleKey = String(o.cycleKey || "");
+  const silent = Boolean(o.silent);
+  const aumid = String(o.aumid || "electron.app.Antigravity");
+
+  const psScript = [
+    "$ErrorActionPreference = 'SilentlyContinue';",
+    "$exe = $env:RUDEX_AGY_EXE;",
+    "$tTitle = $env:RUDEX_TOAST_TITLE;",
+    "$tBody = $env:RUDEX_TOAST_BODY;",
+    "$tSilent = ($env:RUDEX_TOAST_SILENT -eq '1');",
+    "$aumid = $env:RUDEX_TOAST_AUMID;",
+    "$shown = $false;",
+    "try {",
+    "  $null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime];",
+    "  $null = [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime];",
+    "  $escT = [System.Security.SecurityElement]::Escape($tTitle);",
+    "  $escB = [System.Security.SecurityElement]::Escape($tBody);",
+    "  $audio = if ($tSilent) { '<audio silent=\"true\"/>' } else { '' };",
+    "  $xmlStr = '<toast><visual><binding template=\"ToastGeneric\"><text>' + $escT + '</text><text>' + $escB + '</text></binding></visual>' + $audio + '</toast>';",
+    "  $doc = New-Object Windows.Data.Xml.Dom.XmlDocument;",
+    "  $doc.LoadXml($xmlStr);",
+    "  $toast = New-Object Windows.UI.Notifications.ToastNotification $doc;",
+    "  $clicked = [ref]$false;",
+    "  $null = Register-ObjectEvent -InputObject $toast -EventName Activated -SourceIdentifier 'RudexToastClick' -Action { if ($env:RUDEX_AGY_EXE -and (Test-Path $env:RUDEX_AGY_EXE)) { Start-Process -FilePath $env:RUDEX_AGY_EXE } };",
+    "  [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($aumid).Show($toast);",
+    "  $shown = $true;",
+    "  Start-Sleep -Seconds 25;",
+    "  Unregister-Event -SourceIdentifier 'RudexToastClick' -ErrorAction SilentlyContinue;",
+    "} catch { $shown = $false }",
+    "if (-not $shown) {",
+    "  try {",
+    "    Add-Type -AssemblyName System.Windows.Forms;",
+    "    Add-Type -AssemblyName System.Drawing;",
+    "    $ni = New-Object System.Windows.Forms.NotifyIcon;",
+    "    $ni.Icon = if ($exe -and (Test-Path $exe)) { [System.Drawing.Icon]::ExtractAssociatedIcon($exe) } else { [System.Drawing.SystemIcons]::Information };",
+    "    $ni.Visible = $true;",
+    "    $ni.BalloonTipTitle = $tTitle;",
+    "    $ni.BalloonTipText = $tBody;",
+    "    $ni.add_BalloonTipClicked({ if ($exe -and (Test-Path $exe)) { Start-Process -FilePath $exe } });",
+    "    $ni.ShowBalloonTip(15000);",
+    "    for ($i = 0; $i -lt 180; $i++) { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 100 }",
+    "    $ni.Dispose();",
+    "  } catch {}",
+    "}",
+  ].join(" ");
+
+  return [
+    "var fso = new ActiveXObject('Scripting.FileSystemObject');",
+    "var sh = new ActiveXObject('WScript.Shell');",
+    `var agyExe = ${wshEsc(exePath)};`,
+    `var alertsPath = ${wshEsc(alertsPath)};`,
+    `var cycleKey = ${wshEsc(cycleKey)};`,
+    "function isAgyRunning() {",
+    "  try {",
+    "    var wmi = GetObject('winmgmts:{impersonationLevel=impersonate}!\\\\\\\\.\\\\root\\\\cimv2');",
+    "    return wmi.ExecQuery(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'Antigravity.exe'\").Count > 0;",
+    "  } catch (e) { return false; }",
+    "}",
+    "try {",
+    "  if (isAgyRunning()) WScript.Quit(0);",
+    "  if (alertsPath && cycleKey && fso.FileExists(alertsPath)) {",
+    "    try {",
+    "      var rf = fso.OpenTextFile(alertsPath, 1, false);",
+    "      var txt = rf.ReadAll();",
+    "      rf.Close();",
+    "      if (txt.indexOf('\"' + cycleKey + '\"') !== -1) WScript.Quit(0);",
+    "    } catch (e1) {}",
+    "  }",
+    "  var env = sh.Environment('Process');",
+    "  env('RUDEX_AGY_EXE') = agyExe;",
+    `  env('RUDEX_TOAST_TITLE') = ${wshEsc(title)};`,
+    `  env('RUDEX_TOAST_BODY') = ${wshEsc(body)};`,
+    `  env('RUDEX_TOAST_SILENT') = ${wshEsc(silent ? "1" : "0")};`,
+    `  env('RUDEX_TOAST_AUMID') = ${wshEsc(aumid)};`,
+    `  sh.Run('powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -STA -Command ' + ${wshEsc('"' + psScript.replace(/"/g, '\\"') + '"')}, 0, true);`,
+    "} catch (e) {}",
+    "",
+  ].join("\r\n");
+}
+
+function syncWindowsOfflineQuotaTask(forceRemove = false) {
+  if (process.platform !== "win32" || globalThis.__RUDEX_DISABLED__) return false;
+  let updaterCore = null;
+  try { updaterCore = loadUpdaterCore(); } catch {}
+  if (!updaterCore || typeof updaterCore.resolveWscriptExe !== "function" || !updaterCore.resolveWscriptExe()) return false;
+  const wscriptExe = updaterCore.resolveWscriptExe();
+  const wshEsc = updaterCore.wshEscapeJsString;
+
+  const settings = loadStudioSettings();
+  const qa = sanitizeQuotaAutomation(settings.quotaAutomation);
+  const nextReset = (!forceRemove && qa.notifyOnReset && qa.notifyWhenClosed)
+    ? computeNextUpcomingQuotaReset(Date.now())
+    : null;
+  const sig = nextReset ? `${nextReset.cycleKey}:${qa.notifySound ? 1 : 0}:${getLocale()}` : "NONE";
+  if (sig === lastOfflineQuotaTaskSig && !forceRemove) return true;
+  lastOfflineQuotaTaskSig = sig;
+
+  const userDataDir = app.getPath("userData");
+  const notifyScriptPath = path.join(userDataDir, "rudex-quota-notify.js");
+  const regScriptPath = path.join(os.tmpdir(), `rudex-sync-task-${process.pid}-${Date.now()}.js`);
+
+  if (!nextReset) {
+    try { if (fs.existsSync(notifyScriptPath)) fs.unlinkSync(notifyScriptPath); } catch {}
+    const delLines = [
+      "var fso = new ActiveXObject('Scripting.FileSystemObject');",
+      "try { var s = new ActiveXObject('Schedule.Service'); s.Connect(); s.GetFolder('\\\\').DeleteTask('RudexQuotaResetNotify', 0); } catch (e) {}",
+      "try { fso.DeleteFile(WScript.ScriptFullName, true); } catch (e2) {}",
+      "",
+    ];
+    try {
+      fs.writeFileSync(regScriptPath, delLines.join("\r\n"), "ascii");
+      return updaterCore.spawnSilentWindowsWsh(regScriptPath);
+    } catch {
+      return false;
+    }
+  }
+
+  const loc = getLocale();
+  const famLabel = formatFamilyDisplayName(nextReset.family, loc);
+  const winLabel = nextReset.window === "weekly" ? (loc === "en" ? "Weekly" : "Неделя") : (loc === "en" ? "5h" : "5ч");
+  const title = loc === "en" ? "Antigravity Limits Restored" : "Лимиты Antigravity восстановлены";
+  const body = loc === "en"
+    ? `${famLabel} (${winLabel}) limits are refreshed (100%). Click to open Antigravity.`
+    : `${famLabel} (${winLabel}) снова доступны (100%). Нажмите, чтобы открыть Antigravity.`;
+
+  try {
+    const wshBody = buildOfflineQuotaNotifierWsh({
+      title,
+      body,
+      exePath: process.execPath || "",
+      alertsPath: getQuotaAlertsPath(),
+      cycleKey: nextReset.cycleKey,
+      silent: !qa.notifySound,
+    });
+    fs.writeFileSync(notifyScriptPath, wshBody, "ascii");
+    const boundaryIso = formatLocalIsoDateTime(nextReset.resetAtMs + 5000);
+    const regLines = [
+      "var fso = new ActiveXObject('Scripting.FileSystemObject');",
+      "try {",
+      "  var svc = new ActiveXObject('Schedule.Service');",
+      "  svc.Connect();",
+      "  var root = svc.GetFolder('\\\\');",
+      "  var td = svc.NewTask(0);",
+      "  td.RegistrationInfo.Description = 'Rudex offline quota reset notification for Antigravity';",
+      "  td.Settings.Enabled = true;",
+      "  td.Settings.StartWhenAvailable = true;",
+      "  td.Settings.DisallowStartIfOnBatteries = false;",
+      "  td.Settings.StopIfGoingOnBatteries = false;",
+      "  var tr = td.Triggers.Create(1);",
+      `  tr.StartBoundary = ${wshEsc(boundaryIso)};`,
+      "  tr.Enabled = true;",
+      "  var act = td.Actions.Create(0);",
+      `  act.Path = ${wshEsc(wscriptExe)};`,
+      `  act.Arguments = ${wshEsc('//B //Nologo //E:JScript "' + notifyScriptPath + '"')};`,
+      "  root.RegisterTaskDefinition('RudexQuotaResetNotify', td, 6, null, null, 3);",
+      "} catch (e) {}",
+      "try { fso.DeleteFile(WScript.ScriptFullName, true); } catch (e2) {}",
+      "",
+    ];
+    fs.writeFileSync(regScriptPath, regLines.join("\r\n"), "ascii");
+    return updaterCore.spawnSilentWindowsWsh(regScriptPath);
+  } catch {
+    return false;
+  }
+}
+
+function broadcastQuotaRestored(payload) {
+  try {
+    for (const wc of webContents.getAllWebContents()) {
+      if (wc && !wc.isDestroyed()) {
+        wc.send("agy-studio:quota-restored", payload);
+      }
+    }
+  } catch {}
+}
+
+function evaluateQuotaResetTransitions(nowMs = Date.now(), opts = {}) {
+  const store = loadQuotaStore();
+  const alerts = loadQuotaAlertsStore();
+  const settings = loadStudioSettings();
+  const qa = sanitizeQuotaAutomation(settings.quotaAutomation);
+  const loc = getLocale();
+  const triggered = [];
+  let dirty = false;
+
+  for (const famId of ["gemini", "claudeGpt"]) {
+    const fam = store.families[famId];
+    if (!fam || !fam.updatedAt) continue;
+    const waitingForFam = Object.values(alerts.waitingChats || {}).some(
+      (w) => w && (w.family === famId || w.family === "any")
+    );
+    const windows = [
+      { kind: "5h", raw: fam.fiveHourReset, rem: fam.fiveHourRem },
+      { kind: "weekly", raw: fam.weeklyReset, rem: fam.weeklyRem },
+    ];
+    for (let i = 0; i < windows.length; i += 1) {
+      const w = windows[i];
+      if (!w.raw) continue;
+      if (!waitingForFam && (w.rem === null || w.rem >= 99.5)) continue;
+      const lr = formatLiveResetRemaining(w.raw, fam.updatedAt, nowMs, loc);
+      if (!lr || !lr.expired || !lr.resetAtMs) continue;
+      // Ignore very old resets (>6h ago) so reopening after days never replays ancient toasts
+      if (nowMs - lr.resetAtMs > 6 * 60 * 60 * 1000) continue;
+      const cycleKey = `${famId}:${w.kind}:${Math.round(lr.resetAtMs / 60000)}`;
+      if (alerts.notifiedCycles[cycleKey]) continue;
+
+      alerts.notifiedCycles[cycleKey] = nowMs;
+      dirty = true;
+      const ev = { family: famId, window: w.kind, resetAtMs: lr.resetAtMs, cycleKey };
+      triggered.push(ev);
+
+      if (qa.notifyOnReset && !opts.skipNotification) {
+        const famLabel = formatFamilyDisplayName(famId, loc);
+        const winLabel = w.kind === "weekly" ? (loc === "en" ? "Weekly" : "Неделя") : (loc === "en" ? "5h" : "5ч");
+        showDesktopNotification({
+          title: loc === "en" ? "Antigravity Limits Restored" : "Лимиты Antigravity восстановлены",
+          body: loc === "en"
+            ? `${famLabel} (${winLabel}) limits are back to 100%. Click to open Antigravity.`
+            : `${famLabel} (${winLabel}) снова доступны на 100%. Нажмите, чтобы открыть Antigravity.`,
+          silent: !qa.notifySound,
+          payload: { type: "quota-reset", family: famId, window: w.kind, cycleKey },
+        });
+      }
+      if (!opts.skipBroadcast) {
+        broadcastQuotaRestored(Object.assign({}, ev, { waitingChats: Object.assign({}, alerts.waitingChats) }));
+      }
+    }
+  }
+
+  if (dirty) {
+    saveQuotaAlertsStore(alerts);
+    if (!opts.skipOfflineSync) syncWindowsOfflineQuotaTask(false);
+  }
+  return triggered;
+}
+
+function startQuotaAutomationMonitor() {
+  if (quotaMonitorTimer) return;
+  quotaMonitorTimer = setInterval(() => {
+    try {
+      evaluateQuotaResetTransitions(Date.now());
+    } catch {}
+  }, 20000);
+  if (quotaMonitorTimer && typeof quotaMonitorTimer.unref === "function") quotaMonitorTimer.unref();
+  if (!quotaQuitHooked && app && typeof app.on === "function") {
+    quotaQuitHooked = true;
+    app.on("will-quit", () => {
+      try { syncWindowsOfflineQuotaTask(false); } catch {}
+    });
+  }
+  setTimeout(() => {
+    try {
+      evaluateQuotaResetTransitions(Date.now());
+      syncWindowsOfflineQuotaTask(false);
+    } catch {}
+  }, 6000).unref();
 }
 
 function togglePanelFromHotkey(contents) {
@@ -3898,6 +4497,8 @@ function copyFileToWindowsClipboard(fullPath) {
         [
           "-NoProfile",
           "-NonInteractive",
+          "-WindowStyle",
+          "Hidden",
           "-STA",
           "-Command",
           "Add-Type -AssemblyName System.Windows.Forms; $c = New-Object System.Collections.Specialized.StringCollection; [void]$c.Add($env:RUDEX_CLIP_FILE); [System.Windows.Forms.Clipboard]::SetFileDropList($c)",
@@ -4170,6 +4771,7 @@ function registerI18nIpc() {
   const bootLe = loadAllLiveEdits();
   if (bootLe.hasPending) ensureLiveEditWatcher();
   startPeriodicUpdateChecks();
+  startQuotaAutomationMonitor();
 
   ipcMain.on("agy-i18n:get-locale-sync", (event) => {
     event.returnValue = getLocale();
@@ -4183,6 +4785,9 @@ function registerI18nIpc() {
   });
   ipcMain.handle("agy-studio:save-settings", (_event, patch) => {
     saveStudioSettings(patch);
+    if (patch && patch.quotaAutomation) {
+      try { syncWindowsOfflineQuotaTask(false); } catch {}
+    }
     const state = getStudioState(lastActiveChatKey);
     broadcastStudioSettings(state);
     return state;
@@ -4738,9 +5343,83 @@ function registerI18nIpc() {
 
     if (chatsDirty) saveStudioChats(chats);
     saveQuotaStore(store);
+    try { syncWindowsOfflineQuotaTask(false); } catch {}
     const nextSummary = buildQuotaSummary(activeKey, true);
     broadcastQuotaSummary(nextSummary);
     return { ok: true, summary: nextSummary };
+  });
+  ipcMain.handle("agy-studio:test-quota-notification", () => {
+    const loc = getLocale();
+    const qa = sanitizeQuotaAutomation(loadStudioSettings().quotaAutomation);
+    const ok = showDesktopNotification({
+      title: loc === "en" ? "Antigravity Limits Restored" : "Лимиты Antigravity восстановлены",
+      body: loc === "en"
+        ? "Test notification: clicking opens and focuses Antigravity."
+        : "Тестовое уведомление: нажатие открывает и разворачивает Antigravity.",
+      silent: !qa.notifySound,
+      payload: { type: "quota-reset-test" },
+    });
+    return { ok };
+  });
+  ipcMain.handle("agy-studio:arm-auto-continue", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey || lastActiveChatKey);
+    if (key === "__new__") return { ok: false, error: "NO_ACTIVE_CHAT" };
+    const alerts = loadQuotaAlertsStore();
+    const fam = p.family === "gemini" ? "gemini" : (p.family === "claudeGpt" ? "claudeGpt" : "any");
+    let targetResetAt = toNonNegInt(p.targetResetAt);
+    if (!targetResetAt) {
+      const nextUp = computeNextUpcomingQuotaReset(Date.now());
+      if (nextUp && (fam === "any" || nextUp.family === fam)) targetResetAt = nextUp.resetAtMs;
+    }
+    alerts.waitingChats[key] = {
+      chatKey: key,
+      title: typeof p.title === "string" ? p.title.trim().slice(0, 80) : "",
+      family: fam,
+      modelName: typeof p.modelName === "string" ? p.modelName.trim().slice(0, 80) : "",
+      reason: p.reason === "manual" ? "manual" : "limit-error",
+      armedAt: Date.now(),
+      targetResetAt,
+      resumedCycle: "",
+    };
+    saveQuotaAlertsStore(alerts);
+    try { syncWindowsOfflineQuotaTask(false); } catch {}
+    const state = getStudioState(lastActiveChatKey);
+    broadcastStudioSettings(state);
+    return { ok: true, quotaAlerts: getPublicQuotaAlerts(), state };
+  });
+  ipcMain.handle("agy-studio:disarm-auto-continue", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey || lastActiveChatKey);
+    const alerts = loadQuotaAlertsStore();
+    if (key && alerts.waitingChats[key]) {
+      delete alerts.waitingChats[key];
+      saveQuotaAlertsStore(alerts);
+      try { syncWindowsOfflineQuotaTask(false); } catch {}
+    }
+    const state = getStudioState(lastActiveChatKey);
+    broadcastStudioSettings(state);
+    return { ok: true, quotaAlerts: getPublicQuotaAlerts(), state };
+  });
+  ipcMain.handle("agy-studio:mark-auto-continue-resumed", (_event, payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const key = normalizeChatKey(p.chatKey || lastActiveChatKey);
+    const cycleKey = typeof p.cycleKey === "string" ? p.cycleKey.trim().slice(0, 80) : "";
+    const alerts = loadQuotaAlertsStore();
+    const dedupeKey = `${key}:${cycleKey || "manual"}`;
+    if (cycleKey && alerts.resumedCycles[dedupeKey]) {
+      return { ok: true, alreadyResumed: true, quotaAlerts: getPublicQuotaAlerts() };
+    }
+    if (cycleKey) alerts.resumedCycles[dedupeKey] = Date.now();
+    if (key && alerts.waitingChats[key]) delete alerts.waitingChats[key];
+    saveQuotaAlertsStore(alerts);
+    try { syncWindowsOfflineQuotaTask(false); } catch {}
+    const state = getStudioState(lastActiveChatKey);
+    broadcastStudioSettings(state);
+    return { ok: true, alreadyResumed: false, quotaAlerts: getPublicQuotaAlerts(), state };
+  });
+  ipcMain.handle("agy-studio:focus-window", () => {
+    return { ok: focusAntigravityWindow(null, null) };
   });
   ipcMain.handle("agy-studio:get-quota-summary", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
@@ -4945,23 +5624,40 @@ function registerI18nIpc() {
         broadcastUpdateStatus();
 
         if (process.platform === "win32") {
-          let cmdPath = "";
-          if (res.status === "LOCKED_NEEDS_ACTIVATOR" && res.activatorPath && fs.existsSync(res.activatorPath)) {
-            cmdPath = res.activatorPath;
-          } else {
-            const exePath = res.exePath || process.execPath;
-            cmdPath = updaterCore.writeUpdaterRestartScript(exePath);
+          const exePath = res.exePath || process.execPath;
+          const resDir = process.resourcesPath || path.resolve(__dirname, "..", "..");
+          const needRemoveAsar = res.status === "LOCKED_NEEDS_ACTIVATOR";
+          let launchedSilent = false;
+          if (typeof updaterCore.writeUpdaterRestartWsh === "function" && typeof updaterCore.spawnSilentWindowsWsh === "function" && updaterCore.resolveWscriptExe && updaterCore.resolveWscriptExe()) {
+            const wshPath = updaterCore.writeUpdaterRestartWsh(exePath, {
+              removeAsar: needRemoveAsar,
+              resourcesDir: resDir,
+            });
+            if (wshPath && fs.existsSync(wshPath)) {
+              launchedSilent = updaterCore.spawnSilentWindowsWsh(wshPath);
+            }
           }
-          if (cmdPath && fs.existsSync(cmdPath)) {
-            try {
-              const child = spawn("cmd.exe", ["/c", `"${cmdPath}"`], {
-                detached: true,
-                stdio: "ignore",
-                windowsHide: true,
-                windowsVerbatimArguments: true,
+          if (!launchedSilent) {
+            let cmdPath = "";
+            if (needRemoveAsar && res.activatorPath && fs.existsSync(res.activatorPath)) {
+              cmdPath = res.activatorPath;
+            } else {
+              cmdPath = updaterCore.writeUpdaterRestartScript(exePath, {
+                removeAsar: needRemoveAsar,
+                resourcesDir: resDir,
               });
-              if (child && typeof child.unref === "function") child.unref();
-            } catch {}
+            }
+            if (cmdPath && fs.existsSync(cmdPath)) {
+              try {
+                const child = spawn("cmd.exe", ["/c", `"${cmdPath}"`], {
+                  detached: true,
+                  stdio: "ignore",
+                  windowsHide: true,
+                  windowsVerbatimArguments: true,
+                });
+                if (child && typeof child.unref === "function") child.unref();
+              } catch {}
+            }
           }
           setTimeout(() => {
             try { app.quit(); } catch { try { app.exit(0); } catch {} }
@@ -5447,6 +6143,13 @@ exports.sanitizeAgentProfile = sanitizeAgentProfile;
 exports.DEFAULT_LIMITS_WIDGET = DEFAULT_LIMITS_WIDGET;
 exports.DEFAULT_KEYBINDINGS = DEFAULT_KEYBINDINGS;
 exports.DEFAULT_AGENT_PROFILE = DEFAULT_AGENT_PROFILE;
+exports.DEFAULT_QUOTA_AUTOMATION = DEFAULT_QUOTA_AUTOMATION;
+exports.sanitizeQuotaAutomation = sanitizeQuotaAutomation;
+exports.focusAntigravityWindow = focusAntigravityWindow;
+exports.showDesktopNotification = showDesktopNotification;
+exports.evaluateQuotaResetTransitions = evaluateQuotaResetTransitions;
+exports.buildOfflineQuotaNotifierWsh = buildOfflineQuotaNotifierWsh;
+exports.syncWindowsOfflineQuotaTask = syncWindowsOfflineQuotaTask;
 exports.isRu = isRu;
 exports.tr = tr;
 exports.ruPlural = ruPlural;

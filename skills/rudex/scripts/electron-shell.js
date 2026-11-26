@@ -545,9 +545,11 @@ function updateMenuState(step) {
     if (step === MenuUpdateStep.RestartToUpdate && !rudexQuitHooked) {
         rudexQuitHooked = true;
         try {
-            electron_1.app.once('will-quit', () => {
-                try { if (typeof i18nMain_1.schedulePostAppUpdateRepatch === 'function') i18nMain_1.schedulePostAppUpdateRepatch(); } catch {}
-            });
+            if (typeof electron_updater_1 !== 'undefined' && electron_updater_1 && electron_updater_1.autoUpdater && typeof electron_updater_1.autoUpdater.once === 'function') {
+                electron_updater_1.autoUpdater.once('before-quit-for-update', () => {
+                    try { if (typeof i18nMain_1.schedulePostAppUpdateRepatch === 'function') i18nMain_1.schedulePostAppUpdateRepatch(); } catch {}
+                });
+            }
         } catch {}
     }
     const menu = electron_1.Menu.getApplicationMenu();
@@ -962,6 +964,44 @@ function patchIpcHandlersJs(src, warnings) {
         `            title: 'Select Download Folder',`,
         `            title: i18nMain_1.tr('Выберите папку для загрузок', 'Select Download Folder'),`,
         "ipcHandlers.js select download folder",
+        warns
+      ).text;
+      out = tryReplaceExact(
+        out,
+        `        notification.on('click', () => {
+            // A remote payload goes only to the window that posted it (if open); a
+            // local one to the first local window.
+            const win = remote
+                ? windowForSender(event?.sender)
+                : (0, utils_1.getLocalHubWindows)()[0];
+            if (win) {
+                if (win.isMinimized()) {
+                    win.restore();
+                }
+                win.show();
+                win.focus();
+                if (options?.payload) {
+                    win.webContents.send('notification:clicked', options.payload);
+                }
+            }
+        });`,
+        `        notification.on('click', () => {
+            const win = remote
+                ? windowForSender(event?.sender)
+                : (0, utils_1.getLocalHubWindows)()[0];
+            if (typeof i18nMain_1.focusAntigravityWindow === 'function') {
+                i18nMain_1.focusAntigravityWindow(win, null);
+            } else if (win) {
+                if (win.isMinimized()) win.restore();
+                win.show();
+                win.focus();
+            }
+            const targetWin = (win && !win.isDestroyed()) ? win : ((0, utils_1.getLocalHubWindows)()[0] || null);
+            if (targetWin && options?.payload) {
+                try { targetWin.webContents.send('notification:clicked', options.payload); } catch {}
+            }
+        });`,
+        "ipcHandlers.js clickable notification focus",
         warns
       ).text;
       return out;
@@ -1748,4 +1788,5 @@ module.exports = {
   patchElectronShell,
   patchMainJs,
   patchUpdaterJs,
+  patchIpcHandlersJs,
 };

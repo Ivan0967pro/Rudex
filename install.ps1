@@ -132,6 +132,28 @@ function Restart-AntigravityDetached([string]$ExePath) {
   $running = Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue
   if ($running) {
     Write-Host "[Rudex] Restarting Antigravity to load updated skill and UI..." -ForegroundColor Green
+    $wscriptExe = Join-Path $env:SystemRoot "System32\wscript.exe"
+    if (Test-Path $wscriptExe) {
+      $escapedExe = [regex]::Replace(($ExePath -replace '\\', '\\' -replace '"', '\"'), '[^\x20-\x7E]', { param($m) '\u' + ([int][char]$m.Value).ToString('x4') })
+      $wshScript = Join-Path $env:TEMP ("rudex-restart-" + [Guid]::NewGuid().ToString("N") + ".js")
+      $jsLines = @(
+        "var fso = new ActiveXObject('Scripting.FileSystemObject');",
+        "var sh = new ActiveXObject('WScript.Shell');",
+        "var agyExe = `"$escapedExe`";",
+        "function countAgy() { try { var wmi = GetObject('winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\cimv2'); return wmi.ExecQuery(`"SELECT ProcessId FROM Win32_Process WHERE Name = 'Antigravity.exe'`").Count; } catch (e) { return 0; } }",
+        "try {",
+        "  try { sh.Run('taskkill /IM Antigravity.exe', 0, true); } catch (e) {}",
+        "  WScript.Sleep(2000);",
+        "  if (countAgy() > 0) { try { sh.Run('taskkill /F /IM Antigravity.exe', 0, true); } catch (e) {} }",
+        "  for (var i = 0; i < 15; i++) { if (countAgy() === 0) break; WScript.Sleep(1000); }",
+        "  if (fso.FileExists(agyExe)) { sh.Run('`"' + agyExe + '`"', 1, false); }",
+        "} catch (e) {} finally { try { fso.DeleteFile(WScript.ScriptFullName, true); } catch (e2) {} }",
+        ""
+      )
+      [System.IO.File]::WriteAllText($wshScript, ($jsLines -join "`r`n"), [System.Text.Encoding]::ASCII)
+      Start-Process -FilePath $wscriptExe -ArgumentList @("//B", "//Nologo", "//E:JScript", "`"$wshScript`"") -WindowStyle Hidden
+      return
+    }
     $restartScript = Join-Path $env:TEMP ("rudex-restart-" + [Guid]::NewGuid().ToString("N") + ".cmd")
     $cmdLines = @(
       "@echo off",

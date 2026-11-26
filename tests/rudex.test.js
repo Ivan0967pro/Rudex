@@ -5665,3 +5665,382 @@ test("Chat tools chip visibility, opt-in model context window meter (default OFF
     translator.destroy();
   }
 });
+
+test("Silent WSH (zero console popup) update/exit watchers and third-party patcher app.asar preservation", async () => {
+  const vm = require("vm");
+  const updater = require(path.join(SCRIPTS_DIR, "updater-core.js"));
+  const installer = require(path.join(SCRIPTS_DIR, "install.js"));
+
+  // 1) wshEscapeJsString produces pure ASCII even for Cyrillic Windows usernames
+  const cyrPath = "C:\\Users\\Иван\\AppData\\Local\\Programs\\antigravity\\resources";
+  const escaped = updater.wshEscapeJsString(cyrPath);
+  assert.equal(/[^\x20-\x7E]/.test(escaped), false, "WSH escaped string must be pure ASCII for locale-safe WSH parsing");
+  assert.equal(JSON.parse(escaped), cyrPath, "Escaped string must decode identically to the original Cyrillic path");
+
+  // 2) patchUpdaterJs hooks before-quit-for-update (NOT generic app.once('will-quit') which misfired on normal quits)
+  const shellSrc = fs.readFileSync(path.join(SCRIPTS_DIR, "electron-shell.js"), "utf8");
+  assert.ok(shellSrc.includes("before-quit-for-update"), "patchUpdaterJs must hook before-quit-for-update instead of generic will-quit");
+  assert.equal(shellSrc.includes("electron_1.app.once('will-quit'"), false, "Must not arm post-update watcher on normal manual quit");
+
+  // 3) All generated WSH scripts parse cleanly as valid JS, stay pure ASCII, and never call taskkill in passive on-exit mode
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-wsh-silent-"));
+  try {
+    if (process.platform === "win32") {
+      const onExitPath = path.join(tmpDir, "on-exit.js");
+      const onExitLock = path.join(tmpDir, "on-exit.lock");
+      const outOnExit = installer.writeOnExitActivateWsh(
+        { resourcesDir: cyrPath, exePath: "C:\\Users\\Иван\\Antigravity.exe" },
+        { outPath: onExitPath, lockPath: onExitLock, expectedAsarSize: 12345, expectedAsarMtimeSec: 1700000000 }
+      );
+      assert.equal(outOnExit, onExitPath);
+      const onExitSrc = fs.readFileSync(onExitPath, "utf8");
+      assert.equal(/[^\r\n\x20-\x7E]/.test(onExitSrc), false, "on-exit WSH script must be pure ASCII");
+      assert.equal(/taskkill/i.test(onExitSrc), false, "Passive WSH on-exit activator must NEVER invoke taskkill");
+      assert.ok(onExitSrc.includes("expectedSize = 12345"), "WSH on-exit activator must detect post-staging third-party app.asar changes");
+      assert.doesNotThrow(() => new vm.Script(onExitSrc), "WSH on-exit script must be syntactically valid JS");
+
+      const restartPath = path.join(tmpDir, "restart.js");
+      const outRestart = updater.writeUpdaterRestartWsh("C:\\Users\\Иван\\Antigravity.exe", {
+        outPath: restartPath,
+        removeAsar: true,
+        resourcesDir: cyrPath,
+      });
+      assert.equal(outRestart, restartPath);
+      const restartSrc = fs.readFileSync(restartPath, "utf8");
+      assert.equal(/[^\r\n\x20-\x7E]/.test(restartSrc), false, "Restart WSH script must be pure ASCII");
+      assert.doesNotThrow(() => new vm.Script(restartSrc), "WSH restart script must be syntactically valid JS");
+
+      // 4) Live wscript.exe silent runner test: executes node child with envPatch and cleans up its temp wrapper
+      const markerOut = path.join(tmpDir, "wsh-ran.json");
+      const childScript = path.join(tmpDir, "child.js");
+      fs.writeFileSync(
+        childScript,
+        `const fs = require("fs"); fs.writeFileSync(${JSON.stringify(markerOut)}, JSON.stringify({ argv: process.argv.slice(2), noAsar: process.env.ELECTRON_NO_ASAR }), "utf8");\n`,
+        "utf8"
+      );
+      const okSpawn = updater.spawnSilentWindowsCommand(process.execPath, [childScript, "--silent-ok"], {
+        env: process.env,
+        envPatch: { ELECTRON_NO_ASAR: "1" },
+      });
+      assert.equal(okSpawn, true, "spawnSilentWindowsCommand must succeed on Windows");
+      for (let i = 0; i < 80 && !fs.existsSync(markerOut); i += 1) {
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      assert.ok(fs.existsSync(markerOut), "Silent wscript.exe runner must execute target command invisibly");
+      const resObj = JSON.parse(fs.readFileSync(markerOut, "utf8"));
+      assert.deepEqual(resObj.argv, ["--silent-ok"]);
+      assert.equal(resObj.noAsar, "1");
+    }
+
+    // 5) hashFileSha256 detects even same-byte-length in-place third-party patches on app.asar
+    const fA = path.join(tmpDir, "a.asar");
+    const fB = path.join(tmpDir, "b.asar");
+    fs.writeFileSync(fA, "REGION_BLOCKED_FLAG=1", "utf8");
+    fs.writeFileSync(fB, "REGION_BLOCKED_FLAG=0", "utf8");
+    assert.equal(fs.statSync(fA).size, fs.statSync(fB).size);
+    assert.notEqual(installer.hashFileSha256(fA), installer.hashFileSha256(fB), "SHA-256 must detect same-size in-place third-party patches");
+
+    // 6) rudex-hook.js immediately detects a same-size in-place third-party patch when mtime advances
+    const mockResDir = path.join(tmpDir, "agy", "resources");
+    const mockAppRoot = path.dirname(mockResDir);
+    const mockPluginDir = path.join(tmpDir, "plugin-rudex");
+    const mockUserData = path.join(tmpDir, "userData");
+    const marker2 = path.join(tmpDir, "third-party-repatch.txt");
+    fs.mkdirSync(mockResDir, { recursive: true });
+    fs.mkdirSync(path.join(mockPluginDir, "skills", "rudex", "scripts"), { recursive: true });
+    fs.mkdirSync(mockUserData, { recursive: true });
+    fs.writeFileSync(path.join(mockAppRoot, "version"), "44.9.1\n", "utf8");
+    const asarFile = path.join(mockResDir, "app.asar");
+    fs.writeFileSync(asarFile, "REGION_BLOCKED_FLAG=1", "utf8");
+    fs.writeFileSync(path.join(mockPluginDir, "plugin.json"), '{"name":"rudex","version":"5.0.0"}', "utf8");
+    fs.writeFileSync(
+      path.join(mockPluginDir, "skills", "rudex", "scripts", "install.js"),
+      `"use strict";\nconst fs = require("fs");\nfs.writeFileSync(${JSON.stringify(marker2)}, String(Date.now()), "utf8");\n`,
+      "utf8"
+    );
+
+    const hookScript = path.join(SCRIPTS_DIR, "rudex-hook.js");
+    const baseEnv = Object.assign({}, process.env, {
+      AGY_STUDIO_USER_DATA: mockUserData,
+      ANTIGRAVITY_RESOURCES_DIR: mockResDir,
+      RUDEX_PLUGIN_DIR: mockPluginDir,
+      RUDEX_SKIP_AUTO_REPATCH: "0",
+    });
+    const run1 = spawnSync(process.execPath, [hookScript], {
+      input: JSON.stringify({ hookEventName: "SessionStart", conversationId: "12345678-1111-4111-8111-111111111111" }),
+      env: baseEnv,
+      encoding: "utf8",
+    });
+    assert.equal(run1.status, 0, run1.stderr);
+    for (let i = 0; i < 80 && !fs.existsSync(marker2); i += 1) await new Promise((r) => setTimeout(r, 25));
+    assert.ok(fs.existsSync(marker2), "First run must trigger silent recovery");
+
+    // Now simulate a third-party unblocker patching app.asar in-place with the EXACT SAME byte length + newer mtime
+    fs.unlinkSync(marker2);
+    fs.writeFileSync(asarFile, "REGION_BLOCKED_FLAG=0", "utf8");
+    const futureSec = Math.floor(Date.now() / 1000) + 120;
+    fs.utimesSync(asarFile, futureSec, futureSec);
+    const run2 = spawnSync(process.execPath, [hookScript], {
+      input: JSON.stringify({ hookEventName: "PreInvocation", conversationId: "12345678-1111-4111-8111-111111111111" }),
+      env: baseEnv,
+      encoding: "utf8",
+    });
+    assert.equal(run2.status, 0, run2.stderr);
+    for (let i = 0; i < 80 && !fs.existsSync(marker2); i += 1) await new Promise((r) => setTimeout(r, 25));
+    assert.ok(fs.existsSync(marker2), "Same-size in-place third-party patch with new mtime must immediately trigger silent re-layering");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("Hideable Tools chip, clickable task/quota notifications (including offline Windows Toast), and opt-in Auto-Continue", async () => {
+  const vm = require("vm");
+  const Module = require("module");
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const { patchIpcHandlersJs } = require(path.join(SCRIPTS_DIR, "electron-shell.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+
+  // 1) Defaults: notifyOnReset=true, notifyWhenClosed=true, autoContinueEnabled=false
+  assert.equal(v5Core.RUDEX_QUOTA_AUTOMATION_DEFAULTS.notifyOnReset, true, "Quota reset notification must be ON by default");
+  assert.equal(v5Core.RUDEX_QUOTA_AUTOMATION_DEFAULTS.notifyWhenClosed, true, "Offline quota notification must be ON by default");
+  assert.equal(v5Core.RUDEX_QUOTA_AUTOMATION_DEFAULTS.autoContinueEnabled, false, "Auto-continue must be OFF by default");
+
+  // 2) Hiding Tools chip (showChatDock=false) hides .rx-agent-chip while keeping independent context meter & waiting badge
+  const hiddenBar = v5Ui.rv5BuildChatDockHtml({
+    agentProfile: {},
+    liveEditInline: { showChatDock: false, showContextMeter: true },
+    contextInfo: { modelName: "Claude Opus 5.5", usedTokens: 20000, exact: true, chatTitle: "Чат" },
+    waitingEntry: { chatKey: "aaaa1111-1111-4111-8111-111111111111", title: "Чат", family: "claudeGpt" },
+    isRu: true,
+  });
+  assert.equal(hiddenBar.includes("rx-agent-chip"), false, "Tools button must be hidden when showChatDock=false");
+  assert.ok(hiddenBar.includes("rx-ctx-pill"), "Context meter must stay visible independently");
+  assert.ok(hiddenBar.includes("rx-ac-pill"), "Auto-continue armed pill must show when waiting");
+
+  // 3) Limits settings UI renders notification toggles, Test button, and Auto-Continue scopes when enabled
+  const limHtmlOff = v5Ui.rv5RenderLimitsTabHtml({
+    limitsWidget: v5Core.RUDEX_LIMITS_DEFAULTS,
+    quotaSummary: { chats: [] },
+    quotaAutomation: v5Core.RUDEX_QUOTA_AUTOMATION_DEFAULTS,
+    quotaAlerts: { waitingChats: {} },
+    isRu: true,
+  });
+  assert.ok(limHtmlOff.includes("test-quota-notification"), "Limits UI must offer Test notification button");
+  assert.ok(limHtmlOff.includes("notifyWhenClosed"), "Limits UI must offer offline closed-app notification toggle");
+  assert.equal(limHtmlOff.includes("set-quota-auto-scope"), false, "Auto-continue scope options stay hidden while OFF");
+
+  const limHtmlOn = v5Ui.rv5RenderLimitsTabHtml({
+    limitsWidget: v5Core.RUDEX_LIMITS_DEFAULTS,
+    quotaSummary: { chats: [{ chatKey: "aaaa1111-1111-4111-8111-111111111111", title: "Важный чат" }] },
+    quotaAutomation: Object.assign({}, v5Core.RUDEX_QUOTA_AUTOMATION_DEFAULTS, { autoContinueEnabled: true, autoContinueScope: "selected" }),
+    quotaAlerts: { waitingChats: {} },
+    activeChatKey: "aaaa1111-1111-4111-8111-111111111111",
+    activeChatTitle: "Важный чат",
+    isRu: true,
+  });
+  assert.ok(limHtmlOn.includes("set-quota-auto-scope") && limHtmlOn.includes("toggle-quota-auto-chat") && limHtmlOn.includes("Важный чат"));
+
+  // 4) patchIpcHandlersJs wires focusAntigravityWindow into Antigravity's native notification:send click handler
+  const mockIpcSrc = [
+    `const paths_1 = require("./paths");`,
+    `exports.registerIpcHandlers = registerIpcHandlers;`,
+    `        notification.on('click', () => {`,
+    `            // A remote payload goes only to the window that posted it (if open); a`,
+    `            // local one to the first local window.`,
+    `            const win = remote`,
+    `                ? windowForSender(event?.sender)`,
+    `                : (0, utils_1.getLocalHubWindows)()[0];`,
+    `            if (win) {`,
+    `                if (win.isMinimized()) {`,
+    `                    win.restore();`,
+    `                }`,
+    `                win.show();`,
+    `                win.focus();`,
+    `                if (options?.payload) {`,
+    `                    win.webContents.send('notification:clicked', options.payload);`,
+    `                }`,
+    `            }`,
+    `        });`,
+  ].join("\n");
+  const ipcPatched = patchIpcHandlersJs(mockIpcSrc, []);
+  assert.ok(ipcPatched.includes("focusAntigravityWindow"), "Native Antigravity notifications must call focusAntigravityWindow on click");
+
+  // 5) Backend i18n-main.js: clickable Notification, focusAntigravityWindow, offline WSH notifier, and quota reset transition dedupe
+  const mainTmp = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-qauto-main-"));
+  const origLoad = Module._load;
+  const shownNotifs = [];
+  let winRestored = false;
+  let winShown = false;
+  let winFocused = false;
+  const mockWin = {
+    isDestroyed: () => false,
+    isMinimized: () => true,
+    restore: () => { winRestored = true; },
+    show: () => { winShown = true; },
+    focus: () => { winFocused = true; },
+    isAlwaysOnTop: () => false,
+    setAlwaysOnTop: () => {},
+    webContents: { isDestroyed: () => false, send: () => {} },
+  };
+  class MockNotification {
+    constructor(opts) {
+      this.opts = opts;
+      this.handlers = {};
+    }
+    static isSupported() { return true; }
+    on(ev, fn) { this.handlers[ev] = fn; }
+    show() { shownNotifs.push(this); }
+    triggerClick() { if (this.handlers.click) this.handlers.click(); }
+  }
+  const fakeElectron = {
+    app: { getPath: () => mainTmp, on: () => {}, emit: () => {}, focus: () => {} },
+    ipcMain: { handle: () => {}, on: () => {} },
+    webContents: { getAllWebContents: () => [mockWin.webContents] },
+    dialog: {},
+    shell: {},
+    protocol: {},
+    BrowserWindow: { getAllWindows: () => [mockWin] },
+    clipboard: {},
+    nativeImage: {},
+    Notification: MockNotification,
+  };
+  const i18nMainPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+  delete require.cache[i18nMainPath];
+  Module._load = function (req, parent, isMain) {
+    if (req === "electron") return fakeElectron;
+    return origLoad.apply(this, arguments);
+  };
+  try {
+    const i18nMain = require(i18nMainPath);
+    const san = i18nMain.sanitizeQuotaAutomation({});
+    assert.equal(san.notifyOnReset, true);
+    assert.equal(san.notifyWhenClosed, true);
+    assert.equal(san.autoContinueEnabled, false);
+
+    // Offline WSH script is pure ASCII, valid JS, checks Antigravity.exe running, and uses Antigravity AUMID
+    const wshCode = i18nMain.buildOfflineQuotaNotifierWsh({
+      title: "Лимиты Antigravity восстановлены",
+      body: "Claude / GPT снова доступны на 100%",
+      exePath: "C:\\Users\\Иван\\Antigravity.exe",
+      alertsPath: path.join(mainTmp, "agy_studio_quota_alerts.json"),
+      cycleKey: "claudeGpt:5h:29999999",
+    });
+    assert.equal(/[^\r\n\x20-\x7E]/.test(wshCode), false, "Offline quota notifier WSH must be pure ASCII");
+    assert.ok(wshCode.includes("electron.app.Antigravity"), "Offline Toast must target Antigravity AUMID");
+    assert.doesNotThrow(() => new vm.Script(wshCode), "Offline quota notifier WSH must parse as valid JS");
+
+    // Simulate expired 5h quota window -> fires 1 clickable notification and dedupes on second check
+    const nowMs = Date.now();
+    i18nMain.saveQuotaStore({
+      families: {
+        claudeGpt: {
+          fiveHourRem: 20,
+          fiveHourReset: "1h 0m",
+          updatedAt: nowMs - 65 * 60 * 1000,
+        },
+      },
+    });
+    const evs1 = i18nMain.evaluateQuotaResetTransitions(nowMs, { skipOfflineSync: true });
+    assert.equal(evs1.length, 1, "Expired spent 5h quota window must trigger exactly 1 reset event");
+    assert.equal(shownNotifs.length, 1, "Desktop notification must fire by default when limits restore");
+    // Clicking the notification must restore, show, and focus Antigravity!
+    shownNotifs[0].triggerClick();
+    assert.equal(winRestored && winShown && winFocused, true, "Clicking quota notification must restore, show, and focus Antigravity");
+
+    // Second check in same reset cycle must NOT duplicate notification
+    const evs2 = i18nMain.evaluateQuotaResetTransitions(nowMs + 5000, { skipOfflineSync: true });
+    assert.equal(evs2.length, 0, "Already-notified quota reset cycle must not double-notify");
+  } finally {
+    Module._load = origLoad;
+    delete require.cache[i18nMainPath];
+    fs.rmSync(mainTmp, { recursive: true, force: true });
+  }
+
+  // 6) Renderer auto-continue: when enabled & scope matches, handleQuotaRestored inserts prompt and clicks Send once
+  const { doc, win } = createMockDom();
+  const translator = createDomTranslator({ document: doc, window: win, initialLocale: "ru" });
+  const compForm = doc.createElement("form");
+  compForm.setAttribute("data-testid", "composer");
+  const editable = doc.createElement("div");
+  editable.setAttribute("contenteditable", "true");
+  editable.setAttribute("role", "textbox");
+  let sentClicks = 0;
+  const sendBtn = doc.createElement("button");
+  sendBtn.setAttribute("data-rudex-comp-send", "1");
+  sendBtn.click = () => { sentClicks += 1; };
+  compForm.appendChild(editable);
+  compForm.appendChild(sendBtn);
+  const userMsg = doc.createElement("div");
+  userMsg.setAttribute("data-testid", "user-message-content");
+  userMsg.textContent = "Допиши модуль";
+  doc.body.appendChild(userMsg);
+  doc.body.appendChild(compForm);
+  let markedResumed = 0;
+  const chatId = "bbbb2222-2222-4222-8222-222222222222";
+  win.location.href = `vscode-file://workbench/chat/${chatId}`;
+  win.location.pathname = `/chat/${chatId}`;
+
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      on() {},
+      removeListener() {},
+      send() {},
+      sendSync() { return { ok: true }; },
+      async invoke(ch) {
+        if (ch === "agy-studio:mark-auto-continue-resumed") {
+          markedResumed += 1;
+          return { ok: true, alreadyResumed: markedResumed > 1, quotaAlerts: { waitingChats: {} } };
+        }
+        return { ok: true };
+      },
+    },
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+  });
+  try {
+    panel.init();
+    panel.pollStream();
+    panel.applyRemoteState({
+      locale: "ru",
+      settings: {
+        quotaAutomation: {
+          notifyOnReset: true,
+          notifyWhenClosed: true,
+          autoContinueEnabled: true,
+          autoContinueScope: "selected",
+          autoContinueChatKeys: [chatId],
+          autoContinuePrompt: "Продолжи работу пожалуйста",
+        },
+      },
+      quotaAlerts: {
+        waitingChats: {
+          [chatId]: { chatKey: chatId, title: "Тест", family: "claudeGpt", reason: "limit-error", armedAt: Date.now() },
+        },
+      },
+    }, true);
+
+    panel.handleQuotaRestored({
+      family: "claudeGpt",
+      window: "5h",
+      cycleKey: "claudeGpt:5h:999999",
+      waitingChats: {
+        [chatId]: { chatKey: chatId, title: "Тест", family: "claudeGpt", reason: "limit-error", armedAt: Date.now() },
+      },
+    });
+    await new Promise((r) => setTimeout(r, 220));
+    assert.equal(markedResumed, 1, "Auto-continue must atomically mark chat resumed before sending");
+    assert.equal(editable.textContent, "Продолжи работу пожалуйста", "Auto-continue must fill composer with continue prompt");
+    assert.equal(sentClicks, 1, "Auto-continue must click Send button to resume task");
+  } finally {
+    panel.destroy();
+    translator.destroy();
+  }
+});

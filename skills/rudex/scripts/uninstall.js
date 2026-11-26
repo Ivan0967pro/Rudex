@@ -74,16 +74,36 @@ function runUninstall(options = {}) {
     console.warn("Antigravity installation directory not detected; cleaning flags & rules only.");
   }
 
-  // Clean transient persona, agent-profile, tool-policy & pending live-edit flags
+  // Clean transient persona, agent-profile, tool-policy, pending live-edit flags & offline quota alerts
   const runtimeFlags = [
     path.join(userDataDir, "agy_studio_persona_active.flag"),
     path.join(userDataDir, "agy_studio_thinking_ru.flag"),
     path.join(userDataDir, "agy_studio_agent_profile.flag"),
     path.join(userDataDir, "agy_studio_tool_policy.flag"),
     path.join(userDataDir, "studio_live_edits", "pending.flag"),
+    path.join(userDataDir, "rudex-quota-notify.js"),
+    path.join(userDataDir, "rudex-quota-notify-payload.json"),
   ];
   for (const f of runtimeFlags) {
     if (safeRemove(f)) console.log(`Removed runtime flag: ${f}`);
+  }
+  // Remove Windows offline quota-reset scheduled task silently if registered
+  if (process.platform === "win32") {
+    try {
+      const uc = require("./updater-core.js");
+      const wscript = uc && typeof uc.resolveWscriptExe === "function" ? uc.resolveWscriptExe() : "";
+      if (wscript) {
+        const delScript = path.join(os.tmpdir(), `rudex-del-task-${process.pid}-${Date.now()}.js`);
+        const js = [
+          "var fso = new ActiveXObject('Scripting.FileSystemObject');",
+          "try { var s = new ActiveXObject('Schedule.Service'); s.Connect(); s.GetFolder('\\\\').DeleteTask('RudexQuotaResetNotify', 0); } catch (e) {}",
+          "try { fso.DeleteFile(WScript.ScriptFullName, true); } catch (e2) {}",
+          "",
+        ].join("\r\n");
+        fs.writeFileSync(delScript, js, "ascii");
+        uc.spawnSilentWindowsWsh(delScript);
+      }
+    } catch (_e) {}
   }
 
   // Clean active persona rule files across Rudex and legacy paths

@@ -200,6 +200,34 @@ const RUDEX_LIVE_EDIT_DEFAULTS = {
   chatBubblePos: "after-user",
 };
 
+const RUDEX_QUOTA_AUTOMATION_DEFAULTS = {
+  notifyOnReset: true,
+  notifyWhenClosed: true,
+  notifySound: true,
+  autoContinueEnabled: false,
+  autoContinueScope: "all",
+  autoContinueChatKeys: [],
+  autoContinueCurrentKey: "",
+  autoContinuePrompt: "",
+  autoContinueRetryFirst: true,
+};
+
+function rv5NormalizeQuotaAutomation(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const validScopes = { all: 1, selected: 1, current: 1 };
+  return {
+    notifyOnReset: src.notifyOnReset !== false,
+    notifyWhenClosed: src.notifyWhenClosed !== false,
+    notifySound: src.notifySound !== false,
+    autoContinueEnabled: Boolean(src.autoContinueEnabled),
+    autoContinueScope: validScopes[src.autoContinueScope] ? src.autoContinueScope : "all",
+    autoContinueChatKeys: Array.isArray(src.autoContinueChatKeys) ? src.autoContinueChatKeys.filter((k) => typeof k === "string" && k.trim()).slice(0, 40) : [],
+    autoContinueCurrentKey: typeof src.autoContinueCurrentKey === "string" ? src.autoContinueCurrentKey.trim() : "",
+    autoContinuePrompt: typeof src.autoContinuePrompt === "string" ? src.autoContinuePrompt.slice(0, 500) : "",
+    autoContinueRetryFirst: src.autoContinueRetryFirst !== false,
+  };
+}
+
 function rv5FormatContextTokens(n) {
   const num = Math.max(0, Math.round(Number(n) || 0));
   if (num >= 1000000) {
@@ -1055,6 +1083,61 @@ function rv5BuildExtraShadowCss() {
 }
 .rx-ctx-pop-row span { color: var(--rx-theme-muted, var(--rx-muted)); }
 .rx-ctx-pop-row b { color: var(--rx-theme-fg-strong, var(--rx-fg-strong)); font-weight: 600; max-width: 175px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rx-ac-pill {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px 0 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 550;
+  font-family: var(--rx-font-ui);
+  border: 1px solid color-mix(in srgb, var(--rx-accent) 52%, var(--rx-theme-border-strong, var(--rx-border-strong)));
+  background: color-mix(in srgb, var(--rx-accent) 15%, var(--rx-theme-surface-2, var(--rx-theme-surface, var(--rx-surface))));
+  color: var(--rx-theme-fg-strong, var(--rx-fg-strong));
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 3px 10px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.rx-ac-cancel {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.72;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1;
+}
+.rx-ac-cancel:hover { opacity: 1; color: var(--rx-danger, #ef4444); }
+.rx-ac-chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 175px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.rx-ac-chat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--rx-border);
+  background: var(--rx-surface);
+  font-size: 11.5px;
+}
+.rx-ac-chat-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--rx-fg-strong);
+  font-weight: 500;
+}
 .rx-live-send-pill {
   opacity: 1;
   background: var(--rx-accent);
@@ -1866,7 +1949,9 @@ if (typeof module !== "undefined" && module.exports) {
     RUDEX_LIMITS_DEFAULTS,
     RUDEX_KEYBINDINGS_DEFAULTS,
     RUDEX_LIVE_EDIT_DEFAULTS,
+    RUDEX_QUOTA_AUTOMATION_DEFAULTS,
     RUDEX_AGENT_PROFILE_DEFAULTS,
+    rv5NormalizeQuotaAutomation,
     rv5FormatContextTokens,
     rv5ResolveModelContextWindow,
     rv5EscapeHtml,
