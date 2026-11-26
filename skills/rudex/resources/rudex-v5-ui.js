@@ -170,8 +170,8 @@ function rv5RenderElementsBuilderHtml(ctx) {
           </div>
           <div style="display:flex;gap:5px;flex-shrink:0">
             <button type="button" class="btn btn-sm btn-primary" data-action="start-element-picker">${pickerActive ? (isRu ? "Стоп" : "Stop") : (isRu ? "🎯 Выбрать" : "🎯 Pick")}</button>
-            <button type="button" class="btn btn-sm" ${canUndo ? "" : "disabled"} data-action="undo-appearance" title="Undo">↶</button>
-            <button type="button" class="btn btn-sm" ${canRedo ? "" : "disabled"} data-action="redo-appearance" title="Redo">↷</button>
+            <button type="button" class="btn btn-sm" ${canUndo ? "" : "disabled"} data-action="undo-appearance" title="${isRu ? "Отменить" : "Undo"}">↶</button>
+            <button type="button" class="btn btn-sm" ${canRedo ? "" : "disabled"} data-action="redo-appearance" title="${isRu ? "Повторить" : "Redo"}">↷</button>
           </div>
         </div>
         ${overrides.length > 0 ? `
@@ -340,7 +340,7 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
           <option value="">${isRu ? "По умолчанию (из темы)" : "Default (from theme)"}</option>
           ${rv5FontSelectOptions(st.fontFamily || "", "ui", systemFonts, isRu, false)}
         </select>
-        ${st.fontFamily === "custom" ? `<input type="text" class="text-input" list="rudex-sys-fonts-list" data-insp-style="fontFamilyCustom" value="${rv5EscapeHtml(st.fontFamilyCustom || "")}" placeholder="${isRu ? "Имя системного шрифта…" : "System font name…"}"/>` : ""}
+        ${st.fontFamily === "custom" ? `<input type="text" class="text-input" list="rudex-sys-fonts-list" data-insp-style="fontFamilyCustom" data-insp-live-text="1" value="${rv5EscapeHtml(st.fontFamilyCustom || "")}" placeholder="${isRu ? "Имя системного шрифта…" : "System font name…"}"/>` : ""}
       </div>
 
       <div class="rx-insp-slider-grid">
@@ -378,19 +378,17 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
         </div>
       </div>
 
-      ${st.bgColor ? `
-        <div class="rx-insp-slider-item is-custom" data-insp-wrap="bgOpacity">
-          <div class="rx-insp-slider-head">
-            <span>${isRu ? "Прозрачность фона" : "Background Opacity"}</span>
-            <span class="rx-insp-hex" data-insp-badge="bgOpacity">${curBgOp}%</span>
-          </div>
-          <div class="rx-insp-slider-row">
-            <input type="range" class="range-input" min="0" max="100" step="1" data-insp-range="bgOpacity" value="${curBgOp}"/>
-            <input type="number" class="text-input rx-insp-num" min="0" max="100" step="1" data-insp-num="bgOpacity" value="${curBgOp}"/>
-            <span class="rx-insp-unit">%</span>
-          </div>
+      <div class="rx-insp-slider-item${st.bgColor ? " is-custom" : ""}" data-insp-wrap="bgOpacity">
+        <div class="rx-insp-slider-head">
+          <span>${isRu ? "Прозрачность фона" : "Background Opacity"}</span>
+          <span class="rx-insp-hex" data-insp-badge="bgOpacity">${curBgOp}%</span>
         </div>
-      ` : ""}
+        <div class="rx-insp-slider-row">
+          <input type="range" class="range-input" min="0" max="100" step="1" data-insp-range="bgOpacity" value="${curBgOp}"/>
+          <input type="number" class="text-input rx-insp-num" min="0" max="100" step="1" data-insp-num="bgOpacity" value="${curBgOp}"/>
+          <span class="rx-insp-unit">%</span>
+        </div>
+      </div>
 
       <div class="rx-insp-slider-grid">
         ${numSlider("width", isRu ? "Ширина" : "Width", "px", 24, 1600, 320, false)}
@@ -417,11 +415,12 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
  * Tab 1: Clean Agent Hub — Simple Auto-by-default Toggles + New-Chat Default + Inline Live Edits + Persona.
  */
 function rv5RenderAgentHubTabHtml(ctx) {
-  const { agentProfile, defaultProfile, customPresets, liveEditInline, personaHtml, isRu, newAgentPresetName } = ctx;
+  const { agentProfile, defaultProfile, customPresets, liveEditInline, personaHtml, isRu, newAgentPresetName, agentSubTab, chatBadgeLabel } = ctx;
   const ap = rv5NormalizeAgentProfile(agentProfile);
   const le = Object.assign({}, RUDEX_LIVE_EDIT_DEFAULTS, liveEditInline || {});
   const isDefaultForNew = Boolean(defaultProfile && defaultProfile.applyToNewChats && defaultProfile.enabled);
   const activeCount = ap.enabled ? rv5CountActiveAgentFeatures(ap) : 0;
+  const sub = agentSubTab || "all";
 
   const seg = (field, cur, items) => `
     <div class="subtab-bar is-segmented" style="max-width:260px;flex-shrink:0">
@@ -431,11 +430,21 @@ function rv5RenderAgentHubTabHtml(ctx) {
     </div>
   `;
 
-  return `
+  const scopeBanner = chatBadgeLabel ? `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 11px;border-radius:8px;background:var(--rx-surface);border:1px solid var(--rx-border)">
+      <span class="status-chip" data-live="chatBadge" style="min-width:0;overflow:hidden;text-overflow:ellipsis">${rv5EscapeHtml(chatBadgeLabel)}</span>
+      ${activeCount > 0
+        ? `<button type="button" class="btn btn-sm btn-ghost" data-action="reset-agent-auto">${isRu ? `Сбросить (${activeCount})` : `Reset (${activeCount})`}</button>`
+        : `<span class="nav-badge">${isRu ? "Режим: Авто" : "Mode: Auto"}</span>`}
+    </div>
+  ` : "";
+
+  const toolsSectionHtml = `
+    ${scopeBanner}
     <div class="section-group">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <span class="section-label">${isRu ? "Тумблеры инструментов агента (по умолчанию — Авто)" : "Agent Tool Toggles (Auto by default)"}</span>
-        ${activeCount > 0 ? `<button type="button" class="btn btn-sm btn-ghost" data-action="reset-agent-auto">${isRu ? "Сбросить в Авто" : "Reset to Auto"}</button>` : `<span class="nav-badge">${isRu ? "Агент решает сам" : "Auto"}</span>`}
+        ${!chatBadgeLabel ? (activeCount > 0 ? `<button type="button" class="btn btn-sm btn-ghost" data-action="reset-agent-auto">${isRu ? "Сбросить в Авто" : "Reset to Auto"}</button>` : `<span class="nav-badge">${isRu ? "Агент решает сам" : "Auto"}</span>`) : ""}
       </div>
       <div class="card">
         <div class="row-item">
@@ -590,12 +599,21 @@ function rv5RenderAgentHubTabHtml(ctx) {
           </div>
           <button type="button" class="switch${le.showChatDock !== false ? " is-on" : ""}" role="switch" data-action="toggle-live-inline" data-field="showChatDock"><span class="switch-thumb"></span></button>
         </div>
+        <div class="row-item">
+          <div class="row-info">
+            <span class="row-title">${isRu ? "Контекстное окно модели в чате" : "Show model context window in chat"}</span>
+            <span class="row-desc">${isRu ? "Показывает над вводом, какой объём контекстного окна выбранной модели занят этим чатом (по умолч. выкл.)" : "Shows above composer how much of the selected model's context window this chat occupies (off by default)"}</span>
+          </div>
+          <button type="button" class="switch${le.showContextMeter === true ? " is-on" : ""}" role="switch" data-action="toggle-live-inline" data-field="showContextMeter"><span class="switch-thumb"></span></button>
+        </div>
       </div>
     </div>
+  `;
 
-    <details class="rx-details" data-disc="agentPresets">
-      <summary>${isRu ? "Сохранённые пресеты тумблеров" : "Saved Toggle Presets"}</summary>
-      <div class="rx-details-body">
+  const presetsSectionHtml = `
+    <div class="section-group">
+      <span class="section-label">${isRu ? "Готовые и сохранённые пресеты тумблеров" : "Built-in & Custom Toggle Presets"}</span>
+      <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px">
         <div class="rx-preset-strip">
           ${RUDEX_AGENT_PRESETS.map((p) => {
             const sel = (ap.enabled ? ap.presetId : "default") === p.id;
@@ -608,34 +626,47 @@ function rv5RenderAgentHubTabHtml(ctx) {
         </div>
         <div class="preset-add-row">
           <input type="text" class="text-input" data-role="newAgentPresetName" value="${rv5EscapeHtml(newAgentPresetName || "")}" placeholder="${isRu ? "Название своего пресета…" : "Save current toggles as…"}"/>
-          <button type="button" class="btn btn-sm" data-action="save-custom-agent-preset">${isRu ? "+ Сохранить" : "+ Save"}</button>
+          <button type="button" class="btn btn-sm btn-primary" data-action="save-custom-agent-preset">${isRu ? "+ Сохранить" : "+ Save"}</button>
         </div>
       </div>
-    </details>
+    </div>
+  `;
 
+  const personaSectionHtml = `
+    <div class="section-group">
+      <span class="section-label">${isRu ? "Подробность ответов" : "Response Length"}</span>
+      <div class="subtab-bar is-segmented">
+        ${[
+          { id: "short", label: isRu ? "Кратко" : "Short" },
+          { id: "balanced", label: isRu ? "Баланс" : "Balanced" },
+          { id: "detailed", label: isRu ? "Подробно" : "Detailed" },
+        ].map((it) => `
+          <button type="button" class="subtab-btn${(ap.enabled ? ap.conciseness : "balanced") === it.id ? " is-active" : ""}" data-action="set-agent-field" data-field="conciseness" data-val="${it.id}">${rv5EscapeHtml(it.label)}</button>
+        `).join("")}
+      </div>
+    </div>
+    <div class="section-group">
+      <span class="section-label">${isRu ? "Приоритетные скиллы (через запятую, Enter — сохранить)" : "Pinned Skills (comma-separated, press Enter to save)"}</span>
+      <input type="text" class="text-input" data-agent-list="pinnedSkills" value="${rv5EscapeHtml((ap.pinnedSkills || []).join(", "))}" placeholder="rudex, chrome-devtools, ..."/>
+    </div>
+    <div style="border-top:1px solid var(--rx-border);padding-top:10px">
+      ${personaHtml || ""}
+    </div>
+  `;
+
+  if (sub === "tools") return toolsSectionHtml;
+  if (sub === "persona") return personaSectionHtml;
+  if (sub === "presets") return presetsSectionHtml;
+
+  return `
+    ${toolsSectionHtml}
+    <details class="rx-details" data-disc="agentPresets">
+      <summary>${isRu ? "Сохранённые пресеты тумблеров" : "Saved Toggle Presets"}</summary>
+      <div class="rx-details-body">${presetsSectionHtml}</div>
+    </details>
     <details class="rx-details" data-disc="agentPersona">
       <summary>${isRu ? "Характер чата, краткость и скиллы" : "Chat Persona, Length & Skills"}</summary>
-      <div class="rx-details-body">
-        <div class="section-group">
-          <span class="section-label">${isRu ? "Подробность ответов" : "Response Length"}</span>
-          <div class="subtab-bar is-segmented">
-            ${[
-              { id: "short", label: isRu ? "Кратко" : "Short" },
-              { id: "balanced", label: isRu ? "Баланс" : "Balanced" },
-              { id: "detailed", label: isRu ? "Подробно" : "Detailed" },
-            ].map((it) => `
-              <button type="button" class="subtab-btn${(ap.enabled ? ap.conciseness : "balanced") === it.id ? " is-active" : ""}" data-action="set-agent-field" data-field="conciseness" data-val="${it.id}">${rv5EscapeHtml(it.label)}</button>
-            `).join("")}
-          </div>
-        </div>
-        <div class="section-group">
-          <span class="section-label">${isRu ? "Приоритетные скиллы (через запятую)" : "Pinned Skills (comma-separated)"}</span>
-          <input type="text" class="text-input" data-agent-list="pinnedSkills" value="${rv5EscapeHtml((ap.pinnedSkills || []).join(", "))}" placeholder="rudex, chrome-devtools, ..."/>
-        </div>
-        <div style="border-top:1px solid var(--rx-border);padding-top:10px">
-          ${personaHtml || ""}
-        </div>
-      </div>
+      <div class="rx-details-body">${personaSectionHtml}</div>
     </details>
   `;
 }
@@ -676,7 +707,7 @@ function rv5RenderLimitsTabHtml(ctx) {
         <span class="section-label">${isRu ? "Предпросмотр окна лимитов" : "Limits Window Preview"}</span>
         <span class="nav-badge">${isRu ? "Автосинхронизация" : "Auto-sync"}</span>
       </div>
-      <div class="preview-stage" style="min-height:92px">${previewHtml}</div>
+      <div class="preview-stage" data-role="limitsPreviewStage" style="min-height:92px">${previewHtml}</div>
     </div>
 
     <div class="section-group">
@@ -739,7 +770,7 @@ function rv5RenderLimitsTabHtml(ctx) {
             <select class="select-input" data-limits-field="fontFamily">
               ${rv5FontSelectOptions(lw.fontFamily || "inherit", "ui", systemFonts, isRu, true)}
             </select>
-            ${lw.fontFamily === "custom" ? `<input type="text" class="text-input" style="margin-top:5px" list="rudex-sys-fonts-list" data-limits-field="fontFamilyCustom" value="${rv5EscapeHtml(lw.fontFamilyCustom || "")}" placeholder="JetBrains Mono, Segoe UI…"/>` : ""}
+            ${lw.fontFamily === "custom" ? `<input type="text" class="text-input" style="margin-top:5px" list="rudex-sys-fonts-list" data-limits-field="fontFamilyCustom" data-limits-live-text="1" value="${rv5EscapeHtml(lw.fontFamilyCustom || "")}" placeholder="JetBrains Mono, Segoe UI…"/>` : ""}
           </div>
           <div class="section-group">
             <span class="section-label">${isRu ? "Модели в окне" : "Models"}</span>
@@ -790,10 +821,23 @@ function rv5RenderLimitsTabHtml(ctx) {
         </div>
 
         <div class="card">
+          <div class="row-item">
+            <span class="row-title">${isRu ? "Формат процентов" : "Percentage display"}</span>
+            <div class="subtab-bar is-segmented" style="max-width:240px;flex-shrink:0">
+              <button type="button" class="subtab-btn${lw.displayMode !== "used" ? " is-active" : ""}" data-action="set-limits-field" data-field="displayMode" data-val="remaining">${isRu ? "Осталось %" : "Remaining %"}</button>
+              <button type="button" class="subtab-btn${lw.displayMode === "used" ? " is-active" : ""}" data-action="set-limits-field" data-field="displayMode" data-val="used">${isRu ? "Потрачено %" : "Used %"}</button>
+            </div>
+          </div>
           <div class="row-item"><span class="row-title">${isRu ? "Показывать лимит 5ч" : "Show 5h limit"}</span><button type="button" class="switch${lw.show5h ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="show5h"><span class="switch-thumb"></span></button></div>
           <div class="row-item"><span class="row-title">${isRu ? "Показывать недельный лимит" : "Show Weekly limit"}</span><button type="button" class="switch${lw.showWeekly ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="showWeekly"><span class="switch-thumb"></span></button></div>
           <div class="row-item"><span class="row-title">${isRu ? "Показывать таймер сброса" : "Show reset timer"}</span><button type="button" class="switch${lw.showResetTimer ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="showResetTimer"><span class="switch-thumb"></span></button></div>
           <div class="row-item"><span class="row-title">${isRu ? "Авто-светофор (зелёный → жёлтый → красный)" : "Auto traffic-light colors"}</span><button type="button" class="switch${lw.trafficLight ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="trafficLight"><span class="switch-thumb"></span></button></div>
+          ${!lw.trafficLight ? `
+            <div class="row-item">
+              <span class="row-title">${isRu ? "Цвет полосы прогресса" : "Progress bar color"}</span>
+              <input type="color" class="color-input" data-limits-field="barColor" value="${lw.barColor || "#d97757"}"/>
+            </div>
+          ` : ""}
         </div>
       </div>
     </details>
@@ -859,11 +903,12 @@ function rv5RenderKeybindingsHtml(keybindings, recordingId, isRu) {
 /**
  * AGY Customization Workshop (Visual Rules, Skills, MCP Servers, Plugins & Hooks manager).
  */
-function rv5RenderWorkshopHtml(wsState, isRu) {
+function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills) {
   const data = wsState && wsState.data ? wsState.data : null;
   const scope = (wsState && wsState.scope) || "global";
   const sub = (wsState && wsState.sub) || "rules";
   const loading = Boolean(wsState && wsState.loading);
+  const pinnedSet = new Set(Array.isArray(pinnedSkills) ? pinnedSkills : []);
   const filterScope = (arr) => (arr || []).filter((it) => scope === "all" || it.scope === scope || (scope === "global" && it.scope === "plugin"));
 
   const rules = filterScope(data && data.rules);
@@ -916,20 +961,23 @@ function rv5RenderWorkshopHtml(wsState, isRu) {
           <button type="button" class="btn btn-sm btn-primary" data-action="ws-save-skill">${isRu ? "Создать скилл" : "Create Skill"}</button>
         </div>
       </div>
-      ${skills.length === 0 ? `<div class="empty-msg">${isRu ? "Скиллы не найдены." : "No skills found."}</div>` : skills.map((sk) => `
+      ${skills.length === 0 ? `<div class="empty-msg">${isRu ? "Скиллы не найдены." : "No skills found."}</div>` : skills.map((sk) => {
+        const isPinned = pinnedSet.has(sk.name);
+        return `
         <div class="rx-ws-card">
           <div class="rx-ws-head">
             <div style="min-width:0">
-              <div class="row-title">${rv5EscapeHtml(sk.name)} <span class="nav-badge">${rv5EscapeHtml(sk.plugin || sk.scope)}</span></div>
+              <div class="row-title">${rv5EscapeHtml(sk.name)} <span class="nav-badge">${rv5EscapeHtml(sk.plugin || sk.scope)}</span>${isPinned ? ` <span class="badge-active">★ ${isRu ? "Закреплён" : "Pinned"}</span>` : ""}</div>
               <div class="row-desc">${rv5EscapeHtml(sk.description || sk.path)}</div>
             </div>
             <div style="display:flex;gap:5px;flex-shrink:0">
-              <button type="button" class="btn btn-sm" data-action="ws-pin-skill" data-name="${rv5EscapeHtml(sk.name)}" title="${isRu ? "Прикрепить к агенту" : "Pin to Agent"}">★</button>
+              <button type="button" class="btn btn-sm${isPinned ? " btn-primary" : ""}" data-action="ws-pin-skill" data-name="${rv5EscapeHtml(sk.name)}" title="${isPinned ? (isRu ? "Открепить от агента" : "Unpin from Agent") : (isRu ? "Прикрепить к агенту" : "Pin to Agent")}">${isPinned ? "★" : "☆"}</button>
               <button type="button" class="btn btn-sm" data-action="ws-open-path" data-path="${rv5EscapeHtml(sk.dir || sk.path)}">↗</button>
             </div>
           </div>
         </div>
-      `).join("")}
+      `;
+      }).join("")}
     `;
   } else if (sub === "mcp") {
     contentHtml = `
@@ -1012,7 +1060,7 @@ function rv5RenderWorkshopHtml(wsState, isRu) {
  * - Queue capsule auto-hides delivered items after 4 seconds (plus manual ✕ dismiss)
  */
 function rv5BuildChatDockHtml(ctx) {
-  const { agentProfile, defaultProfile, liveEdits, dismissedIds, liveEditInline, popoverOpen, isRu } = ctx;
+  const { agentProfile, defaultProfile, liveEdits, dismissedIds, liveEditInline, popoverOpen, contextPopoverOpen, contextInfo, isRu } = ctx;
   const ap = rv5NormalizeAgentProfile(agentProfile);
   const le = Object.assign({}, RUDEX_LIVE_EDIT_DEFAULTS, liveEditInline || {});
   const dismissed = dismissedIds || new Set();
@@ -1025,7 +1073,65 @@ function rv5BuildChatDockHtml(ctx) {
   const queueItems = showStrip ? pendingItems.concat(recentDelivered) : [];
 
   const showBar = le.showChatDock !== false;
-  if (!showBar && queueItems.length === 0 && !popoverOpen) return "";
+  const showCtx = le.showContextMeter === true;
+  if (!showBar && !showCtx && queueItems.length === 0 && !popoverOpen && !contextPopoverOpen) return "";
+
+  let ctxPillHtml = "";
+  let ctxPopHtml = "";
+  if (showCtx) {
+    const ci = contextInfo && typeof contextInfo === "object" ? contextInfo : {};
+    const rawModel = String(ci.modelName || "").trim();
+    const resolved = typeof rv5ResolveModelContextWindow === "function"
+      ? rv5ResolveModelContextWindow(rawModel)
+      : { maxTokens: 200000, windowLabel: "200K", shortModel: rawModel.slice(0, 18) };
+    const fmtTok = typeof rv5FormatContextTokens === "function" ? rv5FormatContextTokens : (v) => String(v);
+    const usedTokens = Math.max(0, Math.round(Number(ci.usedTokens) || 0));
+    const maxTokens = Math.max(1000, resolved.maxTokens);
+    const rawPct = (usedTokens / maxTokens) * 100;
+    const pctClamped = Math.max(0, Math.min(100, rawPct));
+    const pctDisp = pctClamped > 0 && pctClamped < 1 ? "<1%" : `${Math.round(pctClamped)}%`;
+    const pctExact = `${pctClamped.toFixed(pctClamped >= 10 ? 0 : 1)}%`;
+    const sevCls = pctClamped >= 85 ? " is-crit" : (pctClamped >= 60 ? " is-warn" : "");
+    const approx = !ci.exact && usedTokens > 0 ? "~" : "";
+    const usedStr = `${approx}${fmtTok(usedTokens)}`;
+    const remTokens = Math.max(0, maxTokens - usedTokens);
+    const chatLabel = ci.isNewChat
+      ? (isRu ? "Новый чат" : "New chat")
+      : (String(ci.chatTitle || "").trim() || (isRu ? "Текущий чат" : "Current chat"));
+    const tip = isRu
+      ? `Контекст чата «${chatLabel}»: ${usedStr} / ${resolved.windowLabel} (${pctExact}) · Модель: ${rawModel || "не определена"}`
+      : `Chat "${chatLabel}" context: ${usedStr} / ${resolved.windowLabel} (${pctExact}) · Model: ${rawModel || "unknown"}`;
+
+    ctxPillHtml = `
+      <div class="rx-dock-right">
+        <button type="button" class="rx-ctx-pill${sevCls}" data-action="toggle-context-popover" title="${rv5EscapeHtml(tip)}">
+          <span class="rx-ctx-bar"><span class="rx-ctx-fill" style="width:${pctClamped.toFixed(1)}%"></span></span>
+          ${resolved.shortModel ? `<span class="rx-ctx-model">${rv5EscapeHtml(resolved.shortModel)}</span>` : ""}
+          <span class="rx-ctx-nums">${rv5EscapeHtml(usedStr)} / ${rv5EscapeHtml(resolved.windowLabel)}</span>
+          <span class="rx-ctx-pct">${rv5EscapeHtml(pctDisp)}</span>
+        </button>
+      </div>
+    `;
+
+    if (contextPopoverOpen) {
+      ctxPopHtml = `
+        <div class="rx-ctx-popover" data-role="contextWindowPopover">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+            <strong style="font-size:12px;color:var(--rx-fg-strong)">${isRu ? "Контекстное окно модели" : "Model Context Window"}</strong>
+            <span class="rx-ctx-pct" style="font-size:12px${sevCls === " is-crit" ? ";color:var(--rx-danger,#ef4444)" : (sevCls === " is-warn" ? ";color:var(--rx-warning,#f59e0b)" : "")}">${rv5EscapeHtml(pctExact)}</span>
+          </div>
+          <div class="rx-ctx-pop-track"><div class="rx-ctx-pop-fill${sevCls}" style="width:${pctClamped.toFixed(1)}%"></div></div>
+          <div class="rx-ctx-pop-grid">
+            <div class="rx-ctx-pop-row"><span>${isRu ? "Чат" : "Chat"}</span><b title="${rv5EscapeHtml(chatLabel)}">${rv5EscapeHtml(chatLabel)}</b></div>
+            <div class="rx-ctx-pop-row"><span>${isRu ? "Модель" : "Model"}</span><b title="${rv5EscapeHtml(rawModel || "—")}">${rv5EscapeHtml(rawModel || (isRu ? "Не определена" : "Unknown"))}</b></div>
+            <div class="rx-ctx-pop-row"><span>${isRu ? "Занято / Окно" : "Used / Window"}</span><b>${rv5EscapeHtml(usedStr)} / ${rv5EscapeHtml(resolved.windowLabel)}</b></div>
+            <div class="rx-ctx-pop-row"><span>${isRu ? "Свободно" : "Remaining"}</span><b>${rv5EscapeHtml(fmtTok(remTokens))} ${isRu ? "ток." : "tok"}</b></div>
+            <div class="rx-ctx-pop-row"><span>${isRu ? "Источник" : "Source"}</span><b>${ci.exact ? (isRu ? "Точно (лог чата)" : "Exact (transcript)") : (isRu ? "Оценка по чату" : "Chat estimate")}</b></div>
+          </div>
+        </div>
+      `;
+    }
+  }
 
   const activeTags = typeof rv5SummarizeActiveToggles === "function" ? rv5SummarizeActiveToggles(ap, isRu) : [];
   const isCustomActive = ap.enabled && activeTags.length > 0;
@@ -1080,6 +1186,8 @@ function rv5BuildChatDockHtml(ctx) {
       </div>
     ` : ""}
 
+    ${ctxPopHtml}
+
     ${queueItems.length > 0 ? `
       <div class="rx-live-queue-strip">
         ${queueItems.map((it) => `
@@ -1094,13 +1202,16 @@ function rv5BuildChatDockHtml(ctx) {
       </div>
     ` : ""}
 
-    ${showBar ? `
+    ${(showBar || showCtx) ? `
       <div class="rx-chat-dock-row">
-        <button type="button" class="rx-agent-chip${isCustomActive ? " is-active" : ""}" data-action="toggle-agent-popover">
-          <span class="rx-agent-dot"></span>
-          <span>${rv5EscapeHtml(chipLabel)}</span>
-          <span style="opacity:.55">▾</span>
-        </button>
+        ${showBar ? `
+          <button type="button" class="rx-agent-chip${isCustomActive ? " is-active" : ""}" data-action="toggle-agent-popover">
+            <span class="rx-agent-dot"></span>
+            <span>${rv5EscapeHtml(chipLabel)}</span>
+            <span style="opacity:.7">▾</span>
+          </button>
+        ` : ""}
+        ${ctxPillHtml}
       </div>
     ` : ""}
   `;
@@ -1120,7 +1231,15 @@ function rv5InjectImageEditTriggers(doc, isRu, onEditImage) {
     for (let i = 0; i < dialogs.length; i += 1) {
       const dlg = dialogs[i];
       if (!dlg || (dlg.closest && dlg.closest("#rudex-studio-host"))) continue;
-      if (dlg.querySelector && dlg.querySelector('[data-rudex-img-edit-btn="lightbox"]')) continue;
+      const existingLbBtn = dlg.querySelector ? dlg.querySelector('[data-rudex-img-edit-btn="lightbox"]') : null;
+      if (existingLbBtn) {
+        const wantTxt = isRu ? "✎ Редактировать" : "✎ Edit";
+        if (existingLbBtn.textContent !== wantTxt) {
+          existingLbBtn.textContent = wantTxt;
+          existingLbBtn.title = isRu ? "Нарисовать правки карандашом" : "Draw edits on screenshot";
+        }
+        continue;
+      }
       const imgs = dlg.querySelectorAll ? dlg.querySelectorAll("img") : [];
       if (!imgs || imgs.length === 0) continue;
       let targetImg = null;
@@ -1139,12 +1258,6 @@ function rv5InjectImageEditTriggers(doc, isRu, onEditImage) {
         }
       }
       if (!targetImg) continue;
-      const hostBox = targetImg.parentElement || dlg;
-      if (hostBox.querySelector && hostBox.querySelector('[data-rudex-img-edit-btn="lightbox"]')) continue;
-      try {
-        const cs = win && typeof win.getComputedStyle === "function" ? win.getComputedStyle(hostBox) : null;
-        if (cs && cs.position === "static" && hostBox.style) hostBox.style.position = "relative";
-      } catch (_e) {}
       const btn = doc.createElement("button");
       btn.type = "button";
       btn.setAttribute("data-rudex-img-edit-btn", "lightbox");
@@ -1562,9 +1675,21 @@ function rv5SyncLiveChatBubbles(doc, ctx) {
     for (let j = userTexts.length - 1; j >= 0; j -= 1) {
       const hay = userTexts[j];
       if (!hay) continue;
-      if (hay === needle || hay.startsWith(needle) || needle.startsWith(hay)) return j;
+      if (hay === needle) return j;
+      const minLen = Math.min(hay.length, needle.length);
+      if (minLen >= 16 && (hay.startsWith(needle) || needle.startsWith(hay))) return j;
     }
     return -1;
+  };
+  const findFollowingResp = (userNode, fallbackIdx) => {
+    if (userNode && typeof userNode.compareDocumentPosition === "function") {
+      for (let r = 0; r < resps.length; r += 1) {
+        if (resps[r] && (userNode.compareDocumentPosition(resps[r]) & 4)) {
+          return resps[r];
+        }
+      }
+    }
+    return resps[fallbackIdx] || null;
   };
   const preferAgent = le.chatBubblePos === "after-agent";
   const groups = new Map(); // key -> { anchorEl, refBubbleEl, items: [] }
@@ -1580,8 +1705,9 @@ function rv5SyncLiveChatBubbles(doc, ctx) {
     if (hasTextAnchor) {
       if (matchedUserIdx >= 0 && users[matchedUserIdx]) {
         refBubbleEl = users[matchedUserIdx];
-        if (preferAgent && resps[matchedUserIdx]) {
-          anchorEl = resps[matchedUserIdx];
+        const nextResp = preferAgent ? findFollowingResp(users[matchedUserIdx], matchedUserIdx) : null;
+        if (preferAgent && nextResp) {
+          anchorEl = nextResp;
           slotKey = `resp-${matchedUserIdx}`;
         } else {
           anchorEl = resolveBlockAnchor(users[matchedUserIdx]);
@@ -1801,6 +1927,13 @@ function rv5RenderInputHistoryHtml(ctx) {
   const historyOn = c.inputHistoryEnabled !== false;
   const draftCount = Number(c.draftCount) || 0;
   const items = Array.isArray(c.items) ? c.items : [];
+  const searchQuery = String(c.searchQuery || "").trim().toLowerCase();
+  const filteredItems = searchQuery
+    ? items.filter((it) => {
+        const hay = `${it.text || ""} ${it.chatTitle || ""} ${(it.attachments || []).map((a) => a.name || "").join(" ")}`.toLowerCase();
+        return hay.includes(searchQuery);
+      })
+    : items;
   const loading = Boolean(c.loading);
 
   return `
@@ -1832,9 +1965,10 @@ function rv5RenderInputHistoryHtml(ctx) {
     </div>
 
     <div class="section-group">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span class="section-label">${isRu ? `Последние сообщения (${items.length} / 20)` : `Recent messages (${items.length} / 20)`}</span>
-        <div style="display:flex;gap:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <span class="section-label">${isRu ? `Последние сообщения (${filteredItems.length} / ${items.length})` : `Recent messages (${filteredItems.length} / ${items.length})`}</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" class="text-input" style="width:170px;padding:4px 8px;font-size:11.5px" data-role="historySearch" value="${rv5EscapeHtml(c.searchQuery || "")}" placeholder="${isRu ? "Фильтр по тексту…" : "Filter messages…"}"/>
           <button type="button" class="btn btn-sm btn-ghost" data-action="refresh-input-history">${isRu ? "Обновить" : "Refresh"}</button>
           ${items.length > 0 ? `<button type="button" class="btn btn-sm btn-danger" data-action="clear-input-history">${isRu ? "Очистить всё" : "Clear all"}</button>` : ""}
         </div>
@@ -1842,15 +1976,17 @@ function rv5RenderInputHistoryHtml(ctx) {
 
       ${loading && items.length === 0 ? `<div class="empty-msg">${isRu ? "Загрузка истории…" : "Loading history…"}</div>` : ""}
 
-      ${!loading && items.length === 0 ? `
-        <div class="empty-msg">${historyOn
-          ? (isRu ? "История пока пуста — отправленные вами сообщения и прикреплённые файлы появятся здесь автоматически." : "No messages recorded yet — your sent prompts & attachments will appear here automatically.")
-          : (isRu ? "Запись истории отключена. Включите тумблер выше, чтобы сохранять последние 20 сообщений." : "Input history is paused. Enable the toggle above to record your last 20 messages.")}</div>
+      ${!loading && filteredItems.length === 0 ? `
+        <div class="empty-msg">${searchQuery
+          ? (isRu ? "По этому запросу ничего не найдено." : "No messages match your filter.")
+          : (historyOn
+              ? (isRu ? "История пока пуста — отправленные вами сообщения и прикреплённые файлы появятся здесь автоматически." : "No messages recorded yet — your sent prompts & attachments will appear here automatically.")
+              : (isRu ? "Запись истории отключена. Включите тумблер выше, чтобы сохранять последние 20 сообщений." : "Input history is paused. Enable the toggle above to record your last 20 messages."))}</div>
       ` : ""}
 
-      ${items.length > 0 ? `
+      ${filteredItems.length > 0 ? `
         <div class="rx-hist-list">
-          ${items.map((it) => {
+          ${filteredItems.map((it) => {
             const atts = Array.isArray(it.attachments) ? it.attachments : [];
             const hasText = Boolean(it.text && String(it.text).trim());
             const chatLabel = it.chatTitle || (it.chatKey === "__new__" ? (isRu ? "Новый чат" : "New chat") : (isRu ? "Чат" : "Chat"));

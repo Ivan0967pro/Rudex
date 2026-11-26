@@ -113,6 +113,7 @@ function createDomTranslator(options) {
   const CONTENT_CONTAINER_TESTIDS = new Set([
     "user-message-content",
     "user-message-bubble",
+    "agent-response",
   ]);
 
   const CHROME_INSIDE_CONTENT_TESTIDS = new Set([
@@ -301,7 +302,12 @@ function createDomTranslator(options) {
   function isExcludedForText(node) {
     let el = node.nodeType === 1 ? node : node.parentElement || node.parentNode;
     let sawInteractiveChrome = false;
-    while (el && el.nodeType === 1) {
+    while (el) {
+      if (el.nodeType === 11 && el.host) {
+        el = el.host;
+        continue;
+      }
+      if (el.nodeType !== 1) break;
       if (isHardExcludedElement(el, false)) {
         return true;
       }
@@ -323,7 +329,13 @@ function createDomTranslator(options) {
     let cur = el;
     let sawInteractiveChrome = false;
     let first = true;
-    while (cur && cur.nodeType === 1) {
+    while (cur) {
+      if (cur.nodeType === 11 && cur.host) {
+        cur = cur.host;
+        first = false;
+        continue;
+      }
+      if (cur.nodeType !== 1) break;
       if (isHardExcludedElement(cur, first)) {
         return true;
       }
@@ -756,7 +768,7 @@ function createDomTranslator(options) {
   function processDocumentTitle() {
     if (!doc || typeof doc.title !== "string") return;
     const cur = doc.title;
-    if (originalDocTitle === null || (lastWrittenDocTitle !== null && cur !== lastWrittenDocTitle && cur !== originalDocTitle)) {
+    if (originalDocTitle === null || (cur !== lastWrittenDocTitle && cur !== originalDocTitle)) {
       originalDocTitle = cur;
     }
     if (currentLocale === "en") {
@@ -782,6 +794,15 @@ function createDomTranslator(options) {
     if (root.nodeType !== 1 && root.nodeType !== 9 && root.nodeType !== 11) return;
 
     if (root.nodeType === 1) {
+      // Never descend into excluded subtrees or their ShadowRoot (e.g. #rudex-studio-host, code/pre, monaco, xterm)
+      if (isHardExcludedElement(root, false)) {
+        // Still allow placeholder/aria-label attributes on input/textarea directly, without walking children
+        const tag = root.tagName ? root.tagName.toUpperCase() : "";
+        if (tag === "INPUT" || tag === "TEXTAREA" || getAttrSafe(root, "contenteditable") === "true") {
+          processElementAttributes(root);
+        }
+        return;
+      }
       processElementAttributes(root);
       if (root.shadowRoot) {
         walkSubtree(root.shadowRoot);
@@ -860,12 +881,15 @@ function createDomTranslator(options) {
           if (m.target && m.target.nodeType === 1 && m.target.tagName === "TITLE") {
             scheduleFlush();
           }
+          let addedTextNode = false;
           if (m.addedNodes) {
             for (let j = 0; j < m.addedNodes.length; j++) {
-              pendingNodes.add(m.addedNodes[j]);
+              const an = m.addedNodes[j];
+              if (an && an.nodeType === 3) addedTextNode = true;
+              pendingNodes.add(an);
             }
           }
-          if (m.target && m.target.nodeType === 1 && m.target.childNodes && m.target.childNodes.length >= 2) {
+          if (addedTextNode && m.target && m.target.nodeType === 1 && m.target.childNodes && m.target.childNodes.length >= 2 && m.target.childNodes.length <= 6) {
             pendingNodes.add(m.target);
           }
         }

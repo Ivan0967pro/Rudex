@@ -70,7 +70,8 @@ function splitLongPiece(piece, maxLen) {
           const sp = sent.lastIndexOf(" ", end);
           if (sp > pos + Math.floor(maxLen * 0.4)) end = sp + 1;
         }
-        out.push(sent.slice(pos, end).trim());
+        const sl = sent.slice(pos, end).trim();
+        if (sl) out.push(sl);
         pos = end;
       }
       continue;
@@ -169,7 +170,7 @@ function httpJsonGet(urlStr, timeoutMs = 8000) {
             return;
           }
           try {
-            resolve(JSON.parse(body));
+            done(null, JSON.parse(body));
           } catch (err) {
             done(new Error(`Invalid JSON from translation endpoint: ${err && err.message ? err.message : err}`));
           }
@@ -186,7 +187,7 @@ function httpJsonGet(urlStr, timeoutMs = 8000) {
   });
 }
 
-async function translateChunkClients5(chunk, opts = {}) {
+async function translateChunkClients5Single(chunk, opts = {}) {
   const base = opts.clients5Url || CLIENTS5_URL;
   const sep = base.includes("?") ? "&" : "?";
   const urlStr = `${base}${sep}client=dict-chrome-ex&sl=en&tl=ru&q=${encodeURIComponent(chunk)}`;
@@ -200,6 +201,19 @@ async function translateChunkClients5(chunk, opts = {}) {
     }
   }
   throw new Error("Unexpected clients5 response format");
+}
+
+async function translateChunkClients5(chunk, opts = {}) {
+  const encoded = encodeURIComponent(chunk);
+  if (encoded.length <= 1800) {
+    return translateChunkClients5Single(chunk, opts);
+  }
+  const subChunks = splitForTranslation(chunk, 450);
+  const parts = [];
+  for (let i = 0; i < subChunks.length; i += 1) {
+    parts.push(await translateChunkClients5Single(subChunks[i], opts));
+  }
+  return parts.join(chunk.includes("\n") ? "\n" : " ");
 }
 
 async function translateChunkMyMemory(chunk, opts = {}) {
@@ -261,25 +275,57 @@ function createThinkingTranslator(opts = {}) {
     const promise = (async () => {
       try {
         const { masked, tokens } = protectInlineTokens(orig);
-        const chunks = splitForTranslation(masked, 1200);
-        const outChunks = [];
-        for (let i = 0; i < chunks.length; i += 1) {
-          const piece = chunks[i];
-          let translatedPiece = "";
-          try {
-            translatedPiece = await translateChunkClients5(piece, opts);
-          } catch (_err1) {
-            translatedPiece = await translateChunkMyMemory(piece, opts);
+        // Group short lines together (joined by \n), while sub-splitting very long lines (joined by space)
+        const rawLines = masked.split(/\n/);
+        const units = [];
+        let acc = "";
+        for (let li = 0; li < rawLines.length; li += 1) {
+          const ln = rawLines[li];
+          if (ln.length > 1200) {
+            if (acc) {
+              units.push({ joinWith: "\n", parts: [acc] });
+              acc = "";
+            }
+            units.push({ joinWith: " ", parts: splitLongPiece(ln, 1200) });
+          } else if (!acc) {
+            acc = ln;
+          } else if (acc.length + 1 + ln.length <= 1200) {
+            acc += "\n" + ln;
+          } else {
+            units.push({ joinWith: "\n", parts: [acc] });
+            acc = ln;
           }
-          outChunks.push(translatedPiece);
         }
-        const joined = outChunks.join(chunks.length > 1 && orig.includes("\n") ? "\n" : " ");
+        if (acc) units.push({ joinWith: "\n", parts: [acc] });
+
+        const outUnits = [];
+        for (let u = 0; u < units.length; u += 1) {
+          const unit = units[u];
+          const outParts = [];
+          for (let i = 0; i < unit.parts.length; i += 1) {
+            const piece = unit.parts[i];
+            let translatedPiece = "";
+            try {
+              translatedPiece = await translateChunkClients5(piece, opts);
+            } catch (_err1) {
+              translatedPiece = await translateChunkMyMemory(piece, opts);
+            }
+            outParts.push(translatedPiece);
+          }
+          outUnits.push(outParts.join(unit.joinWith));
+        }
+        const joined = outUnits.join("\n");
         const restored = restoreInlineTokens(joined, tokens);
         recentErrors.delete(orig);
         setCached(orig, restored);
         return { orig, translated: restored, ok: true };
       } catch (err) {
+        if (recentErrors.has(orig)) recentErrors.delete(orig);
         recentErrors.set(orig, Date.now());
+        while (recentErrors.size > 500) {
+          const oldestErrKey = recentErrors.keys().next().value;
+          recentErrors.delete(oldestErrKey);
+        }
         return {
           orig,
           translated: orig,

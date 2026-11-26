@@ -21,23 +21,29 @@ const MAX_ZIP_BYTES = 50 * 1024 * 1024;
 
 function compareSemver(a, b) {
   const parse = (v) => {
-    const clean = String(v || "").trim().replace(/^v/i, "").split(/[-+]/)[0];
-    const parts = clean.split(".").map((p) => {
+    const stripped = String(v || "").trim().replace(/^v/i, "").split("+")[0];
+    const dashIdx = stripped.indexOf("-");
+    const core = dashIdx === -1 ? stripped : stripped.slice(0, dashIdx);
+    const pre = dashIdx === -1 ? "" : stripped.slice(dashIdx + 1);
+    const parts = core.split(".").map((p) => {
       const n = parseInt(p, 10);
       return Number.isFinite(n) ? n : 0;
     });
     while (parts.length < 3) parts.push(0);
-    return parts;
+    return { parts, pre };
   };
   const pa = parse(a);
   const pb = parse(b);
-  const len = Math.max(pa.length, pb.length);
+  const len = Math.max(pa.parts.length, pb.parts.length);
   for (let i = 0; i < len; i += 1) {
-    const da = pa[i] || 0;
-    const db = pb[i] || 0;
+    const da = pa.parts[i] || 0;
+    const db = pb.parts[i] || 0;
     if (da !== db) return da - db;
   }
-  return String(a || "").localeCompare(String(b || ""));
+  if (!pa.pre && !pb.pre) return 0;
+  if (!pa.pre && pb.pre) return 1;
+  if (pa.pre && !pb.pre) return -1;
+  return pa.pre.localeCompare(pb.pre);
 }
 
 function extractCommitShaFromText(str) {
@@ -287,6 +293,7 @@ function httpDownloadToFile(targetUrl, destPath, opts = {}, redirectCount = 0) {
 
   return new Promise((resolve, reject) => {
     let settled = false;
+    let activeWs = null;
     const cleanupPartial = () => {
       try {
         if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
@@ -296,6 +303,21 @@ function httpDownloadToFile(targetUrl, destPath, opts = {}, redirectCount = 0) {
       if (settled) return;
       settled = true;
       if (err) {
+        if (activeWs && !activeWs.closed) {
+          const wsRef = activeWs;
+          activeWs = null;
+          let cleaned = false;
+          const finishErr = () => {
+            if (cleaned) return;
+            cleaned = true;
+            cleanupPartial();
+            reject(err);
+          };
+          wsRef.once("close", finishErr);
+          try { wsRef.destroy(); } catch {}
+          setTimeout(finishErr, 300);
+          return;
+        }
         cleanupPartial();
         reject(err);
       } else {
@@ -344,6 +366,7 @@ function httpDownloadToFile(targetUrl, destPath, opts = {}, redirectCount = 0) {
 
       fs.mkdirSync(path.dirname(destPath), { recursive: true });
       const ws = fs.createWriteStream(destPath);
+      activeWs = ws;
       let totalBytes = 0;
 
       res.on("data", (chunk) => {
@@ -656,7 +679,7 @@ function writeUpdaterRestartScript(exePath, opts = {}) {
     "ping -n 2 127.0.0.1 >nul",
     "taskkill /IM Antigravity.exe >nul 2>&1",
     "ping -n 3 127.0.0.1 >nul",
-    "taskkill /F /T /IM Antigravity.exe >nul 2>&1",
+    "taskkill /F /IM Antigravity.exe >nul 2>&1",
     "for /L %%I in (1,1,12) do (",
     '  tasklist /FI "IMAGENAME eq Antigravity.exe" 2>nul | find /I "Antigravity.exe" >nul',
     "  if errorlevel 1 goto launch",

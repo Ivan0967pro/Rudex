@@ -3086,7 +3086,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v4.4.7"), "install.ps1 banner must show v4.4.7");
+  assert.ok(ps1Text.includes("Rudex v5.0.0"), "install.ps1 banner must show v5.0.0");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -5125,5 +5125,543 @@ test("Light theme Pass D2 preserves data-rudex-light-text and data-rudex-light-f
     assert.equal(navBtn.getAttribute("data-rudex-light-text"), null, "Switching to dark theme must remove data-rudex-light-text");
   } finally {
     engine.destroy();
+  }
+});
+
+// =============================================================================
+// 26. v5.0 Comprehensive Bugfix & UX Regression Suite
+// =============================================================================
+test("Claude Code composer: wallpaper effectiveBlurPx, multiline send anchoring, and voice dictation active-mic stability across scans", () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+
+  // 1) Wallpaper + Claude Code must NOT throw ReferenceError: effectiveBlurPx is not defined
+  const wpCss = te.buildThemeCss({
+    presetId: "claude-code-dark",
+    uiStyle: { preset: "claude-code" },
+    wallpaper: { type: "gradient", gradientPreset: "antigravity" },
+    glassBlur: 18,
+  }, { hostIsLight: false });
+  assert.ok(wpCss.includes("backdrop-filter: blur("), "Wallpaper + Claude Code must emit valid backdrop blur CSS");
+  assert.ok(wpCss.includes("padding: 0 36px 0 0 !important;"), "Claude Code textbox must reserve right padding for bottom-right send arrow");
+  assert.ok(wpCss.includes("overflow: visible !important;"), "Claude Code inputRow must allow slash/mention popups (overflow: visible)");
+  assert.ok(wpCss.includes('[data-rudex-comp-mic-active="1"]'), "Claude Code CSS must include active dictation pill styling");
+
+  // 2) Multiline composer + active dictation ("Stop Voice Recording" / "Остановить запись голоса")
+  const { doc, win } = createMockDom();
+  win.innerWidth = 1400;
+  win.innerHeight = 900;
+  const outer = doc.createElement("div");
+  outer.style.borderRadius = "16px";
+  outer.style.backgroundColor = "rgb(30, 30, 28)";
+  outer.getBoundingClientRect = () => ({ left: 260, top: 480, right: 1060, bottom: 740, width: 800, height: 260 });
+
+  const inRow = doc.createElement("div");
+  inRow.getBoundingClientRect = () => ({ left: 260, top: 480, right: 1060, bottom: 688, width: 800, height: 208 });
+  const ce = doc.createElement("div");
+  ce.setAttribute("contenteditable", "true");
+  ce.textContent = "Line 1\n\nLine 2\n\nLine 3\n\nLine 4";
+  ce.getBoundingClientRect = () => ({ left: 276, top: 494, right: 1020, bottom: 674, width: 744, height: 180 });
+  inRow.appendChild(ce);
+
+  const tBar = doc.createElement("div");
+  tBar.getBoundingClientRect = () => ({ left: 260, top: 688, right: 1060, bottom: 740, width: 800, height: 52 });
+
+  const bPlus = doc.createElement("button");
+  bPlus.textContent = "+";
+  bPlus.getBoundingClientRect = () => ({ left: 270, top: 698, right: 298, bottom: 726, width: 28, height: 28 });
+
+  const bModel = doc.createElement("button");
+  bModel.setAttribute("data-testid", "model-selector-trigger");
+  bModel.textContent = "Gemini 4 Neon";
+  // After Claude Code CSS order:-9 moves mic to the left of modelTrig visually, modelTrig.left > mic.left!
+  bModel.getBoundingClientRect = () => ({ left: 680, top: 698, right: 860, bottom: 726, width: 180, height: 28 });
+
+  const bMode = doc.createElement("button");
+  bMode.textContent = "Турбо";
+  bMode.getBoundingClientRect = () => ({ left: 870, top: 698, right: 940, bottom: 726, width: 70, height: 28 });
+
+  // Active dictation button in DOM AFTER modelTrig, but visually positioned LEFT of modelTrig by CSS order:-9
+  const bMic = doc.createElement("button");
+  bMic.setAttribute("aria-label", "Stop Voice Recording");
+  bMic.setAttribute("aria-pressed", "true");
+  bMic.getBoundingClientRect = () => ({ left: 304, top: 698, right: 344, bottom: 726, width: 40, height: 28 });
+
+  const bCancelMic = doc.createElement("button");
+  bCancelMic.setAttribute("aria-label", "Cancel recording");
+  bCancelMic.getBoundingClientRect = () => ({ left: 350, top: 698, right: 378, bottom: 726, width: 28, height: 28 });
+
+  const bSend = doc.createElement("button");
+  bSend.setAttribute("type", "submit");
+  bSend.setAttribute("aria-label", "Send message");
+  bSend.getBoundingClientRect = () => ({ left: 1018, top: 650, right: 1046, bottom: 678, width: 28, height: 28 });
+
+  tBar.appendChild(bPlus);
+  tBar.appendChild(bModel);
+  tBar.appendChild(bMode);
+  tBar.appendChild(bMic);
+  tBar.appendChild(bCancelMic);
+  tBar.appendChild(bSend);
+  outer.appendChild(inRow);
+  outer.appendChild(tBar);
+  doc.body.appendChild(outer);
+
+  const eng = te.createThemeEngine({ document: doc, window: win });
+  try {
+    eng.apply({ presetId: "claude-code-dark", uiStyle: { preset: "claude-code" } });
+    // Multiline send arrow must anchor near bottom of inRow (inRow.bottom 688 - outer.top 480 - 38 = 170px), NOT middle (~90px)
+    const sendTop = parseInt(outer.style.getPropertyValue("--rudex-cc-send-top"), 10);
+    assert.ok(sendTop >= 150, `Multiline Claude Code send arrow must anchor near bottom-right (got ${sendTop}px)`);
+
+    // Active recording mic & cancel-recording must NEVER be hijacked as send, and MUST receive data-rudex-comp-mic-active!
+    assert.equal(bMic.getAttribute("data-rudex-comp-mic"), "1", "Active Stop Voice Recording button must stay classified as mic");
+    assert.equal(bMic.getAttribute("data-rudex-comp-mic-active"), "1", "Active Stop Voice Recording button must get data-rudex-comp-mic-active");
+    assert.equal(bMic.getAttribute("data-rudex-comp-send"), null, "Active Stop Voice Recording button must NEVER be hijacked as send");
+    assert.equal(bCancelMic.getAttribute("data-rudex-comp-mic"), "1", "Cancel recording button must stay classified as mic");
+    assert.equal(bCancelMic.getAttribute("data-rudex-comp-send"), null, "Cancel recording button must NEVER be hijacked as send");
+    assert.equal(bSend.getAttribute("data-rudex-comp-send"), "1", "Real Send button must stay classified as send");
+
+    // Repeated scan (simulating typing / dictation text updates while CSS order:-9 keeps mic left of modelTrig)
+    eng.scanWallpaperShells();
+    assert.equal(bMic.getAttribute("data-rudex-comp-mic"), "1", "2nd scan must keep active mic classified as mic");
+    assert.equal(bMic.getAttribute("data-rudex-comp-mic-active"), "1", "2nd scan must preserve data-rudex-comp-mic-active");
+    assert.equal(bMic.getAttribute("data-rudex-comp-send"), null, "2nd scan must never steal active mic as send");
+
+    // When recording stops -> idle Start Voice Recording clears active pill while keeping mic icon visible
+    bMic.setAttribute("aria-label", "Начать запись голоса");
+    bMic.removeAttribute("aria-pressed");
+    tBar.removeChild(bCancelMic);
+    eng.scanWallpaperShells();
+    assert.equal(bMic.getAttribute("data-rudex-comp-mic"), "1", "Idle Russian voice recording button must keep data-rudex-comp-mic");
+    assert.equal(bMic.getAttribute("data-rudex-comp-mic-active"), null, "Idle mic must clear data-rudex-comp-mic-active");
+
+    // 3) Lexical absolute placeholder overlay + empty slot inside inputRow must be tagged & aligned at (0,0) with zero double-padding
+    const phWrap = doc.createElement("div");
+    phWrap.className = "relative min-h-[44px] py-3 px-4";
+    const emptySlot = doc.createElement("div");
+    emptySlot.className = "attachments-empty";
+    const phDiv = doc.createElement("div");
+    phDiv.className = "pointer-events-none absolute top-3 left-4 text-muted-foreground";
+    const phSpan = doc.createElement("span");
+    phSpan.textContent = "Спросите что угодно, @ — упомянуть, / — команды";
+    phDiv.appendChild(phSpan);
+    inRow.removeChild(ce);
+    phWrap.appendChild(ce);
+    phWrap.appendChild(phDiv);
+    inRow.appendChild(emptySlot);
+    inRow.appendChild(phWrap);
+    eng.scanWallpaperShells();
+
+    assert.equal(ce.getAttribute("data-rudex-comp-editor"), "1", "Editor inside inputRow must be tagged data-rudex-comp-editor");
+    assert.equal(phWrap.getAttribute("data-rudex-comp-editor-wrap"), "1", "Editor wrapper must be tagged data-rudex-comp-editor-wrap");
+    assert.equal(phDiv.getAttribute("data-rudex-comp-placeholder"), "wrap", "Lexical placeholder overlay inside editor wrapper must get data-rudex-comp-placeholder='wrap'");
+    assert.equal(phSpan.getAttribute("data-rudex-comp-placeholder-inner"), "1", "Inner placeholder span must get data-rudex-comp-placeholder-inner");
+    assert.equal(emptySlot.getAttribute("data-rudex-comp-empty-slot"), "1", "Empty sibling container inside inputRow must be hidden via data-rudex-comp-empty-slot");
+    assert.ok(wpCss.includes('[data-rudex-comp-placeholder="wrap"]'), "Claude Code CSS must zero-align placeholder overlay inside editor wrapper");
+    const codexAlignCss = te.buildThemeCss({ presetId: "native", uiStyle: { preset: "codex" } });
+    const ocAlignCss = te.buildThemeCss({ presetId: "native", uiStyle: { preset: "opencode" } });
+    assert.ok(codexAlignCss.includes('[data-rudex-comp-placeholder="wrap"]'), "Codex CSS must zero-align placeholder overlay");
+    assert.ok(ocAlignCss.includes('[data-rudex-comp-placeholder="wrap"]'), "OpenCode CSS must zero-align placeholder overlay");
+  } finally {
+    eng.destroy();
+  }
+});
+
+test("Studio UX redesign: 6 grouped tabs, sticky subtabs, non-blocking live drawer, legacy routing, and platform suites", () => {
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+
+  const css = buildStudioStyles();
+  assert.ok(css.includes(".modal-backdrop.is-appearance-live") && css.includes("pointer-events: none"), "Live Appearance preview backdrop must be non-blocking");
+  assert.ok(css.includes(".modal-sticky-subtabs"), "Studio CSS must style sticky subtabs");
+  assert.ok(css.includes(".nav-group-label"), "Studio CSS must style grouped sidebar navigation");
+
+  const { doc, win } = createMockDom();
+  const translator = createDomTranslator({ document: doc, window: win, initialLocale: "ru" });
+  const engine = te.createThemeEngine({ document: doc, window: win });
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      on() {},
+      removeListener() {},
+      send() {},
+      sendSync() { return { ok: true }; },
+      async invoke(ch) {
+        if (ch === "agy-studio:get-state") return { ok: true, locale: "ru", settings: {} };
+        if (ch === "agy-studio:get-workspace-path") return { ok: true, workspacePath: "" };
+        return { ok: true };
+      },
+    },
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine: engine,
+  });
+
+  try {
+    panel.init();
+    const host = doc.getElementById("rudex-studio-host");
+    assert.equal(host.getAttribute("data-rudex-ignore"), "1", "Studio host must set data-rudex-ignore=1");
+    const root = host.shadowRoot.querySelector(".studio-root");
+    assert.equal(root.getAttribute("data-rudex-ignore"), "1");
+    const modalMount = host.shadowRoot.querySelector(".modal-mount");
+
+    panel.setOpen(true, { tab: "appearance", appSubTab: "theme" });
+    assert.ok(modalMount.innerHTML.includes("nav-group-label"), "Redesigned sidebar must group navigation tabs");
+    assert.ok(modalMount.innerHTML.includes("modal-sticky-subtabs"), "Modal must render sticky subtabs");
+    assert.ok(modalMount.innerHTML.includes('data-action="apply-platform-suite"'), "Theme tab must offer 1-click Codex & OpenCode platform suites");
+    assert.ok(modalMount.innerHTML.includes('data-action="set-theme-filter"'), "Theme tab must offer Dark/Light/All filter pills");
+
+    // Backwards-compatible legacy routing
+    panel.setOpen(true, { tab: "settings", subTab: "workshop" });
+    assert.ok(modalMount.innerHTML.includes("Мастерская AGY"), "Legacy settings->workshop must route to Workshop tab");
+    panel.setOpen(true, { tab: "settings", subTab: "history" });
+    assert.ok(modalMount.innerHTML.includes("История") || modalMount.innerHTML.includes("Черновик"), "Legacy settings->history must route to History tab");
+    panel.setOpen(true, { tab: "live-edits" });
+    assert.ok(modalMount.innerHTML.includes("Пульт агента") || modalMount.innerHTML.includes("Правки"), "Legacy live-edits must route to Agent Hub");
+  } finally {
+    panel.destroy();
+    engine.destroy();
+    translator.destroy();
+  }
+});
+
+test("DOM translator protects #rudex-studio-host Shadow DOM and [data-testid='agent-response']", () => {
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+  const { doc, win } = createMockDom();
+
+  const studioHost = doc.createElement("div");
+  studioHost.id = "rudex-studio-host";
+  const sr = studioHost.attachShadow({ mode: "open" });
+  const studioSpan = doc.createElement("span");
+  studioSpan.textContent = "Settings";
+  sr.appendChild(studioSpan);
+  doc.body.appendChild(studioHost);
+
+  const agentResp = doc.createElement("div");
+  agentResp.setAttribute("data-testid", "agent-response");
+  const respP = doc.createElement("p");
+  respP.textContent = "Settings";
+  agentResp.appendChild(respP);
+  doc.body.appendChild(agentResp);
+
+  const navBtn = doc.createElement("button");
+  navBtn.textContent = "Settings";
+  doc.body.appendChild(navBtn);
+
+  const tr = createDomTranslator({
+    document: doc,
+    window: win,
+    dictionary: { Settings: "Настройки" },
+    applyDynamicRules,
+    initialLocale: "ru",
+  });
+  try {
+    tr.init();
+    assert.equal(navBtn.textContent, "Настройки", "Normal UI button must be translated");
+    assert.equal(studioSpan.textContent, "Settings", "Studio Shadow DOM must never be walked/translated by dom-translator");
+    assert.equal(respP.textContent, "Settings", "Agent response content must never be translated by UI dom-translator");
+  } finally {
+    tr.destroy();
+  }
+});
+
+test("Backend v5.0 fixes: keybinding recording pause, uiStyle merge, workshop Cyrillic/malformed MCP, urgent __new__ hook, semver", () => {
+  const ws = require(path.join(SCRIPTS_DIR, "agy-workshop.js"));
+  const { compareSemver: cmpVer } = require(path.join(SCRIPTS_DIR, "updater-core.js"));
+
+  // 1) updater-core compareSemver with v-prefix and prereleases
+  assert.equal(cmpVer("v5.0.0", "5.0.0"), 0, "v5.0.0 must equal 5.0.0");
+  assert.ok(cmpVer("5.0.0", "5.0.0-beta.1") > 0, "Release 5.0.0 must be newer than 5.0.0-beta.1");
+  assert.ok(cmpVer("5.0.0-beta.1", "5.0.0") < 0);
+
+  // 2) agy-workshop: Cyrillic skill slug, disabled root rules, malformed MCP protection, quoted args, deleteRule guard
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-ws-v5-"));
+  const prevCfgEnv = process.env.RUDEX_AGY_CONFIG_DIR;
+  try {
+    const fakeGlobal = path.join(tmpDir, "global-cfg");
+    const fakeWs = path.join(tmpDir, "workspace");
+    fs.mkdirSync(fakeGlobal, { recursive: true });
+    fs.mkdirSync(fakeWs, { recursive: true });
+    process.env.RUDEX_AGY_CONFIG_DIR = fakeGlobal;
+
+    const cyrSkill = ws.saveSkill({ scope: "global", name: "Ревью кода", description: "Проверка PR", body: "Check diff" });
+    assert.equal(cyrSkill.ok, true, "Cyrillic skill name must transliterate cleanly");
+    assert.equal(cyrSkill.slug, "revyu-koda");
+
+    fs.writeFileSync(path.join(fakeWs, "AGENTS.md.disabled"), "# Disabled root rule\n", "utf8");
+    const listed = ws.listCustomizations({ workspacePath: fakeWs });
+    const disRoot = listed.rules.find((r) => r.fileName === "AGENTS.md" && r.scope === "workspace");
+    assert.ok(disRoot && disRoot.enabled === false, "Disabled root AGENTS.md.disabled must still be listed");
+
+    const nonMdPath = path.join(fakeGlobal, "important.json");
+    fs.writeFileSync(nonMdPath, "{}", "utf8");
+    const badDel = ws.deleteRule({ path: nonMdPath });
+    assert.equal(badDel.ok, false);
+    assert.equal(badDel.error, "INVALID_RULE_FILE");
+    assert.ok(fs.existsSync(nonMdPath), "deleteRule must never delete non-.md files");
+
+    const mcpSave = ws.saveMcpServer({
+      scope: "global",
+      name: "quoted-srv",
+      command: "node",
+      argsText: '--dir "C:\\My Projects\\demo" --flag',
+    });
+    assert.equal(mcpSave.ok, true);
+    assert.deepEqual(mcpSave.server.args, ["--dir", "C:\\My Projects\\demo", "--flag"], "Quoted MCP args must preserve spaces");
+
+    const mcpPath = path.join(fakeGlobal, "mcp_config.json");
+    fs.writeFileSync(mcpPath, "{ broken json !!!", "utf8");
+    const badMcp = ws.saveMcpServer({ scope: "global", name: "other", command: "npx", argsText: "demo" });
+    assert.equal(badMcp.ok, false);
+    assert.equal(badMcp.error, "MALFORMED_MCP_CONFIG");
+    assert.equal(fs.readFileSync(mcpPath, "utf8"), "{ broken json !!!", "Malformed mcp_config.json must never be overwritten");
+  } finally {
+    if (prevCfgEnv === undefined) delete process.env.RUDEX_AGY_CONFIG_DIR;
+    else process.env.RUDEX_AGY_CONFIG_DIR = prevCfgEnv;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  // 3) rudex-hook PreToolUse urgent live edit created on "__new__" chat
+  const hookTmp = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-hook-urgent-new-"));
+  try {
+    const queueDir = path.join(hookTmp, "studio_live_edits", "queue");
+    fs.mkdirSync(queueDir, { recursive: true });
+    fs.writeFileSync(path.join(hookTmp, "studio_live_edits", "pending.flag"), "1", "utf8");
+    fs.writeFileSync(
+      path.join(queueDir, "le-1.json"),
+      JSON.stringify({
+        id: "le-1",
+        chatKey: "__new__",
+        text: "Не трогай конфиг!",
+        status: "pending",
+        urgent: true,
+        fallbackAny: true,
+        createdAt: Date.now(),
+      }),
+      "utf8"
+    );
+    const proc = spawnSync(process.execPath, [path.join(SCRIPTS_DIR, "rudex-hook.js")], {
+      input: JSON.stringify({
+        hookEventName: "PreToolUse",
+        conversationId: "11111111-2222-3333-4444-555555555555",
+        toolCall: { name: "write_file", args: { Path: "a.txt" } },
+      }),
+      env: Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: hookTmp, RUDEX_SKIP_AUTO_REPATCH: "1" }),
+      encoding: "utf8",
+    });
+    assert.equal(proc.status, 0);
+    const out = JSON.parse(proc.stdout.trim());
+    assert.equal(out.decision, "deny", "Urgent live edit queued on __new__ chat must intercept mutating PreToolUse");
+    assert.ok(String(out.reason || "").includes("Не трогай конфиг!"));
+  } finally {
+    fs.rmSync(hookTmp, { recursive: true, force: true });
+  }
+
+  // 4) i18n-main keybinding recording pause + Ctrl+Plus normalization + uiStyle deep merge
+  const NodeModule = require("node:module");
+  const mainTmp = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-main-v5-"));
+  try {
+    const mockElectron = {
+      app: { getPath: () => mainTmp, isReady: () => false, on() {} },
+      ipcMain: { handle() {}, on() {} },
+      BrowserWindow: { getAllWindows: () => [], getFocusedWindow: () => null },
+      Menu: { getApplicationMenu: () => null },
+      protocol: { handle() {} },
+      dialog: {},
+      shell: {},
+      clipboard: {},
+      nativeImage: {},
+    };
+    const origLoad = NodeModule._load;
+    let i18nMain;
+    NodeModule._load = function (req, parent, isMain) {
+      if (req === "electron") return mockElectron;
+      return origLoad.apply(this, arguments);
+    };
+    try {
+      delete require.cache[require.resolve(path.join(SCRIPTS_DIR, "i18n-main.js"))];
+      i18nMain = require(path.join(SCRIPTS_DIR, "i18n-main.js"));
+    } finally {
+      NodeModule._load = origLoad;
+    }
+
+    assert.equal(i18nMain.sanitizeKeybindings({ toggleStudio: "Ctrl++" }).toggleStudio, "Ctrl+Plus");
+    assert.equal(
+      i18nMain.matchInputToCombo({ type: "keyDown", control: true, alt: false, shift: false, key: " ", code: "Space" }, "Ctrl+Space"),
+      true
+    );
+
+    const fakeContents = { isDestroyed: () => false, send() {} };
+    i18nMain.setRecordingKeybinding(true);
+    assert.equal(
+      i18nMain.handleKeybindingEvent(fakeContents, { type: "keyDown", control: true, alt: true, shift: false, key: "p", code: "KeyP" }),
+      false,
+      "Active keybinding recording must pause global hotkey interception"
+    );
+    i18nMain.setRecordingKeybinding(false);
+  } finally {
+    fs.rmSync(mainTmp, { recursive: true, force: true });
+  }
+});
+
+test("Chat tools chip visibility, opt-in model context window meter (default OFF), and wallpaper Original preset full-bleed reset", async () => {
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+
+  // 1) Default showContextMeter MUST be false (OFF by default)
+  assert.equal(v5Core.RUDEX_LIVE_EDIT_DEFAULTS.showContextMeter, false, "showContextMeter must be OFF by default");
+
+  // 2) Model context window resolver handles Claude, Gemini, GPT-5/Codex, and explicit 1M/200K tags
+  assert.equal(v5Core.rv5ResolveModelContextWindow("Claude Opus 5.5 Низкий").maxTokens, 200000);
+  assert.equal(v5Core.rv5ResolveModelContextWindow("Claude Sonnet 4.6 (1M)").maxTokens, 1000000);
+  assert.equal(v5Core.rv5ResolveModelContextWindow("Gemini 4 Neon Сверхвысокий").maxTokens, 1000000);
+  assert.equal(v5Core.rv5ResolveModelContextWindow("GPT-5.3 Codex High").maxTokens, 400000);
+
+  // 3) Chat dock omits context pill when showContextMeter=false, and renders crisp fill bar + popover when true
+  const dockOff = v5Ui.rv5BuildChatDockHtml({
+    agentProfile: {},
+    liveEditInline: { showChatDock: true, showContextMeter: false },
+    contextInfo: { modelName: "Claude Opus 5.5", usedTokens: 42000, exact: true, chatTitle: "Мой чат" },
+    isRu: true,
+  });
+  assert.ok(dockOff.includes("rx-agent-chip"), "Tools chip must render");
+  assert.equal(dockOff.includes("rx-ctx-pill"), false, "Context window pill must NOT render when showContextMeter is false");
+
+  const dockOn = v5Ui.rv5BuildChatDockHtml({
+    agentProfile: {},
+    liveEditInline: { showChatDock: true, showContextMeter: true },
+    contextPopoverOpen: true,
+    contextInfo: { modelName: "Claude Opus 5.5 Низкий", usedTokens: 50000, exact: true, chatTitle: "Рефакторинг UI" },
+    isRu: true,
+  });
+  assert.ok(dockOn.includes("rx-ctx-pill"), "Context window pill must render when showContextMeter is true");
+  assert.ok(dockOn.includes("50K / 200K") && dockOn.includes("25%"), "Context pill must show exact used/max tokens and % fill");
+  assert.ok(dockOn.includes("rx-ctx-popover") && dockOn.includes("Рефакторинг UI"), "Context popover must show active chat name & breakdown");
+
+  // 4) Tools chip CSS has full opacity and stronger border/shadow so it stands out in Claude Code
+  const v5Css = v5Core.rv5BuildExtraShadowCss();
+  assert.ok(v5Css.includes(".rx-ctx-pill") && v5Css.includes("opacity: 1;"), "Tools & context chips must have full opacity and crisp border contrast");
+
+  // 5) Wallpaper 'Оригинал' atmosphere preset resets full-bleed fit='cover', scale=100, offset=0, rotate=0, blur=0
+  const { doc, win } = createMockDom();
+  const translator = createDomTranslator({ document: doc, window: win, initialLocale: "ru" });
+  const engine = te.createThemeEngine({ document: doc, window: win });
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      on() {},
+      removeListener() {},
+      send() {},
+      sendSync() { return { ok: true }; },
+      async invoke(ch) {
+        if (ch === "agy-studio:get-state") {
+          return {
+            ok: true,
+            locale: "ru",
+            settings: {
+              appearance: {
+                wallpaper: {
+                  type: "image",
+                  mediaUrl: "agy-media://local/bg.png",
+                  mediaFile: "bg.png",
+                  fit: "contain",
+                  scale: 70,
+                  blur: 10,
+                  dim: 55,
+                  offsetX: 15,
+                  offsetY: -10,
+                  rotate: 90,
+                  flipX: true,
+                  tintEnabled: true,
+                },
+              },
+            },
+          };
+        }
+        return { ok: true };
+      },
+    },
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine: engine,
+  });
+
+  try {
+    panel.init();
+    panel.applyRemoteState({
+      locale: "ru",
+      settings: {
+        appearance: {
+          wallpaper: {
+            type: "image",
+            mediaUrl: "agy-media://local/bg.png",
+            mediaFile: "bg.png",
+            fit: "contain",
+            scale: 70,
+            blur: 10,
+            dim: 55,
+            offsetX: 15,
+            offsetY: -10,
+            rotate: 90,
+            flipX: true,
+            tintEnabled: true,
+          },
+        },
+      },
+    }, true);
+    panel.setOpen(true, { tab: "appearance", appSubTab: "wallpaper" });
+    const host = doc.getElementById("rudex-studio-host");
+    const root = host.shadowRoot.querySelector(".studio-root");
+
+    // Click "Кино", then click "Оригинал" -> must reset fit="cover", scale=100, offset=0, rotate=0, flipX=false, tintEnabled=false!
+    const cineBtn = doc.createElement("button");
+    cineBtn.setAttribute("data-action", "apply-wp-atmos");
+    cineBtn.setAttribute("data-id", "cinema");
+    root.appendChild(cineBtn);
+    root.dispatchEvent({ type: "click", target: cineBtn });
+
+    const origBtn = doc.createElement("button");
+    origBtn.setAttribute("data-action", "apply-wp-atmos");
+    origBtn.setAttribute("data-id", "original");
+    root.appendChild(origBtn);
+    root.dispatchEvent({ type: "click", target: origBtn });
+    await new Promise((r) => setTimeout(r, 25));
+
+    const cur = engine.getCurrent();
+    assert.equal(cur.wallpaper.fit, "cover", "Original wallpaper preset must restore fit='cover' (full-bleed stretch)");
+    assert.equal(cur.wallpaper.scale, 100, "Original wallpaper preset must restore scale=100%");
+    assert.equal(cur.wallpaper.blur, 0);
+    assert.equal(cur.wallpaper.offsetX, 0);
+    assert.equal(cur.wallpaper.rotate, 0);
+    assert.equal(cur.wallpaper.flipX, false);
+    assert.equal(cur.wallpaper.tintEnabled, false);
+
+    // Normal scroll wheel (without Ctrl) over wp-stage MUST NOT shrink wp.scale
+    const stageEl = doc.createElement("div");
+    stageEl.setAttribute("data-wp-stage", "1");
+    root.appendChild(stageEl);
+    root.dispatchEvent({ type: "wheel", target: stageEl, deltaY: 120, ctrlKey: false, metaKey: false });
+    await new Promise((r) => setTimeout(r, 25));
+    assert.equal(engine.getCurrent().wallpaper.scale, 100, "Plain wheel scroll over wallpaper preview must NOT change scale");
+    root.dispatchEvent({ type: "wheel", target: stageEl, deltaY: -120, ctrlKey: true, metaKey: false });
+    await new Promise((r) => setTimeout(r, 25));
+    assert.equal(engine.getCurrent().wallpaper.scale, 105, "Ctrl+wheel over wallpaper preview must zoom scale smoothly");
+  } finally {
+    panel.destroy();
+    engine.destroy();
+    translator.destroy();
   }
 });

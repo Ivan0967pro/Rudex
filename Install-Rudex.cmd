@@ -5,7 +5,7 @@ set "USER_ARGS=%*"
 setlocal EnableDelayedExpansion
 
 echo ========================================================
-echo   Rudex v4.0.0 -- Installer ^& Antigravity Patcher
+echo   Rudex v5.0.0 -- Installer ^& Antigravity Patcher
 echo ========================================================
 echo.
 
@@ -41,20 +41,22 @@ tasklist /FI "IMAGENAME eq Antigravity.exe" 2>nul | find /I "Antigravity.exe" >n
 if not errorlevel 1 set "WAS_RUNNING=1"
 
 set "FORCE_CLOSE=0"
-echo !USER_ARGS! | findstr /I /C:"--force" /C:"-f" >nul
-if not errorlevel 1 set "FORCE_CLOSE=1"
+for %%A in (%*) do (
+  if /I "%%~A"=="--force" set "FORCE_CLOSE=1"
+  if /I "%%~A"=="-f" set "FORCE_CLOSE=1"
+)
 
 if "!WAS_RUNNING!"=="1" (
   if "!FORCE_CLOSE!"=="1" (
     echo Stopping running Antigravity process...
     taskkill /F /IM Antigravity.exe >nul 2>&1
-    timeout /t 2 /nobreak >nul
+    ping -n 3 127.0.0.1 >nul
   ) else (
     echo Antigravity is currently running. Close it now to safely apply files?
     choice /C YN /M "Close Antigravity and install Rudex now"
     if !ERRORLEVEL! equ 1 (
       taskkill /F /IM Antigravity.exe >nul 2>&1
-      timeout /t 2 /nobreak >nul
+      ping -n 3 127.0.0.1 >nul
     ) else (
       echo Continuing without closing Antigravity -- restart Antigravity manually afterward.
       set "WAS_RUNNING=0"
@@ -64,11 +66,11 @@ if "!WAS_RUNNING!"=="1" (
 
 echo Applying Rudex localization, studio, and hooks...
 if "!RUNTIME_MODE!"=="node" (
-  node "!INSTALL_JS!" --sync-plugin !USER_ARGS!
+  node "!INSTALL_JS!" --sync-plugin %*
 ) else (
   set "ELECTRON_RUN_AS_NODE=1"
   set "ELECTRON_NO_ASAR=1"
-  "!AGY_EXE!" "!INSTALL_JS!" --sync-plugin !USER_ARGS!
+  "!AGY_EXE!" "!INSTALL_JS!" --sync-plugin %*
   set "ELECTRON_RUN_AS_NODE="
   set "ELECTRON_NO_ASAR="
 )
@@ -82,12 +84,12 @@ if !EXIT_CODE! neq 0 (
 )
 
 echo.
-echo Rudex v4.0.0 installed cleanly!
+echo Rudex v5.0.0 installed cleanly!
 if "!WAS_RUNNING!"=="1" if defined AGY_EXE (
   echo Relaunching Antigravity...
   start "" "!AGY_EXE!"
 ) else (
-  echo Launch or restart Antigravity to activate Rudex.
+  echo Launch or restart Antigravity (or run Rudex-Apply-Restart.cmd on Desktop if app.asar was locked) to activate Rudex.
 )
-timeout /t 3 /nobreak >nul
+ping -n 4 127.0.0.1 >nul
 exit /b 0

@@ -328,11 +328,11 @@ const DYNAMIC_RULES = [
   },
   {
     re: /^Every (\d+) minutes?(.*)$/,
-    fn: (_, n, rest) => `Каждые ${n} ${ruPlural(n, "минуту", "минуты", "минут")}${rest}`,
+    fn: (_, n, rest) => (Number(n) === 1 ? `Каждую минуту${rest}` : `Каждые ${n} ${ruPlural(n, "минуту", "минуты", "минут")}${rest}`),
   },
   {
     re: /^Every (\d+) hours?(.*)$/,
-    fn: (_, n, rest) => `Каждые ${n} ${ruPlural(n, "час", "часа", "часов")}${rest}`,
+    fn: (_, n, rest) => (Number(n) === 1 ? `Каждый час${rest}` : `Каждые ${n} ${ruPlural(n, "час", "часа", "часов")}${rest}`),
   },
 
   // 3. Counts, plurals, pagination & counters
@@ -571,8 +571,8 @@ const DYNAMIC_RULES = [
     fn: (_, n) => `Сортировка и фильтрация чатов (активно: ${n})`,
   },
   {
-    re: /^Marked (\d+) conversations as read$/,
-    fn: (_, n) => `${ruPlural(n, "Отмечен", "Отмечено", "Отмечено")} ${n} ${ruPlural(n, "чат", "чата", "чатов")} как прочитанные`,
+    re: /^Marked (\d+) conversations? as read$/,
+    fn: (_, n) => `${ruPlural(n, "Отмечен", "Отмечено", "Отмечено")} ${n} ${ruPlural(n, "чат", "чата", "чатов")} как ${ruPlural(n, "прочитанный", "прочитанные", "прочитанные")}`,
   },
   {
     re: /^Push (\d+) commits? to (.+)$/,
@@ -628,7 +628,10 @@ const DYNAMIC_RULES = [
   },
   {
     re: /^Stop (\d+) ([^?]+)\?$/,
-    fn: (_, n, what) => `Остановить ${n} ${translateEntityType(what.replace(/s$/, ""), "acc")}?`,
+    fn: (_, n, what) => {
+      const singular = /ss$/i.test(what) ? what : what.replace(/s$/, "");
+      return `Остановить ${n} ${translateEntityType(singular, "acc")}?`;
+    },
   },
 
   // 5. Selectors / current value / accessibility labels
@@ -939,8 +942,8 @@ const DYNAMIC_RULES = [
     fn: (_, dt) => `Базовая квота вашего тарифа обновится ${dt}.`,
   },
   {
-    re: /^You have (\d+) conversations in progress\. Updating will cancel them and you'll need to manually restart them\.$/,
-    fn: (_, n) => `У вас сейчас ${n} ${ruPlural(n, "активный чат", "активных чата", "активных чатов")}. Обновление прервёт их, и вам придётся перезапустить их вручную.`,
+    re: /^You have (\d+) conversations? in progress\. Updating will cancel (?:it|them) and you'll need to manually restart (?:it|them)\.$/,
+    fn: (_, n) => `У вас сейчас ${n} ${ruPlural(n, "активный чат", "активных чата", "активных чатов")}. Обновление прервёт ${ruPlural(n, "его", "их", "их")}, и вам придётся перезапустить ${ruPlural(n, "его", "их", "их")} вручную.`,
   },
   {
     re: /^Welcome back, (.+)\. Where should we pick up\?$/,
@@ -1494,7 +1497,7 @@ const DYNAMIC_RULES = [
     fn: (_, c) => `Завершено с кодом ${c}.`,
   },
   {
-    re: /^(\d+) folders in this project could not be loaded because their locations are invalid\.$/,
+    re: /^(\d+) folders? in this project could not be loaded because (?:its|their) locations? (?:is|are) invalid\.$/,
     fn: (_, n) => `Не удалось загрузить ${n} ${ruPlural(n, "папку", "папки", "папок")} этого проекта из-за некорректного пути.`,
   },
   {

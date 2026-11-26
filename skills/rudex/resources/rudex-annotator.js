@@ -246,7 +246,6 @@ function createScreenshotAnnotator(options) {
     if (st.drawing) {
       annDrawStroke(ctx, st.drawing);
     }
-    fitCanvasDisplay();
   }
 
   function exportPngDataUrl() {
@@ -276,6 +275,7 @@ function createScreenshotAnnotator(options) {
       st.loading = false;
       st.baseImage = img;
       st.baseDataUrl = dataUrl;
+      st.zoom = 1;
       st.strokes = [];
       st.redoStack = [];
       st.drawing = null;
@@ -379,6 +379,14 @@ function createScreenshotAnnotator(options) {
     st.drawing = null;
     st.pendingTextPos = null;
     st.sourceCtx = null;
+    st.baseImage = null;
+    st.baseDataUrl = "";
+    st.strokes = [];
+    st.redoStack = [];
+    st.zoom = 1;
+    canvasEl = null;
+    stageEl = null;
+    fileInputEl = null;
     if (mountEl) mountEl.innerHTML = "";
   }
 
@@ -460,6 +468,9 @@ function createScreenshotAnnotator(options) {
         for (let i = 0; i < btns.length; i += 1) {
           const b = btns[i];
           if (!b || b.hasAttribute("data-rudex-img-edit-btn")) continue;
+          // Never click a preview/lightbox trigger button that wraps the <img> itself
+          if (srcCtx.sourceImgEl && typeof b.contains === "function" && b.contains(srcCtx.sourceImgEl)) continue;
+          if (typeof b.querySelector === "function" && b.querySelector("img")) continue;
           const lbl = String((b.getAttribute && (b.getAttribute("aria-label") || b.getAttribute("title"))) || b.textContent || "").toLowerCase();
           if (btns.length <= 2 || /remove|delete|close|удал|убра|закры|×|✕/.test(lbl)) {
             if (typeof b.click === "function") b.click();
@@ -475,26 +486,29 @@ function createScreenshotAnnotator(options) {
     if (!dataUrl) return;
     const note = st.noteText.trim();
     const srcCtx = st.sourceCtx;
-    invokeIpc("agy-studio:write-clipboard-image", { dataUrl }).then(() => {
-      closeNativeLightboxIfAny(srcCtx);
-      removeOriginalThumbIfAny(srcCtx);
-      const doPaste = () => {
-        const okPaste = pasteImageIntoNativeComposer(dataUrl, note);
-        if (onNotify) {
-          onNotify(
-            okPaste
-              ? (isRu() ? "Скрин с правками вставлен в чат (также в буфере)" : "Annotated image attached to chat")
-              : (isRu() ? "Скрин скопирован — нажмите Ctrl+V в чате" : "Copied — press Ctrl+V in chat")
-          );
+    Promise.resolve(invokeIpc("agy-studio:write-clipboard-image", { dataUrl }))
+      .catch(() => ({ ok: false }))
+      .then((res) => {
+        const clipOk = Boolean(res && res.ok);
+        closeNativeLightboxIfAny(srcCtx);
+        removeOriginalThumbIfAny(srcCtx);
+        const doPaste = () => {
+          const okPaste = pasteImageIntoNativeComposer(dataUrl, note);
+          if (onNotify) {
+            onNotify(
+              okPaste
+                ? (isRu() ? (clipOk ? "Скрин с правками вставлен в чат (также в буфере)" : "Скрин с правками вставлен в чат") : "Annotated image attached to chat")
+                : (isRu() ? (clipOk ? "Скрин скопирован — нажмите Ctrl+V в чате" : "Не удалось вставить скрин") : (clipOk ? "Copied — press Ctrl+V in chat" : "Failed to attach image"))
+            );
+          }
+        };
+        if (srcCtx && (srcCtx.fromLightbox || srcCtx.thumbWrapper) && win && typeof win.setTimeout === "function") {
+          win.setTimeout(doPaste, 45);
+        } else {
+          doPaste();
         }
-      };
-      if (srcCtx && (srcCtx.fromLightbox || srcCtx.thumbWrapper) && win && typeof win.setTimeout === "function") {
-        win.setTimeout(doPaste, 45);
-      } else {
-        doPaste();
-      }
-      close();
-    });
+        close();
+      });
   }
 
   function handleCopyOnly() {
@@ -541,8 +555,10 @@ function createScreenshotAnnotator(options) {
     if (!mountEl) return;
     const u = mountEl.querySelector('[data-ann-act="undo"]');
     const r = mountEl.querySelector('[data-ann-act="redo"]');
+    const c = mountEl.querySelector('[data-ann-act="clear"]');
     if (u) u.disabled = st.strokes.length === 0;
     if (r) r.disabled = st.redoStack.length === 0;
+    if (c) c.disabled = st.strokes.length === 0;
   }
 
   function commitPendingText(val) {
@@ -600,9 +616,13 @@ function createScreenshotAnnotator(options) {
 
     const finishStroke = () => {
       if (!st.drawing) return;
-      st.strokes.push(st.drawing);
-      st.redoStack = [];
+      const d = st.drawing;
       st.drawing = null;
+      const isZeroShape = !d.points && Math.hypot((d.x2 || 0) - (d.x1 || 0), (d.y2 || 0) - (d.y1 || 0)) < 3;
+      if (!isZeroShape) {
+        st.strokes.push(d);
+        st.redoStack = [];
+      }
       redrawCanvas();
       updateUndoRedoButtons();
     };
@@ -704,6 +724,7 @@ function createScreenshotAnnotator(options) {
     fileInputEl = mountEl.querySelector('[data-ann-role="fileInput"]');
     if (canvasEl) {
       redrawCanvas();
+      fitCanvasDisplay();
       attachCanvasEvents();
       if (win && typeof win.requestAnimationFrame === "function") {
         win.requestAnimationFrame(() => fitCanvasDisplay());
@@ -796,6 +817,8 @@ function createScreenshotAnnotator(options) {
         return true;
       }
       if (e.key === "Escape") {
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        if (typeof e.stopPropagation === "function") e.stopPropagation();
         st.pendingTextPos = null;
         render();
         return true;
@@ -803,19 +826,26 @@ function createScreenshotAnnotator(options) {
       return false;
     }
     if (e.key === "Escape") {
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
       close();
       return true;
     }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
+    const keyLow = String(e.key || "").toLowerCase();
+    const isUndoKey = e.code === "KeyZ" || keyLow === "z" || keyLow === "я";
+    const isRedoKey = e.code === "KeyY" || keyLow === "y" || keyLow === "н";
+    if ((e.ctrlKey || e.metaKey) && isUndoKey) {
       if (role === "noteInput") return false;
       if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
       if (e.shiftKey) redo();
       else undo();
       return true;
     }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "y" || e.key === "Y")) {
+    if ((e.ctrlKey || e.metaKey) && isRedoKey) {
       if (role === "noteInput") return false;
       if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
       redo();
       return true;
     }

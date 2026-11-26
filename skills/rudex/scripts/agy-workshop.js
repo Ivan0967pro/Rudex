@@ -90,7 +90,7 @@ function resolveWorkspaceAgentsDir(workspacePath) {
 }
 
 function parseMarkdownFrontmatter(raw) {
-  const text = String(raw || "");
+  const text = String(raw || "").replace(/^\uFEFF/, "");
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text);
   if (!m) {
     return { meta: {}, body: text };
@@ -106,8 +106,16 @@ function parseMarkdownFrontmatter(raw) {
       const val = kv[2].trim();
       if (val === ">" || val === ">-" || val === "|" || val === "|-") {
         meta[curKey] = "";
+      } else if (val.length >= 2 && val.startsWith('"') && val.endsWith('"')) {
+        try {
+          meta[curKey] = JSON.parse(val);
+        } catch {
+          meta[curKey] = val.slice(1, -1);
+        }
+      } else if (val.length >= 2 && val.startsWith("'") && val.endsWith("'")) {
+        meta[curKey] = val.slice(1, -1).replace(/''/g, "'");
       } else {
-        meta[curKey] = val.replace(/^["']|["']$/g, "");
+        meta[curKey] = val;
       }
     } else if (curKey && /^\s+/.test(line)) {
       meta[curKey] = (meta[curKey] ? meta[curKey] + " " : "") + line.trim();
@@ -236,8 +244,11 @@ function listCustomizations(options = {}) {
   // 1. Rules
   if (workspacePath && fs.existsSync(workspacePath)) {
     for (const rootFile of ["AGENTS.md", "GEMINI.md"]) {
-      const fp = path.join(workspacePath, rootFile);
-      if (fs.existsSync(fp)) {
+      const enabledFp = path.join(workspacePath, rootFile);
+      const disabledFp = `${enabledFp}.disabled`;
+      const isEnabled = fs.existsSync(enabledFp);
+      const fp = isEnabled ? enabledFp : (fs.existsSync(disabledFp) ? disabledFp : "");
+      if (fp) {
         const raw = readTextSafe(fp);
         const { meta, body } = parseMarkdownFrontmatter(raw);
         rules.push({
@@ -248,7 +259,7 @@ function listCustomizations(options = {}) {
           name: rootFile,
           description: meta.description || "Корневое правило проекта",
           trigger: meta.trigger || "always_on",
-          enabled: true,
+          enabled: isEnabled,
           path: fp,
           content: raw,
           body,
@@ -261,8 +272,11 @@ function listCustomizations(options = {}) {
   }
   scanRulesInDir(path.join(globalDir, "rules"), "global", 2, rules);
   for (const gRoot of ["AGENTS.md", "GEMINI.md"]) {
-    const fp = path.join(globalDir, gRoot);
-    if (fs.existsSync(fp)) {
+    const enabledFp = path.join(globalDir, gRoot);
+    const disabledFp = `${enabledFp}.disabled`;
+    const isEnabled = fs.existsSync(enabledFp);
+    const fp = isEnabled ? enabledFp : (fs.existsSync(disabledFp) ? disabledFp : "");
+    if (fp) {
       const raw = readTextSafe(fp);
       const { meta, body } = parseMarkdownFrontmatter(raw);
       rules.push({
@@ -273,7 +287,7 @@ function listCustomizations(options = {}) {
         name: `${gRoot} (Глобально)`,
         description: meta.description || "Глобальное корневое правило",
         trigger: meta.trigger || "always_on",
-        enabled: true,
+        enabled: isEnabled,
         path: fp,
         content: raw,
         body,
@@ -418,24 +432,80 @@ function saveRule(payload = {}) {
   return { ok: true, path: finalPath, enabled };
 }
 
+const CYR_TO_LATIN = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "zh", з: "z",
+  и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r",
+  с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch",
+  ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
+};
+
+function slugifySkillName(input) {
+  const lowered = String(input || "").toLowerCase();
+  let out = "";
+  for (let i = 0; i < lowered.length; i += 1) {
+    const ch = lowered[i];
+    out += Object.prototype.hasOwnProperty.call(CYR_TO_LATIN, ch) ? CYR_TO_LATIN[ch] : ch;
+  }
+  return out.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function parseShellArgs(argsText) {
+  const src = String(argsText || "").trim();
+  if (!src) return [];
+  const out = [];
+  let cur = "";
+  let quote = "";
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i];
+    if (quote) {
+      if (ch === "\\" && quote === '"' && i + 1 < src.length && (src[i + 1] === '"' || src[i + 1] === "\\")) {
+        cur += src[i + 1];
+        i += 1;
+      } else if (ch === quote) {
+        quote = "";
+      } else {
+        cur += ch;
+      }
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (/\s/.test(ch)) {
+      if (cur) {
+        out.push(cur);
+        cur = "";
+      }
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
 function deleteRule(payload = {}) {
   const workspacePath = typeof payload.workspacePath === "string" ? payload.workspacePath.trim() : "";
   const filePath = typeof payload.path === "string" ? path.resolve(payload.path.trim()) : "";
   if (!filePath || !isPathInside(filePath, getAllowedRoots(workspacePath))) {
     return { ok: false, error: "PATH_NOT_ALLOWED" };
   }
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
+  if (!/\.md(?:\.disabled)?$/i.test(path.basename(filePath))) {
+    return { ok: false, error: "INVALID_RULE_FILE" };
   }
-  return { ok: true };
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : "DELETE_FAILED" };
+  }
 }
 
 function saveSkill(payload = {}) {
   const scope = payload.scope === "workspace" ? "workspace" : "global";
   const workspacePath = typeof payload.workspacePath === "string" ? payload.workspacePath.trim() : "";
   const rawSlug = typeof payload.slug === "string" && payload.slug.trim()
-    ? payload.slug.trim()
-    : String(payload.name || "custom-skill").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+    ? slugifySkillName(payload.slug.trim())
+    : slugifySkillName(payload.name || "custom-skill");
   const slug = rawSlug.slice(0, 56);
   if (!slug || !SAFE_SLUG_RE.test(slug)) {
     return { ok: false, error: "INVALID_SKILL_SLUG" };
@@ -479,6 +549,26 @@ function resolveMcpConfigPath(scope, workspacePath) {
   return path.join(getGlobalConfigDir(), "mcp_config.json");
 }
 
+function readMcpConfigStrict(cfgPath) {
+  if (!fs.existsSync(cfgPath)) return { ok: true, exists: false, data: null };
+  let raw = "";
+  try {
+    raw = fs.readFileSync(cfgPath, "utf8");
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : "READ_FAILED" };
+  }
+  if (!raw.trim()) return { ok: true, exists: true, data: {} };
+  try {
+    const parsed = JSON.parse(raw.replace(/^\uFEFF/, ""));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { ok: false, error: "MALFORMED_MCP_CONFIG" };
+    }
+    return { ok: true, exists: true, data: parsed };
+  } catch {
+    return { ok: false, error: "MALFORMED_MCP_CONFIG" };
+  }
+}
+
 function saveMcpServer(payload = {}) {
   const scope = payload.scope === "workspace" ? "workspace" : "global";
   const workspacePath = typeof payload.workspacePath === "string" ? payload.workspacePath.trim() : "";
@@ -490,14 +580,18 @@ function saveMcpServer(payload = {}) {
   if (!cfgPath || !isPathInside(cfgPath, getAllowedRoots(workspacePath))) {
     return { ok: false, error: "PATH_NOT_ALLOWED" };
   }
-  const existing = readJsonSafe(cfgPath);
-  const rootObj = existing && typeof existing === "object" && !Array.isArray(existing) ? existing : {};
-  if (!rootObj.mcpServers || typeof rootObj.mcpServers !== "object") {
-    rootObj.mcpServers = {};
+  const readRes = readMcpConfigStrict(cfgPath);
+  if (!readRes.ok) {
+    return { ok: false, error: readRes.error };
   }
+  const rootObj = readRes.data && typeof readRes.data === "object" ? readRes.data : {};
+  const isFlatMap =
+    !rootObj.mcpServers &&
+    Object.values(rootObj).some((v) => v && typeof v === "object" && !Array.isArray(v) && (v.command || v.url || v.serverUrl || v.httpUrl));
+  const targetMap = isFlatMap ? rootObj : (rootObj.mcpServers && typeof rootObj.mcpServers === "object" ? rootObj.mcpServers : (rootObj.mcpServers = {}));
 
-  const prev = rootObj.mcpServers[name] && typeof rootObj.mcpServers[name] === "object"
-    ? Object.assign({}, rootObj.mcpServers[name])
+  const prev = targetMap[name] && typeof targetMap[name] === "object"
+    ? Object.assign({}, targetMap[name])
     : {};
   const next = Object.assign({}, prev);
 
@@ -508,13 +602,20 @@ function saveMcpServer(payload = {}) {
   if (Array.isArray(payload.args)) {
     next.args = payload.args.map((a) => String(a)).filter(Boolean);
   } else if (typeof payload.argsText === "string") {
-    const parsedArgs = payload.argsText.trim() ? payload.argsText.trim().split(/\s+/) : [];
+    const parsedArgs = parseShellArgs(payload.argsText);
     if (parsedArgs.length > 0) next.args = parsedArgs;
     else delete next.args;
   }
   if (typeof payload.url === "string") {
-    if (payload.url.trim()) next.url = payload.url.trim();
-    else delete next.url;
+    if (payload.url.trim()) {
+      next.url = payload.url.trim();
+      delete next.serverUrl;
+      delete next.httpUrl;
+    } else {
+      delete next.url;
+      delete next.serverUrl;
+      delete next.httpUrl;
+    }
   }
   if (payload.env && typeof payload.env === "object") {
     const cleanEnv = {};
@@ -533,7 +634,7 @@ function saveMcpServer(payload = {}) {
     return { ok: false, error: "MCP_MISSING_COMMAND_OR_URL" };
   }
 
-  rootObj.mcpServers[name] = next;
+  targetMap[name] = next;
   writeFileAtomic(cfgPath, JSON.stringify(rootObj, null, 2) + "\n");
   return { ok: true, name, path: cfgPath, server: next };
 }
@@ -546,9 +647,14 @@ function deleteMcpServer(payload = {}) {
   if (!name || !cfgPath || !isPathInside(cfgPath, getAllowedRoots(workspacePath))) {
     return { ok: false, error: "PATH_NOT_ALLOWED" };
   }
-  const existing = readJsonSafe(cfgPath);
+  const readRes = readMcpConfigStrict(cfgPath);
+  if (!readRes.ok) return { ok: false, error: readRes.error };
+  const existing = readRes.data;
   if (existing && existing.mcpServers && Object.prototype.hasOwnProperty.call(existing.mcpServers, name)) {
     delete existing.mcpServers[name];
+    writeFileAtomic(cfgPath, JSON.stringify(existing, null, 2) + "\n");
+  } else if (existing && Object.prototype.hasOwnProperty.call(existing, name)) {
+    delete existing[name];
     writeFileAtomic(cfgPath, JSON.stringify(existing, null, 2) + "\n");
   }
   return { ok: true };
@@ -582,23 +688,29 @@ function listSystemFonts() {
     "SF Mono",
   ]);
   if (process.platform === "win32") {
-    try {
-      const out = execFileSync(
-        "reg.exe",
-        ["query", "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"],
-        { encoding: "utf8", timeout: 2500, windowsHide: true, maxBuffer: 2 * 1024 * 1024 }
-      );
-      const lines = String(out || "").split(/\r?\n/);
-      for (let i = 0; i < lines.length; i += 1) {
-        const m = /^\s+(.+?)\s+(?:\([^)]+\)\s+)?REG_SZ\s+/i.exec(lines[i]);
-        if (!m) continue;
-        let name = m[1].replace(/\s*\((?:TrueType|OpenType|All res)\)\s*$/i, "").trim();
-        name = name.replace(/\s+(?:Bold|Italic|Regular|Light|Medium|SemiBold|Black|Thin|Condensed|Oblique)(?:\s+(?:Italic|Oblique))?$/i, "").trim();
-        if (name && name.length >= 2 && name.length <= 56 && !name.startsWith("@")) {
-          found.add(name);
+    const regKeys = [
+      "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
+      "HKCU\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
+    ];
+    for (let k = 0; k < regKeys.length; k += 1) {
+      try {
+        const out = execFileSync(
+          "reg.exe",
+          ["query", regKeys[k]],
+          { encoding: "utf8", timeout: 2500, windowsHide: true, maxBuffer: 2 * 1024 * 1024 }
+        );
+        const lines = String(out || "").split(/\r?\n/);
+        for (let i = 0; i < lines.length; i += 1) {
+          const m = /^\s+(.+?)\s+(?:\([^)]+\)\s+)?REG_SZ\s+/i.exec(lines[i]);
+          if (!m) continue;
+          let name = m[1].replace(/\s*\((?:TrueType|OpenType|All res)\)\s*$/i, "").trim();
+          name = name.replace(/\s+(?:Bold|Italic|Regular|Light|Medium|SemiBold|Black|Thin|Condensed|Oblique)(?:\s+(?:Italic|Oblique))?$/i, "").trim();
+          if (name && name.length >= 2 && name.length <= 56 && !name.startsWith("@")) {
+            found.add(name);
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
   }
   cachedSystemFonts = Array.from(found).sort((a, b) => a.localeCompare(b));
   cachedSystemFontsAt = now;

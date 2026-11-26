@@ -278,11 +278,18 @@ function deflateRawAsync(buf) {
   });
 }
 
-function measureFileCrcAndSize(filePath) {
+function measureFileCrcAndSize(filePath, maxBytes) {
+  if (typeof maxBytes === "number" && Number.isFinite(maxBytes) && maxBytes <= 0) {
+    return Promise.resolve({ crc: 0, size: 0 });
+  }
   return new Promise((resolve, reject) => {
     let crcState = 0xffffffff;
     let size = 0;
-    const rs = fs.createReadStream(filePath, { highWaterMark: STREAM_HIGH_WATER_MARK });
+    const streamOpts = { highWaterMark: STREAM_HIGH_WATER_MARK };
+    if (typeof maxBytes === "number" && Number.isFinite(maxBytes) && maxBytes > 0) {
+      streamOpts.end = maxBytes - 1;
+    }
+    const rs = fs.createReadStream(filePath, streamOpts);
     rs.on("data", (chunk) => {
       crcState = crc32Update(crcState, chunk);
       size += chunk.length;
@@ -297,9 +304,13 @@ function measureFileCrcAndSize(filePath) {
   });
 }
 
-async function prepareDiskEntryPayload(filePath, allowDeflate, spillPath) {
+async function prepareDiskEntryPayload(filePath, allowDeflate, spillPath, snapshotBytes) {
+  const hasSnapshot = typeof snapshotBytes === "number" && Number.isFinite(snapshotBytes) && snapshotBytes >= 0;
+  if (hasSnapshot && snapshotBytes === 0) {
+    return { method: 0, crc: 0, compSize: 0, uncompSize: 0, chunks: null, spillFile: null };
+  }
   if (!allowDeflate) {
-    const { crc, size } = await measureFileCrcAndSize(filePath);
+    const { crc, size } = await measureFileCrcAndSize(filePath, hasSnapshot ? snapshotBytes : undefined);
     return { method: 0, crc, compSize: size, uncompSize: size, chunks: null, spillFile: null };
   }
 
@@ -310,7 +321,11 @@ async function prepareDiskEntryPayload(filePath, allowDeflate, spillPath) {
   let spillStream = null;
   let usedSpill = false;
 
-  const rs = fs.createReadStream(filePath, { highWaterMark: STREAM_HIGH_WATER_MARK });
+  const rsOpts = { highWaterMark: STREAM_HIGH_WATER_MARK };
+  if (hasSnapshot && snapshotBytes > 0) {
+    rsOpts.end = snapshotBytes - 1;
+  }
+  const rs = fs.createReadStream(filePath, rsOpts);
   const deflater = zlib.createDeflateRaw({ level: 6 });
 
   rs.on("data", (chunk) => {
@@ -495,7 +510,7 @@ function createStreamWriter(outStream) {
   }
 
   function destroyAndWait() {
-    if (outStream.closed) return Promise.resolve();
+    if (outStream.closed || outStream.destroyed) return Promise.resolve();
     return new Promise((resolve) => {
       outStream.once("close", resolve);
       outStream.destroy();
@@ -508,7 +523,10 @@ function createStreamWriter(outStream) {
 async function pipeFileToWriter(filePath, writer, expectedBytes) {
   if (expectedBytes === 0) return;
   let streamed = 0;
-  const rs = fs.createReadStream(filePath, { highWaterMark: STREAM_HIGH_WATER_MARK });
+  const rs = fs.createReadStream(filePath, {
+    highWaterMark: STREAM_HIGH_WATER_MARK,
+    end: expectedBytes - 1,
+  });
   try {
     for await (const chunk of rs) {
       writer.ensureAlive();
@@ -559,7 +577,8 @@ async function writeZipFile(outPath, entries, mtime) {
         const entryMtime = item.mtime || mtime || (fallbackStat && fallbackStat.mtime) || new Date();
         const { dosTime, dosDate } = toDosTimeDate(entryMtime);
         const allowDeflate = !shouldStoreUncompressed(name);
-        const payload = await prepareDiskEntryPayload(item.filePath, allowDeflate, `${spillBase}.${i}`);
+        const snapSize = typeof item.size === "number" && Number.isFinite(item.size) && item.size >= 0 ? item.size : undefined;
+        const payload = await prepareDiskEntryPayload(item.filePath, allowDeflate, `${spillBase}.${i}`, snapSize);
 
         try {
           assertZip32EntryLimits(entryCount, offset, payload.compSize, payload.uncompSize, nameBuf.length);
@@ -1049,7 +1068,13 @@ async function collectFilesSafe(dirPath, relPrefix, outList, stats, skipTopDirs,
     if (ent.isDirectory()) {
       await collectFilesSafe(full, rel, outList, stats, null, skippedFiles, zipPrefix, resolvedOutPath);
     } else if (ent.isFile()) {
-      if (resolvedOutPath && path.resolve(full) === resolvedOutPath) continue;
+      if (resolvedOutPath) {
+        const candPath = path.resolve(full);
+        const sameOut = process.platform === "win32"
+          ? candPath.toLowerCase() === resolvedOutPath.toLowerCase()
+          : candPath === resolvedOutPath;
+        if (sameOut) continue;
+      }
       const zipRelPath = `${zipPrefix}/${rel}`;
       try {
         const st = await fs.promises.stat(full);
@@ -1111,7 +1136,7 @@ async function buildChatExportArchive(options = {}) {
     includeFullLog = false,
     includeThinking = false,
     locale = "ru",
-    pluginVersion = "4.0.0",
+    pluginVersion = "5.0.0",
     outPath = "",
   } = options;
 

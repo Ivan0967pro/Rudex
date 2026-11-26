@@ -11,8 +11,31 @@ const { detectAntigravity, getUserDataDir } = require("./install.js");
 
 function safeRemove(targetPath) {
   if (!targetPath || !fs.existsSync(targetPath)) return false;
-  fs.rmSync(targetPath, { recursive: true, force: true });
-  return true;
+  try {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+    return true;
+  } catch (err) {
+    console.warn(`Warning: failed to remove ${targetPath}:`, err && err.message ? err.message : err);
+    return false;
+  }
+}
+
+function restoreAsarAtomic(backupPath, asarPath) {
+  const tmpPath = `${asarPath}.rudex-restore-${process.pid}-${Date.now()}.tmp`;
+  try {
+    fs.copyFileSync(backupPath, tmpPath);
+    try {
+      fs.renameSync(tmpPath, asarPath);
+    } catch {
+      fs.copyFileSync(tmpPath, asarPath);
+      try { fs.unlinkSync(tmpPath); } catch {}
+    }
+    return true;
+  } catch (err) {
+    try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
+    console.warn(`Warning: failed to restore stock app.asar:`, err && err.message ? err.message : err);
+    return false;
+  }
 }
 
 function runUninstall(options = {}) {
@@ -25,26 +48,22 @@ function runUninstall(options = {}) {
   if (info.found) {
     // Ensure stock app.asar exists (restore from newest semver backup if missing or requested)
     if (!fs.existsSync(info.asarPath) && info.backups.length > 0) {
-      fs.copyFileSync(info.backups[0].path, info.asarPath);
-      restored = true;
+      restored = restoreAsarAtomic(info.backups[0].path, info.asarPath);
     }
 
     // Remove patched appDir and backups only when stock app.asar is verified on disk
     if (fs.existsSync(info.asarPath) && fs.statSync(info.asarPath).size > 0) {
       if (fs.existsSync(info.appDir)) {
-        safeRemove(info.appDir);
-        console.log(`Removed patched app dir: ${info.appDir}`);
+        if (safeRemove(info.appDir)) console.log(`Removed patched app dir: ${info.appDir}`);
       }
       if (fs.existsSync(info.resourcesDir)) {
         for (const name of fs.readdirSync(info.resourcesDir)) {
-          if (/^app\.(rudex|ru)-(outdated|prev)-/.test(name)) {
-            safeRemove(path.join(info.resourcesDir, name));
-            console.log(`Removed stale dir: ${name}`);
+          if (/^(?:app\.(rudex|ru)-(outdated|prev|removed)-|\.rudex-staging-)/.test(name)) {
+            if (safeRemove(path.join(info.resourcesDir, name))) console.log(`Removed stale dir: ${name}`);
           }
         }
         for (const b of info.backups) {
-          safeRemove(b.path);
-          console.log(`Removed backup: ${b.name}`);
+          if (safeRemove(b.path)) console.log(`Removed backup: ${b.name}`);
         }
       }
     } else if (fs.existsSync(info.appDir)) {
@@ -55,10 +74,12 @@ function runUninstall(options = {}) {
     console.warn("Antigravity installation directory not detected; cleaning flags & rules only.");
   }
 
-  // Clean transient persona flags & pending live-edit flags
+  // Clean transient persona, agent-profile, tool-policy & pending live-edit flags
   const runtimeFlags = [
     path.join(userDataDir, "agy_studio_persona_active.flag"),
     path.join(userDataDir, "agy_studio_thinking_ru.flag"),
+    path.join(userDataDir, "agy_studio_agent_profile.flag"),
+    path.join(userDataDir, "agy_studio_tool_policy.flag"),
     path.join(userDataDir, "studio_live_edits", "pending.flag"),
   ];
   for (const f of runtimeFlags) {

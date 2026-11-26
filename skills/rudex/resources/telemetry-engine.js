@@ -419,6 +419,7 @@ function telPushSparkSample(tel, val, hiNow) {
 
 function telResetTurnAccumulators(tel, baselineTok, hiNow) {
   tel.currentTps = 0;
+  tel.lastActiveTps = 0;
   tel.tpsWindow = [];
   tel.phase = "idle";
   tel.isGenerating = false;
@@ -433,6 +434,7 @@ function telResetTurnAccumulators(tel, baselineTok, hiNow) {
   tel.bankedTurnTokens = 0;
   tel.unconfirmedGrowthTicks = 0;
   tel.unconfirmedFirstTok = 0;
+  tel.activeRespEl = null;
   tel.preTokenAt = hiNow;
   tel.prevFloatTok = baselineTok;
   tel.prevRawFloatTok = baselineTok;
@@ -452,13 +454,14 @@ function createTelemetryEngine(options = {}) {
   function countSingleUserMsg(u) {
     if (!u) return 0;
     if (typeof u === "object") {
+      const rawLen = typeof u.textContent === "string" ? u.textContent.length : -1;
       const cached = userMsgCache.get(u);
-      if (cached !== undefined) return cached;
+      if (cached !== undefined && cached.len === rawLen) return cached.tok;
       const text = telIsElementNode(u)
         ? extractVisibleResponseText(u)
         : (typeof u.textContent === "string" ? u.textContent : "");
       const tok = estimateTokens(text);
-      userMsgCache.set(u, tok);
+      userMsgCache.set(u, { len: rawLen, tok });
       return tok;
     }
     return 0;
@@ -473,10 +476,11 @@ function createTelemetryEngine(options = {}) {
       return estimateTokens(extractVisibleResponseText(r));
     }
     if (typeof r === "object") {
+      const rawLen = typeof r.textContent === "string" ? r.textContent.length : -1;
       const cached = completedRespCache.get(r);
-      if (cached !== undefined) return cached;
+      if (cached !== undefined && cached.len === rawLen) return cached.tok;
       const tok = estimateTokens(extractVisibleResponseText(r));
-      completedRespCache.set(r, tok);
+      completedRespCache.set(r, { len: rawLen, tok });
       return tok;
     }
     return 0;
@@ -582,6 +586,7 @@ function createTelemetryEngine(options = {}) {
       const prevTps = tel.currentTps > 0 ? tel.currentTps : 0;
       const smoothed = prevTps > 0 ? Math.round(prevTps * 0.35 + instTps * 0.65) : Math.round(instTps);
       tel.currentTps = Math.max(0, smoothed);
+      tel.lastActiveTps = tel.currentTps;
 
       if ((tel.growthTicks >= 2 && totalGained >= 4) || (tel.growthTicks === 1 && totalGained >= 6 && tel.currentTps <= 200)) {
         tel.peakTps = Math.max(tel.peakTps || 0, tel.currentTps);
@@ -591,7 +596,8 @@ function createTelemetryEngine(options = {}) {
       }
       tel.dirty = true;
     } else if (tel.currentTps > 0 && idleSinceGrowth > 450) {
-      const decayed = Math.round(tel.currentTps * Math.exp(-(idleSinceGrowth - 450) / 1400));
+      const baseTps = tel.lastActiveTps > 0 ? tel.lastActiveTps : tel.currentTps;
+      const decayed = Math.round(baseTps * Math.exp(-(idleSinceGrowth - 450) / 1400));
       tel.currentTps = decayed < 1 ? 0 : decayed;
       if (tel.firstGrowthAt && (!tel.lastSparkAt || hiNow - tel.lastSparkAt >= 350)) {
         telPushSparkSample(tel, tel.currentTps, hiNow);

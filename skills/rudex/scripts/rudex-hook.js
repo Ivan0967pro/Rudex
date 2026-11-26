@@ -324,14 +324,33 @@ function moveQueueFileTo(srcPath, destDir, fileName, mutatorFn) {
     parsed = null;
   }
   const nextObj = typeof mutatorFn === "function" && parsed ? mutatorFn(parsed) : parsed;
+  let destWriteOk = true;
   if (destDir && nextObj) {
     try {
       fs.mkdirSync(destDir, { recursive: true });
       safeWriteJsonAtomic(path.join(destDir, fileName), nextObj);
-    } catch {}
+    } catch {
+      destWriteOk = false;
+    }
+  }
+  if (!destWriteOk) {
+    // Restore original queue file instead of losing user's live edit on transient I/O error
+    try { fs.renameSync(claimPath, srcPath); } catch {}
+    return null;
   }
   try { fs.unlinkSync(claimPath); } catch {}
   return nextObj;
+}
+
+function safeUnlinkFlagIfUnchanged(flagPath, mtimeBefore) {
+  try {
+    if (!fs.existsSync(flagPath)) return;
+    if (mtimeBefore > 0) {
+      const st = fs.statSync(flagPath);
+      if ((st.mtimeMs || 0) > mtimeBefore) return;
+    }
+    fs.unlinkSync(flagPath);
+  } catch {}
 }
 
 function runLiveEditsEngine(userDataDir, payload, injectSteps) {
@@ -347,6 +366,8 @@ function runLiveEditsEngine(userDataDir, payload, injectSteps) {
   const expiredDir = path.join(leDir, "expired");
 
   if (!fs.existsSync(flagPath)) return null;
+  let flagMtimeBefore = 0;
+  try { flagMtimeBefore = fs.statSync(flagPath).mtimeMs || 0; } catch {}
 
   if (eventName === "Stop") {
     const term = String(payload.terminationReason || "");
@@ -356,7 +377,7 @@ function runLiveEditsEngine(userDataDir, payload, injectSteps) {
   }
 
   if (!fs.existsSync(queueDir)) {
-    try { if (fs.existsSync(flagPath)) fs.unlinkSync(flagPath); } catch {}
+    safeUnlinkFlagIfUnchanged(flagPath, flagMtimeBefore);
     return null;
   }
 
@@ -370,7 +391,7 @@ function runLiveEditsEngine(userDataDir, payload, injectSteps) {
   }
 
   if (files.length === 0) {
-    try { if (fs.existsSync(flagPath)) fs.unlinkSync(flagPath); } catch {}
+    safeUnlinkFlagIfUnchanged(flagPath, flagMtimeBefore);
     return null;
   }
 
@@ -392,7 +413,15 @@ function runLiveEditsEngine(userDataDir, payload, injectSteps) {
     const fullPath = path.join(queueDir, fileName);
     const it = readJsonSafe(fullPath);
     if (!it || typeof it !== "object") {
-      moveQueueFileTo(fullPath, expiredDir, fileName, () => ({ id: fileName, status: "expired", expiredAt: now }));
+      // Avoid expiring brand-new files caught mid-write on Windows; only expire if >10s old
+      let fileAgeMs = 10001;
+      try {
+        const st = fs.statSync(fullPath);
+        fileAgeMs = Math.max(0, now - (st.mtimeMs || 0));
+      } catch {}
+      if (fileAgeMs >= 10000) {
+        moveQueueFileTo(fullPath, expiredDir, fileName, () => ({ id: fileName, status: "expired", expiredAt: now }));
+      }
       continue;
     }
 
@@ -443,7 +472,7 @@ function runLiveEditsEngine(userDataDir, payload, injectSteps) {
     remainingCount = fs.readdirSync(queueDir).filter((n) => n.endsWith(".json") && !n.includes(".tmp-")).length;
   } catch {}
   if (remainingCount === 0) {
-    try { if (fs.existsSync(flagPath)) fs.unlinkSync(flagPath); } catch {}
+    safeUnlinkFlagIfUnchanged(flagPath, flagMtimeBefore);
   }
 
   if (matched.length === 0) {
@@ -757,7 +786,10 @@ function claimUrgentLiveEditsForTool(userDataDir, payload) {
   const queueDir = path.join(leDir, "queue");
   const deliveredDir = path.join(leDir, "delivered");
   if (!fs.existsSync(flagPath) || !fs.existsSync(queueDir)) return [];
+  let flagMtimeBefore = 0;
+  try { flagMtimeBefore = fs.statSync(flagPath).mtimeMs || 0; } catch {}
   const convId = typeof payload.conversationId === "string" ? payload.conversationId.trim().toLowerCase() : "";
+  const isSubagent = Boolean(payload.isSubagent || payload.parentConversationId);
   const now = Date.now();
   let files = [];
   try {
@@ -765,14 +797,33 @@ function claimUrgentLiveEditsForTool(userDataDir, payload) {
   } catch {
     return [];
   }
+  let chatsMap = null;
+  const getChatsMap = () => {
+    if (chatsMap !== null) return chatsMap;
+    chatsMap = loadChatsStore(userDataDir).store.chats || {};
+    return chatsMap;
+  };
   const matched = [];
   for (let i = 0; i < files.length; i += 1) {
     const fn = files[i];
     const full = path.join(queueDir, fn);
     const it = readJsonSafe(full);
     if (!it || it.urgent !== true || (it.status && it.status !== "pending")) continue;
+    const createdAt = Number(it.createdAt) || 0;
+    const age = createdAt > 0 ? Math.max(0, now - createdAt) : 0;
+    if (age > MAX_ITEM_AGE_MS) continue;
     const itemChat = typeof it.chatKey === "string" ? it.chatKey.trim().toLowerCase() : "";
-    if ((convId && itemChat && itemChat === convId) || (!itemChat && it.fallbackAny === true)) {
+    const exactMatch = Boolean(convId && itemChat && itemChat === convId);
+    const isUnpromotedKey = !itemChat || itemChat === "__new__" || itemChat.startsWith("chat-");
+    let fallbackMatch = false;
+    if (!exactMatch && isUnpromotedKey && it.fallbackAny === true && age <= FALLBACK_MAX_AGE_MS && !isSubagent) {
+      const map = getChatsMap();
+      const isExistingOtherChat = Boolean(convId && map[convId] && itemChat && itemChat !== convId);
+      if (!isExistingOtherChat) {
+        fallbackMatch = true;
+      }
+    }
+    if (exactMatch || fallbackMatch) {
       const claimed = moveQueueFileTo(full, deliveredDir, fn, (obj) => Object.assign({}, obj, {
         status: "delivered",
         deliveredAt: now,
@@ -784,7 +835,7 @@ function claimUrgentLiveEditsForTool(userDataDir, payload) {
   }
   try {
     const rem = fs.readdirSync(queueDir).filter((n) => n.endsWith(".json") && !n.includes(".tmp-")).length;
-    if (rem === 0 && fs.existsSync(flagPath)) fs.unlinkSync(flagPath);
+    if (rem === 0) safeUnlinkFlagIfUnchanged(flagPath, flagMtimeBefore);
   } catch {}
   return matched;
 }

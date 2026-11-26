@@ -704,7 +704,7 @@ function teNormalizeElementOverrides(raw) {
     const it = raw[i];
     if (!it || typeof it !== "object") continue;
     const selector = typeof it.selector === "string" ? it.selector.trim().slice(0, 260) : "";
-    if (!selector || /[{}<>\\]/.test(selector) || /url\s*\(|expression\s*\(|@import/i.test(selector)) continue;
+    if (!selector || /[{}<>\\;]|\/\*/.test(selector) || /url\s*\(|expression\s*\(|@import/i.test(selector)) continue;
     const st = it.styles && typeof it.styles === "object" ? it.styles : {};
     out.push({
       id: typeof it.id === "string" && it.id ? it.id.slice(0, 64) : "ov-" + i,
@@ -722,7 +722,7 @@ function teNormalizeElementOverrides(raw) {
         color: hexOrRgba(st.color),
         bgColor: hexOrRgba(st.bgColor),
         bgOpacity: hasNum(st.bgOpacity) ? Math.round(teClamp(st.bgOpacity, 0, 100, 100)) : 100,
-        opacity: hasNum(st.opacity) && Number(st.opacity) >= 0 ? Math.round(teClamp(st.opacity, 5, 100, -1)) : -1,
+        opacity: hasNum(st.opacity) && Number(st.opacity) > 0 ? Math.round(teClamp(st.opacity, 5, 100, -1)) : -1,
         borderColor: hexOrRgba(st.borderColor),
         borderWidth: hasNum(st.borderWidth) && Number(st.borderWidth) >= 0 ? Math.round(teClamp(st.borderWidth, 0, 8, -1)) : -1,
         borderRadius: hasNum(st.borderRadius) && Number(st.borderRadius) >= 0 ? Math.round(teClamp(st.borderRadius, 0, 64, -1)) : -1,
@@ -782,7 +782,7 @@ function teBuildElementOverridesCss(overrides, paused) {
         if (fStack) subDecls.push(`font-family: ${fStack} !important;`);
         if (st.fontSize > 0) subDecls.push(`font-size: inherit !important;`);
         if (st.color) subDecls.push(`color: ${st.color} !important;`);
-        blocks.push(`${ov.selector} :where(span, p, div, a, label):not(code):not(pre):not(#rudex-studio-host *) {\n  ${subDecls.join("\n  ")}\n}`);
+        blocks.push(`${ov.selector} :where(span, p, div, label):not(code):not(pre):not(a):not(a *) {\n  ${subDecls.join("\n  ")}\n}`);
       }
     }
   }
@@ -1153,10 +1153,13 @@ function teHasCustomUiStyle(cfg) {
   );
 }
 
-function teBuildUiStyleCss(cfg, vars, isLight, hasThemeOverride, hasWallpaper) {
+function teBuildUiStyleCss(cfg, vars, isLight, hasThemeOverride, hasWallpaper, effectiveBlurPxArg) {
   const us = teNormalizeUiStyle(cfg && cfg.uiStyle);
   if (!teHasCustomUiStyle({ uiStyle: us })) return "";
 
+  const effectiveBlurPx = typeof effectiveBlurPxArg === "number" && Number.isFinite(effectiveBlurPxArg)
+    ? Math.max(0, Math.round(effectiveBlurPxArg))
+    : Math.max(0, Math.round(teClamp(cfg && cfg.glassBlur, 0, 36, 12)));
   const rules = [];
   const fgCol = hasThemeOverride ? vars.fgColor : (isLight ? "#18181b" : "#f4f4f5");
   const mutedCol = hasThemeOverride ? vars.mutedColor : (isLight ? "#52525b" : "#a1a1aa");
@@ -1166,6 +1169,9 @@ function teBuildUiStyleCss(cfg, vars, isLight, hasThemeOverride, hasWallpaper) {
   const surfaceSoft = hasThemeOverride
     ? teMixHex(vars.cardBg, isLight ? vars.fgColor : "#ffffff", isLight ? 0.045 : 0.06)
     : (isLight ? "#f3f2ee" : "#222226");
+  const pillHoverBg = hasThemeOverride
+    ? teMixHex(surfaceSoft, isLight ? "#000000" : "#ffffff", isLight ? 0.05 : 0.07)
+    : (isLight ? "#e9e7e2" : "#2b2b30");
 
   const resolveStyleAccent = (styleId) => {
     if (hasThemeOverride || cfg.customAccent) return vars.accentColor;
@@ -1209,14 +1215,22 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 
   if (us.composer === "claude-code") {
     // Authentic Claude Code 2026 Split Layout:
-    // Top: compact single-line bordered Reply box with inline return arrow (↵) inside right edge
+    // Top: crisp bordered Reply box (single-line or clean multiline scroll) with return arrow (↵) inside right edge
     // Bottom (outside box, on canvas): + & mic on left, quiet borderless Model + Mode text on right
     const cRad = us.composerRadius > 0 ? us.composerRadius : 14;
     const padY = us.composerPadY >= 6 ? us.composerPadY : 9;
+    const baseCardHex = hasThemeOverride ? vars.cardBg : (isLight ? "#faf9f5" : "#262624");
+    const canvasYiq = hasThemeOverride ? teGetYiq(vars.canvasBg) : (isLight ? 245 : 22);
+    const cardYiq = teGetYiq(baseCardHex);
+    const liftedCardHex = hasThemeOverride && Math.abs(cardYiq - canvasYiq) < 14
+      ? teMixHex(baseCardHex, isLight ? "#000000" : "#ffffff", isLight ? 0.03 : 0.045)
+      : baseCardHex;
     const cBg = hasWallpaper
-      ? teHexToRgba(hasThemeOverride ? vars.cardBg : (isLight ? "#faf9f5" : "#2b2a27"), Math.min(94, Math.max(76, cfg.glassOpacity || 86)))
-      : (hasThemeOverride ? vars.cardBg : (isLight ? "#faf9f5" : "#2b2a27"));
-    const cBrd = hasThemeOverride ? vars.borderColor : (isLight ? "rgba(31, 30, 29, 0.15)" : "rgba(250, 249, 245, 0.14)");
+      ? teHexToRgba(liftedCardHex, Math.min(94, Math.max(78, (cfg && cfg.glassOpacity) || 86)))
+      : liftedCardHex;
+    const cBrd = hasThemeOverride
+      ? `color-mix(in srgb, ${fgCol} ${isLight ? "14%" : "15%"}, ${vars.borderColor})`
+      : (isLight ? "rgba(31, 30, 29, 0.16)" : "rgba(250, 249, 245, 0.16)");
     const effShadow = resolveShadowCss(us.composerShadow, "none");
     const ccSendIconMask = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 10 4 15 9 20'/%3E%3Cpath d='M20 4v7a4 4 0 0 1-4 4H4'/%3E%3C/svg%3E")`;
 
@@ -1239,8 +1253,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 
     compBlocks.push(`
 [data-rudex-theme-composer="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg),
-[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg),
-:where(div, form, section):has(> [data-rudex-theme-composer="1"]):not(main):not(body):not([data-rudex-bg-shell="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-stack="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
@@ -1252,6 +1265,15 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   border-radius: 0 !important;
   overflow: visible !important;
 }
+:where(div, form, section):has(> [data-rudex-theme-composer="1"]):not(main):not(body):not([data-rudex-bg-shell="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
 :where(div, section):has(> :where(div, form, section):has(> [data-rudex-theme-composer="1"])):not(main):not(body):not([data-rudex-bg-shell="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
   padding-bottom: 6px !important;
   margin-bottom: 0 !important;
@@ -1260,28 +1282,35 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   position: static !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"] {
-  margin-bottom: 6px !important;
+  padding: 0 2px 6px !important;
+  margin: 0 !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *),
-[data-rudex-theme-composer="1"] textarea[data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg),
+[data-rudex-theme-composer="1"] textarea[data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
   position: relative !important;
   width: 100% !important;
-  min-height: 42px !important;
+  min-height: 44px !important;
+  height: auto !important;
   box-sizing: border-box !important;
   background-color: ${cBg} !important;
   border: 1px solid ${cBrd} !important;
   border-radius: ${cRad}px !important;
-  padding: ${padY}px 44px ${padY}px 15px !important;
+  padding: ${padY}px 12px ${padY}px 14px !important;
   box-shadow: ${effShadow || "none"} !important;
+  overflow: visible !important;
   ${hasWallpaper && effectiveBlurPx > 0 ? `backdrop-filter: blur(${effectiveBlurPx}px) saturate(160%); -webkit-backdrop-filter: blur(${effectiveBlurPx}px) saturate(160%);` : ""}
   transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
-[data-rudex-theme-composer="1"]:not(:has([data-rudex-comp-send="1"])) [data-rudex-comp-input-row="1"]:not(textarea)::after {
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:is(textarea, [contenteditable="true"], [role="textbox"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
+  padding: ${padY}px 44px ${padY}px 14px !important;
+  overflow-y: auto !important;
+  max-height: min(40vh, 280px) !important;
+}
+[data-rudex-theme-composer="1"]:not(:has([data-rudex-comp-send="1"])) [data-rudex-comp-input-row="1"]:not(textarea):not([contenteditable="true"]):not([role="textbox"])::after {
   content: "";
   position: absolute;
   right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: ${Math.max(10, padY + 3)}px;
   width: 16px;
   height: 16px;
   background-color: ${mutedCol};
@@ -1290,18 +1319,113 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   -webkit-mask: ${ccSendIconMask} center / contain no-repeat;
   mask: ${ccSendIconMask} center / contain no-repeat;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(textarea) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(textarea):not([contenteditable="true"]):not([role="textbox"]) {
   display: flex !important;
   flex-direction: column !important;
   justify-content: center !important;
   align-items: stretch !important;
-  gap: 6px !important;
+  gap: 0 !important;
 }
+[data-rudex-theme-composer="1"] [data-rudex-comp-empty-slot="1"] {
+  display: none !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-attach-row="1"] {
+  margin-bottom: 6px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-editor-wrap="1"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where(div, section):has(:is(textarea, [contenteditable="true"], [role="textbox"])):not(#rudex-studio-host *) {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+  max-height: min(40vh, 280px);
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-editor="1"],
 [data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where(textarea, [contenteditable="true"], [role="textbox"]) {
+  position: relative !important;
+  display: block !important;
   width: 100% !important;
   min-height: 22px !important;
+  max-height: min(40vh, 280px);
+  padding: 0 36px 0 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  box-sizing: border-box !important;
+  line-height: 1.5 !important;
 }
-[data-rudex-theme-composer="1"]:focus-within [data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-editor="1"]:not(textarea),
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where([contenteditable="true"], [role="textbox"]):not(textarea) {
+  height: auto !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where([contenteditable="true"], [role="textbox"]) > :where(p, div) {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.5 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where([contenteditable="true"], [role="textbox"], [contenteditable="true"] > p, [role="textbox"] > p)::before {
+  top: 0 !important;
+  left: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1.5 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] [data-rudex-comp-placeholder="wrap"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-editor-wrap="1"] > :where(div, span, p):where(.pointer-events-none, [class*="pointer-events-none"], [class*="placeholder"], .absolute, [style*="pointer-events: none"]):not(.sr-only):not([class~="sr-only"]):not([hidden]):not(.hidden):not([contenteditable="true"]):not([role="textbox"]):not(:has(button, [role="button"], img, video, svg, canvas)) {
+  position: absolute !important;
+  inset: 0 36px auto 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 36px !important;
+  bottom: auto !important;
+  transform: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  height: auto !important;
+  min-height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1.5 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  pointer-events: none !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] [data-rudex-comp-placeholder="row"] {
+  position: absolute !important;
+  inset: ${padY}px 48px auto 14px !important;
+  top: ${padY}px !important;
+  left: 14px !important;
+  right: 48px !important;
+  bottom: auto !important;
+  transform: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  height: auto !important;
+  min-height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1.5 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  pointer-events: none !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] [data-rudex-comp-placeholder-inner="1"] {
+  position: static !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  transform: none !important;
+  line-height: 1.5 !important;
+}
+[data-rudex-theme-composer="1"]:focus-within [data-rudex-comp-input-row="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
   border-color: color-mix(in srgb, ${fgCol} 32%, ${cBrd}) !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
@@ -1309,8 +1433,8 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   display: flex !important;
   align-items: center !important;
   justify-content: flex-start !important;
-  gap: 6px !important;
-  padding: 5px 4px 0 !important;
+  gap: 4px !important;
+  padding: 4px 2px 0 !important;
   margin: 0 !important;
   min-height: 28px !important;
   background: transparent !important;
@@ -1322,8 +1446,8 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 [data-rudex-theme-composer="1"] [data-rudex-comp-group="1"] {
   display: contents !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg),
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]) :where(button, [role="button"]):not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):not([data-rudex-comp-mic-active="1"]),
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not([data-rudex-comp-mic-active="1"]) :where(button, [role="button"]):not([data-rudex-comp-mic-active="1"]):not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
   position: relative !important;
   top: auto !important;
   right: auto !important;
@@ -1348,36 +1472,62 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   margin: 0 !important;
   flex-shrink: 0 !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) :where(svg, span, path, rect, circle, g) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"]:not([data-rudex-comp-mic-active="1"]), [data-rudex-comp-voice="1"]:not([data-rudex-comp-mic-active="1"])):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) :where(svg, span, path, rect, circle, g) {
   color: ${mutedCol} !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg:not([fill="none"]),
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg:not([fill="none"]) :where(path, rect, circle, polygon):not([fill="none"]) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not([data-rudex-comp-mic-active="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg:not([fill="none"]):not([class*="fill-none"]),
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not([data-rudex-comp-mic-active="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg:not([fill="none"]):not([class*="fill-none"]) :where(path, rect, circle, polygon):not([fill="none"]) {
   fill: currentColor !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg[fill="none"],
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg[fill="none"] :where(path, rect, circle, line, polyline, polygon) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not([data-rudex-comp-mic-active="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg[fill="none"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not([data-rudex-comp-mic-active="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg[fill="none"] :where(path, rect, circle, line, polyline, polygon):not([stroke="none"]) {
   stroke: currentColor !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg [fill]:not([fill="none"]) {
-  fill: currentColor !important;
-}
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) svg [stroke]:not([stroke="none"]) {
-  stroke: currentColor !important;
-}
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) :where(div, span) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-voice="1"]:not([data-rudex-comp-mic-active="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) :where(div, span) {
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
   border: none !important;
   box-shadow: none !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):hover {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] [data-rudex-comp-mic-active="1"]:not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"])[data-rudex-comp-mic-active="1"]:not([hidden]):not(.hidden):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) {
+  gap: 5px !important;
+  width: auto !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 7px !important;
+  border-radius: 999px !important;
+  background-color: color-mix(in srgb, #ef4444 16%, transparent) !important;
+  border: 1px solid color-mix(in srgb, #ef4444 48%, transparent) !important;
+  color: ${isLight ? "#dc2626" : "#f87171"} !important;
+  cursor: pointer !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where(button, [role="button"])[data-rudex-comp-mic-active="1"]:not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg) :where(svg, span) {
+  color: ${isLight ? "#dc2626" : "#f87171"} !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"]:not([data-rudex-comp-mic-active="1"]), [data-rudex-comp-voice="1"]:not([data-rudex-comp-mic-active="1"])):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):hover {
   background-color: ${hoverBg} !important;
   color: ${fgCol} !important;
   cursor: pointer !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):hover :where(button, [role="button"], svg, span, path, rect, circle, g) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] :where([data-rudex-comp-plus="1"], [data-rudex-comp-mic="1"]:not([data-rudex-comp-mic-active="1"]), [data-rudex-comp-voice="1"]:not([data-rudex-comp-mic-active="1"])):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):hover :where(button, [role="button"], svg, span, path, rect, circle, g) {
   color: ${fgCol} !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-plus="1"] {
@@ -1439,14 +1589,14 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   background-color: ${hoverBg} !important;
   color: ${fgCol} !important;
 }
-[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not([data-testid="cancel-invocation-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   font-size: 0 !important;
   line-height: 0 !important;
 }
-[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) > * {
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not([data-testid="cancel-invocation-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) > * {
   display: none !important;
 }
-[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *)::after {
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not([data-testid="cancel-invocation-button"]):not(#rudex-studio-host):not(#rudex-studio-host *)::after {
   content: "";
   display: block;
   width: 16px;
@@ -1455,12 +1605,12 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   -webkit-mask: ${ccSendIconMask} center / contain no-repeat;
   mask: ${ccSendIconMask} center / contain no-repeat;
 }
-[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"][data-testid="input-cancel-button"]:not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:where([data-testid="input-cancel-button"], [data-testid="cancel-invocation-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   background-color: color-mix(in srgb, ${composerAccent} 16%, transparent) !important;
   color: ${composerAccent} !important;
   border: 1px solid color-mix(in srgb, ${composerAccent} 45%, transparent) !important;
 }
-[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"][data-testid="input-cancel-button"]:not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
+[data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:where([data-testid="input-cancel-button"], [data-testid="cancel-invocation-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
   color: ${composerAccent} !important;
 }`.trim());
   } else if (us.composer === "codex") {
@@ -1478,7 +1628,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
       `border-radius: ${cRad}px !important;`,
       `border: 1.5px solid ${cBrd} !important;`,
       `padding: 0 !important;`,
-      `overflow: hidden !important;`,
+      `overflow: visible !important;`,
       `box-shadow: ${effShadow || "none"} !important;`,
       `transition: border-color 0.15s ease, box-shadow 0.15s ease;`
     );
@@ -1494,20 +1644,99 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   padding: 0 !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"] {
-  padding: 10px 16px 0 !important;
+  padding: 9px 16px 6px !important;
+  border-bottom: 1px solid ${hairline} !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] {
+  position: relative !important;
   padding: ${padY}px 18px ${Math.max(8, padY - 2)}px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 0 !important;
 }
+[data-rudex-theme-composer="1"] [data-rudex-comp-empty-slot="1"] {
+  display: none !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-attach-row="1"] {
+  margin-bottom: 6px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-editor-wrap="1"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where(div, section):has(:is(textarea, [contenteditable="true"], [role="textbox"])):not(#rudex-studio-host *) {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-editor="1"],
 [data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where(textarea, [contenteditable="true"], [role="textbox"]) {
   flex: 1 1 auto !important;
   width: 100% !important;
   min-width: 0 !important;
+  min-height: 22px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1.5 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where([contenteditable="true"], [role="textbox"]) > :where(p, div) {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.5 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] [data-rudex-comp-placeholder="wrap"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-editor-wrap="1"] > :where(div, span, p):where(.pointer-events-none, [class*="pointer-events-none"], [class*="placeholder"], .absolute, [style*="pointer-events: none"]):not(.sr-only):not([class~="sr-only"]):not([hidden]):not(.hidden):not([contenteditable="true"]):not([role="textbox"]):not(:has(button, [role="button"], img, video, svg, canvas)) {
+  position: absolute !important;
+  inset: 0 0 auto 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: auto !important;
+  transform: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1.5 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  pointer-events: none !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] [data-rudex-comp-placeholder="row"] {
+  position: absolute !important;
+  inset: ${padY}px 18px auto 18px !important;
+  top: ${padY}px !important;
+  left: 18px !important;
+  right: 18px !important;
+  bottom: auto !important;
+  transform: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1.5 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  pointer-events: none !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] [data-rudex-comp-placeholder-inner="1"] {
+  position: static !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  transform: none !important;
+  line-height: 1.5 !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-toolbar="1"] {
   padding: 8px 14px !important;
   border-top: 1px solid ${hairline} !important;
   background-color: ${footerBg} !important;
+  border-radius: 0 0 ${Math.max(0, cRad - 2)}px ${Math.max(0, cRad - 2)}px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
@@ -1521,7 +1750,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   font-size: 12px !important;
 }
 [data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *),
-[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-white"], [class~="dark:bg-white"], [class~="bg-primary"]):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-primary"]):not([data-rudex-comp-voice="1"]):not([data-rudex-comp-voice="1"] *):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   border-radius: 999px !important;
   background-color: ${codexSendBg} !important;
   color: ${codexSendFg} !important;
@@ -1529,7 +1758,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
 }
 [data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span),
-[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-white"], [class~="dark:bg-white"], [class~="bg-primary"]):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
+[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-primary"]):not([data-rudex-comp-voice="1"]):not([data-rudex-comp-voice="1"] *):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
   color: ${codexSendFg} !important;
 }`.trim());
   } else if (us.composer === "opencode") {
@@ -1546,7 +1775,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
       `border: 1px solid ${cBrd} !important;`,
       `border-left: 3px solid ${composerAccent} !important;`,
       `padding: 0 !important;`,
-      `overflow: hidden !important;`,
+      `overflow: visible !important;`,
       `box-shadow: ${effShadow || "none"} !important;`,
       `transition: border-color 0.12s ease;`
     );
@@ -1562,32 +1791,110 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   padding: 0 !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"] {
-  padding: 8px 12px 0 !important;
+  padding: 7px 12px 5px !important;
+  border-bottom: 1px solid ${hairline} !important;
 }
 [data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] {
   position: relative !important;
+  min-height: 42px !important;
   padding: ${padY}px 13px ${padY}px 28px !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(textarea) {
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(textarea):not([contenteditable="true"]):not([role="textbox"]) {
   display: flex !important;
   flex-direction: column !important;
-  gap: 6px !important;
+  justify-content: center !important;
+  gap: 0 !important;
 }
+[data-rudex-theme-composer="1"] [data-rudex-comp-empty-slot="1"] {
+  display: none !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-attach-row="1"] {
+  margin-bottom: 6px !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-editor-wrap="1"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where(div, section):has(:is(textarea, [contenteditable="true"], [role="textbox"])):not(#rudex-studio-host *) {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-editor="1"],
 [data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where(textarea, [contenteditable="true"], [role="textbox"]) {
   flex: 1 1 auto !important;
   width: 100% !important;
   min-width: 0 !important;
+  min-height: 22px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1.5 !important;
 }
-[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(textarea)::before {
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] :where([contenteditable="true"], [role="textbox"]) > :where(p, div) {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.5 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] [data-rudex-comp-placeholder="wrap"],
+[data-rudex-theme-composer="1"] [data-rudex-comp-editor-wrap="1"] > :where(div, span, p):where(.pointer-events-none, [class*="pointer-events-none"], [class*="placeholder"], .absolute, [style*="pointer-events: none"]):not(.sr-only):not([class~="sr-only"]):not([hidden]):not(.hidden):not([contenteditable="true"]):not([role="textbox"]):not(:has(button, [role="button"], img, video, svg, canvas)) {
+  position: absolute !important;
+  inset: 0 0 auto 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: auto !important;
+  transform: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1.5 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  pointer-events: none !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] [data-rudex-comp-placeholder="row"] {
+  position: absolute !important;
+  inset: ${padY}px 13px auto 28px !important;
+  top: ${padY}px !important;
+  left: 28px !important;
+  right: 13px !important;
+  bottom: auto !important;
+  transform: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1.5 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  pointer-events: none !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"] [data-rudex-comp-placeholder-inner="1"] {
+  position: static !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  transform: none !important;
+  line-height: 1.5 !important;
+}
+[data-rudex-theme-composer="1"] [data-rudex-comp-input-row="1"]:not(textarea):not([contenteditable="true"]):not([role="textbox"])::before {
   content: "❯";
   position: absolute;
   left: 11px;
-  bottom: ${padY + 2}px;
+  top: ${padY}px;
+  height: 22px;
+  display: flex;
+  align-items: center;
   color: ${composerAccent};
   font-family: var(--font-mono, "JetBrains Mono", Consolas, monospace);
   font-weight: 700;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.5;
   pointer-events: none;
   user-select: none;
 }
@@ -1595,24 +1902,25 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   padding: 6px 11px !important;
   border-top: 1px solid ${hairline} !important;
   background-color: ${barBg} !important;
+  border-radius: 0 0 ${Math.max(0, cRad - 1)}px ${Math.max(0, cRad - 1)}px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
   gap: 8px !important;
   font-family: var(--font-mono, "JetBrains Mono", Consolas, monospace) !important;
 }
-[data-rudex-theme-composer="1"] :where(button, [role="button"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-send="1"]) {
+[data-rudex-theme-composer="1"] :where(button, [role="button"]):not([data-testid="model-selector-trigger"]):not([data-rudex-comp-send="1"]):not([role="switch"]):not([role="radio"]):not([class*="rounded-full"]) {
   border-radius: 5px !important;
 }
 [data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *),
-[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-white"], [class~="dark:bg-white"], [class~="bg-primary"]):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-primary"]):not([data-rudex-comp-voice="1"]):not([data-rudex-comp-voice="1"] *):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   border-radius: 5px !important;
   background-color: ${composerAccent} !important;
   color: ${compAccentFg} !important;
   border: 1px solid color-mix(in srgb, ${composerAccent} 78%, transparent) !important;
 }
 [data-rudex-theme-composer="1"] :where(button, [role="button"])[data-rudex-comp-send="1"]:not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span),
-[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-white"], [class~="dark:bg-white"], [class~="bg-primary"]):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
+[data-rudex-theme-composer="1"] button:where([type="submit"], [data-testid*="send"], [aria-label*="Send" i], [aria-label*="Отправ" i], [class~="bg-primary"]):not([data-rudex-comp-voice="1"]):not([data-rudex-comp-voice="1"] *):not([data-testid="input-cancel-button"]):not(#rudex-studio-host):not(#rudex-studio-host *) :where(svg, span) {
   color: ${compAccentFg} !important;
 }`.trim());
   } else {
@@ -1626,6 +1934,23 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
     }
     const baseShadow = resolveShadowCss(us.composerShadow, "");
     if (baseShadow) compDecls.push(`box-shadow: ${baseShadow} !important;`);
+  }
+
+  if (us.composer !== "antigravity" && !hasThemeOverride && !hasWallpaper) {
+    // Strip Antigravity's native inner card frame on default native theme when a custom platform composer is active
+    rules.push(`
+[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"], [role="textbox"]),
+[data-rudex-theme-composer="1"] :where(div, section):has(:is(textarea, [contenteditable="true"], [role="textbox"])):not([data-rudex-comp-input-row="1"]) {
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  border-color: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}`.trim());
   }
 
   if (compDecls.length > 0) {
@@ -1760,7 +2085,7 @@ main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="
   }
 
   if (bubbleWrapDecls.length > 0) {
-    rules.push(`:where(div, section, article):has(> [data-testid="user-message-bubble"]):not(#rudex-studio-host *) {\n  ${bubbleWrapDecls.join("\n  ")}\n}`);
+    rules.push(`:where(div, section, article):has(> [data-testid="user-message-bubble"]):not(:has([data-testid="agent-response"])):not(#rudex-studio-host *) {\n  ${bubbleWrapDecls.join("\n  ")}\n}`);
   }
   if (bubbleDecls.length > 0) {
     rules.push(`${userBubbleSel} {\n  ${bubbleDecls.join("\n  ")}\n}`);
@@ -1804,7 +2129,7 @@ main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="
 }
 [data-testid="model-selector-trigger"]:hover {
   border-color: color-mix(in srgb, ${modelAccent} 50%, ${strongBrd}) !important;
-  background-color: ${hoverBg} !important;
+  background-color: ${pillHoverBg} !important;
 }`.trim());
   } else if (effModelBtn === "bordered") {
     rules.push(`
@@ -1925,13 +2250,13 @@ function normalizeAppearance(raw) {
 
   const tySrc = src.typography && typeof src.typography === "object" ? src.typography : {};
   const sanitizeSlotFont = (val, fallback, group) => {
-    if (val === "inherit") return fallback === "inherit" ? "inherit" : fallback;
+    if (!val || val === "inherit") return fallback;
     if (val === "custom") return "custom";
     const found = teFindFontAny(group, val);
     return found ? found.id : fallback;
   };
-  const uiFontId = tySrc.uiFont === "custom" ? "custom" : teFindFont("ui", tySrc.uiFont).id;
-  const monoFontId = tySrc.monoFont === "custom" ? "custom" : teFindFont("mono", tySrc.monoFont).id;
+  const uiFontId = sanitizeSlotFont(tySrc.uiFont, "system", "ui");
+  const monoFontId = sanitizeSlotFont(tySrc.monoFont, "system", "mono");
   const inputFontId = sanitizeSlotFont(tySrc.inputFont, "inherit", "ui");
   const userMsgFontId = sanitizeSlotFont(tySrc.userMsgFont, "inherit", "ui");
   const agentFontId = sanitizeSlotFont(tySrc.agentFont, "inherit", "ui");
@@ -2227,7 +2552,7 @@ function teBuildCornerRadiusCss(cfg, c) {
 
   const btnPillRule = c.buttons <= 6 || isCustom
     ? `
-body :where(button[class*="rounded-full"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([class*="size-4"]):not([class*="size-5"]):not([class*="size-6"]):not([class*="w-4"]):not([class*="w-5"]):not([class*="w-6"]):not([data-rudex-ignore="1"]) {
+body :where(button[class*="rounded-full"]:not(#rudex-studio-host):not(#rudex-studio-host *):not([data-rudex-comp-send="1"]):not([role="switch"]):not([role="radio"]):not([class*="size-4"]):not([class*="size-5"]):not([class*="size-6"]):not([class*="w-4"]):not([class*="w-5"]):not([class*="w-6"]):not([data-rudex-ignore="1"])) {
   border-radius: ${c.buttons}px !important;
 }`
     : "";
@@ -2237,19 +2562,19 @@ body :where(button[class*="rounded-full"]):not(#rudex-studio-host):not(#rudex-st
 :where([class*="rounded-"]):not(#rudex-studio-host):not(#rudex-studio-host *):not(#rudex-bg):not(#rudex-bg *):not([data-rudex-ignore="1"]):not(.rounded-none):not(.rounded-full):not([class*="rounded-full"]):not([role="switch"]):not([role="switch"] *):not([role="radio"]):not(input[type="radio"]):not(input[type="checkbox"]):not(svg):not(svg *):not(.katex):not(.mermaid) {
   border-radius: ${base}px !important;
 }
-:where([class*="rounded-sm"], [class*="rounded-xs"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([data-rudex-ignore="1"]) {
+:where([class*="rounded-sm"], [class*="rounded-xs"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([class*="rounded-full"]):not([role="switch"]):not([role="radio"]):not(svg):not(svg *):not([data-rudex-ignore="1"]) {
   border-radius: ${sm}px !important;
 }
-:where([class*="rounded-md"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([data-rudex-ignore="1"]) {
+:where([class*="rounded-md"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([class*="rounded-full"]):not([role="switch"]):not([role="radio"]):not(svg):not(svg *):not([data-rudex-ignore="1"]) {
   border-radius: ${md}px !important;
 }
-:where([class*="rounded-lg"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([data-rudex-ignore="1"]) {
+:where([class*="rounded-lg"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([class*="rounded-full"]):not([role="switch"]):not([role="radio"]):not(svg):not(svg *):not([data-rudex-ignore="1"]) {
   border-radius: ${lg}px !important;
 }
-:where([class*="rounded-xl"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([data-rudex-ignore="1"]) {
+:where([class*="rounded-xl"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([class*="rounded-full"]):not([role="switch"]):not([role="radio"]):not(svg):not(svg *):not([data-rudex-ignore="1"]) {
   border-radius: ${xl}px !important;
 }
-:where([class*="rounded-2xl"], [class*="rounded-3xl"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]):not([role="radio"]):not([data-rudex-ignore="1"]) {
+:where([class*="rounded-2xl"], [class*="rounded-3xl"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([class*="rounded-full"]):not([role="switch"]):not([role="radio"]):not(svg):not(svg *):not([data-rudex-ignore="1"]) {
   border-radius: ${xl2}px !important;
 }`
     : "";
@@ -2315,7 +2640,7 @@ body :where([data-slot="card"], [class*="bg-card"], details, [data-testid*="card
 :where([role="menuitem"], [role="option"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   border-radius: ${c.menuItem}px !important;
 }
-:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, [role="combobox"], [role="textbox"], [data-slot="input"], [data-slot="badge"], [class*="badge"], [class*="chip"], [class*="pill"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]) {
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, [role="combobox"], [data-slot="input"], [data-slot="badge"], [class*="badge"], [class*="chip"], [class*="pill"]):not(#rudex-studio-host):not(#rudex-studio-host *):not([role="switch"]) {
   border-radius: ${c.inputs}px !important;
 }
 `.trim();
@@ -2575,14 +2900,12 @@ main a:not(#rudex-studio-host *):not([role="button"]),
   color: ${vars.fgColor} !important;
   box-shadow: inset 0 -2px 0 ${vars.accentColor};
 }
-[data-rudex-theme-composer="1"] button:where([class~="bg-white"], [class~="dark:bg-white"], [class~="bg-zinc-100"], [class~="bg-neutral-100"]):not(#rudex-studio-host *),
-main button:where([class~="bg-white"], [class~="dark:bg-white"]):not([role="switch"]):not(#rudex-studio-host *) {
+[data-rudex-theme-composer="1"] button:where([class~="bg-white"], [class~="dark:bg-white"], [class~="bg-zinc-100"], [class~="bg-neutral-100"]):not([data-rudex-comp-voice="1"]):not([data-rudex-comp-voice="1"] *):not([data-rudex-comp-mic="1"]):not([data-rudex-comp-mic="1"] *):not([data-rudex-comp-mic-active="1"]):not(#rudex-studio-host *) {
   background-color: ${vars.accentColor} !important;
   color: ${primaryFg} !important;
   border-color: transparent !important;
 }
-[data-rudex-theme-composer="1"] button:where([class~="bg-white"], [class~="dark:bg-white"], [class~="bg-zinc-100"], [class~="bg-neutral-100"]) :where(svg, span),
-main button:where([class~="bg-white"], [class~="dark:bg-white"]):not([role="switch"]) :where(svg, span) {
+[data-rudex-theme-composer="1"] button:where([class~="bg-white"], [class~="dark:bg-white"], [class~="bg-zinc-100"], [class~="bg-neutral-100"]):not([data-rudex-comp-voice="1"]):not([data-rudex-comp-voice="1"] *):not([data-rudex-comp-mic="1"]):not([data-rudex-comp-mic="1"] *):not([data-rudex-comp-mic-active="1"]) :where(svg, span) {
   color: ${primaryFg} !important;
 }
 `);
@@ -2618,9 +2941,8 @@ main button:where([class~="bg-white"], [class~="dark:bg-white"]):not([role="swit
   [class~="bg-white/5"], [class~="bg-white/10"], [class~="bg-white/15"], [class~="dark:bg-white/5"], [class~="dark:bg-white/10"], [class~="dark:bg-white/15"],
   [class~="bg-zinc-950/50"], [class~="bg-zinc-950/80"], [class~="bg-zinc-900/50"], [class~="bg-zinc-900/80"], [class~="bg-zinc-900/90"], [class~="dark:bg-zinc-900/50"], [class~="dark:bg-zinc-800/50"], [class~="bg-zinc-800/50"], [class~="bg-zinc-800/80"],
   [class~="bg-neutral-950/50"], [class~="bg-neutral-950/80"], [class~="bg-neutral-900/50"], [class~="bg-neutral-900/80"], [class~="dark:bg-neutral-900/50"], [class~="bg-neutral-800/50"], [class~="bg-neutral-800/80"],
-  [class~="bg-gray-900/50"], [class~="bg-gray-900/80"], [class~="bg-slate-900/50"], [class~="bg-slate-900/80"],
-  [class~="bg-black/20"], [class~="bg-black/30"], [class~="bg-black/40"], [class~="bg-black/50"], [class~="bg-black/60"], [class~="bg-black/70"], [class~="bg-black/80"]
-):not([data-testid="agent-response"]):not([data-markdown-root]):not([role="dialog"]):not([role="alertdialog"]):not([data-state="open"]):not([aria-hidden="true"]):not([data-slot*="overlay"]):not([data-slot*="backdrop"]):not([role="switch"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
+  [class~="bg-gray-900/50"], [class~="bg-gray-900/80"], [class~="bg-slate-900/50"], [class~="bg-slate-900/80"]
+):not([data-testid="agent-response"]):not([data-markdown-root]):not([role="dialog"]):not([role="alertdialog"]):not([aria-hidden="true"]):not([data-slot*="overlay"]):not([data-slot*="backdrop"]):not([role="switch"]):not(#rudex-studio-host):not(#rudex-studio-host *) {
   background-color: ${secondaryHex} !important;
   color: ${vars.fgColor} !important;
 }
@@ -2654,7 +2976,7 @@ main button:where([class~="bg-white"], [class~="dark:bg-white"]):not([role="swit
   color: ${vars.fgColor} !important;
   border-color: ${effectiveBorder} !important;
 }
-[data-rudex-light-fix="surface"] :where(span, p, label, svg):not([class~="text-green-"]):not([class~="text-red-"]):not([class~="text-amber-"]) {
+[data-rudex-light-fix="surface"] :where(span, p, label, svg):not([class*="text-green-"]):not([class*="text-emerald-"]):not([class*="text-red-"]):not([class*="text-rose-"]):not([class*="text-amber-"]) {
   color: ${vars.fgColor} !important;
 }
 [data-rudex-light-text="1"] {
@@ -2662,12 +2984,12 @@ main button:where([class~="bg-white"], [class~="dark:bg-white"]):not([role="swit
 }
 [data-testid="agent-response"],
 [data-markdown-root],
-[data-testid="agent-response"] :where(p, li, h1, h2, h3, h4, h5, h6, strong, b, em, td, th, dt, dd, span, div):not(a):not(code):not(pre):not(pre *):not([class~="text-green-400"]):not([class~="text-emerald-400"]):not([class~="text-red-400"]):not([class~="text-rose-400"]):not([class~="text-amber-400"]):not([data-rudex-live-slot]):not([data-rudex-live-slot] *),
+[data-testid="agent-response"] :where(p, li, h1, h2, h3, h4, h5, h6, strong, b, em, td, th, dt, dd, span, div):where(:not(a):not(a *):not(blockquote):not(code):not(pre):not(pre *):not([class*="text-muted"]):not([class*="text-green-"]):not([class*="text-emerald-"]):not([class*="text-red-"]):not([class*="text-rose-"]):not([class*="text-amber-"]):not([class*="bg-primary"] *):not([data-rudex-live-slot]):not([data-rudex-live-slot] *)),
 [data-testid="model-selector-trigger"],
-[data-rudex-theme-composer="1"] :where(button, [role="button"]):not([class~="bg-primary"]):not([class~="bg-white"]):not([class~="dark:bg-white"]):not([class~="bg-blue-500"]):not([class~="bg-blue-600"]):not([class~="bg-red-500"]):not([data-testid="input-cancel-button"]) {
+[data-rudex-theme-composer="1"] :where(button, [role="button"]):where(:not([data-rudex-comp-send="1"]):not([class~="bg-primary"]):not([class~="bg-white"]):not([class~="dark:bg-white"]):not([class~="bg-blue-500"]):not([class~="bg-blue-600"]):not([class~="bg-red-500"]):not([data-testid="input-cancel-button"])) {
   color: ${vars.fgColor} !important;
 }
-:where(aside, main, header, [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-rudex-theme-composer="1"]) :where(div, section, button, a, input, select, textarea, hr, span):where(:not(#rudex-studio-host):not(#rudex-studio-host *):not([class~="border-transparent"]):not([class~="border-none"]):not([class~="border-0"]):not([class~="border-primary"]):not([class~="border-blue-500"]):not([class~="border-blue-600"]):not([class~="border-red-500"]):not([class~="border-green-500"]):not([class~="border-emerald-500"]):not([role="switch"][data-state="checked"]):not([role="switch"][aria-checked="true"]):not([role="checkbox"][data-state="checked"]):not([role="checkbox"][aria-checked="true"]):not(blockquote):not(code)) {
+:where(aside, main, header, [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-rudex-theme-composer="1"]) :where(div, section, button, a, input, select, textarea, hr, span):where(:not(#rudex-studio-host):not(#rudex-studio-host *):not([class~="border-transparent"]):not([class~="border-none"]):not([class~="border-0"]):not([class~="border-primary"]):not([class*="border-blue-"]):not([class*="border-red-"]):not([class*="border-rose-"]):not([class*="border-amber-"]):not([class*="border-green-"]):not([class*="border-emerald-"]):not([class*="border-destructive"]):not([role="switch"][data-state="checked"]):not([role="switch"][aria-checked="true"]):not([role="checkbox"][data-state="checked"]):not([role="checkbox"][aria-checked="true"]):not(blockquote):not(code)) {
   border-color: ${effectiveBorder} !important;
 }
 :where(span, div, p):where([class~="text-green-400"], [class~="text-emerald-400"], [class~="dark:text-green-400"], [class~="dark:text-emerald-400"]):not(#rudex-studio-host *) {
@@ -2785,9 +3107,9 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:
   border-color: ${effectiveBorder} !important;
   color: ${vars.fgColor} !important;
 }
-[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"], [role="textbox"]),
-[data-rudex-theme-composer="1"] :where(form, [data-testid="composer"], .composer-container),
-[data-rudex-theme-composer="1"] :where(div, section):has(:is(textarea, [contenteditable="true"], [role="textbox"])) {
+[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"], [role="textbox"]):not([data-rudex-comp-input-row="1"]),
+[data-rudex-theme-composer="1"] :where(form, [data-testid="composer"], .composer-container):not([data-rudex-comp-input-row="1"]),
+[data-rudex-theme-composer="1"] :where(div, section):has(:is(textarea, [contenteditable="true"], [role="textbox"])):not([data-rudex-comp-input-row="1"]) {
   background-color: transparent !important;
   background-image: none !important;
   border: none !important;
@@ -3118,8 +3440,8 @@ body {
 main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
 [data-testid="chat-container"]:not([role="dialog"]),
 [data-testid="conversation-view"]:not([role="dialog"]),
-:where(div, section):where([class~="bg-background"], [class~="dark:bg-background"]):where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="switch"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-slot="badge"], [data-slot="button"], [data-rudex-ignore="1"])),
-:where(div, section).bg-black:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-rudex-ignore="1"])) {
+:where(div, section):where([class~="bg-background"], [class~="dark:bg-background"]):where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="switch"], [role="dialog"], [role="dialog"] *, [role="alertdialog"], [role="alertdialog"] *, [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-slot="badge"], [data-slot="button"], [data-rudex-ignore="1"])),
+:where(div, section).bg-black:where(:not(aside, nav, header, [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"], [data-rudex-theme-composer="1"], [role="button"], [role="tab"], [role="dialog"], [role="dialog"] *, [role="alertdialog"], [role="alertdialog"] *, [role="menu"], [role="listbox"], [role="tooltip"], [class*="badge"], [class*="chip"], [class*="pill"], [data-rudex-ignore="1"])) {
   background-color: transparent !important;
 }
 [data-rudex-bg-sidebar="1"],
@@ -3185,9 +3507,9 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:
   color: ${vars.fgColor} !important;
   ${msgStyle !== "solid" ? glassBlurCss : ""}
 }
-[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"], [role="textbox"]),
-[data-rudex-theme-composer="1"] :where(form, [data-testid="composer"], .composer-container),
-[data-rudex-theme-composer="1"] :where(div, section):has(:is(textarea, [contenteditable="true"], [role="textbox"])) {
+[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"], [role="textbox"]):not([data-rudex-comp-input-row="1"]),
+[data-rudex-theme-composer="1"] :where(form, [data-testid="composer"], .composer-container):not([data-rudex-comp-input-row="1"]),
+[data-rudex-theme-composer="1"] :where(div, section):has(:is(textarea, [contenteditable="true"], [role="textbox"])):not([data-rudex-comp-input-row="1"]) {
   background-color: transparent !important;
   background-image: none !important;
   border: none !important;
@@ -3232,7 +3554,10 @@ div:has(> [contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:
   ${agentBg ? `background-color: ${agentBg} !important;` : ""}
 }
 [data-testid="user-message-bubble"],
-[data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *),
+[data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
+  border-radius: ${cRadii.messages}px !important;
+  border: ${cfg.borderStrength > 0 ? `1px solid ${dynamicBorderCol}` : "none"} !important;
+}
 [data-rudex-theme-composer="1"],
 form:has(textarea[placeholder]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
 form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:has([data-rudex-theme-composer="1"])),
@@ -3278,7 +3603,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 [data-rudex-theme-composer="1"] {
   border: 1px solid ${crispBorderCol} !important;
   outline: none !important;
-  box-shadow: none !important;
+  ${isGlassTheme ? "" : "box-shadow: none !important;"}
   --tw-ring-color: transparent !important;
   --tw-ring-shadow: 0 0 #0000 !important;
   --tw-ring-offset-shadow: 0 0 #0000 !important;
@@ -3346,7 +3671,7 @@ main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="
   --default-font-family: ${uiStack} !important;
   --font-ui: ${uiStack} !important;
 }
-body, input, textarea, button, button *, [role="button"], [role="button"] *, select, label, [role="tooltip"], [role="tooltip"] *, [role="menu"], [role="menu"] *, [role="listbox"], [role="listbox"] *, [data-rudex-theme-composer="1"], [data-rudex-theme-composer="1"] *:not(code):not(pre):not(svg):not(svg *), [data-rudex-theme-composer="1"] :where(button, span, div, p, label):not(code):not(pre), :where([class~="font-sans"]):not(#rudex-studio-host):not(#rudex-studio-host *), [data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"] {
+body, input, textarea, button, button :where(*:not(code):not(pre):not([class*="font-mono"]):not([class*="codicon"])), [role="button"], [role="button"] :where(*:not(code):not(pre):not([class*="font-mono"]):not([class*="codicon"])), select, label, [role="tooltip"], [role="tooltip"] *, [role="menu"], [role="menu"] *, [role="listbox"], [role="listbox"] *, [data-rudex-theme-composer="1"], [data-rudex-theme-composer="1"] :where(button, span, div, p, label):not([contenteditable="true"]):not([contenteditable="true"] *), [data-rudex-theme-composer="1"] *:not(code):not(pre):not(svg):not(svg *):not(textarea):not([contenteditable="true"]):not([contenteditable="true"] *):not([class*="font-mono"]), :where([class~="font-sans"]):not(#rudex-studio-host):not(#rudex-studio-host *), [data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"] {
   font-family: ${uiStack} !important;
   ${isSerifUi ? 'text-rendering: optimizeLegibility; font-feature-settings: "kern" 1, "liga" 1;' : ""}
 }
@@ -3363,9 +3688,11 @@ body, input, textarea, button, button *, [role="button"], [role="button"] *, sel
 
   if (inputStack || ty.inputFontSize > 0) {
     chunks.push(`
-[data-rudex-theme-composer="1"] :where(textarea, [contenteditable="true"], [contenteditable="true"] *),
-form:not(#rudex-studio-host *) :where(textarea, [contenteditable="true"]),
-[data-testid="composer"] :where(textarea, [contenteditable="true"], [contenteditable="true"] *) {
+[data-rudex-theme-composer="1"] :is(textarea, [contenteditable="true"], [contenteditable="true"] *),
+[data-rudex-theme-composer="1"] [data-rudex-comp-placeholder],
+[data-rudex-theme-composer="1"] [data-rudex-comp-placeholder-inner="1"],
+form:not(#rudex-studio-host *) :is(textarea, [contenteditable="true"]),
+[data-testid="composer"] :is(textarea, [contenteditable="true"], [contenteditable="true"] *) {
   ${inputStack ? `font-family: ${inputStack} !important;` : ""}
   ${ty.inputFontSize > 0 ? `font-size: ${ty.inputFontSize}px !important;` : ""}
 }
@@ -3377,19 +3704,26 @@ form:not(#rudex-studio-host *) :where(textarea, [contenteditable="true"]),
     chunks.push(`
 [data-testid="user-message-bubble"],
 [data-testid="user-message-content"],
-[data-testid="user-message-content"] :where(p, span, div, li):not(code):not(pre):not(code *):not(pre *) {
+[data-testid="user-message-content"] :where(p, span, div, li):where(:not(code):not(pre):not(code *):not(pre *)) {
   ${effUserMsgStack ? `font-family: ${effUserMsgStack} !important;` : ""}
   ${ty.inputFontSize > 0 ? `font-size: ${ty.inputFontSize}px !important;` : ""}
 }
 `);
   }
 
-  if (agentStack || ty.agentFontSize > 0) {
+  if (agentStack) {
     chunks.push(`
 [data-testid="agent-response"],
-[data-testid="agent-response"] :where([data-markdown-root], p, li, span, div, h1, h2, h3, h4, td, th, blockquote):not(code):not(pre):not(code *):not(pre *):not([data-testid*="thought"] *):not([data-testid*="thinking"] *) {
-  ${agentStack ? `font-family: ${agentStack} !important;` : ""}
-  ${ty.agentFontSize > 0 ? `font-size: ${ty.agentFontSize}px !important;` : ""}
+[data-testid="agent-response"] :where([data-markdown-root], p, li, span, div, h1, h2, h3, h4, h5, h6, td, th, blockquote):where(:not(code):not(pre):not(code *):not(pre *):not([data-testid*="thought"] *):not([data-testid*="thinking"] *):not([data-rudex-zone="thinking"] *)) {
+  font-family: ${agentStack} !important;
+}
+`);
+  }
+  if (ty.agentFontSize > 0) {
+    chunks.push(`
+[data-testid="agent-response"],
+[data-testid="agent-response"] :where([data-markdown-root], p, li, td, th, blockquote):where(:not(code):not(pre):not(code *):not(pre *):not([data-testid*="thought"] *):not([data-testid*="thinking"] *):not([data-rudex-zone="thinking"] *)) {
+  font-size: ${ty.agentFontSize}px !important;
 }
 `);
   }
@@ -3413,10 +3747,21 @@ ${monoStack ? `:root, html, body {\n  --font-mono: ${monoStack} !important;\n}\n
 `);
   }
 
-  if (ty.fontSize !== 14 || ty.lineHeight !== 1.55) {
+  if (ty.fontSize !== 14) {
+    const fsTargets = [];
+    if (ty.agentFontSize <= 0) fsTargets.push('[data-markdown-root]', '[data-testid="agent-response"]');
+    if (ty.inputFontSize <= 0) fsTargets.push('[data-testid="user-message-content"]');
+    if (fsTargets.length > 0) {
+      chunks.push(`
+${fsTargets.join(", ")} {
+  font-size: ${ty.fontSize}px !important;
+}
+`);
+    }
+  }
+  if (ty.lineHeight !== 1.55) {
     chunks.push(`
 [data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"] {
-  font-size: ${ty.fontSize}px !important;
   line-height: ${ty.lineHeight} !important;
 }
 `);
@@ -3518,7 +3863,7 @@ form:has(textarea[placeholder]:focus-within):not([data-rudex-theme-composer="1"]
   }
 
   if (hasUiStyle) {
-    const uiStyleCss = teBuildUiStyleCss(cfg, vars, isLight, hasThemeOverride, hasWallpaper);
+    const uiStyleCss = teBuildUiStyleCss(cfg, vars, isLight, hasThemeOverride, hasWallpaper, effectiveBlurPx);
     if (uiStyleCss) chunks.push(uiStyleCss);
   }
 
@@ -3553,10 +3898,17 @@ function createThemeEngine(options = {}) {
     "data-rudex-comp-stack",
     "data-rudex-comp-top-row",
     "data-rudex-comp-input-row",
+    "data-rudex-comp-editor",
+    "data-rudex-comp-editor-wrap",
+    "data-rudex-comp-placeholder",
+    "data-rudex-comp-placeholder-inner",
+    "data-rudex-comp-attach-row",
+    "data-rudex-comp-empty-slot",
     "data-rudex-comp-toolbar",
     "data-rudex-comp-group",
     "data-rudex-comp-plus",
     "data-rudex-comp-mic",
+    "data-rudex-comp-mic-active",
     "data-rudex-comp-voice",
     "data-rudex-comp-model",
     "data-rudex-comp-mode",
@@ -3566,10 +3918,17 @@ function createThemeEngine(options = {}) {
     "data-rudex-comp-stack",
     "data-rudex-comp-top-row",
     "data-rudex-comp-input-row",
+    "data-rudex-comp-editor",
+    "data-rudex-comp-editor-wrap",
+    "data-rudex-comp-placeholder",
+    "data-rudex-comp-placeholder-inner",
+    "data-rudex-comp-attach-row",
+    "data-rudex-comp-empty-slot",
     "data-rudex-comp-toolbar",
     "data-rudex-comp-group",
     "data-rudex-comp-plus",
     "data-rudex-comp-mic",
+    "data-rudex-comp-mic-active",
     "data-rudex-comp-voice",
     "data-rudex-comp-model",
     "data-rudex-comp-mode",
@@ -3615,6 +3974,10 @@ function createThemeEngine(options = {}) {
   let lastHadThemeOverride = false;
   let pendingFastConfig = null;
   let fastRafId = 0;
+  let sendAlignRafId = 0;
+  let compResizeObserver = null;
+  let observedCompEls = new Set();
+  let isWritingInternalStyle = false;
 
   function resolveWallpaperSrc(cfg) {
     const wp = cfg && cfg.wallpaper ? cfg.wallpaper : null;
@@ -3692,11 +4055,111 @@ function createThemeEngine(options = {}) {
     shellRescanTimers = [];
   }
 
+  function computeCcSendTopPx(comp, inputRow, sendBtn, inpEl) {
+    if (!comp || !inputRow || typeof inputRow.getBoundingClientRect !== "function") return null;
+    const refParent = sendBtn && sendBtn.offsetParent && comp.contains(sendBtn.offsetParent) ? sendBtn.offsetParent : comp;
+    const refRect = refParent && typeof refParent.getBoundingClientRect === "function"
+      ? refParent.getBoundingClientRect()
+      : (typeof comp.getBoundingClientRect === "function" ? comp.getBoundingClientRect() : null);
+    const ir = inputRow.getBoundingClientRect();
+    const sr = sendBtn && typeof sendBtn.getBoundingClientRect === "function" ? sendBtn.getBoundingClientRect() : null;
+    const sendH = sr && sr.height >= 16 && sr.height <= 40 ? sr.height : 28;
+    if (!ir || !refRect || ir.height < 24) return null;
+    const targetInp = inpEl || (typeof inputRow.querySelector === "function" ? inputRow.querySelector('textarea, [contenteditable="true"], [role="textbox"]') : null);
+    const inpR = targetInp && typeof targetInp.getBoundingClientRect === "function" ? targetInp.getBoundingClientRect() : null;
+    const minTop = Math.max(4, Math.round(ir.top - refRect.top) + 6);
+    const maxTop = Math.max(minTop, Math.round(ir.bottom - refRect.top) - sendH - 8);
+    // Multiline Reply box: anchor return arrow (↵) cleanly at bottom-right instead of floating halfway up the scrollbar
+    const isMultiline = ir.height > 72 && (!inpR || inpR.height > 52);
+    if (isMultiline) {
+      return maxTop;
+    }
+    let centerY = ir.top + ir.height / 2;
+    if (inpR && inpR.height >= 16 && inpR.height <= 52 && ir.height > inpR.height + 28) {
+      centerY = inpR.top + inpR.height / 2;
+    }
+    const rawTop = Math.round((centerY - refRect.top) - sendH / 2);
+    return Math.max(minTop, Math.min(maxTop, rawTop));
+  }
+
+  function applyCompSendTop(comp, topPx) {
+    if (!comp || !comp.style || typeof comp.style.setProperty !== "function" || typeof topPx !== "number") return;
+    const val = `${topPx}px`;
+    if (comp.style.getPropertyValue("--rudex-cc-send-top") !== val) {
+      isWritingInternalStyle = true;
+      try {
+        comp.style.setProperty("--rudex-cc-send-top", val);
+      } finally {
+        isWritingInternalStyle = false;
+      }
+    }
+  }
+
+  function syncObservedComposerResize(composers) {
+    if (!win || typeof win.ResizeObserver !== "function") return;
+    const nextEls = new Set();
+    for (let i = 0; i < composers.length; i += 1) {
+      const c = composers[i];
+      if (!c) continue;
+      nextEls.add(c);
+      const ir = typeof c.querySelector === "function" ? c.querySelector('[data-rudex-comp-input-row="1"]') : null;
+      if (ir) nextEls.add(ir);
+    }
+    if (nextEls.size === 0) {
+      if (compResizeObserver) {
+        try { compResizeObserver.disconnect(); } catch (_e) {}
+        compResizeObserver = null;
+      }
+      observedCompEls.clear();
+      return;
+    }
+    if (!compResizeObserver) {
+      try {
+        compResizeObserver = new win.ResizeObserver(() => {
+          if ((!wallpaperActive && !themeScanActive) || !doc || typeof doc.querySelectorAll !== "function") return;
+          const activeComps = doc.querySelectorAll('[data-rudex-theme-composer="1"]');
+          for (let i = 0; activeComps && i < activeComps.length; i += 1) {
+            const comp = activeComps[i];
+            if (!comp || typeof comp.querySelector !== "function") continue;
+            const inRow = comp.querySelector('[data-rudex-comp-input-row="1"]');
+            if (!inRow) continue;
+            const sendEl = comp.querySelector('[data-rudex-comp-send="1"]');
+            const topPx = computeCcSendTopPx(comp, inRow, sendEl, null);
+            if (topPx !== null) applyCompSendTop(comp, topPx);
+          }
+        });
+      } catch (_e) {
+        compResizeObserver = null;
+        return;
+      }
+    }
+    for (const prev of observedCompEls) {
+      if (!nextEls.has(prev)) {
+        try { compResizeObserver.unobserve(prev); } catch (_e) {}
+      }
+    }
+    for (const el of nextEls) {
+      if (!observedCompEls.has(el)) {
+        try { compResizeObserver.observe(el); } catch (_e) {}
+      }
+    }
+    observedCompEls = nextEls;
+  }
+
   function clearWallpaperShells() {
     if (shellScanTimer && win && typeof win.clearTimeout === "function") {
       win.clearTimeout(shellScanTimer);
       shellScanTimer = null;
     }
+    if (sendAlignRafId && win && typeof win.cancelAnimationFrame === "function") {
+      try { win.cancelAnimationFrame(sendAlignRafId); } catch (_e) {}
+      sendAlignRafId = 0;
+    }
+    if (compResizeObserver && typeof compResizeObserver.disconnect === "function") {
+      try { compResizeObserver.disconnect(); } catch (_e) {}
+      compResizeObserver = null;
+    }
+    observedCompEls.clear();
     clearShellRescanTimers();
     lastShellScanAt = 0;
     shellWatchersAttached = false;
@@ -3712,7 +4175,7 @@ function createThemeEngine(options = {}) {
     if (!doc || typeof doc.querySelectorAll !== "function") return;
     try {
       const marked = doc.querySelectorAll(
-        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-theme-composer], [data-rudex-theme-accent-dot], [data-rudex-light-fix], [data-rudex-light-text], [data-rudex-header-btn-fix], [data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-voice], [data-rudex-comp-model], [data-rudex-comp-mode], [data-rudex-comp-send]"
+        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-theme-composer], [data-rudex-theme-accent-dot], [data-rudex-light-fix], [data-rudex-light-text], [data-rudex-header-btn-fix], [data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-editor], [data-rudex-comp-editor-wrap], [data-rudex-comp-placeholder], [data-rudex-comp-placeholder-inner], [data-rudex-comp-attach-row], [data-rudex-comp-empty-slot], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-mic-active], [data-rudex-comp-voice], [data-rudex-comp-model], [data-rudex-comp-mode], [data-rudex-comp-send]"
       );
       for (let i = 0; marked && i < marked.length; i += 1) {
         if (marked[i] && marked[i].style && typeof marked[i].style.removeProperty === "function") {
@@ -3827,7 +4290,29 @@ function createThemeEngine(options = {}) {
     const plans = [];
     const compPartFixes = [];
     const compPartSet = new Set();
+    const compDesiredAttrs = new Map();
     const compSendOffsets = [];
+    const composerEls = new Set();
+
+    const isLikelyComposerContainer = (node) => {
+      if (!node || node.nodeType !== 1) return false;
+      if (typeof node.hasAttribute === "function" && (node.hasAttribute("data-rudex-theme-composer") || node.hasAttribute("data-rudex-comp-input-row") || node.hasAttribute("data-rudex-comp-stack"))) {
+        return true;
+      }
+      if (typeof node.querySelector === "function") {
+        try {
+          if (node.querySelector('textarea, [contenteditable="true"]') && !node.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"]')) {
+            if (typeof node.getBoundingClientRect === "function") {
+              const nr = node.getBoundingClientRect();
+              if (nr && nr.width <= Math.min(Math.round(vw * 0.94), 1180) && nr.height <= Math.max(540, Math.round(vh * 0.78))) {
+                return true;
+              }
+            }
+          }
+        } catch (_e) {}
+      }
+      return false;
+    };
 
     const hasHeaderAncestor = (node) => {
       let p = node && (node.parentElement || node.parentNode);
@@ -3857,8 +4342,8 @@ function createThemeEngine(options = {}) {
       if (!isSafeHeaderBar(node, rect, cs)) return false;
       if (hasHeaderAncestor(node)) return false;
       if (hasBg) return true;
-      if (typeof node.hasAttribute === "function" && node.hasAttribute("data-rudex-bg-header")) return true;
       if (!wallpaperActive) return false;
+      if (typeof node.hasAttribute === "function" && node.hasAttribute("data-rudex-bg-header")) return true;
       const t = String(node.tagName || "").toUpperCase();
       if (t === "HEADER") return true;
       if (cs && (cs.position === "sticky" || cs.position === "fixed" || cs.position === "absolute")) return true;
@@ -3889,7 +4374,7 @@ function createThemeEngine(options = {}) {
         if (rect && rect.width > 0 && rect.height > 0) {
           if (rect.left <= 16 && rect.width >= 150 && rect.width <= 380 && rect.height >= vh * 0.65) {
             attr = "data-rudex-bg-sidebar";
-          } else if (rect.width >= vw * 0.42 && rect.height >= vh * 0.42) {
+          } else if (rect.width >= vw * 0.42 && rect.height >= vh * 0.42 && !isLikelyComposerContainer(el)) {
             attr = "data-rudex-bg-shell";
           } else if (rect.top <= 88 && rect.height >= 22 && rect.height <= 74 && rect.width >= vw * 0.35) {
             attr = "data-rudex-bg-header";
@@ -4000,7 +4485,7 @@ function createThemeEngine(options = {}) {
           let hitAttr = "";
           if (r.left <= 20 && r.width >= 140 && r.width <= 400 && r.height >= vh * 0.50) {
             hitAttr = "data-rudex-bg-sidebar";
-          } else if (r.width >= vw * 0.42 && r.height >= vh * 0.42) {
+          } else if (r.width >= vw * 0.42 && r.height >= vh * 0.42 && !isLikelyComposerContainer(hitEl)) {
             const hitBgAlpha = hitCs ? teParseBgAlpha(hitCs.backgroundColor) : 0;
             if (hitBgAlpha > 0 && hitBgAlpha < 0.85 && hitCs && hitCs.position === "absolute") continue;
             hitAttr = "data-rudex-bg-shell";
@@ -4043,15 +4528,20 @@ function createThemeEngine(options = {}) {
         return false;
       };
 
-      const composerEls = new Set();
       const composerInfos = [];
       try {
         const inputs = doc.querySelectorAll('textarea, [contenteditable="true"]');
         const maxComposerW = Math.min(Math.round(vw * 0.94), 1160);
-        const maxComposerH = Math.min(340, Math.round(vh * 0.44));
-        for (let i = 0; inputs && i < inputs.length && i < 6; i += 1) {
+        const maxComposerH = Math.max(480, Math.round(vh * 0.72));
+        const breakComposerH = Math.max(540, Math.round(vh * 0.78));
+        for (let i = 0; inputs && i < inputs.length && i < 20; i += 1) {
           const inp = inputs[i];
           if (!inp || isProtectedForTheme(inp)) continue;
+          if (teHasClass(inp, "inputarea") || teHasClass(inp, "ime-text-area")) continue;
+          if (typeof inp.getBoundingClientRect === "function") {
+            const irCheck = inp.getBoundingClientRect();
+            if (irCheck && (irCheck.width < 40 || irCheck.height < 14)) continue;
+          }
           let cur = inp.parentElement;
           let depth = 0;
           let best = null;
@@ -4065,11 +4555,11 @@ function createThemeEngine(options = {}) {
             }
             if (typeof cur.getBoundingClientRect === "function") {
               const cr = cur.getBoundingClientRect();
-              if (cr && cr.height > Math.min(380, vh * 0.48)) break;
+              const alreadyComposer = typeof cur.hasAttribute === "function" && cur.hasAttribute("data-rudex-theme-composer");
+              if (!alreadyComposer && cr && cr.height > breakComposerH) break;
               const isInnerPart = typeof cur.hasAttribute === "function" && cur.hasAttribute("data-rudex-comp-input-row");
-              if (!isInnerPart && cr && cr.width >= 200 && cr.width <= maxComposerW && cr.height >= 36 && cr.height <= maxComposerH) {
+              if (!isInnerPart && cr && cr.width >= 200 && cr.width <= maxComposerW && cr.height >= 36 && (alreadyComposer || cr.height <= maxComposerH)) {
                 const ccs = win.getComputedStyle(cur);
-                const alreadyComposer = typeof cur.hasAttribute === "function" && cur.hasAttribute("data-rudex-theme-composer");
                 const hasBorder = ccs && ccs.borderTopWidth && parseFloat(ccs.borderTopWidth) > 0 && teParseBgAlpha(ccs.borderTopColor) >= 0.04;
                 const radiusPx = ccs && ccs.borderTopLeftRadius ? parseFloat(ccs.borderTopLeftRadius) : 0;
                 if (alreadyComposer || hasComputedBgFill(ccs) || hasBorder || (Number.isFinite(radiusPx) && radiusPx >= 8)) {
@@ -4090,13 +4580,12 @@ function createThemeEngine(options = {}) {
 
         // Pass C2: Semantic annotation of composer sub-parts (input row, bottom toolbar, +, mic, voice, mode, send)
         // Zero DOM node moves (100% React-safe) — powers true Claude Code / Codex / OpenCode layouts!
-        const compDesiredAttrs = new Map();
-        const markCompPart = (el, attr) => {
+        const markCompPart = (el, attr, val) => {
           if (!el || el.nodeType !== 1) return;
           compPartSet.add(el);
           if (!compDesiredAttrs.has(el)) compDesiredAttrs.set(el, new Set());
           compDesiredAttrs.get(el).add(attr);
-          compPartFixes.push({ el, attr, val: "1" });
+          compPartFixes.push({ el, attr, val: val !== undefined ? String(val) : "1" });
         };
         const directChildUnder = (ancestor, node) => {
           let p = node;
@@ -4169,13 +4658,106 @@ function createThemeEngine(options = {}) {
           markCompPart(inputRow, "data-rudex-comp-input-row");
           markCompPart(toolbar, "data-rudex-comp-toolbar");
 
-          // Mark any row above inputRow (e.g., attachments or New Chat host/repo/branch bar) as top-row
-          if (stack.children && stack.children.length > 2) {
-            for (let si = 0; si < stack.children.length; si += 1) {
-              const ch = stack.children[si];
-              if (ch === inputRow) break;
-              if (ch && ch !== toolbar) markCompPart(ch, "data-rudex-comp-top-row");
+          // Semantically tag editor, intermediate wrappers, Lexical/custom placeholder overlay, and empty/attachment slots inside inputRow
+          // so Claude Code / Codex / OpenCode never double-offset the placeholder or sink text below center!
+          if (inp !== inputRow) {
+            markCompPart(inp, "data-rudex-comp-editor");
+            const editorWrapSet = new Set();
+            let ew = inp.parentElement;
+            let editorBranchChild = inp;
+            while (ew && ew !== inputRow && inputRow.contains(ew)) {
+              markCompPart(ew, "data-rudex-comp-editor-wrap");
+              editorWrapSet.add(ew);
+              editorBranchChild = ew;
+              ew = ew.parentElement;
             }
+            const placeholderSet = new Set();
+            if (typeof inputRow.querySelectorAll === "function") {
+              const innerNodes = Array.from(inputRow.querySelectorAll("div, span, p"));
+              for (let pi = 0; pi < innerNodes.length && pi < 48; pi += 1) {
+                const el = innerNodes[pi];
+                if (!el || el === inp || editorWrapSet.has(el)) continue;
+                if (typeof el.contains === "function" && (el.contains(inp) || (typeof inp.contains === "function" && inp.contains(el)))) continue;
+                let insidePh = false;
+                let pp = el.parentElement;
+                while (pp && pp !== inputRow) {
+                  if (placeholderSet.has(pp)) {
+                    insidePh = true;
+                    break;
+                  }
+                  pp = pp.parentElement;
+                }
+                if (insidePh) {
+                  markCompPart(el, "data-rudex-comp-placeholder-inner");
+                  continue;
+                }
+                if (typeof el.querySelector === "function" && el.querySelector('button, [role="button"], input, textarea, img, video, svg, canvas, a')) {
+                  continue;
+                }
+                const eTxt = String(el.textContent || "").trim();
+                if (!eTxt) continue;
+                const eCls = typeof el.className === "string" ? el.className : "";
+                if (/\b(?:sr-only|visually-hidden|hidden)\b/i.test(eCls)) continue;
+                const ecs = typeof win.getComputedStyle === "function" ? win.getComputedStyle(el) : null;
+                if (ecs && (ecs.display === "none" || ecs.visibility === "hidden" || ecs.opacity === "0")) continue;
+                if (typeof el.getBoundingClientRect === "function") {
+                  const er = el.getBoundingClientRect();
+                  if (er && er.width > 0 && er.height > 0 && (er.width <= 2 || er.height <= 2)) continue;
+                }
+                const eTid = typeof el.getAttribute === "function" ? String(el.getAttribute("data-testid") || "") : "";
+                const isPlaceholderCand =
+                  (ecs && (ecs.pointerEvents === "none" || ecs.position === "absolute")) ||
+                  /\b(?:pointer-events-none|absolute|placeholder)\b/i.test(eCls + " " + eTid) ||
+                  (typeof el.getAttribute === "function" && el.getAttribute("aria-hidden") === "true");
+                if (isPlaceholderCand) {
+                  placeholderSet.add(el);
+                  let inWrap = false;
+                  let anc = el.parentElement;
+                  while (anc && anc !== inputRow) {
+                    if (editorWrapSet.has(anc)) {
+                      inWrap = true;
+                      break;
+                    }
+                    anc = anc.parentElement;
+                  }
+                  markCompPart(el, "data-rudex-comp-placeholder", inWrap ? "wrap" : "row");
+                }
+              }
+            }
+            if (inputRow.children && inputRow.children.length > 1) {
+              let seenEditorBranch = false;
+              for (let si = 0; si < inputRow.children.length; si += 1) {
+                const ch = inputRow.children[si];
+                if (!ch || ch === editorBranchChild) {
+                  seenEditorBranch = true;
+                  continue;
+                }
+                if (placeholderSet.has(ch)) continue;
+                const hasMediaOrCtrl = typeof ch.querySelector === "function" && Boolean(ch.querySelector('button, [role="button"], img, video, svg, canvas, input, textarea'));
+                const chTxt = String(ch.textContent || "").trim();
+                if (!hasMediaOrCtrl && !chTxt) {
+                  markCompPart(ch, "data-rudex-comp-empty-slot");
+                } else if (!seenEditorBranch) {
+                  markCompPart(ch, "data-rudex-comp-attach-row");
+                }
+              }
+            }
+          }
+
+          // Mark any row above inputRow (at stack level OR intermediate wrapper level inside comp, e.g. New Chat host/repo/branch bar or attachments) as top-row
+          let branchChild = inputRow;
+          let lvl = stack;
+          while (lvl && (lvl === comp || comp.contains(lvl))) {
+            if (lvl.children && lvl.children.length > 1) {
+              for (let si = 0; si < lvl.children.length; si += 1) {
+                const ch = lvl.children[si];
+                if (ch === branchChild) break;
+                if (ch && ch !== toolbar && ch !== inputRow) markCompPart(ch, "data-rudex-comp-top-row");
+              }
+            }
+            if (lvl === comp) break;
+            branchChild = lvl;
+            lvl = lvl.parentElement;
           }
 
           // Classify buttons inside toolbar
@@ -4190,17 +4772,43 @@ function createThemeEngine(options = {}) {
             const tid = String((b && b.getAttribute && b.getAttribute("data-testid")) || "").toLowerCase();
             const al = String((b && b.getAttribute && (b.getAttribute("aria-label") || b.getAttribute("title"))) || "").toLowerCase();
             const txt = String((b && b.textContent) || "").trim();
-            return { tid, al, txt };
+            const cls = typeof (b && b.className) === "string" ? b.className : "";
+            return { tid, al, txt, cls };
           };
-          const isPlusLabel = (meta) => meta.txt === "+" || /attach|add|upload|context|контекст|файл|прикреп|добав/i.test(meta.tid + " " + meta.al);
-          const isMicLabel = (meta) => /mic|dictat|микроф|диктов/i.test(meta.tid + " " + meta.al);
-          const isVoiceModeLabel = (meta) => /voice\s*mode|live\s*voice|talk|conversation|audio\s*mode|голосов[а-яё]*\s*режим|разговор|живой\s*голос/i.test(meta.tid + " " + meta.al);
+          const isPlusLabel = (meta) => meta.txt === "+" || /attach|add\s*context|upload|context|контекст|файл|прикреп|добав/i.test(meta.tid + " " + meta.al);
+          const isVoiceModeLabel = (meta) => /voice\s*mode|live\s*voice|talk|conversation|audio\s*mode|end\s+voice|start\s+voice\s+mode|голосов[а-яё]*\s*режим|разговор|живой\s*голос/i.test(meta.tid + " " + meta.al);
+          const isMicLabel = (meta) =>
+            !isVoiceModeLabel(meta) &&
+            /mic|dictat|voice\s*record|speech|transcrib|(?:start|stop|cancel|toggle)\s+(?:voice\s+)?record|(?:mute|unmute|switch)\s+mic|микроф|диктов|запис[а-яё]*\s*голос|голосов[а-яё]*\s*ввод|распознав|(?:начать|остановить|отменить|переключить)\s+запис/i.test(meta.tid + " " + meta.al + " " + meta.txt);
+          const isRecordingActiveBtn = (b, meta) => {
+            if (!b) return false;
+            const ga = typeof b.getAttribute === "function" ? (k) => String(b.getAttribute(k) || "").toLowerCase() : () => "";
+            if (ga("aria-pressed") === "true" || ga("data-recording") === "true") return true;
+            const st = ga("data-state");
+            if (st === "recording" || st === "listening") return true;
+            const combined = meta.tid + " " + meta.al + " " + meta.txt;
+            if (/stop\s+(?:voice\s+)?record|cancel\s+record|stop\s+transcrib|end\s+voice|listening|recording|останов[а-яё]*\s+запис|отмен[а-яё]*\s+запис|останов[а-яё]*\s+распознав|заверш[а-яё]*\s+голосов|слуша/i.test(combined)) {
+              return true;
+            }
+            if (/\b(?:bg-red-|text-red-|bg-rose-|text-rose-|bg-destructive|text-destructive|animate-pulse|animate-ping)/i.test(meta.cls) && !isExplicitAgentCancel(b, meta)) {
+              return true;
+            }
+            if (typeof b.querySelector === "function" && b.querySelector("canvas")) return true;
+            if (/^\d{1,2}:\d{2}$/.test(meta.txt)) return true;
+            return false;
+          };
+          const isExplicitAgentCancel = (b, meta) => {
+            if (!b) return false;
+            const tid = meta.tid;
+            if (tid === "input-cancel-button" || tid === "cancel-invocation-button") return true;
+            return /(?:stop|cancel)\s+(?:generat|agent|exec|stream|respond|invoc|send|task)|(?:останов|отмен|прерв)[а-яё]*\s+(?:генерац|агент|выполнен|ответ|отправ|задач)/i.test(tid + " " + meta.al);
+          };
           const isExplicitSend = (b, meta) => {
             if (!b || b === modelTrig) return false;
-            if (isPlusLabel(meta) || isMicLabel(meta) || isVoiceModeLabel(meta)) return false;
-            if (b.getAttribute && b.getAttribute("data-testid") === "input-cancel-button") return true;
+            if (isExplicitAgentCancel(b, meta)) return true;
+            if (isPlusLabel(meta) || isMicLabel(meta) || isVoiceModeLabel(meta) || isRecordingActiveBtn(b, meta)) return false;
             if (b.getAttribute && String(b.getAttribute("type") || "").toLowerCase() === "submit") return true;
-            if (/send|submit|cancel|stop|отправ|останов|отмен/i.test(meta.tid + " " + meta.al)) return true;
+            if (/\b(?:send|submit)\b|отправ/i.test(meta.tid + " " + meta.al)) return true;
             if (teHasClass(b, "bg-primary") && meta.txt.length <= 2) return true;
             return false;
           };
@@ -4208,18 +4816,20 @@ function createThemeEngine(options = {}) {
           let sendBtn = null;
           for (let bi = 0; bi < barBtns.length; bi += 1) {
             const b = barBtns[bi];
-            if (isExplicitSend(b, getBtnMeta(b))) {
+            const meta = getBtnMeta(b);
+            if (isExplicitSend(b, meta)) {
               sendBtn = b;
-              if (b.getAttribute && b.getAttribute("data-testid") === "input-cancel-button") break;
+              if (isExplicitAgentCancel(b, meta)) break;
             }
           }
           if (sendBtn) markCompPart(sendBtn, "data-rudex-comp-send");
 
-          const modelRect = modelTrig && typeof modelTrig.getBoundingClientRect === "function" ? modelTrig.getBoundingClientRect() : null;
+          // Use stable DOM order relative to modelTrig (NEVER getBoundingClientRect().left, because Claude Code CSS `order` reorders buttons visually!)
+          const modelIdx = modelTrig ? barBtns.indexOf(modelTrig) : -1;
           let plusBtn = null;
-          let micBtn = null;
+          const micEntries = [];
           let modeBtn = null;
-          const voiceBtns = [];
+          const voiceEntries = [];
 
           for (let bi = 0; bi < barBtns.length; bi += 1) {
             const b = barBtns[bi];
@@ -4227,20 +4837,36 @@ function createThemeEngine(options = {}) {
             const br = typeof b.getBoundingClientRect === "function" ? b.getBoundingClientRect() : null;
             const meta = getBtnMeta(b);
             const txt = meta.txt;
-            if (!plusBtn && (isPlusLabel(meta) || (modelRect && br && br.right <= modelRect.left + 8 && br.width <= 44))) {
+            const isBeforeModel = modelIdx >= 0 ? bi < modelIdx : bi === 0;
+            const isRecAct = isRecordingActiveBtn(b, meta);
+
+            if (!plusBtn && !isRecAct && !isMicLabel(meta) && !isVoiceModeLabel(meta) && (isPlusLabel(meta) || (isBeforeModel && !txt && (!br || br.width <= 44)))) {
               plusBtn = b;
               continue;
             }
-            if (!modeBtn && txt.length >= 2 && txt.length <= 28) {
+            if (isMicLabel(meta) || isRecAct) {
+              if (isVoiceModeLabel(meta)) {
+                voiceEntries.push({ btn: b, active: isRecAct });
+              } else {
+                micEntries.push({ btn: b, active: isRecAct });
+              }
+              continue;
+            }
+            if (isVoiceModeLabel(meta)) {
+              voiceEntries.push({ btn: b, active: isRecAct });
+              continue;
+            }
+            if (!modeBtn && txt.length >= 2 && txt.length <= 28 && !/^\d{1,2}:\d{2}$/.test(txt)) {
               modeBtn = b;
               continue;
             }
-            if (!micBtn && !isVoiceModeLabel(meta) && (isMicLabel(meta) || (!txt && br && br.width <= 42 && !teHasClass(b, "bg-white") && !teHasClass(b, "dark:bg-white") && (!modelRect || br.left > modelRect.left)))) {
-              micBtn = b;
-              continue;
-            }
-            if (!txt || isVoiceModeLabel(meta) || teHasClass(b, "bg-white") || teHasClass(b, "dark:bg-white")) {
-              voiceBtns.push(b);
+            if (!txt) {
+              const isWhiteCircle = teHasClass(b, "bg-white") || teHasClass(b, "dark:bg-white");
+              if (!isWhiteCircle && micEntries.length === 0) {
+                micEntries.push({ btn: b, active: false });
+              } else {
+                voiceEntries.push({ btn: b, active: false });
+              }
             }
           }
           // Preserve atomic single-button wrappers (e.g. Voice Mode <div class="relative"><button/><svg class="absolute"/></div>
@@ -4262,21 +4888,31 @@ function createThemeEngine(options = {}) {
           };
 
           const plusSlot = getAtomicSlot(plusBtn);
-          const micSlot = getAtomicSlot(micBtn);
+          const micSlots = micEntries.map((e) => ({ slot: getAtomicSlot(e.btn), btn: e.btn, active: e.active })).filter((e) => e.slot);
           const modeSlot = getAtomicSlot(modeBtn);
           const modelSlot = getAtomicSlot(modelTrig);
-          const voiceSlots = voiceBtns.map(getAtomicSlot).filter(Boolean);
+          const voiceSlots = voiceEntries.map((e) => ({ slot: getAtomicSlot(e.btn), btn: e.btn, active: e.active })).filter((e) => e.slot);
 
           if (plusSlot) markCompPart(plusSlot, "data-rudex-comp-plus");
-          if (micSlot) markCompPart(micSlot, "data-rudex-comp-mic");
+          for (let mi = 0; mi < micSlots.length; mi += 1) {
+            markCompPart(micSlots[mi].slot, "data-rudex-comp-mic");
+            if (micSlots[mi].active) {
+              markCompPart(micSlots[mi].slot, "data-rudex-comp-mic-active");
+              if (micSlots[mi].btn !== micSlots[mi].slot) markCompPart(micSlots[mi].btn, "data-rudex-comp-mic-active");
+            }
+          }
           if (modeSlot) markCompPart(modeSlot, "data-rudex-comp-mode");
           if (modelSlot && modelSlot !== modelTrig) markCompPart(modelSlot, "data-rudex-comp-model");
           for (let vi = 0; vi < voiceSlots.length; vi += 1) {
-            markCompPart(voiceSlots[vi], "data-rudex-comp-voice");
+            markCompPart(voiceSlots[vi].slot, "data-rudex-comp-voice");
+            if (voiceSlots[vi].active) {
+              markCompPart(voiceSlots[vi].slot, "data-rudex-comp-mic-active");
+              if (voiceSlots[vi].btn !== voiceSlots[vi].slot) markCompPart(voiceSlots[vi].btn, "data-rudex-comp-mic-active");
+            }
           }
 
           // Mark ONLY multi-button layout wrappers ABOVE atomic slots (plus sendBtn's own wrappers so sendBtn leaves 0 gap in toolbar)
-          const slotAnchors = [plusSlot, micSlot, modeSlot, modelSlot, ...voiceSlots].filter(Boolean);
+          const slotAnchors = [plusSlot, ...micSlots.map((m) => m.slot), modeSlot, modelSlot, ...voiceSlots.map((v) => v.slot)].filter(Boolean);
           for (let ki = 0; ki < slotAnchors.length; ki += 1) {
             let p = slotAnchors[ki].parentElement;
             while (p && p !== toolbar && toolbar.contains(p)) {
@@ -4292,24 +4928,10 @@ function createThemeEngine(options = {}) {
             }
           }
 
-          // Compute exact vertical center of send button inside inputRow using sendBtn's actual offsetParent (so New Chat's top-row never shifts ↵!)
-          if (info.rect && typeof inputRow.getBoundingClientRect === "function") {
-            const refParent = sendBtn && sendBtn.offsetParent && comp.contains(sendBtn.offsetParent) ? sendBtn.offsetParent : comp;
-            const refRect = refParent && typeof refParent.getBoundingClientRect === "function" ? refParent.getBoundingClientRect() : info.rect;
-            const ir = inputRow.getBoundingClientRect();
-            const sr = sendBtn && typeof sendBtn.getBoundingClientRect === "function" ? sendBtn.getBoundingClientRect() : null;
-            const sendH = sr && sr.height >= 16 && sr.height <= 40 ? sr.height : 28;
-            if (ir && refRect && ir.height >= 24) {
-              let centerY = ir.top + ir.height / 2;
-              if (inpRect && inpRect.height >= 16 && inpRect.height <= 52 && ir.height > inpRect.height + 28) {
-                centerY = inpRect.top + inpRect.height / 2;
-              }
-              const minTop = Math.max(4, Math.round(ir.top - refRect.top) + 6);
-              const maxTop = Math.max(minTop, Math.round(ir.bottom - refRect.top) - sendH - 6);
-              const rawTop = Math.round((centerY - refRect.top) - sendH / 2);
-              const topPx = Math.max(minTop, Math.min(maxTop, rawTop));
-              compSendOffsets.push({ el: comp, topPx });
-            }
+          // Compute exact position of send button inside inputRow (centered on single-line, bottom-right on multiline!)
+          const topPx = computeCcSendTopPx(comp, inputRow, sendBtn, inp);
+          if (topPx !== null) {
+            compSendOffsets.push({ el: comp, topPx });
           }
         }
       } catch (_e) {}
@@ -4564,12 +5186,12 @@ function createThemeEngine(options = {}) {
               const prevFix = typeof el.getAttribute === "function" ? el.getAttribute("data-rudex-light-fix") : "";
               const prevTextFix = typeof el.getAttribute === "function" ? el.getAttribute("data-rudex-light-text") : "";
               if (prevFix) {
-                const isAct = (el.getAttribute && (
+                const isAct = Boolean(el.getAttribute && (
                   el.getAttribute("aria-current") === "page" ||
                   el.getAttribute("aria-selected") === "true" ||
                   el.getAttribute("data-active") === "true" ||
                   el.getAttribute("data-state") === "active"
-                )) || prevFix === "sidebar-active";
+                ));
                 extraFixSet.add(el);
                 extraFixes.push({ el, attr: "data-rudex-light-fix", val: isAct ? "sidebar-active" : "sidebar" });
                 continue;
@@ -4605,7 +5227,12 @@ function createThemeEngine(options = {}) {
           for (let k = 0; compAndMain && k < compAndMain.length && k < 220; k += 1) {
             const el = compAndMain[k];
             if (!el || extraFixSet.has(el) || isProtectedFixNode(el)) continue;
-            if (el.getAttribute && (el.getAttribute("data-rudex-theme-composer") === "1" || el.getAttribute("data-rudex-bg-header") === "1")) continue;
+            if (el.getAttribute && (el.getAttribute("data-rudex-theme-composer") === "1" || el.getAttribute("data-rudex-bg-header") === "1" || el.getAttribute("data-rudex-comp-send") === "1" || el.getAttribute("data-rudex-comp-voice") === "1" || el.getAttribute("data-rudex-comp-mic-active") === "1")) continue;
+            if (typeof el.closest === "function") {
+              try {
+                if (el.closest('[data-rudex-comp-send="1"], [data-rudex-comp-voice="1"], [data-rudex-comp-mic-active="1"]')) continue;
+              } catch (_e) {}
+            }
             // Do not repaint thumbnail containers that wrap an uploaded image
             if (typeof el.querySelector === "function" && el.querySelector("img, video, canvas")) continue;
             if (typeof el.getBoundingClientRect === "function") {
@@ -4671,14 +5298,26 @@ function createThemeEngine(options = {}) {
           fx.el.setAttribute(fx.attr, fx.val);
         }
       }
+      // Clean up stale composer tags on nodes that are no longer composers
+      const prevComps = doc.querySelectorAll('[data-rudex-theme-composer="1"]');
+      for (let i = 0; prevComps && i < prevComps.length; i += 1) {
+        const pc = prevComps[i];
+        if (pc && !composerEls.has(pc)) {
+          if (pc.style && typeof pc.style.removeProperty === "function") {
+            isWritingInternalStyle = true;
+            try { pc.style.removeProperty("--rudex-cc-send-top"); } finally { isWritingInternalStyle = false; }
+          }
+          if (typeof pc.removeAttribute === "function") pc.removeAttribute("data-rudex-theme-composer");
+        }
+      }
       if (typeof compPartFixes !== "undefined") {
         const prevCompParts = doc.querySelectorAll(
-          "[data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-voice], [data-rudex-comp-model], [data-rudex-comp-mode], [data-rudex-comp-send]"
+          "[data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-editor], [data-rudex-comp-editor-wrap], [data-rudex-comp-placeholder], [data-rudex-comp-placeholder-inner], [data-rudex-comp-attach-row], [data-rudex-comp-empty-slot], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-mic-active], [data-rudex-comp-voice], [data-rudex-comp-model], [data-rudex-comp-mode], [data-rudex-comp-send]"
         );
         for (let i = 0; prevCompParts && i < prevCompParts.length; i += 1) {
           const pc = prevCompParts[i];
           if (!pc || typeof pc.removeAttribute !== "function") continue;
-          const desired = typeof compDesiredAttrs !== "undefined" ? compDesiredAttrs.get(pc) : null;
+          const desired = compDesiredAttrs.get(pc);
           for (let a = 0; a < COMP_PART_ATTRS.length; a += 1) {
             const attrName = COMP_PART_ATTRS[a];
             if (pc.hasAttribute(attrName) && (!desired || !desired.has(attrName))) {
@@ -4694,42 +5333,26 @@ function createThemeEngine(options = {}) {
         }
         for (let i = 0; i < compSendOffsets.length; i += 1) {
           const co = compSendOffsets[i];
-          if (co && co.el && co.el.style && typeof co.el.style.setProperty === "function") {
-            const val = `${co.topPx}px`;
-            if (co.el.style.getPropertyValue("--rudex-cc-send-top") !== val) {
-              co.el.style.setProperty("--rudex-cc-send-top", val);
-            }
-          }
+          if (co && co.el) applyCompSendTop(co.el, co.topPx);
         }
-        // Re-measure exact vertical center of Claude Code return arrow after layout settles with new padding & static stacks
+        syncObservedComposerResize(Array.from(composerEls));
+        // Re-measure exact vertical position of Claude Code return arrow after layout settles with new padding & static stacks
         if (compSendOffsets.length > 0 && win && typeof win.requestAnimationFrame === "function") {
+          if (sendAlignRafId && typeof win.cancelAnimationFrame === "function") {
+            try { win.cancelAnimationFrame(sendAlignRafId); } catch (_e) {}
+          }
           const toAlign = compSendOffsets.map((c) => c.el);
-          win.requestAnimationFrame(() => {
+          sendAlignRafId = win.requestAnimationFrame(() => {
+            sendAlignRafId = 0;
+            if (!wallpaperActive && !themeScanActive) return;
             for (let i = 0; i < toAlign.length; i += 1) {
               const comp = toAlign[i];
-              if (!comp || typeof comp.querySelector !== "function" || typeof comp.getBoundingClientRect !== "function") continue;
+              if (!comp || typeof comp.querySelector !== "function") continue;
               const inRow = comp.querySelector('[data-rudex-comp-input-row="1"]');
-              if (!inRow || typeof inRow.getBoundingClientRect !== "function") continue;
+              if (!inRow) continue;
               const sendEl = comp.querySelector('[data-rudex-comp-send="1"]');
-              const refParent = sendEl && sendEl.offsetParent && comp.contains(sendEl.offsetParent) ? sendEl.offsetParent : comp;
-              const cr = refParent && typeof refParent.getBoundingClientRect === "function" ? refParent.getBoundingClientRect() : comp.getBoundingClientRect();
-              const ir = inRow.getBoundingClientRect();
-              const inpEl = inRow.querySelector('textarea, [contenteditable="true"], [role="textbox"]');
-              const inpR = inpEl && typeof inpEl.getBoundingClientRect === "function" ? inpEl.getBoundingClientRect() : null;
-              if (cr && ir && ir.height >= 24) {
-                let centerY = ir.top + ir.height / 2;
-                if (inpR && inpR.height >= 16 && inpR.height <= 52 && ir.height > inpR.height + 28) {
-                  centerY = inpR.top + inpR.height / 2;
-                }
-                const minTop = Math.max(4, Math.round(ir.top - cr.top) + 6);
-                const maxTop = Math.max(minTop, Math.round(ir.bottom - cr.top) - 28 - 6);
-                const rawTop = Math.round((centerY - cr.top) - 14);
-                const topPx = Math.max(minTop, Math.min(maxTop, rawTop));
-                const val = `${topPx}px`;
-                if (comp.style && comp.style.getPropertyValue("--rudex-cc-send-top") !== val) {
-                  comp.style.setProperty("--rudex-cc-send-top", val);
-                }
-              }
+              const topPx = computeCcSendTopPx(comp, inRow, sendEl, null);
+              if (topPx !== null) applyCompSendTop(comp, topPx);
             }
           });
         }
@@ -4786,16 +5409,22 @@ function createThemeEngine(options = {}) {
         }
         try {
           shellObserver = new win.MutationObserver((muts) => {
-            if (!wallpaperActive && !themeScanActive) return;
+            if ((!wallpaperActive && !themeScanActive) || isWritingInternalStyle) return;
             for (let i = 0; i < muts.length; i += 1) {
               const m = muts[i];
               if (m.type === "attributes" && SHELL_ATTRS.indexOf(m.attributeName) >= 0) continue;
+              if (m.type === "attributes" && m.attributeName === "style" && m.target && typeof m.target.hasAttribute === "function" && m.target.hasAttribute("data-rudex-theme-composer")) continue;
               if (isIgnoredMutationTarget(m.target)) continue;
+              if (m.target && typeof m.target.closest === "function") {
+                try {
+                  if (m.target.closest('[contenteditable="true"], [role="textbox"]')) continue;
+                } catch (_e) {}
+              }
               scheduleShellScan();
               break;
             }
           });
-          shellObserver.observe(watchTarget, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style"] });
+          shellObserver.observe(watchTarget, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style", "aria-label", "aria-pressed", "data-state"] });
           shellObservedTarget = watchTarget;
         } catch (_e) {
           shellObserver = null;
@@ -5004,6 +5633,8 @@ function createThemeEngine(options = {}) {
       layer.setAttribute("aria-hidden", "true");
       layer.style.position = "fixed";
       layer.style.inset = "0";
+      layer.style.width = "100%";
+      layer.style.height = "100%";
       layer.style.zIndex = mountTarget === doc.body ? "-1" : "0";
       layer.style.pointerEvents = "none";
       layer.style.overflow = "hidden";
@@ -5128,7 +5759,8 @@ function createThemeEngine(options = {}) {
     if (wp.hue !== 0) filterParts.push(`hue-rotate(${wp.hue}deg)`);
     const filterCss = filterParts.length > 0 ? filterParts.join(" ") : "none";
     const opacityVal = String(Math.round(teClamp(wp.opacity, 15, 100, 85)) / 100);
-    const effScale = wp.blur > 0 ? Math.max(wp.scale / 100, 1.06) : (wp.scale / 100);
+    const baseScale = wp.scale / 100;
+    const effScale = wp.blur > 0 ? (wp.scale >= 100 ? Math.max(baseScale, 1.06) : baseScale * 1.04) : baseScale;
     const posStr = `${Math.round(teClamp(wp.posX, 0, 100, 50))}% ${Math.round(teClamp(wp.posY, 0, 100, 50))}%`;
     const transformParts = [];
     if (wp.offsetX !== 0 || wp.offsetY !== 0) {
@@ -5185,9 +5817,19 @@ function createThemeEngine(options = {}) {
         vid.style.inset = "0";
         vid.style.width = "100%";
         vid.style.height = "100%";
+        vid.style.minWidth = "100%";
+        vid.style.minHeight = "100%";
+        vid.style.maxWidth = "none";
+        vid.style.maxHeight = "none";
+        vid.style.display = "block";
         vid.style.pointerEvents = "none";
-        if (scrimChild && scrimChild.parentNode === layer && typeof layer.insertBefore === "function") {
-          layer.insertBefore(vid, scrimChild);
+        const beforeOverlay = (tintChild && tintChild.parentNode === layer)
+          ? tintChild
+          : ((vignetteChild && vignetteChild.parentNode === layer)
+            ? vignetteChild
+            : ((scrimChild && scrimChild.parentNode === layer) ? scrimChild : null));
+        if (beforeOverlay && typeof layer.insertBefore === "function") {
+          layer.insertBefore(vid, beforeOverlay);
         } else {
           layer.appendChild(vid);
         }
@@ -5239,9 +5881,19 @@ function createThemeEngine(options = {}) {
         img.style.inset = "0";
         img.style.width = "100%";
         img.style.height = "100%";
+        img.style.minWidth = "100%";
+        img.style.minHeight = "100%";
+        img.style.maxWidth = "none";
+        img.style.maxHeight = "none";
+        img.style.display = "block";
         img.style.pointerEvents = "none";
-        if (scrimChild && scrimChild.parentNode === layer && typeof layer.insertBefore === "function") {
-          layer.insertBefore(img, scrimChild);
+        const beforeOverlay = (tintChild && tintChild.parentNode === layer)
+          ? tintChild
+          : ((vignetteChild && vignetteChild.parentNode === layer)
+            ? vignetteChild
+            : ((scrimChild && scrimChild.parentNode === layer) ? scrimChild : null));
+        if (beforeOverlay && typeof layer.insertBefore === "function") {
+          layer.insertBefore(img, beforeOverlay);
         } else {
           layer.appendChild(img);
         }
@@ -5298,8 +5950,13 @@ function createThemeEngine(options = {}) {
       flowEl.style.pointerEvents = "none";
       gradWrap.appendChild(flowEl);
 
-      if (scrimChild && scrimChild.parentNode === layer && typeof layer.insertBefore === "function") {
-        layer.insertBefore(gradWrap, scrimChild);
+      const beforeOverlay = (tintChild && tintChild.parentNode === layer)
+        ? tintChild
+        : ((vignetteChild && vignetteChild.parentNode === layer)
+          ? vignetteChild
+          : ((scrimChild && scrimChild.parentNode === layer) ? scrimChild : null));
+      if (beforeOverlay && typeof layer.insertBefore === "function") {
+        layer.insertBefore(gradWrap, beforeOverlay);
       } else {
         layer.appendChild(gradWrap);
       }
@@ -5378,8 +6035,9 @@ function createThemeEngine(options = {}) {
     const hasCornersOverride = teHasCustomCorners(effectiveConfig);
     const hasUiStyle = teHasCustomUiStyle(effectiveConfig);
     const hasElementOverrides = !effectiveConfig.overridesPaused && Array.isArray(effectiveConfig.elementOverrides) && effectiveConfig.elementOverrides.length > 0;
+    const hasBorderPreset = effectiveConfig.borderPreset !== "crisp";
     const hasSurfaceOverride =
-      hasCornersOverride || effectiveConfig.radius !== 12 || effectiveConfig.borderStrength !== 50 || effectiveConfig.messageStyle !== "glass";
+      hasCornersOverride || hasBorderPreset || effectiveConfig.radius !== 12 || effectiveConfig.borderStrength !== 50 || effectiveConfig.messageStyle !== "glass";
     const hostIsLight = resolveEffectiveHostIsLight(effectiveConfig);
     const isLight = hasThemeOverride
       ? teResolveThemeVars(effectiveConfig).mode === "light"
@@ -5424,8 +6082,7 @@ function createThemeEngine(options = {}) {
     }
     applyWallpaper(effectiveConfig, isLight);
     if (themeScanActive && !wallpaperActive) {
-      ensureShellWatchers();
-      scanWallpaperShells();
+      if (!ensureShellWatchers()) scanWallpaperShells();
     } else if (!themeScanActive && !wallpaperActive) {
       clearWallpaperShells();
     }

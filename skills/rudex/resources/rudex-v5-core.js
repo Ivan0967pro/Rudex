@@ -192,12 +192,78 @@ const RUDEX_LIVE_EDIT_DEFAULTS = {
   sendKey: "enter",
   urgentIntercept: false,
   showChatDock: true,
+  showContextMeter: false,
   showInChat: true,
   showDeliveredBadge: true,
   showQueueStrip: false,
   chatBubbleStyle: "native",
   chatBubblePos: "after-user",
 };
+
+function rv5FormatContextTokens(n) {
+  const num = Math.max(0, Math.round(Number(n) || 0));
+  if (num >= 1000000) {
+    const m = num / 1000000;
+    return `${m >= 10 ? Math.round(m) : m.toFixed(m % 1 === 0 ? 0 : 1)}M`;
+  }
+  if (num >= 1000) {
+    const k = num / 1000;
+    return `${k >= 100 ? Math.round(k) : k.toFixed(k % 1 === 0 ? 0 : 1)}K`;
+  }
+  return String(num);
+}
+
+function rv5ResolveModelContextWindow(rawModelName) {
+  const name = String(rawModelName || "").trim();
+  const low = name.toLowerCase();
+  let maxTokens = 200000;
+  let explicit = false;
+
+  const mMatch = /\b([12])m\b/i.exec(low);
+  const kMatch = /\b(\d{2,4})k\b/i.exec(low);
+  if (mMatch) {
+    maxTokens = parseInt(mMatch[1], 10) * 1000000;
+    explicit = true;
+  } else if (kMatch) {
+    const kv = parseInt(kMatch[1], 10);
+    if (kv >= 32 && kv <= 4096) {
+      maxTokens = kv * 1000;
+      explicit = true;
+    }
+  }
+
+  if (!explicit) {
+    if (/gemini/.test(low)) {
+      maxTokens = /1\.5\s*pro/.test(low) ? 2000000 : 1000000;
+    } else if (/claude|opus|sonnet|haiku/.test(low)) {
+      maxTokens = 200000;
+    } else if (/gpt-?4\.1/.test(low)) {
+      maxTokens = 1000000;
+    } else if (/gpt-?5|codex/.test(low)) {
+      maxTokens = 400000;
+    } else if (/\bo[134](?:\b|-)/.test(low)) {
+      maxTokens = 200000;
+    } else if (/grok/.test(low)) {
+      maxTokens = 256000;
+    } else if (/gpt-?4|chatgpt|deepseek|qwen|llama|mistral/.test(low)) {
+      maxTokens = 128000;
+    }
+  }
+
+  let shortModel = name
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .replace(/\s+(?:сверхвысокий|высокий|средний|низкий|авто|xhigh|extra\s*high|high|medium|low|minimal|thinking|fast)\b/gi, "")
+    .replace(/^claude\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (shortModel.length > 20) shortModel = shortModel.slice(0, 19).trim() + "…";
+
+  return {
+    maxTokens,
+    windowLabel: rv5FormatContextTokens(maxTokens),
+    shortModel,
+  };
+}
 
 const RUDEX_AGENT_PROFILE_DEFAULTS = {
   presetId: "default",
@@ -225,21 +291,44 @@ function rv5EscapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+const RV5_CODE_PUNCT_MAP = {
+  BracketLeft: "[",
+  BracketRight: "]",
+  Semicolon: ";",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
+  Backslash: "\\",
+  Backquote: "`",
+  Minus: "-",
+  Equal: "=",
+  Space: "Space",
+};
+
 function rv5FormatKeyboardEvent(ev) {
   if (!ev) return "";
   const key = String(ev.key || "");
   if (key === "Control" || key === "Alt" || key === "Shift" || key === "Meta" || key === "Dead") return "";
   if (key === "Escape") return "__CANCEL__";
   if (key === "Backspace" || key === "Delete") return "__CLEAR__";
+  if (typeof ev.getModifierState === "function" && ev.getModifierState("AltGraph")) return "";
+  const isFnKey = /^F(?:[1-9]|1[0-2])$/i.test(key);
+  const hasCtrl = Boolean(ev.ctrlKey || ev.metaKey);
+  const hasAlt = Boolean(ev.altKey);
+  const hasShift = Boolean(ev.shiftKey);
+  // Prevent binding bare Shift+<letter> (would hijack typing capital letters!) or unmodified keys
+  if (!hasCtrl && !hasAlt && !isFnKey) return "";
   const parts = [];
-  if (ev.ctrlKey || ev.metaKey) parts.push("Ctrl");
-  if (ev.altKey) parts.push("Alt");
-  if (ev.shiftKey) parts.push("Shift");
-  if (parts.length === 0 && !/^F\d{1,2}$/i.test(key)) return "";
-  let main = key;
+  if (hasCtrl) parts.push("Ctrl");
+  if (hasAlt) parts.push("Alt");
+  if (hasShift) parts.push("Shift");
+  let main = key === " " ? "Space" : key;
   const code = String(ev.code || "");
   if (/^Key([A-Z])$/.test(code)) main = code.slice(3);
   else if (/^Digit(\d)$/.test(code)) main = code.slice(5);
+  else if (RV5_CODE_PUNCT_MAP[code]) main = RV5_CODE_PUNCT_MAP[code];
+  else if (main === "+") main = "Plus";
   else if (main.length === 1) main = main.toUpperCase();
   parts.push(main);
   return parts.join("+");
@@ -307,6 +396,14 @@ function rv5SummarizeActiveToggles(prof, isRu) {
   if (prof.autoVerify) tags.push(isRu ? "Тесты" : "Tests");
   if (prof.deepMode) tags.push(isRu ? "До конца" : "Deep");
   if (prof.safetyMode === "readonly") tags.push(isRu ? "Только чтение" : "Read-Only");
+  if (prof.conciseness === "short") tags.push(isRu ? "Кратко" : "Short");
+  else if (prof.conciseness === "detailed") tags.push(isRu ? "Подробно" : "Detailed");
+  if (Array.isArray(prof.pinnedSkills) && prof.pinnedSkills.length > 0) {
+    tags.push(isRu ? `Скиллы (${prof.pinnedSkills.length})` : `Skills (${prof.pinnedSkills.length})`);
+  }
+  if (Array.isArray(prof.disabledTools) && prof.disabledTools.length > 0) {
+    tags.push(isRu ? `Фильтр (${prof.disabledTools.length})` : `Filter (${prof.disabledTools.length})`);
+  }
   return tags;
 }
 
@@ -346,7 +443,7 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
     ? (fams.claudeGpt || {})
     : (isPreview ? { fiveHourRem: 38, weeklyRem: 71, fiveHourReset: isRu ? "1ч 40м" : "1h 40m" } : {});
   const modelLow = String(activeModelName || "").toLowerCase();
-  const activeFam = modelLow.includes("claude") || modelLow.includes("gpt") || modelLow.includes("sonnet") || modelLow.includes("opus")
+  const activeFam = /claude|gpt|sonnet|opus|haiku|anthropic|openai|chatgpt|\bo[134](?:\b|-)/.test(modelLow)
     ? "claudeGpt"
     : "gemini";
 
@@ -395,7 +492,7 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
   const label5h = isRu ? "5ч" : "5h";
   const labelWk = isRu ? "Нед" : "Wk";
   const hasAnyValues = rows.some((r) => typeof r.data.fiveHourRem === "number" || typeof r.data.weeklyRem === "number");
-  const titleHint = isRu ? "Лимиты Antigravity (клик — настройки)" : "Antigravity Limits (click for settings)";
+  const titleHint = isRu ? "Лимиты Antigravity" : "Antigravity Limits";
   const pinTitle = isDockedUi
     ? (isRu ? "Открепить (плавающее окно)" : "Undock (floating window)")
     : (isRu ? "Закрепить как часть интерфейса" : "Dock into UI");
@@ -482,13 +579,14 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
  */
 function rv5BuildSmartSelector(el, scope) {
   if (!el || el.nodeType !== 1) return "";
-  const testId = typeof el.getAttribute === "function" ? el.getAttribute("data-testid") : "";
+  const safeAttrVal = (v) => String(v || "").replace(/["\\;{}<>]/g, "").trim();
+  const testId = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("data-testid")) : "";
   if (testId) {
-    return `[data-testid="${testId.replace(/"/g, '\\"')}"]`;
+    return `[data-testid="${testId}"]`;
   }
-  const zone = typeof el.getAttribute === "function" ? el.getAttribute("data-rudex-zone") : "";
+  const zone = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("data-rudex-zone")) : "";
   if (zone) {
-    return `[data-rudex-zone="${zone.replace(/"/g, '\\"')}"]`;
+    return `[data-rudex-zone="${zone}"]`;
   }
   if (typeof el.getAttribute === "function" && el.getAttribute("data-rudex-theme-composer") === "1") {
     return '[data-rudex-theme-composer="1"]';
@@ -500,15 +598,16 @@ function rv5BuildSmartSelector(el, scope) {
     return '[data-rudex-bg-header="1"]';
   }
   const tag = (el.tagName || "div").toLowerCase();
-  const aria = typeof el.getAttribute === "function" ? (el.getAttribute("aria-label") || "").trim() : "";
-  if (scope !== "similar" && aria && aria.length <= 64 && !/["\\]/.test(aria)) {
+  const aria = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("aria-label")) : "";
+  // Avoid translated Cyrillic aria-labels so selectors survive RU <-> EN switching cleanly
+  if (scope !== "similar" && aria && aria.length <= 64 && /^[\x20-\x7E]+$/.test(aria)) {
     return `${tag}[aria-label="${aria}"]`;
   }
-  const role = typeof el.getAttribute === "function" ? (el.getAttribute("role") || "").trim() : "";
+  const role = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("role")) : "";
   if (scope === "similar") {
     if (role) return `${tag}[role="${role}"]:not(#rudex-studio-host *)`;
     const parent = el.parentElement;
-    const pTest = parent && typeof parent.getAttribute === "function" ? parent.getAttribute("data-testid") : "";
+    const pTest = parent && typeof parent.getAttribute === "function" ? safeAttrVal(parent.getAttribute("data-testid")) : "";
     if (pTest) return `[data-testid="${pTest}"] > ${tag}`;
     if (tag === "aside" || tag === "header" || tag === "nav" || tag === "pre" || tag === "blockquote") {
       return `${tag}:not(#rudex-studio-host *)`;
@@ -520,9 +619,9 @@ function rv5BuildSmartSelector(el, scope) {
   while (cur && cur.nodeType === 1 && depth < 4) {
     const t = (cur.tagName || "div").toLowerCase();
     if (t === "body" || t === "html") break;
-    const tid = typeof cur.getAttribute === "function" ? cur.getAttribute("data-testid") : "";
+    const tid = typeof cur.getAttribute === "function" ? safeAttrVal(cur.getAttribute("data-testid")) : "";
     if (tid) {
-      segs.unshift(`[data-testid="${tid.replace(/"/g, '\\"')}"]`);
+      segs.unshift(`[data-testid="${tid}"]`);
       break;
     }
     if (cur.id && /^[a-zA-Z][a-zA-Z0-9_-]{1,40}$/.test(cur.id) && !cur.id.startsWith("radix-")) {
@@ -589,9 +688,32 @@ function rv5FindNativeComposer(doc) {
     const cands = doc.querySelectorAll('main textarea, main [contenteditable="true"], form textarea, form [contenteditable="true"]');
     for (let i = cands.length - 1; i >= 0; i -= 1) {
       const c = cands[i];
-      if (!c || (c.closest && c.closest("#rudex-studio-host"))) continue;
+      if (!c) continue;
+      if (typeof c.closest === "function" && c.closest('#rudex-studio-host, [data-testid="user-message-content"], [data-testid="agent-response"], .monaco-editor')) continue;
+      const cls = typeof c.className === "string" ? c.className : "";
+      if (/\b(?:inputarea|ime-text-area)\b/.test(cls)) continue;
       editable = c;
-      container = c.closest('[data-rudex-theme-composer="1"], form, [data-testid="composer"], .composer-container') || c.parentElement;
+      container = typeof c.closest === "function"
+        ? c.closest('[data-rudex-theme-composer="1"], form, [data-testid="composer"], .composer-container')
+        : null;
+      if (!container) {
+        // Walk up to find the outer composer wrapper that contains the model selector / send bar (critical on native theme!)
+        let cur = c.parentElement;
+        let best = c.parentElement;
+        let d = 0;
+        while (cur && cur.nodeType === 1 && cur !== doc.body && cur.tagName !== "MAIN" && d < 6) {
+          if (typeof cur.querySelector === "function") {
+            if (cur.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"]')) break;
+            if (cur.querySelector('[data-testid="model-selector-trigger"], button[type="submit"], [data-testid="input-cancel-button"]')) {
+              best = cur;
+              break;
+            }
+          }
+          cur = cur.parentElement;
+          d += 1;
+        }
+        container = best;
+      }
       break;
     }
   }
@@ -667,6 +789,9 @@ function rv5BuildExtraShadowCss() {
   max-width: calc(100vw - 24px);
   transition: right 0.16s ease, left 0.16s ease;
 }
+.rx-limits-mount.is-dragging {
+  transition: none !important;
+}
 .rx-limits-mount.pos-top-right { top: 76px; right: 18px; }
 .rx-limits-mount.pos-top-left { top: 76px; left: 268px; }
 .rx-limits-mount.pos-bottom-right { bottom: 14px; right: 18px; }
@@ -704,7 +829,7 @@ function rv5BuildExtraShadowCss() {
   padding: 2px 9px;
 }
 .rx-limits-box.is-bars, .rx-limits-box.is-card {
-  min-width: 224px;
+  min-width: min(224px, 100%);
   max-width: min(360px, calc(100vw - 32px));
   padding: 10px 12px;
 }
@@ -763,7 +888,8 @@ function rv5BuildExtraShadowCss() {
   gap: 5px;
   pointer-events: none;
 }
-.rx-chat-dock:has(.rx-agent-popover) {
+.rx-chat-dock:has(.rx-agent-popover),
+.rx-chat-dock:has(.rx-ctx-popover) {
   z-index: 2147483140;
 }
 .rx-chat-dock-row {
@@ -777,55 +903,158 @@ function rv5BuildExtraShadowCss() {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  margin-left: auto;
   pointer-events: none;
 }
-.rx-agent-chip, .rx-dock-tool-btn, .rx-live-send-pill {
+.rx-agent-chip, .rx-dock-tool-btn, .rx-live-send-pill, .rx-ctx-pill {
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   height: 26px;
   padding: 0 9px;
   border-radius: 7px;
   font-size: 11px;
   font-weight: 500;
   font-family: var(--rx-font-ui);
-  border: 1px solid var(--rx-theme-border-strong, var(--rx-border-strong));
-  background: color-mix(in srgb, var(--rx-theme-surface, var(--rx-surface)) 92%, transparent);
-  color: var(--rx-theme-muted, var(--rx-muted));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
+  border: 1px solid color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 26%, var(--rx-theme-border-strong, var(--rx-border-strong)));
+  background: color-mix(in srgb, var(--rx-theme-surface-2, var(--rx-theme-surface, var(--rx-surface))) 94%, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 6%);
+  color: color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 90%, var(--rx-theme-muted, var(--rx-muted)));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.42), 0 3px 12px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.10);
   cursor: pointer;
-  opacity: 0.90;
-  transition: opacity 0.14s ease, color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+  opacity: 1;
+  transition: opacity 0.14s ease, color 0.14s ease, border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
 }
 .studio-root[data-app-theme="light"] .rx-agent-chip,
-.studio-root[data-app-theme="light"] .rx-dock-tool-btn {
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+.studio-root[data-app-theme="light"] .rx-dock-tool-btn,
+.studio-root[data-app-theme="light"] .rx-ctx-pill {
+  border-color: color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 18%, var(--rx-theme-border-strong, var(--rx-border-strong)));
+  background: color-mix(in srgb, var(--rx-theme-surface, var(--rx-surface)) 97%, #ffffff 3%);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
-.rx-agent-chip:hover, .rx-dock-tool-btn:hover {
+.rx-agent-chip:hover, .rx-dock-tool-btn:hover, .rx-ctx-pill:hover {
   opacity: 1;
   color: var(--rx-theme-fg-strong, var(--rx-fg-strong));
-  background: var(--rx-theme-surface, var(--rx-surface));
-  border-color: color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 24%, transparent);
+  background: color-mix(in srgb, var(--rx-theme-surface, var(--rx-surface)) 92%, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 8%);
+  border-color: color-mix(in srgb, var(--rx-accent) 52%, var(--rx-theme-border-strong, var(--rx-border-strong)));
 }
 .rx-agent-chip.is-active {
-  opacity: 0.98;
+  opacity: 1;
   color: var(--rx-theme-fg-strong, var(--rx-fg-strong));
   border-color: var(--rx-accent-border);
-  background: color-mix(in srgb, var(--rx-accent) 11%, var(--rx-theme-surface, var(--rx-surface)));
+  background: color-mix(in srgb, var(--rx-accent) 16%, var(--rx-theme-surface, var(--rx-surface)));
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.42), 0 0 0 1px color-mix(in srgb, var(--rx-accent) 22%, transparent);
 }
 .rx-agent-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--rx-theme-muted, var(--rx-muted));
+  background: color-mix(in srgb, var(--rx-accent) 65%, var(--rx-theme-muted, var(--rx-muted)));
   flex-shrink: 0;
 }
 .rx-agent-chip.is-active .rx-agent-dot {
   background: var(--rx-accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--rx-accent) 70%, transparent);
 }
+.rx-ctx-pill {
+  font-variant-numeric: tabular-nums;
+  gap: 6px;
+  padding: 0 9px;
+}
+.rx-ctx-pill.is-warn {
+  border-color: color-mix(in srgb, var(--rx-warning, #f59e0b) 55%, var(--rx-theme-border-strong, var(--rx-border-strong)));
+}
+.rx-ctx-pill.is-crit {
+  border-color: color-mix(in srgb, var(--rx-danger, #ef4444) 65%, var(--rx-theme-border-strong, var(--rx-border-strong)));
+  background: color-mix(in srgb, var(--rx-danger, #ef4444) 14%, var(--rx-theme-surface, var(--rx-surface)));
+}
+.rx-ctx-bar {
+  width: 34px;
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 14%, transparent);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.rx-ctx-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--rx-success, #22c55e);
+  transition: width 0.22s ease, background-color 0.22s ease;
+}
+.rx-ctx-pill.is-warn .rx-ctx-fill { background: var(--rx-warning, #f59e0b); }
+.rx-ctx-pill.is-crit .rx-ctx-fill { background: var(--rx-danger, #ef4444); }
+.rx-ctx-model {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--rx-theme-muted, var(--rx-muted));
+  font-weight: 500;
+}
+.rx-ctx-nums {
+  color: var(--rx-theme-fg-strong, var(--rx-fg-strong));
+  font-weight: 600;
+}
+.rx-ctx-pct {
+  font-weight: 700;
+  color: var(--rx-success, #22c55e);
+}
+.rx-ctx-pill.is-warn .rx-ctx-pct { color: var(--rx-warning, #f59e0b); }
+.rx-ctx-pill.is-crit .rx-ctx-pct { color: var(--rx-danger, #ef4444); }
+.rx-ctx-popover {
+  pointer-events: auto;
+  align-self: flex-end;
+  width: 300px;
+  max-width: 92vw;
+  padding: 11px 12px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--rx-theme-surface, var(--rx-surface)) 97%, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 3%);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 20%, var(--rx-theme-border-strong, var(--rx-border-strong)));
+  box-shadow: var(--rx-shadow);
+  color: var(--rx-theme-fg, var(--rx-fg));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.rx-ctx-pop-track {
+  height: 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 12%, transparent);
+  overflow: hidden;
+}
+.rx-ctx-pop-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--rx-success, #22c55e);
+  transition: width 0.22s ease;
+}
+.rx-ctx-pop-fill.is-warn { background: var(--rx-warning, #f59e0b); }
+.rx-ctx-pop-fill.is-crit { background: var(--rx-danger, #ef4444); }
+.rx-ctx-pop-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 4%, transparent);
+  border: 1px solid var(--rx-theme-border, var(--rx-border));
+}
+.rx-ctx-pop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+.rx-ctx-pop-row span { color: var(--rx-theme-muted, var(--rx-muted)); }
+.rx-ctx-pop-row b { color: var(--rx-theme-fg-strong, var(--rx-fg-strong)); font-weight: 600; max-width: 175px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rx-live-send-pill {
   opacity: 1;
   background: var(--rx-accent);
@@ -881,7 +1110,7 @@ function rv5BuildExtraShadowCss() {
   pointer-events: auto;
   width: 316px;
   max-width: 92vw;
-  max-height: 66vh;
+  max-height: var(--rx-pop-max-h, min(62vh, 380px));
   overflow-y: auto;
   padding: 12px;
   border-radius: 11px;
@@ -1114,6 +1343,9 @@ function rv5BuildExtraShadowCss() {
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+}
+.rx-picker-highlight.is-tag-below .rx-picker-tag {
+  top: calc(100% + 4px);
 }
 .rx-inspector-card {
   position: fixed;
@@ -1635,6 +1867,8 @@ if (typeof module !== "undefined" && module.exports) {
     RUDEX_KEYBINDINGS_DEFAULTS,
     RUDEX_LIVE_EDIT_DEFAULTS,
     RUDEX_AGENT_PROFILE_DEFAULTS,
+    rv5FormatContextTokens,
+    rv5ResolveModelContextWindow,
     rv5EscapeHtml,
     rv5FormatKeyboardEvent,
     rv5NormalizeLimitsWidget,

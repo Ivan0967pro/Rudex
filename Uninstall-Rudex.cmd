@@ -5,7 +5,7 @@ set "USER_ARGS=%*"
 setlocal EnableDelayedExpansion
 
 echo ========================================================
-echo   Rudex v4.0.0 -- Uninstaller (Restore English UI)
+echo   Rudex v5.0.0 -- Uninstaller (Restore English UI)
 echo ========================================================
 echo.
 
@@ -42,15 +42,15 @@ if not errorlevel 1 set "WAS_RUNNING=1"
 if "!WAS_RUNNING!"=="1" (
   echo Closing Antigravity before restoring stock English UI...
   taskkill /F /IM Antigravity.exe >nul 2>&1
-  timeout /t 2 /nobreak >nul
+  ping -n 3 127.0.0.1 >nul
 )
 
 if "!RUNTIME_MODE!"=="node" (
-  node "!UNINSTALL_JS!" !USER_ARGS!
+  node "!UNINSTALL_JS!" %*
 ) else (
   set "ELECTRON_RUN_AS_NODE=1"
   set "ELECTRON_NO_ASAR=1"
-  "!AGY_EXE!" "!UNINSTALL_JS!" !USER_ARGS!
+  "!AGY_EXE!" "!UNINSTALL_JS!" %*
   set "ELECTRON_RUN_AS_NODE="
   set "ELECTRON_NO_ASAR="
 )
@@ -69,5 +69,5 @@ if "!WAS_RUNNING!"=="1" if defined AGY_EXE (
   choice /C YN /M "Launch Antigravity now"
   if !ERRORLEVEL! equ 1 start "" "!AGY_EXE!"
 )
-timeout /t 2 /nobreak >nul
+ping -n 3 127.0.0.1 >nul
 exit /b 0

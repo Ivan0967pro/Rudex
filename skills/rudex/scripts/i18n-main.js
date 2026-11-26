@@ -830,6 +830,12 @@ const DEFAULT_LIVE_EDIT_INLINE = {
   sendKey: "enter", // "enter" | "ctrl+enter" | "button-only"
   urgentIntercept: false,
   showChatDock: true,
+  showContextMeter: false,
+  showInChat: true,
+  showDeliveredBadge: true,
+  showQueueStrip: false,
+  chatBubbleStyle: "native",
+  chatBubblePos: "after-user",
 };
 
 const DEFAULT_AGENT_PROFILE = {
@@ -896,7 +902,9 @@ function normalizeKeybindingCombo(raw) {
   if (typeof raw !== "string") return "";
   const trimmed = raw.trim();
   if (!trimmed) return "";
-  const parts = trimmed.split("+").map((p) => p.trim()).filter(Boolean);
+  // Preserve literal "+" at the end (e.g. "Ctrl++" -> "Ctrl+Plus")
+  const normalizedRaw = trimmed === "+" ? "Plus" : trimmed.replace(/\+\s*\+$/, "+Plus");
+  const parts = normalizedRaw.split("+").map((p) => p.trim()).filter(Boolean);
   let ctrl = false;
   let alt = false;
   let shift = false;
@@ -906,6 +914,11 @@ function normalizeKeybindingCombo(raw) {
     if (low === "ctrl" || low === "control" || low === "cmd" || low === "meta" || low === "cmdorctrl") ctrl = true;
     else if (low === "alt" || low === "option") alt = true;
     else if (low === "shift") shift = true;
+    else if (low === "spacebar" || low === "space") mainKey = "Space";
+    else if (low === "esc" || low === "escape") mainKey = "Escape";
+    else if (low === "plus") mainKey = "Plus";
+    else if (low === "minus") mainKey = "Minus";
+    else if (low === "equal") mainKey = "Equal";
     else mainKey = parts[i].length === 1 ? parts[i].toUpperCase() : parts[i];
   }
   if (!mainKey) return "";
@@ -932,7 +945,8 @@ function sanitizeKeybindings(raw) {
 
 function sanitizeLiveEditInline(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
-  const sendKey = src.sendKey === "ctrl+enter" ? "ctrl+enter" : "enter";
+  const sendKey =
+    src.sendKey === "ctrl+enter" || src.sendKey === "button-only" ? src.sendKey : "enter";
   const chatBubbleStyle = src.chatBubbleStyle === "accent" || src.chatBubbleStyle === "subtle" ? src.chatBubbleStyle : "native";
   const chatBubblePos = src.chatBubblePos === "after-agent" ? "after-agent" : "after-user";
   return {
@@ -940,6 +954,7 @@ function sanitizeLiveEditInline(raw) {
     sendKey,
     urgentIntercept: Boolean(src.urgentIntercept),
     showChatDock: src.showChatDock !== false,
+    showContextMeter: Boolean(src.showContextMeter),
     showInChat: src.showInChat !== false,
     showDeliveredBadge: src.showDeliveredBadge !== false,
     showQueueStrip: Boolean(src.showQueueStrip),
@@ -1178,10 +1193,27 @@ function saveStudioSettings(patch) {
   }
   if (pObj.appearance && typeof pObj.appearance === "object") {
     const curApp = current.appearance || DEFAULT_APPEARANCE;
+    const patchUi = pObj.appearance.uiStyle;
+    let mergedUiStyle = curApp.uiStyle || DEFAULT_APPEARANCE.uiStyle;
+    if (patchUi && typeof patchUi === "object") {
+      const switchingWholePreset =
+        VALID_UI_STYLE_PARTS.has(patchUi.preset) &&
+        !Object.prototype.hasOwnProperty.call(patchUi, "composer") &&
+        !Object.prototype.hasOwnProperty.call(patchUi, "chat") &&
+        !Object.prototype.hasOwnProperty.call(patchUi, "modelSelector");
+      mergedUiStyle = switchingWholePreset
+        ? Object.assign({}, curApp.uiStyle || DEFAULT_APPEARANCE.uiStyle, patchUi, {
+            composer: patchUi.preset,
+            chat: patchUi.preset,
+            modelSelector: patchUi.preset,
+          })
+        : Object.assign({}, curApp.uiStyle || DEFAULT_APPEARANCE.uiStyle, patchUi);
+    }
     pObj.appearance = Object.assign({}, curApp, pObj.appearance, {
       corners: Object.assign({}, curApp.corners || DEFAULT_APPEARANCE.corners, pObj.appearance.corners || {}),
       wallpaper: Object.assign({}, curApp.wallpaper, pObj.appearance.wallpaper || {}),
       typography: Object.assign({}, curApp.typography, pObj.appearance.typography || {}),
+      uiStyle: mergedUiStyle,
     });
   }
   const next = sanitizeStudioSettings(Object.assign({}, current, pObj));
@@ -1226,15 +1258,22 @@ function schedulePruneOrphanedMedia(settings) {
       if (mf) activeFiles.add(mf);
     }
     const now = Date.now();
+    // Preserve up to 20 newest unreferenced wallpapers so the Recent Wallpapers gallery isn't wiped on settings save
+    const unreferenced = [];
     for (const ent of fs.readdirSync(mediaDir, { withFileTypes: true })) {
       if (!ent.isFile() || activeFiles.has(ent.name)) continue;
       const full = path.join(mediaDir, ent.name);
       try {
         const st = fs.statSync(full);
-        if (now - (st.mtimeMs || 0) > 120000) {
-          fs.unlinkSync(full);
-        }
+        unreferenced.push({ full, mtimeMs: st.mtimeMs || 0 });
       } catch {}
+    }
+    unreferenced.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    const MAX_RECENT_GALLERY = 20;
+    for (let i = MAX_RECENT_GALLERY; i < unreferenced.length; i += 1) {
+      if (now - unreferenced[i].mtimeMs > 120000) {
+        try { fs.unlinkSync(unreferenced[i].full); } catch {}
+      }
     }
   } catch {}
 }
@@ -1833,61 +1872,68 @@ function readLatestTurnMetrics(chatKey) {
   try {
     if (!fs.existsSync(lp)) return { ok: false, reason: "MISSING_TRANSCRIPT" };
     const st = fs.statSync(lp);
-    const tailSize = Math.min(65536, st.size);
-    if (tailSize <= 0) return { ok: false, reason: "EMPTY" };
-    const fd = fs.openSync(lp, "r");
-    let rawTail = "";
-    try {
-      const buf = Buffer.alloc(tailSize);
-      const startPos = Math.max(0, st.size - tailSize);
-      const nRead = fs.readSync(fd, buf, 0, tailSize, startPos);
-      rawTail = buf.slice(0, nRead).toString("utf8");
-      if (startPos > 0) {
-        const firstNl = rawTail.indexOf("\n");
-        if (firstNl !== -1) rawTail = rawTail.slice(firstNl + 1);
-      }
-    } finally {
-      fs.closeSync(fd);
-    }
-    const lines = rawTail.split(/\r?\n/);
-    let outputTokens = 0;
-    let inputTokens = 0;
-    let cacheReadTokens = 0;
-    let model = "";
-    let stepIndex = -1;
-    let foundPlanner = false;
-    for (let i = lines.length - 1; i >= 0; i -= 1) {
-      const t = lines[i].trim();
-      if (!t) continue;
-      let o;
-      try { o = JSON.parse(t); } catch { continue; }
-      if (!o || typeof o !== "object") continue;
-      if (o.type === "USER_INPUT") {
-        if (foundPlanner) break;
-        continue;
-      }
-      if (o.type === "PLANNER_RESPONSE") {
-        foundPlanner = true;
-        if (typeof o.output_tokens === "number" && Number.isFinite(o.output_tokens)) {
-          outputTokens += Math.max(0, Math.round(o.output_tokens));
+    if (st.size <= 0) return { ok: false, reason: "EMPTY" };
+    const readWindow = (maxBytes) => {
+      const tailSize = Math.min(maxBytes, st.size);
+      const fd = fs.openSync(lp, "r");
+      let rawTail = "";
+      try {
+        const buf = Buffer.alloc(tailSize);
+        const startPos = Math.max(0, st.size - tailSize);
+        const nRead = fs.readSync(fd, buf, 0, tailSize, startPos);
+        rawTail = buf.slice(0, nRead).toString("utf8");
+        if (startPos > 0) {
+          const firstNl = rawTail.indexOf("\n");
+          if (firstNl !== -1) rawTail = rawTail.slice(firstNl + 1);
         }
-        if (stepIndex === -1) {
-          stepIndex = typeof o.step_index === "number" ? o.step_index : 0;
-          inputTokens = typeof o.input_tokens === "number" && Number.isFinite(o.input_tokens) ? Math.max(0, Math.round(o.input_tokens)) : 0;
-          cacheReadTokens = typeof o.cache_read_tokens === "number" && Number.isFinite(o.cache_read_tokens) ? Math.max(0, Math.round(o.cache_read_tokens)) : 0;
-          if (typeof o.model === "string" && o.model) model = o.model;
+      } finally {
+        fs.closeSync(fd);
+      }
+      const lines = rawTail.split(/\r?\n/);
+      let outputTokens = 0;
+      let inputTokens = 0;
+      let cacheReadTokens = 0;
+      let model = "";
+      let stepIndex = -1;
+      let foundPlanner = false;
+      for (let i = lines.length - 1; i >= 0; i -= 1) {
+        const t = lines[i].trim();
+        if (!t) continue;
+        let o;
+        try { o = JSON.parse(t); } catch { continue; }
+        if (!o || typeof o !== "object") continue;
+        if (o.type === "USER_INPUT") {
+          if (foundPlanner) break;
+          continue;
+        }
+        if (o.type === "PLANNER_RESPONSE") {
+          foundPlanner = true;
+          if (typeof o.output_tokens === "number" && Number.isFinite(o.output_tokens)) {
+            outputTokens += Math.max(0, Math.round(o.output_tokens));
+          }
+          if (stepIndex === -1) {
+            stepIndex = typeof o.step_index === "number" ? o.step_index : 0;
+            inputTokens = typeof o.input_tokens === "number" && Number.isFinite(o.input_tokens) ? Math.max(0, Math.round(o.input_tokens)) : 0;
+            cacheReadTokens = typeof o.cache_read_tokens === "number" && Number.isFinite(o.cache_read_tokens) ? Math.max(0, Math.round(o.cache_read_tokens)) : 0;
+            if (typeof o.model === "string" && o.model) model = o.model;
+          }
         }
       }
+      return { foundPlanner, outputTokens, inputTokens, cacheReadTokens, model, stepIndex };
+    };
+    let parsed = readWindow(65536);
+    if (!parsed.foundPlanner && st.size > 65536) {
+      parsed = readWindow(262144);
     }
-    if (!foundPlanner) return { ok: false, reason: "NO_PLANNER_STEP" };
+    if (!parsed.foundPlanner) return { ok: false, reason: "NO_PLANNER_STEP" };
     return {
       ok: true,
-      outputTokens,
-      inputTokens,
-      cacheReadTokens,
-      contextTokens: inputTokens + cacheReadTokens + outputTokens,
-      model,
-      stepIndex,
+      outputTokens: parsed.outputTokens,
+      inputTokens: parsed.inputTokens,
+      cacheReadTokens: parsed.cacheReadTokens,
+      contextTokens: parsed.inputTokens + parsed.cacheReadTokens + parsed.outputTokens,
+      model: parsed.model,
+      stepIndex: parsed.stepIndex,
     };
   } catch (err) {
     return { ok: false, reason: err && err.message ? err.message : "READ_ERR" };
@@ -2683,7 +2729,7 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "4.4.0");
+  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "5.0.0");
   const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
   const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
   const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
@@ -3000,10 +3046,31 @@ function toggleLiveEditFromHotkey(contents) {
 }
 
 let lastCustomHotkeyAt = 0;
+let isRecordingKeybinding = false;
+let isRecordingKeybindingTimer = null;
+
+function setRecordingKeybinding(active) {
+  isRecordingKeybinding = Boolean(active);
+  if (isRecordingKeybindingTimer) {
+    clearTimeout(isRecordingKeybindingTimer);
+    isRecordingKeybindingTimer = null;
+  }
+  if (isRecordingKeybinding) {
+    isRecordingKeybindingTimer = setTimeout(() => {
+      isRecordingKeybinding = false;
+      isRecordingKeybindingTimer = null;
+    }, 30000);
+    if (typeof isRecordingKeybindingTimer.unref === "function") isRecordingKeybindingTimer.unref();
+  }
+  return isRecordingKeybinding;
+}
 
 function matchInputToCombo(input, comboStr) {
   if (!input || !comboStr) return false;
-  const parts = String(comboStr).split("+").map((p) => p.trim()).filter(Boolean);
+  const normalizedCombo = String(comboStr).trim() === "+"
+    ? "Plus"
+    : String(comboStr).trim().replace(/\+\s*\+$/, "+Plus");
+  const parts = normalizedCombo.split("+").map((p) => p.trim()).filter(Boolean);
   if (parts.length === 0) return false;
   let wantCtrl = false;
   let wantAlt = false;
@@ -3024,6 +3091,10 @@ function matchInputToCombo(input, comboStr) {
   const inKey = typeof input.key === "string" ? input.key.toLowerCase() : "";
   const inCode = typeof input.code === "string" ? input.code.toLowerCase() : "";
   if (inKey === wantKey) return true;
+  if (wantKey === "space" && (inKey === " " || inCode === "space")) return true;
+  if (wantKey === "plus" && (inKey === "+" || inCode === "numpadadd" || (inCode === "equal" && hasShift))) return true;
+  if (wantKey === "minus" && (inKey === "-" || inCode === "minus" || inCode === "numpadsubtract")) return true;
+  if (wantKey === "equal" && (inKey === "=" || inCode === "equal")) return true;
   if (wantKey.length === 1 && inCode === "key" + wantKey) return true;
   if (/^\d$/.test(wantKey) && inCode === "digit" + wantKey) return true;
   if (inCode === wantKey) return true;
@@ -3031,6 +3102,7 @@ function matchInputToCombo(input, comboStr) {
 }
 
 function handleKeybindingEvent(contents, input) {
+  if (isRecordingKeybinding) return false;
   if (!input || input.type !== "keyDown" || input.isAutoRepeat) return false;
   const settings = loadStudioSettings();
   const kb = settings && settings.keybindings ? settings.keybindings : DEFAULT_KEYBINDINGS;
@@ -4334,54 +4406,58 @@ function registerI18nIpc() {
     return res;
   });
   ipcMain.handle("agy-studio:pick-media", async (_event, payload) => {
-    const p = payload && typeof payload === "object" ? payload : {};
-    const kind = p.kind === "video" ? "video" : "image";
-    const allowedExts = kind === "video" ? [".mp4", ".webm"] : [".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif"];
-    const maxBytes = kind === "video" ? 250 * 1024 * 1024 : 35 * 1024 * 1024;
-    if (!dialog || typeof dialog.showOpenDialog !== "function") {
-      return { ok: false, error: "DIALOG_UNAVAILABLE" };
-    }
-    const parentWin = getFocusedOrFirstWindow();
-    const res = await dialog.showOpenDialog(parentWin, {
-      title: kind === "video" ? tr("Выберите видео-обои (MP4 / WebM)", "Select video wallpaper (MP4 / WebM)") : tr("Выберите изображение для обоев", "Select wallpaper image"),
-      properties: ["openFile"],
-      filters: [
-        kind === "video"
-          ? { name: "Video (MP4, WebM)", extensions: ["mp4", "webm"] }
-          : { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif", "avif"] },
-      ],
-    });
-    if (!res || res.canceled || !Array.isArray(res.filePaths) || !res.filePaths[0]) {
-      return { ok: false, canceled: true };
-    }
-    const srcPath = res.filePaths[0];
-    const ext = path.extname(srcPath).toLowerCase();
-    if (allowedExts.indexOf(ext) === -1) {
-      return { ok: false, error: "UNSUPPORTED_FORMAT" };
-    }
-    let st;
     try {
-      st = await fs.promises.stat(srcPath);
+      const p = payload && typeof payload === "object" ? payload : {};
+      const kind = p.kind === "video" ? "video" : "image";
+      const allowedExts = kind === "video" ? [".mp4", ".webm"] : [".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif"];
+      const maxBytes = kind === "video" ? 250 * 1024 * 1024 : 35 * 1024 * 1024;
+      if (!dialog || typeof dialog.showOpenDialog !== "function") {
+        return { ok: false, error: "DIALOG_UNAVAILABLE" };
+      }
+      const parentWin = getFocusedOrFirstWindow();
+      const res = await dialog.showOpenDialog(parentWin, {
+        title: kind === "video" ? tr("Выберите видео-обои (MP4 / WebM)", "Select video wallpaper (MP4 / WebM)") : tr("Выберите изображение для обоев", "Select wallpaper image"),
+        properties: ["openFile"],
+        filters: [
+          kind === "video"
+            ? { name: "Video (MP4, WebM)", extensions: ["mp4", "webm"] }
+            : { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif", "avif"] },
+        ],
+      });
+      if (!res || res.canceled || !Array.isArray(res.filePaths) || !res.filePaths[0]) {
+        return { ok: false, canceled: true };
+      }
+      const srcPath = res.filePaths[0];
+      const ext = path.extname(srcPath).toLowerCase();
+      if (allowedExts.indexOf(ext) === -1) {
+        return { ok: false, error: "UNSUPPORTED_FORMAT" };
+      }
+      let st;
+      try {
+        st = await fs.promises.stat(srcPath);
+      } catch (err) {
+        return { ok: false, error: err && err.message ? err.message : "STAT_FAILED" };
+      }
+      if (!st.isFile() || st.size <= 0 || st.size > maxBytes) {
+        return { ok: false, error: "FILE_TOO_LARGE" };
+      }
+      const mediaDir = getStudioMediaDir();
+      await fs.promises.mkdir(mediaDir, { recursive: true });
+      const rawStem = path.basename(srcPath, ext).replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^_+|_+$/g, "").slice(0, 36) || "media";
+      const destName = kind + "-" + Date.now() + "-" + rawStem + ext;
+      const destPath = path.join(mediaDir, destName);
+      await fs.promises.copyFile(srcPath, destPath);
+      return {
+        ok: true,
+        kind,
+        fileName: destName,
+        mediaUrl: "agy-media://local/" + encodeURIComponent(destName),
+        mime: STUDIO_MEDIA_MIMES[ext] || "application/octet-stream",
+        sizeBytes: st.size,
+      };
     } catch (err) {
-      return { ok: false, error: err && err.message ? err.message : "STAT_FAILED" };
+      return { ok: false, error: err && err.message ? err.message : "PICK_MEDIA_FAILED" };
     }
-    if (!st.isFile() || st.size <= 0 || st.size > maxBytes) {
-      return { ok: false, error: "FILE_TOO_LARGE" };
-    }
-    const mediaDir = getStudioMediaDir();
-    await fs.promises.mkdir(mediaDir, { recursive: true });
-    const rawStem = path.basename(srcPath, ext).replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^_+|_+$/g, "").slice(0, 36) || "media";
-    const destName = kind + "-" + Date.now() + "-" + rawStem + ext;
-    const destPath = path.join(mediaDir, destName);
-    await fs.promises.copyFile(srcPath, destPath);
-    return {
-      ok: true,
-      kind,
-      fileName: destName,
-      mediaUrl: "agy-media://local/" + encodeURIComponent(destName),
-      mime: STUDIO_MEDIA_MIMES[ext] || "application/octet-stream",
-      sizeBytes: st.size,
-    };
   });
   ipcMain.handle("agy-studio:list-media", () => {
     const mediaDir = getStudioMediaDir();
@@ -4502,7 +4578,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "4.4.7",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "5.0.0",
         outPath,
       });
       return res;
@@ -4701,56 +4777,60 @@ function registerI18nIpc() {
     };
   });
   ipcMain.handle("agy-studio:send-live-edit", (_event, payload) => {
-    const p = payload && typeof payload === "object" ? payload : {};
-    const key = normalizeChatKey(p.chatKey);
-    const text = typeof p.text === "string" ? p.text.trim().slice(0, 8000) : "";
-    const rawImgs = Array.isArray(p.images) ? p.images.slice(0, 4) : [];
-    const savedImgs = [];
-    for (let i = 0; i < rawImgs.length; i += 1) {
-      const saved = saveLiveEditImagePayload(rawImgs[i], i);
-      if (saved) savedImgs.push(saved);
+    try {
+      const p = payload && typeof payload === "object" ? payload : {};
+      const key = normalizeChatKey(p.chatKey);
+      const text = typeof p.text === "string" ? p.text.trim().slice(0, 8000) : "";
+      const rawImgs = Array.isArray(p.images) ? p.images.slice(0, 4) : [];
+      const savedImgs = [];
+      for (let i = 0; i < rawImgs.length; i += 1) {
+        const saved = saveLiveEditImagePayload(rawImgs[i], i);
+        if (saved) savedImgs.push(saved);
+      }
+      const rawFiles = Array.isArray(p.files) ? p.files.slice(0, 6) : [];
+      const savedFiles = [];
+      for (let i = 0; i < rawFiles.length; i += 1) {
+        const saved = saveLiveEditFilePayload(rawFiles[i], i);
+        if (saved) savedFiles.push(saved);
+      }
+      if (!text && savedImgs.length === 0 && savedFiles.length === 0) {
+        return { ok: false, error: "EMPTY_LIVE_EDIT" };
+      }
+      const now = Date.now();
+      const editId = "le-" + now + "-" + Math.random().toString(36).slice(2, 7);
+      const entry = {
+        id: editId,
+        chatKey: key,
+        title: typeof p.title === "string" ? p.title.trim().slice(0, 80) : "",
+        text,
+        images: savedImgs,
+        files: savedFiles,
+        status: "pending",
+        urgent: Boolean(p.urgent),
+        fallbackAny: Boolean(p.fallbackAny || key === "__new__" || key.startsWith("chat-")),
+        anchorRespIdx: typeof p.anchorRespIdx === "number" && Number.isFinite(p.anchorRespIdx) && p.anchorRespIdx >= 0 ? Math.floor(p.anchorRespIdx) : -1,
+        anchorUserCount: typeof p.anchorUserCount === "number" && Number.isFinite(p.anchorUserCount) && p.anchorUserCount >= 0 ? Math.floor(p.anchorUserCount) : -1,
+        anchorUserText: typeof p.anchorUserText === "string" ? p.anchorUserText.replace(/\s+/g, " ").trim().slice(0, 140) : "",
+        createdAt: now,
+        deliveredAt: 0,
+        deliveredConversationId: "",
+      };
+      const queueDir = getLiveEditsQueueDir();
+      fs.mkdirSync(queueDir, { recursive: true });
+      writeJsonAtomic(path.join(queueDir, editId + ".json"), entry);
+      syncLiveEditsPendingFlag(true);
+      ensureLiveEditWatcher();
+      const { items } = loadAllLiveEdits();
+      broadcastLiveEditsChanged(items);
+      return {
+        ok: true,
+        entry,
+        items: filterLiveEditsForChat(items, key),
+        allItems: items.slice(-30),
+      };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "SEND_LIVE_EDIT_FAILED" };
     }
-    const rawFiles = Array.isArray(p.files) ? p.files.slice(0, 6) : [];
-    const savedFiles = [];
-    for (let i = 0; i < rawFiles.length; i += 1) {
-      const saved = saveLiveEditFilePayload(rawFiles[i], i);
-      if (saved) savedFiles.push(saved);
-    }
-    if (!text && savedImgs.length === 0 && savedFiles.length === 0) {
-      return { ok: false, error: "EMPTY_LIVE_EDIT" };
-    }
-    const now = Date.now();
-    const editId = "le-" + now + "-" + Math.random().toString(36).slice(2, 7);
-    const entry = {
-      id: editId,
-      chatKey: key,
-      title: typeof p.title === "string" ? p.title.trim().slice(0, 80) : "",
-      text,
-      images: savedImgs,
-      files: savedFiles,
-      status: "pending",
-      urgent: Boolean(p.urgent),
-      fallbackAny: Boolean(p.fallbackAny || key === "__new__" || key.startsWith("chat-")),
-      anchorRespIdx: typeof p.anchorRespIdx === "number" && Number.isFinite(p.anchorRespIdx) && p.anchorRespIdx >= 0 ? Math.floor(p.anchorRespIdx) : -1,
-      anchorUserCount: typeof p.anchorUserCount === "number" && Number.isFinite(p.anchorUserCount) && p.anchorUserCount >= 0 ? Math.floor(p.anchorUserCount) : -1,
-      anchorUserText: typeof p.anchorUserText === "string" ? p.anchorUserText.replace(/\s+/g, " ").trim().slice(0, 140) : "",
-      createdAt: now,
-      deliveredAt: 0,
-      deliveredConversationId: "",
-    };
-    const queueDir = getLiveEditsQueueDir();
-    fs.mkdirSync(queueDir, { recursive: true });
-    writeJsonAtomic(path.join(queueDir, editId + ".json"), entry);
-    syncLiveEditsPendingFlag(true);
-    ensureLiveEditWatcher();
-    const { items } = loadAllLiveEdits();
-    broadcastLiveEditsChanged(items);
-    return {
-      ok: true,
-      entry,
-      items: filterLiveEditsForChat(items, key),
-      allItems: items.slice(-30),
-    };
   });
   ipcMain.handle("agy-studio:pick-live-edit-images", async () => {
     if (!dialog || typeof dialog.showOpenDialog !== "function") {
@@ -4973,8 +5053,20 @@ function registerI18nIpc() {
     const p = payload && typeof payload === "object" ? payload : {};
     const key = normalizeChatKey(p.chatKey || lastActiveChatKey);
     const prof = sanitizeAgentProfile(p.profile);
-    if (p.setAsDefault === true || prof.applyToNewChats === true) {
-      saveStudioSettings({ agentProfileDefault: Object.assign({}, prof, { applyToNewChats: Boolean(prof.applyToNewChats) }) });
+    const hasExplicitApply = Boolean(p.profile && Object.prototype.hasOwnProperty.call(p.profile, "applyToNewChats"));
+    if (p.setAsDefault === true) {
+      saveStudioSettings({
+        agentProfileDefault: Object.assign({}, prof, {
+          applyToNewChats: hasExplicitApply ? Boolean(prof.applyToNewChats) : true,
+        }),
+      });
+    } else if (prof.applyToNewChats === true) {
+      saveStudioSettings({ agentProfileDefault: Object.assign({}, prof, { applyToNewChats: true }) });
+    } else if (hasExplicitApply && p.profile.applyToNewChats === false) {
+      const curDef = loadStudioSettings().agentProfileDefault || DEFAULT_AGENT_PROFILE;
+      if (curDef.applyToNewChats) {
+        saveStudioSettings({ agentProfileDefault: Object.assign({}, curDef, { applyToNewChats: false }) });
+      }
     }
     const store = loadStudioChatsStore();
     if (key !== "__new__") {
@@ -5062,10 +5154,50 @@ function registerI18nIpc() {
       return { ok: false, error: err && err.message ? err.message : "MCP_DELETE_FAILED" };
     }
   });
+  ipcMain.handle("agy-studio:set-recording-keybinding", (_event, payload) => {
+    const active = Boolean(payload && payload.active);
+    return { ok: true, active: setRecordingKeybinding(active) };
+  });
+  ipcMain.handle("agy-studio:get-workspace-path", () => {
+    try {
+      const envWp = typeof process.env.RUDEX_WORKSPACE_PATH === "string" ? process.env.RUDEX_WORKSPACE_PATH.trim() : "";
+      if (envWp && fs.existsSync(envWp)) {
+        return { ok: true, workspacePath: path.resolve(envWp) };
+      }
+      // Best-effort: inspect Antigravity's recent workspaces in userData storage if available
+      const userData = app.getPath("userData");
+      for (const cand of ["storage.json", "state.json", "workspaces.json", "config.json"]) {
+        const fp = path.join(userData, cand);
+        if (!fs.existsSync(fp)) continue;
+        try {
+          const obj = JSON.parse(fs.readFileSync(fp, "utf8"));
+          const candidates = [];
+          if (obj && typeof obj.lastWorkspacePath === "string") candidates.push(obj.lastWorkspacePath);
+          if (obj && typeof obj.workspacePath === "string") candidates.push(obj.workspacePath);
+          if (obj && Array.isArray(obj.recentWorkspaces) && obj.recentWorkspaces[0]) {
+            const first = obj.recentWorkspaces[0];
+            candidates.push(typeof first === "string" ? first : (first && first.path) || "");
+          }
+          for (const c of candidates) {
+            if (typeof c === "string" && c.trim() && fs.existsSync(c.trim())) {
+              return { ok: true, workspacePath: path.resolve(c.trim()) };
+            }
+          }
+        } catch {}
+      }
+      const cwd = process.cwd();
+      if (cwd && (fs.existsSync(path.join(cwd, ".agents")) || fs.existsSync(path.join(cwd, ".git")) || fs.existsSync(path.join(cwd, "AGENTS.md")))) {
+        return { ok: true, workspacePath: path.resolve(cwd) };
+      }
+    } catch {}
+    return { ok: true, workspacePath: "" };
+  });
   ipcMain.handle("agy-studio:open-path", async (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
     const rawPath = typeof p.path === "string" ? p.path.trim() : "";
     if (!rawPath) return { ok: false, error: "EMPTY_PATH" };
+    // Reject UNC network paths to prevent SMB/NTLM leakage
+    if (/^(?:\\\\|\/\/)/.test(rawPath)) return { ok: false, error: "PATH_NOT_ALLOWED" };
     try {
       const target = path.resolve(rawPath);
       if (fs.existsSync(target) && shell) {
@@ -5150,10 +5282,13 @@ function registerI18nIpc() {
       return { ok: false, error: err && err.message ? err.message : "DRAFT_SAVE_FAILED" };
     }
   });
-  ipcMain.on("agy-studio:save-composer-draft-sync", (_event, payload) => {
+  ipcMain.on("agy-studio:save-composer-draft-sync", (event, payload) => {
     try {
-      saveComposerDraft(payload);
-    } catch {}
+      const res = saveComposerDraft(payload);
+      if (event) event.returnValue = res || { ok: true };
+    } catch (err) {
+      if (event) event.returnValue = { ok: false, error: err && err.message ? err.message : "DRAFT_SAVE_FAILED" };
+    }
   });
   ipcMain.handle("agy-studio:get-composer-draft", (_event, payload) => {
     try {
@@ -5250,22 +5385,29 @@ function registerI18nIpc() {
     }
   });
   ipcMain.handle("agy-studio:export-config-json", async () => {
-    if (!dialog || typeof dialog.showSaveDialog !== "function") return { ok: false, error: "DIALOG_UNAVAILABLE" };
-    const parentWin = getFocusedOrFirstWindow();
-    const res = await dialog.showSaveDialog(parentWin, {
-      title: tr("Экспорт профиля Rudex", "Export Rudex Profile"),
-      defaultPath: path.join(os.homedir(), "Desktop", "rudex-profile-v5.json"),
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (!res || res.canceled || !res.filePath) return { ok: false, canceled: true };
-    const s = loadStudioSettings();
-    const bundle = {
-      format: "rudex-profile-v5",
-      exportedAt: new Date().toISOString(),
-      settings: s,
-    };
-    writeJsonAtomic(res.filePath, bundle);
-    return { ok: true, filePath: res.filePath };
+    try {
+      if (!dialog || typeof dialog.showSaveDialog !== "function") return { ok: false, error: "DIALOG_UNAVAILABLE" };
+      const parentWin = getFocusedOrFirstWindow();
+      let desktopDir = "";
+      try { desktopDir = app.getPath("desktop"); } catch {}
+      if (!desktopDir || !fs.existsSync(desktopDir)) desktopDir = os.homedir();
+      const res = await dialog.showSaveDialog(parentWin, {
+        title: tr("Экспорт профиля Rudex", "Export Rudex Profile"),
+        defaultPath: path.join(desktopDir, "rudex-profile-v5.json"),
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!res || res.canceled || !res.filePath) return { ok: false, canceled: true };
+      const s = loadStudioSettings();
+      const bundle = {
+        format: "rudex-profile-v5",
+        exportedAt: new Date().toISOString(),
+        settings: s,
+      };
+      writeJsonAtomic(res.filePath, bundle);
+      return { ok: true, filePath: res.filePath };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "EXPORT_FAILED" };
+    }
   });
   ipcMain.handle("agy-studio:import-config-json", async () => {
     if (!dialog || typeof dialog.showOpenDialog !== "function") return { ok: false, error: "DIALOG_UNAVAILABLE" };
@@ -5297,6 +5439,7 @@ exports.toggleLocaleFromHotkey = toggleLocaleFromHotkey;
 exports.togglePanelFromHotkey = togglePanelFromHotkey;
 exports.toggleLiveEditFromHotkey = toggleLiveEditFromHotkey;
 exports.handleKeybindingEvent = handleKeybindingEvent;
+exports.setRecordingKeybinding = setRecordingKeybinding;
 exports.matchInputToCombo = matchInputToCombo;
 exports.sanitizeLimitsWidget = sanitizeLimitsWidget;
 exports.sanitizeKeybindings = sanitizeKeybindings;

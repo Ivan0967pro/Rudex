@@ -38,13 +38,23 @@ function Find-AntigravityExe {
 function Invoke-RudexNode([string]$TargetScript, [string[]]$ScriptArgs) {
   $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
   if ($nodeCmd) {
-    $captured = @(& $nodeCmd.Source $TargetScript @ScriptArgs)
-    $exitCode = $LASTEXITCODE
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $captured = @(& $nodeCmd.Source $TargetScript @ScriptArgs 2>&1)
+      $exitCode = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $prevEap
+    }
     $outLines = @()
     foreach ($line in $captured) {
       $str = "$line"
-      $outLines += $str
-      Write-Host $str
+      if ($line -is [System.Management.Automation.ErrorRecord]) {
+        Write-Host $str -ForegroundColor Yellow
+      } else {
+        $outLines += $str
+        Write-Host $str
+      }
     }
     if ($exitCode -ne 0) { throw "Rudex script failed with exit code $exitCode" }
     return ,([string[]]$outLines)
@@ -130,7 +140,7 @@ function Restart-AntigravityDetached([string]$ExePath) {
       "setlocal EnableDelayedExpansion",
       "taskkill /IM Antigravity.exe >nul 2>&1",
       "ping -n 3 127.0.0.1 >nul",
-      "taskkill /F /T /IM Antigravity.exe >nul 2>&1",
+      "taskkill /F /IM Antigravity.exe >nul 2>&1",
       "for /L %%I in (1,1,12) do (",
       "  tasklist /FI `"IMAGENAME eq Antigravity.exe`" 2>nul | find /I `"Antigravity.exe`" >nul",
       "  if errorlevel 1 goto launch",
@@ -164,7 +174,7 @@ function Test-InsideAntigravityProcess {
   return $false
 }
 
-Write-Host "Rudex v4.4.7 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
+Write-Host "Rudex v5.0.0 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
 
 if ($IsLocalRepo) {
   $InstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"

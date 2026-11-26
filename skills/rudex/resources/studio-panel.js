@@ -145,6 +145,12 @@ const ICON_PATHS = {
   flipV: '<path d="M3 12h18"/><polyline points="7 8 12 3 17 8"/><polyline points="7 16 12 21 17 16"/>',
   wand: '<path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="M17.8 11.8 19 13"/><path d="M15 9h0"/><path d="M17.8 6.2 19 5"/><path d="m3 21 9-9"/><path d="M12.2 6.2 11 5"/>',
   move: '<polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>',
+  puzzle: '<path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z"/>',
+  gauge: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+  search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
 };
 
 const TEXT = {
@@ -206,7 +212,7 @@ const TEXT = {
     appWpStageEmptyHint: "Выберите фото или видео, чтобы двигать и кадрировать обои мышкой",
     appWpDragCrop: "Кадр",
     appWpDragOffset: "Сдвиг",
-    appWpDragHint: "Тяни мышкой · Колёсико — зум",
+    appWpDragHint: "Тяни мышкой · Ctrl + колесо — зум",
     appWpFitCover: "Заполнить",
     appWpFitContain: "Вписать",
     appWpFitFill: "Растянуть",
@@ -297,7 +303,7 @@ const TEXT = {
     appWpAnimated: "Плавная анимация",
     appWpDim: "Затемнение",
     appWpBlur: "Размытие",
-    appWpOpacity: "Яркость",
+    appWpOpacity: "Непрозрачность",
     appWpSaturate: "Насыщенность",
     appWpScale: "Масштаб",
     appWpSpeed: "Скорость",
@@ -612,7 +618,7 @@ const TEXT = {
     appWpStageEmptyHint: "Choose an image or video to drag, pan, and zoom live",
     appWpDragCrop: "Frame",
     appWpDragOffset: "Offset",
-    appWpDragHint: "Drag to move · Scroll to zoom",
+    appWpDragHint: "Drag to move · Ctrl + scroll to zoom",
     appWpFitCover: "Cover",
     appWpFitContain: "Contain",
     appWpFitFill: "Stretch",
@@ -1473,12 +1479,13 @@ function parseQuotaSectionFromSlice(slice) {
     weeklyReset = extractBoundedReset(wkUnusedM[0], wkCrossRe);
   } else {
     const wkHit = extractPctForLabel(slice, wkLabelRe, wkCrossRe);
+    const wkExhM = /(?:used\s+all\s+of|reached|exhausted)\s+your\s+weekly\s+limit|исчерпали\s+недельн[а-яё]*\s+лимит|недельн[а-яё]*\s+лимит\s+исчерпан/i.exec(slice);
     if (wkHit) {
       weeklyRem = wkHit.val;
       weeklyReset = wkHit.reset;
-    } else if (/(?:used\s+all\s+of|reached|exhausted)\s+your\s+weekly\s+limit|исчерпали\s+недельн[а-яё]*\s+лимит|недельн[а-яё]*\s+лимит\s+исчерпан/i.test(slice)) {
+    } else if (wkExhM) {
       weeklyRem = 0;
-      weeklyReset = extractBoundedReset(slice, wkCrossRe);
+      weeklyReset = extractBoundedReset(slice.slice(wkExhM.index), wkCrossRe);
     }
   }
 
@@ -1488,12 +1495,13 @@ function parseQuotaSectionFromSlice(slice) {
     fiveHourReset = extractBoundedReset(fhUnusedM[0], fhCrossRe);
   } else {
     const fhHit = extractPctForLabel(slice, fhLabelRe, fhCrossRe);
+    const fhExhM = /(?:used\s+all\s+of|reached|exhausted)\s+your\s+(?:5-hour|five[- ]hour)\s+limit|исчерпали\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит|лимит\s*\(\s*5\s*ч\s*\)\s+исчерпан/i.exec(slice);
     if (fhHit) {
       fiveHourRem = fhHit.val;
       fiveHourReset = fhHit.reset;
-    } else if (/(?:used\s+all\s+of|reached|exhausted)\s+your\s+(?:5-hour|five[- ]hour)\s+limit|исчерпали\s+(?:5|пяти)[-\s]*часов[а-яё]*\s+лимит|лимит\s*\(\s*5\s*ч\s*\)\s+исчерпан/i.test(slice)) {
+    } else if (fhExhM) {
       fiveHourRem = 0;
-      fiveHourReset = extractBoundedReset(slice, fhCrossRe);
+      fiveHourReset = extractBoundedReset(slice.slice(fhExhM.index), fhCrossRe);
     }
   }
 
@@ -1677,7 +1685,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "4.4.7", dictEntries: 4048, dynamicRulesCount: 474 };
+    : { version: "5.0.0", dictEntries: 4065, dynamicRulesCount: 479 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1718,11 +1726,31 @@ function createStudioPanel(options) {
     });
   }
 
+  function evictOldCachedMedia(maxEntries) {
+    const limit = typeof maxEntries === "number" ? maxEntries : 24;
+    if (mediaBlobCache.size <= limit) return;
+    const revokeApi = win && win.URL && typeof win.URL.revokeObjectURL === "function"
+      ? win.URL
+      : (typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function" ? URL : null);
+    while (mediaBlobCache.size > limit) {
+      const oldestKey = mediaBlobCache.keys().next().value;
+      const oldUrl = mediaBlobCache.get(oldestKey);
+      if (revokeApi && oldUrl) {
+        try { revokeApi.revokeObjectURL(oldUrl); } catch (_e) {}
+      }
+      mediaBlobCache.delete(oldestKey);
+    }
+  }
+
   function resolveStudioMediaUrl(fileName, mediaUrl) {
     const key = extractMediaFileName(fileName, mediaUrl);
     if (!key) return mediaUrl || "";
     const cached = mediaBlobCache.get(key);
-    if (cached) return cached;
+    if (cached) {
+      mediaBlobCache.delete(key);
+      mediaBlobCache.set(key, cached);
+      return cached;
+    }
     if (mediaUrl && mediaUrl.startsWith("agy-media://local/")) {
       return mediaUrl;
     }
@@ -1734,10 +1762,10 @@ function createStudioPanel(options) {
         mediaLoadInflight.delete(key);
         if (state.destroyed || !res || !res.ok || !res.bytes) return;
         try {
-          revokeCachedMedia(key);
           const blob = new BlobCtor([res.bytes], { type: res.mime || "application/octet-stream" });
           const blobUrl = UrlApi.createObjectURL(blob);
           mediaBlobCache.set(key, blobUrl);
+          evictOldCachedMedia(24);
           if (state.mounted) {
             applyThemeToHost(state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance);
           }
@@ -1755,10 +1783,15 @@ function createStudioPanel(options) {
     destroyed: false,
     locale: opts.initialLocale === "en" ? "en" : "ru",
     isOpen: false,
-    activeTab: "persona",
+    activeTab: "appearance",
     appearanceSubTab: "theme",
     settingsSubTab: "system",
-    widgetSubSection: "mini",
+    widgetSubSection: "limits",
+    agentSubTab: "tools",
+    themeModeFilter: "all",
+    historySearchQuery: "",
+    lastRenderedNavKey: "",
+    detectedWorkspacePath: "",
     lastHostMetricsSig: "",
     lastHostMetricsAt: 0,
     openDisclosures: {},
@@ -1823,6 +1856,7 @@ function createStudioPanel(options) {
     },
     chatAgentProfile: typeof RUDEX_AGENT_PROFILE_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_AGENT_PROFILE_DEFAULTS) : { enabled: false },
     agentPopoverOpen: false,
+    contextPopoverOpen: false,
     inlineUrgent: false,
     hasComposerText: false,
     pickerActive: false,
@@ -1930,6 +1964,7 @@ function createStudioPanel(options) {
   let beforeUnloadDraftHandler = null;
   let outsidePopoverHandler = null;
   let modelTriggerClickHandler = null;
+  let modelTriggerSuppressClickHandler = null;
   let composerSendClickHandler = null;
   let lastTitleBarOverlaySig = "";
   let titleBarBootTimer = null;
@@ -2240,17 +2275,21 @@ function createStudioPanel(options) {
       const l = parseColorLightness(accent);
       rootEl.style.setProperty("--rx-accent-fg", l !== null && l > 0.62 ? "#141413" : "#ffffff");
 
-      // Sync selected UI & Mono fonts (including Claude Code fonts) into Rudex Studio & widget
+      // Sync selected UI & Mono fonts (including custom system fonts and Claude Code fonts) into Rudex Studio & widget
       const ty = activeApp.typography || {};
-      const uiFontObj = spFindFont("ui", ty.uiFont);
-      const monoFontObj = spFindFont("mono", ty.monoFont);
-      if (uiFontObj && uiFontObj.stack) {
-        rootEl.style.setProperty("--rx-font-ui", uiFontObj.stack);
+      const uiStack = typeof teResolveFontStack === "function"
+        ? teResolveFontStack(ty.uiFont, ty.uiFontCustom, "ui")
+        : ((spFindFont("ui", ty.uiFont) || {}).stack || "");
+      const monoStack = typeof teResolveFontStack === "function"
+        ? teResolveFontStack(ty.monoFont, ty.monoFontCustom, "mono")
+        : ((spFindFont("mono", ty.monoFont) || {}).stack || "");
+      if (uiStack) {
+        rootEl.style.setProperty("--rx-font-ui", uiStack);
       } else {
         rootEl.style.removeProperty("--rx-font-ui");
       }
-      if (monoFontObj && monoFontObj.stack) {
-        rootEl.style.setProperty("--rx-font-mono", monoFontObj.stack);
+      if (monoStack) {
+        rootEl.style.setProperty("--rx-font-mono", monoStack);
       } else {
         rootEl.style.removeProperty("--rx-font-mono");
       }
@@ -2263,22 +2302,35 @@ function createStudioPanel(options) {
     }
   }
 
+  function updateToastNodes() {
+    if (!modalMountEl || typeof modalMountEl.querySelectorAll !== "function") return;
+    const nodes = modalMountEl.querySelectorAll('[data-role="toast"]');
+    const hasMsg = Boolean(state.toastMsg);
+    for (let i = 0; i < nodes.length; i += 1) {
+      const el = nodes[i];
+      if (!el) continue;
+      el.textContent = state.toastMsg;
+      if (el.classList) {
+        el.classList.toggle("is-err", Boolean(state.toastError));
+        el.classList.toggle("is-visible", hasMsg);
+      } else {
+        el.className = "toast-text" + (state.toastError ? " is-err" : "");
+      }
+    }
+  }
+
   function setToast(msg, isErr) {
     state.toastMsg = msg || "";
     state.toastError = Boolean(isErr);
     if (toastTimer && win && typeof win.clearTimeout === "function") {
       win.clearTimeout(toastTimer);
     }
-    const toastEl = modalMountEl ? modalMountEl.querySelector('[data-role="toast"]') : null;
-    if (toastEl) {
-      toastEl.textContent = state.toastMsg;
-      toastEl.className = "toast-text" + (state.toastError ? " is-err" : "");
-    }
+    updateToastNodes();
     if (msg && win && typeof win.setTimeout === "function") {
       toastTimer = win.setTimeout(() => {
         state.toastMsg = "";
-        const el = modalMountEl ? modalMountEl.querySelector('[data-role="toast"]') : null;
-        if (el) el.textContent = "";
+        state.toastError = false;
+        updateToastNodes();
       }, 3200);
     }
   }
@@ -2318,6 +2370,12 @@ function createStudioPanel(options) {
     }
     if (patch.studioUi) {
       state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, patch.studioUi));
+    }
+    if (Array.isArray(patch.customLabels)) {
+      state.settings.customLabels = patch.customLabels.slice(0, 120);
+      if (translator && typeof translator.setCustomLabels === "function") {
+        try { translator.setCustomLabels(state.settings.customLabels); } catch (_e) {}
+      }
     }
     renderStructure();
     if (typeof patch.thinkingInRussian === "boolean" && patch.thinkingInRussian !== prevThinkRu) {
@@ -2558,7 +2616,10 @@ function createStudioPanel(options) {
         }
       }
 
-      const rows = doc.querySelectorAll('[data-conversation-id], [data-cascade-id], [data-session-id], [data-chat-id]');
+      const sideRows = doc.querySelectorAll('aside [data-conversation-id], aside [data-cascade-id], aside [data-session-id], aside [data-chat-id], nav [data-conversation-id], nav [data-cascade-id], nav [data-session-id], nav [data-chat-id], [data-testid="sidebar"] [data-conversation-id], [data-testid="sidebar"] [data-cascade-id], [data-testid="sidebar"] [data-session-id], [data-testid="sidebar"] [data-chat-id]');
+      const rows = (sideRows && sideRows.length > 0)
+        ? sideRows
+        : doc.querySelectorAll('[data-conversation-id], [data-cascade-id], [data-session-id], [data-chat-id]');
       if (rows && rows.length > 0) {
         for (let i = 0; i < rows.length; i += 1) {
           const r = rows[i];
@@ -2928,6 +2989,7 @@ function createStudioPanel(options) {
       state.lastPromotedPersona = null;
       if (wasActivated && ((UUID_RE.test(prevKey) && UUID_RE.test(detected.key) && prevKey !== detected.key) || (prevKey !== "__new__" && detected.isNew))) {
         state.agentPopoverOpen = false;
+        state.contextPopoverOpen = false;
       }
       removeAllLiveChatBubbleSlots();
       const defAp = state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats && state.settings.agentProfileDefault.enabled
@@ -2962,7 +3024,7 @@ function createStudioPanel(options) {
     }
 
     if (wasActivated && !isPromotion && !migrateFromKey && Date.now() > draftJustSubmittedUntil) {
-      flushComposerDraftSync(prevKey, prevTitle);
+      flushComposerDraftSync(prevKey, prevTitle, true);
     }
 
     state.hasActivatedChat = true;
@@ -3041,6 +3103,19 @@ function createStudioPanel(options) {
       refreshLiveEdits();
       renderStructure();
       updateLiveDom();
+      const wantCtxSync = !detected.isNew && UUID_RE.test(detected.key) && (
+        curTel.exactContextTokens <= 0 ||
+        Boolean(state.settings.liveEditInline && state.settings.liveEditInline.showContextMeter)
+      );
+      if (wantCtxSync) {
+        invokeIpc("agy-studio:get-turn-metrics", { chatKey: detected.key }).then((mRes) => {
+          if (state.destroyed || state.activeChatKey !== detected.key) return;
+          if (mRes && mRes.ok && telemetryEngine && typeof telemetryEngine.applyExactTranscriptMetrics === "function") {
+            telemetryEngine.applyExactTranscriptMetrics(state.telemetry, mRes);
+            updateLiveDom();
+          }
+        });
+      }
     });
 
     return { switched: true, promoted: isPromotion };
@@ -3081,7 +3156,7 @@ function createStudioPanel(options) {
         hydrationIgnoreUntil: state.hydrationIgnoreUntil,
         lastCancelClickAt: state.lastCancelClickAt,
         unknownModelLabel: t().modelUnknown,
-        trackHistory: false,
+        trackHistory: state.settings.trackHistory !== false,
       });
       if (outcome && outcome.finalizedTurn) {
         recordTurnQuotaImpact(outcome.finalizedTurn.tokens, snap.chatTokens, tel.modelName || snap.modelName || "");
@@ -3447,7 +3522,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "4.4.7";
+    const instVer = (inst && inst.version) || pluginMeta.version || "5.0.0";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -3493,9 +3568,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "4.4.7" },
+          installed: realU.installed || { version: pluginMeta.version || "5.0.0" },
           remote: {
-            version: pluginMeta.version || "4.4.7",
+            version: pluginMeta.version || "5.0.0",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -4204,11 +4279,15 @@ function createStudioPanel(options) {
     }
     if (isAuth && !prev) {
       if (state.usagePopOpen) { state.usagePopOpen = false; renderModelUsagePopover(); }
-      if (state.agentPopoverOpen) { state.agentPopoverOpen = false; renderChatDockMount(); }
+      if (state.agentPopoverOpen || state.contextPopoverOpen) {
+        state.agentPopoverOpen = false;
+        state.contextPopoverOpen = false;
+        renderChatDockMount();
+      }
       if (state.liveEditOpen) { state.liveEditOpen = false; renderPopoverStructure(); }
     } else if (!isAuth && prev) {
       state.lastQuotaScrapeSig = "";
-      state.lastQuotaPollAt = 0;
+      state.lastAutoQuotaPollAt = 0;
       pollQuotaSummaryIfDue(Date.now());
     }
     return isAuth;
@@ -4235,7 +4314,7 @@ function createStudioPanel(options) {
     if (now - (state.lastHostMetricsAt || 0) > 900) {
       state.lastHostMetricsAt = now;
       const hm = measureHostUiMetrics();
-      const mSig = `${hm.sidebarRight}|${hm.headerTop}|${hm.headerBottom}|${hm.headerRightClear}|${hm.composerLeft}|${hm.composerRight}`;
+      const mSig = `${hm.vw}|${hm.vh}|${hm.drawerRightReserve}|${hm.sidebarRight}|${hm.headerTop}|${hm.headerBottom}|${hm.headerRightClear}|${hm.composerLeft}|${hm.composerRight}`;
       if (mSig !== state.lastHostMetricsSig) {
         state.lastHostMetricsSig = mSig;
         applyWidgetPosition();
@@ -4343,7 +4422,7 @@ function createStudioPanel(options) {
     return `<div class="mini-pill"${bodyAttrs}>${grip}${joined}${btns}</div>`;
   }
 
-  function renderMediumCardMarkup() {
+  function renderMediumCardMarkup(isPreview) {
     const tr = t();
     const tel = state.telemetry;
     const isPinned = Boolean(state.settings.pinned);
@@ -4355,9 +4434,32 @@ function createStudioPanel(options) {
     const langText = state.locale === "en" ? "EN" : "RU";
     const shownTps = getDisplayedTps(tel);
     const shownUnit = getDisplayedTpsUnit(tel, tr);
+    const bodyAttrs = isPreview ? "" : ` data-widget-body="1"${isPinned ? "" : ' data-drag-handle="1"'}`;
+    const headActionsHtml = isPreview
+      ? `<span class="lang-pill-btn">${langText}</span>
+         <span class="pill-actions">
+           <span class="icon-btn${isPinned ? " is-pinned" : ""}">${iconSvg("pin", 12)}</span>
+           <span class="icon-btn">${iconSvg("minimize", 12)}</span>
+           <span class="icon-btn is-primary">${iconSvg("gear", 12)}</span>
+         </span>`
+      : `<button type="button" class="lang-pill-btn" data-action="toggle-locale" data-no-drag="1" title="${escAttr(tr.tooltipLang)}">${langText}</button>
+         <span class="pill-actions">
+           <button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button>
+           <button type="button" class="icon-btn" data-action="to-mini" data-no-drag="1" title="${escAttr(tr.tooltipMini)}">${iconSvg("minimize", 12)}</button>
+           <button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button>
+         </span>`;
+    const personaElHtml = isPreview
+      ? `<span class="med-persona-pill">
+           <span class="status-dot" style="background:${state.chatPersona.enabled ? "var(--rx-success)" : "var(--rx-muted)"};box-shadow:none"></span>
+           <span>${escHtml(personaLabel)}</span>
+         </span>`
+      : `<button type="button" class="med-persona-pill" data-action="open-persona-tab" data-no-drag="1">
+           <span class="status-dot" style="background:${state.chatPersona.enabled ? "var(--rx-success)" : "var(--rx-muted)"};box-shadow:none"></span>
+           <span>${escHtml(personaLabel)}</span>
+         </button>`;
 
     return `
-      <div class="med-card" data-widget-body="1"${isPinned ? "" : ' data-drag-handle="1"'}>
+      <div class="med-card"${bodyAttrs}>
         <div class="med-header">
           <div class="med-head-left">
             <span class="drag-grip">${iconSvg("grip", 12)}</span>
@@ -4367,12 +4469,7 @@ function createStudioPanel(options) {
             </span>
           </div>
           <div class="med-head-actions">
-            <button type="button" class="lang-pill-btn" data-action="toggle-locale" data-no-drag="1" title="${escAttr(tr.tooltipLang)}">${langText}</button>
-            <span class="pill-actions">
-              <button type="button" class="icon-btn${isPinned ? " is-pinned" : ""}" data-action="toggle-pin" data-no-drag="1" title="${escAttr(isPinned ? tr.tooltipPinUnlock : tr.tooltipPinLock)}">${iconSvg("pin", 12)}</button>
-              <button type="button" class="icon-btn" data-action="to-mini" data-no-drag="1" title="${escAttr(tr.tooltipMini)}">${iconSvg("minimize", 12)}</button>
-              <button type="button" class="icon-btn is-primary" data-action="open-settings" data-no-drag="1" title="${escAttr(tr.tooltipSettings)}">${iconSvg("gear", 12)}</button>
-            </span>
+            ${headActionsHtml}
           </div>
         </div>
         <div class="med-body">
@@ -4384,7 +4481,7 @@ function createStudioPanel(options) {
               </div>
               <span class="med-peak-pill num">${escHtml(tr.peakLabel)} <b data-live="peak">${getDisplayedPeakTps(tel)}</b></span>
             </div>
-            <div class="med-spark-box" data-live="sparkMed">${buildSparklineMarkup(tel.samples, 260, 40, "med")}</div>
+            <div class="med-spark-box" data-live="sparkMed">${buildSparklineMarkup(tel.samples, 260, 40, isPreview ? "medPrev" : "med")}</div>
           </div>
           <div class="med-stats-grid">
             <div class="med-stat-tile">
@@ -4402,10 +4499,7 @@ function createStudioPanel(options) {
           </div>
           <div class="med-footer">
             <span class="med-model-tag" data-live="model" title="${escAttr(tel.modelName || tr.modelUnknown)}">${escHtml(tel.modelName || "—")}</span>
-            <button type="button" class="med-persona-pill" data-action="open-persona-tab" data-no-drag="1">
-              <span class="status-dot" style="background:${state.chatPersona.enabled ? "var(--rx-success)" : "var(--rx-muted)"};box-shadow:none"></span>
-              <span>${escHtml(personaLabel)}</span>
-            </button>
+            ${personaElHtml}
           </div>
         </div>
       </div>
@@ -4459,7 +4553,8 @@ function createStudioPanel(options) {
   }
 
   function spBuildWallpaperTransformCss(wp) {
-    const effScale = wp.blur > 0 ? Math.max(wp.scale / 100, 1.06) : (wp.scale / 100);
+    const baseScale = wp.scale / 100;
+    const effScale = wp.blur > 0 ? (wp.scale >= 100 ? Math.max(baseScale, 1.06) : baseScale * 1.04) : baseScale;
     const parts = [];
     if (wp.offsetX !== 0 || wp.offsetY !== 0) parts.push(`translate3d(${wp.offsetX}%, ${wp.offsetY}%, 0)`);
     if (wp.rotate !== 0) parts.push(`rotate(${wp.rotate}deg)`);
@@ -4697,11 +4792,6 @@ function createStudioPanel(options) {
     else inner = renderAppearanceTextSub(tr, isRu);
 
     return `
-      <div class="subtab-bar">
-        ${subTabs.map((st) => `
-          <button type="button" class="subtab-btn${st.id === sub ? " is-active" : ""}" data-action="set-app-subtab" data-val="${st.id}">${escHtml(st.label)}</button>
-        `).join("")}
-      </div>
       <div class="layer-summary-strip">
         <button type="button" class="layer-pill${sub === "theme" ? " is-active" : ""}" data-action="set-app-subtab" data-val="theme">
           <span class="layer-dot" style="background:${escAttr(effAccent)}"></span>
@@ -4709,19 +4799,16 @@ function createStudioPanel(options) {
         </button>
         <span class="layer-sep">·</span>
         <button type="button" class="layer-pill${sub === "uistyle" ? " is-active" : ""}" data-action="set-app-subtab" data-val="uistyle">
-          <span>${escHtml(isRu ? "Стиль" : "Style")}: ${escHtml(uiStyleShortLabel)}</span>
+          <span>${escHtml(uiStyleShortLabel)}</span>
         </button>
-        <span class="layer-sep">·</span>
-        <button type="button" class="layer-pill${sub === "wallpaper" ? " is-active" : ""}" data-action="set-app-subtab" data-val="wallpaper">
-          <span>${escHtml(tr.appLayerWallpaper)}: ${escHtml(wpLabel)}</span>
-        </button>
-        <span class="layer-sep">·</span>
-        <button type="button" class="layer-pill${sub === "corners" ? " is-active" : ""}" data-action="set-app-subtab" data-val="corners">
-          <span>${escHtml(cornersLabel)}</span>
-        </button>
-        <span class="layer-sep">·</span>
-        <button type="button" class="layer-pill${sub === "text" ? " is-active" : ""}" data-action="set-app-subtab" data-val="text">
-          <span>${escHtml(tr.appLayerText)}: ${escHtml(fontShortLabel)}</span>
+        ${wp.type !== "none" ? `
+          <span class="layer-sep">·</span>
+          <button type="button" class="layer-pill${sub === "wallpaper" ? " is-active" : ""}" data-action="set-app-subtab" data-val="wallpaper">
+            <span>${escHtml(wpLabel)}</span>
+          </button>
+        ` : ""}
+        <button type="button" class="layer-pill" style="margin-left:auto" data-action="start-element-picker" title="${escAttr(isRu ? "Ткнуть в элемент Antigravity" : "Pick any Antigravity element")}">
+          <span>🎯 ${escHtml(isRu ? "Прицел" : "Picker")}</span>
         </button>
       </div>
       ${inner}
@@ -4867,7 +4954,7 @@ function createStudioPanel(options) {
       `<button type="button" class="uistyle-opt-btn${curVal === val ? " is-active" : ""}" data-action="set-uistyle-opt" data-field="${field}" data-val="${val}">${escHtml(lbl)}</button>`;
 
     const placeholderTxt = us.composer === "claude-code"
-      ? (isRu ? "Reply" : "Reply")
+      ? (isRu ? "Ответить…" : "Reply…")
       : (us.composer === "opencode"
           ? (isRu ? "введите задачу или /команду…" : "ask anything or /command…")
           : (isRu ? "Спросите что угодно, @ — упомянуть…" : "Ask anything, @ to mention…"));
@@ -4883,7 +4970,7 @@ function createStudioPanel(options) {
         <span class="uistyle-live-tools-l"><span>+</span><span>🎤</span></span>
         <span class="uistyle-live-tools-r">
           <span class="uistyle-live-model" data-live="uiStyleModel" style="${escAttr(st.modelStyle)}">${escHtml(modelSample)}</span>
-          <span class="uistyle-live-mode">${isRu ? "Турбо" : "Manual"}</span>
+          <span class="uistyle-live-mode">${isRu ? "Турбо" : "Turbo"}</span>
         </span>`
       : `
         <span class="uistyle-live-tools-l">
@@ -5079,34 +5166,52 @@ function createStudioPanel(options) {
       : ((curPreset && curPreset.vars && curPreset.vars.accentColor) || draft.accentColor);
     const fineOpen = Boolean(state.openDisclosures.themeFine);
     const profiles = state.settings.appearanceProfiles || [];
-    const isClaudeDarkActive = draft.presetId === "claude-code-dark";
-    const isClaudeLightActive = draft.presetId === "claude-code-light";
+    const us = draft.uiStyle || spDefaultUiStyle();
+    const isClaudeDarkActive = draft.presetId === "claude-code-dark" && us.preset === "claude-code";
+    const isClaudeLightActive = draft.presetId === "claude-code-light" && us.preset === "claude-code";
+    const isCodexSuiteActive = us.preset === "codex";
+    const isOpenCodeSuiteActive = us.preset === "opencode";
+    const modeFilter = state.themeModeFilter === "dark" || state.themeModeFilter === "light" ? state.themeModeFilter : "all";
+    const visiblePresets = presets.filter((pr) => {
+      if (modeFilter === "all") return true;
+      if (modeFilter === "light") return pr.mode === "light";
+      return pr.mode !== "light";
+    });
 
     return `
-      <div class="claude-spotlight">
-        <div class="claude-spot-info">
-          <span class="claude-spot-title">
-            <span class="claude-spot-dot"></span>
-            <span>${escHtml(tr.claudeSuiteTitle)}</span>
-          </span>
-          <span class="claude-spot-desc">${escHtml(tr.claudeSuiteDesc)}</span>
-        </div>
-        <div class="claude-spot-actions">
+      <div class="section-group">
+        <span class="section-label">${escHtml(isRu ? "Готовые образы в 1 клик (тема + стиль интерфейса + шрифты)" : "1-Click Complete Suites (Theme + UI Style + Fonts)")}</span>
+        <div class="suite-quick-grid claude-spotlight">
           <button type="button" class="claude-preset-btn${isClaudeDarkActive ? " is-active" : ""}" data-action="apply-claude-suite" data-val="dark">
             <span class="claude-chip-swatch" style="background:linear-gradient(135deg,#1f1e1d 55%,#d97757 55%)"></span>
-            <span>${escHtml(tr.claudeSuiteDarkBtn)}</span>
+            <span>Claude Dark</span>
           </button>
           <button type="button" class="claude-preset-btn${isClaudeLightActive ? " is-active" : ""}" data-action="apply-claude-suite" data-val="light">
             <span class="claude-chip-swatch" style="background:linear-gradient(135deg,#faf9f5 55%,#c15f3c 55%)"></span>
-            <span>${escHtml(tr.claudeSuiteLightBtn)}</span>
+            <span>Claude Light</span>
+          </button>
+          <button type="button" class="claude-preset-btn${isCodexSuiteActive ? " is-active" : ""}" data-action="apply-platform-suite" data-val="codex">
+            <span class="claude-chip-swatch" style="background:linear-gradient(135deg,#111114 55%,#f4f4f5 55%)"></span>
+            <span>Codex</span>
+          </button>
+          <button type="button" class="claude-preset-btn${isOpenCodeSuiteActive ? " is-active" : ""}" data-action="apply-platform-suite" data-val="opencode">
+            <span class="claude-chip-swatch" style="background:linear-gradient(135deg,#141413 55%,#38bdf8 55%)"></span>
+            <span>OpenCode</span>
           </button>
         </div>
       </div>
 
       <div class="section-group">
-        <span class="section-label">${escHtml(tr.appThemesTitle)}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <span class="section-label">${escHtml(tr.appThemesTitle)}</span>
+          <div class="theme-filter-pills">
+            <button type="button" class="theme-filter-pill${modeFilter === "all" ? " is-active" : ""}" data-action="set-theme-filter" data-val="all">${escHtml(isRu ? "Все" : "All")} (${presets.length})</button>
+            <button type="button" class="theme-filter-pill${modeFilter === "dark" ? " is-active" : ""}" data-action="set-theme-filter" data-val="dark">${escHtml(tr.themeTagDark)}</button>
+            <button type="button" class="theme-filter-pill${modeFilter === "light" ? " is-active" : ""}" data-action="set-theme-filter" data-val="light">${escHtml(tr.themeTagLight)}</button>
+          </div>
+        </div>
         <div class="theme-grid">
-          ${presets.map((pr) => {
+          ${visiblePresets.map((pr) => {
             const sel = draft.presetId === pr.id;
             const sw = pr.vars;
             const tagText = pr.badge || (pr.mode === "light" ? tr.themeTagLight : (pr.mode === "native" ? tr.themeTagNative : tr.themeTagDark));
@@ -5332,8 +5437,8 @@ function createStudioPanel(options) {
               <div class="wp-tool-row">
                 <button type="button" class="wp-tool-btn" data-action="wp-rotate-step" data-delta="-90" title="-90°">${iconSvg("rotateLeft", 12)}</button>
                 <button type="button" class="wp-tool-btn" data-action="wp-rotate-step" data-delta="90" title="+90°">${iconSvg("rotateRight", 12)}</button>
-                <button type="button" class="wp-tool-btn${wp.flipX ? " is-active" : ""}" data-action="wp-toggle-flip" data-axis="x" title="Flip X">${iconSvg("flipH", 12)}</button>
-                <button type="button" class="wp-tool-btn${wp.flipY ? " is-active" : ""}" data-action="wp-toggle-flip" data-axis="y" title="Flip Y">${iconSvg("flipV", 12)}</button>
+                <button type="button" class="wp-tool-btn${wp.flipX ? " is-active" : ""}" data-action="wp-toggle-flip" data-axis="x" title="${escAttr(isRu ? "Отразить по горизонтали" : "Flip horizontal")}">${iconSvg("flipH", 12)}</button>
+                <button type="button" class="wp-tool-btn${wp.flipY ? " is-active" : ""}" data-action="wp-toggle-flip" data-axis="y" title="${escAttr(isRu ? "Отразить по вертикали" : "Flip vertical")}">${iconSvg("flipV", 12)}</button>
                 <button type="button" class="wp-tool-btn" style="flex-basis:100%" data-action="wp-reset-transform">${escHtml(tr.appWpResetFrame)}</button>
               </div>
             </div>
@@ -5369,9 +5474,18 @@ function createStudioPanel(options) {
         <div class="section-group">
           <span class="section-label">${escHtml(tr.appWpAtmosTitle)}</span>
           <div class="wp-atmos-grid">
-            ${WALLPAPER_ATMOS_PRESETS.map((ap) => `
-              <button type="button" class="btn btn-sm" data-action="apply-wp-atmos" data-id="${escAttr(ap.id)}">${escHtml(isRu ? ap.nameRu : ap.nameEn)}</button>
-            `).join("")}
+            ${WALLPAPER_ATMOS_PRESETS.map((ap) => {
+              const isMatch =
+                wp.dim === ap.dim &&
+                wp.blur === ap.blur &&
+                wp.brightness === ap.brightness &&
+                wp.contrast === ap.contrast &&
+                wp.saturate === ap.saturate &&
+                wp.hue === ap.hue &&
+                wp.vignette === ap.vignette &&
+                (ap.id !== "original" || (wp.fit === "cover" && wp.scale === 100 && wp.rotate === 0 && !wp.flipX && !wp.flipY && wp.offsetX === 0 && wp.offsetY === 0));
+              return `<button type="button" class="btn btn-sm${isMatch ? " btn-primary" : ""}" data-action="apply-wp-atmos" data-id="${escAttr(ap.id)}">${escHtml(isRu ? ap.nameRu : ap.nameEn)}</button>`;
+            }).join("")}
           </div>
         </div>
 
@@ -5544,18 +5658,21 @@ function createStudioPanel(options) {
           <div class="cp-main">
             <div class="cp-top-row">
               <span class="cp-badge" data-cp-role="input" style="border-radius:${eff.inputs}px">Gemini</span>
-              <span class="cp-popup" data-cp-role="popup" style="border-radius:${eff.overlays}px">Menu / Dialog</span>
+              <span class="cp-popup" data-cp-role="popup" style="border-radius:${eff.overlays}px">${escHtml(isRu ? "Меню / Окно" : "Menu / Dialog")}</span>
             </div>
             <div class="cp-bubble" data-cp-role="bubble" style="border-radius:${eff.messages}px">
-              <div class="cp-card" data-cp-role="card" style="border-radius:${eff.cards}px">Thinking · Tool call</div>
+              <div class="cp-card" data-cp-role="card" style="border-radius:${eff.cards}px">${escHtml(isRu ? "Мысли · Шаг" : "Thinking · Tool call")}</div>
               <div class="cp-code" data-cp-role="code" style="border-radius:${eff.code}px">const radius = "${eff.code}px";</div>
             </div>
             <div class="cp-composer" data-cp-role="composer" style="border-radius:${eff.composer}px">
-              <div class="cp-input" data-cp-role="input" style="border-radius:${eff.inputs}px">Ask anything…</div>
-              <button type="button" class="cp-btn" data-cp-role="btn" style="border-radius:${eff.buttons}px">Send</button>
+              <div class="cp-input" data-cp-role="input" style="border-radius:${eff.inputs}px">${escHtml(isRu ? "Спросите что угодно…" : "Ask anything…")}</div>
+              <button type="button" class="cp-btn" data-cp-role="btn" style="border-radius:${eff.buttons}px">${escHtml(isRu ? "Отправить" : "Send")}</button>
             </div>
           </div>
         </div>
+        ${draft.uiStyle && draft.uiStyle.composer && draft.uiStyle.composer !== "antigravity" ? `
+          <span class="row-desc" style="font-size:11px">${escHtml(isRu ? "Совет: скругление поля ввода сейчас задаёт выбранный Стиль UI — его можно изменить во вкладке «Стиль UI»." : "Tip: composer radius is currently governed by the active UI Style — tweak it under the UI Style tab.")}</span>
+        ` : ""}
       </div>
 
       <div class="subtab-bar is-segmented">
@@ -5747,11 +5864,8 @@ function createStudioPanel(options) {
   function renderAppearanceTextSub(tr, isRu) {
     const draft = spNormalizeAppearance(state.appearanceDraft);
     const ty = draft.typography;
-    const fonts = spGetFontPresets();
-    const uiFontObj = (fonts.ui || []).find((f) => f.id === ty.uiFont) || { stack: "" };
-    const monoFontObj = (fonts.mono || []).find((f) => f.id === ty.monoFont) || { stack: "" };
-    const uiStack = uiFontObj.stack || "var(--rx-font-ui)";
-    const monoStack = monoFontObj.stack || "var(--rx-font-mono)";
+    const uiStack = (typeof teResolveFontStack === "function" ? teResolveFontStack(ty.uiFont, ty.uiFontCustom, "ui") : "") || "var(--rx-font-ui)";
+    const monoStack = (typeof teResolveFontStack === "function" ? teResolveFontStack(ty.monoFont, ty.monoFontCustom, "mono") : "") || "var(--rx-font-mono)";
     const densities = [
       { id: "compact", label: tr.appDensityCompact },
       { id: "comfortable", label: tr.appDensityComfort },
@@ -5780,21 +5894,6 @@ function createStudioPanel(options) {
           <div class="typo-preview-head" data-live="typoPreviewHead" style="font-family:${escAttr(uiStack)};font-size:${Math.min(18, ty.fontSize + 1)}px">${escHtml(tr.fontPreviewTitle)}</div>
           <p class="typo-preview-body" data-live="typoPreviewBody" style="font-family:${escAttr(uiStack)};font-size:${ty.fontSize}px;line-height:${ty.lineHeight}">${escHtml(tr.fontPreviewBody)}</p>
           <div class="typo-preview-code" data-live="typoPreviewCode" style="font-family:${escAttr(monoStack)}">const theme = { palette: "claude-code", accent: "#d97757" };</div>
-        </div>
-      </div>
-
-      <div class="control-grid-2">
-        <div class="section-group">
-          <span class="section-label">${escHtml(tr.appUiFont)}</span>
-          <select class="select-input" data-app-field="typography.uiFont">
-            ${(fonts.ui || []).map((f) => `<option value="${escAttr(f.id)}"${ty.uiFont === f.id ? " selected" : ""}>${escHtml(isRu ? f.label : (f.labelEn || f.label))}</option>`).join("")}
-          </select>
-        </div>
-        <div class="section-group">
-          <span class="section-label">${escHtml(tr.appMonoFont)}</span>
-          <select class="select-input" data-app-field="typography.monoFont">
-            ${(fonts.mono || []).map((f) => `<option value="${escAttr(f.id)}"${ty.monoFont === f.id ? " selected" : ""}>${escHtml(isRu ? f.label : (f.labelEn || f.label))}</option>`).join("")}
-          </select>
         </div>
       </div>
 
@@ -5985,41 +6084,53 @@ function createStudioPanel(options) {
     const tr = t();
     const isRu = state.locale !== "en";
     const sub = state.settingsSubTab || "system";
-    const subTabs = [
-      { id: "system", label: isRu ? "Система" : "System" },
-      { id: "widget", label: isRu ? "Виджеты" : "Widgets" },
-      { id: "studio", label: isRu ? "Окно" : "Window" },
-      { id: "history", label: isRu ? "История" : "History" },
-      { id: "workshop", label: isRu ? "Мастерская" : "Workshop" },
-      { id: "hotkeys", label: isRu ? "Клавиши" : "Hotkeys" },
-      { id: "export", label: isRu ? "Экспорт" : "Export" },
-    ];
-    let body = "";
-    if (sub === "workshop" && typeof rv5RenderWorkshopHtml === "function") body = rv5RenderWorkshopHtml(state.workshop, isRu);
-    else if (sub === "history" && typeof rv5RenderInputHistoryHtml === "function") {
-      body = rv5RenderInputHistoryHtml({
+    if (sub === "hotkeys" && typeof rv5RenderKeybindingsHtml === "function") {
+      return rv5RenderKeybindingsHtml(state.settings.keybindings, state.recordingKeybindingId, isRu);
+    }
+    if (sub === "studio") return renderStudioDesignSub(tr, isRu);
+    return renderSystemSub(tr);
+  }
+
+  function renderWidgetsTab() {
+    const tr = t();
+    const isRu = state.locale !== "en";
+    const wSec = state.widgetSubSection || "limits";
+    if (wSec === "monitor") {
+      return renderMonitorTab() + `<div style="border-top:1px solid var(--rx-border);margin-top:14px;padding-top:14px">${renderExportSub(tr)}</div>`;
+    }
+    if (wSec === "limits" && typeof rv5RenderLimitsTabHtml === "function") {
+      return rv5RenderLimitsTabHtml({
+        limitsWidget: state.settings.limitsWidget,
+        quotaSummary: state.quotaSummary,
+        activeModelName: state.telemetry.modelName,
+        systemFonts: state.systemFonts,
+        monitorHtml: "",
+        exportHtml: "",
         isRu,
-        composerDraftsEnabled: state.settings.composerDraftsEnabled !== false,
-        inputHistoryEnabled: state.settings.inputHistoryEnabled !== false,
-        draftCount: state.inputHistory ? state.inputHistory.draftCount : 0,
-        items: state.inputHistory ? state.inputHistory.items : [],
-        loading: Boolean(state.inputHistory && state.inputHistory.loading),
+        isLight: state.theme === "light",
       });
     }
-    else if (sub === "hotkeys" && typeof rv5RenderKeybindingsHtml === "function") body = rv5RenderKeybindingsHtml(state.settings.keybindings, state.recordingKeybindingId, isRu);
-    else if (sub === "studio") body = renderStudioDesignSub(tr, isRu);
-    else if (sub === "widget") body = renderWidgetSub(tr, isRu);
-    else if (sub === "export") body = renderMonitorTab() + `<div style="border-top:1px solid var(--rx-border);margin-top:12px;padding-top:12px">${renderExportSub(tr)}</div>`;
-    else body = renderSystemSub(tr);
+    return renderWidgetSub(tr, isRu);
+  }
 
-    return `
-      <div class="subtab-bar">
-        ${subTabs.map((st) => `
-          <button type="button" class="subtab-btn${st.id === sub ? " is-active" : ""}" data-action="set-settings-subtab" data-val="${st.id}">${escHtml(st.label)}</button>
-        `).join("")}
-      </div>
-      ${body}
-    `;
+  function renderHistoryTab() {
+    const isRu = state.locale !== "en";
+    if (typeof rv5RenderInputHistoryHtml !== "function") return "";
+    return rv5RenderInputHistoryHtml({
+      isRu,
+      composerDraftsEnabled: state.settings.composerDraftsEnabled !== false,
+      inputHistoryEnabled: state.settings.inputHistoryEnabled !== false,
+      draftCount: state.inputHistory ? state.inputHistory.draftCount : 0,
+      items: state.inputHistory ? state.inputHistory.items : [],
+      loading: Boolean(state.inputHistory && state.inputHistory.loading),
+      searchQuery: state.historySearchQuery || "",
+    });
+  }
+
+  function renderWorkshopTab() {
+    const isRu = state.locale !== "en";
+    if (typeof rv5RenderWorkshopHtml !== "function") return "";
+    return rv5RenderWorkshopHtml(state.workshop, isRu, state.chatAgentProfile && state.chatAgentProfile.pinnedSkills);
   }
 
   function renderStudioDesignSub(tr, isRu) {
@@ -6107,26 +6218,6 @@ function createStudioPanel(options) {
   function renderWidgetSub(tr, isRu) {
     const s = state.settings;
     const sui = spNormalizeStudioUi(s.studioUi);
-    const wSec = state.widgetSubSection === "limits" ? "limits" : "mini";
-    const lwOn = Boolean(s.limitsWidget && s.limitsWidget.enabled);
-    const secBar = `
-      <div class="subtab-bar is-segmented" style="margin-bottom:4px">
-        <button type="button" class="subtab-btn${wSec === "mini" ? " is-active" : ""}" data-action="set-widget-subsection" data-val="mini">${escHtml(isRu ? "Мини-окно (TPS / RU)" : "Mini Widget (TPS / RU)")}</button>
-        <button type="button" class="subtab-btn${wSec === "limits" ? " is-active" : ""}" data-action="set-widget-subsection" data-val="limits">${escHtml(isRu ? "Лимиты Antigravity" : "Antigravity Limits")}${lwOn ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:999px;background:var(--rx-accent);margin-left:4px;vertical-align:middle"></span>' : ""}</button>
-      </div>
-    `;
-    if (wSec === "limits" && typeof rv5RenderLimitsTabHtml === "function") {
-      return secBar + rv5RenderLimitsTabHtml({
-        limitsWidget: state.settings.limitsWidget,
-        quotaSummary: state.quotaSummary,
-        activeModelName: state.telemetry.modelName,
-        systemFonts: state.systemFonts,
-        monitorHtml: "",
-        exportHtml: "",
-        isRu,
-        isLight: state.theme === "light",
-      });
-    }
     const mf = s.miniFields;
     const fieldSpecs = [
       { key: "status", title: tr.fieldStatus },
@@ -6157,11 +6248,10 @@ function createStudioPanel(options) {
       { id: "lg", label: tr.widgetScaleLg },
     ];
     const isMedPrev = state.widgetPreviewMode === "medium";
-    const previewMarkup = isMedPrev ? renderMediumCardMarkup() : renderMiniCapsuleMarkup(true);
+    const previewMarkup = isMedPrev ? renderMediumCardMarkup(true) : renderMiniCapsuleMarkup(true);
     state.lastPreviewCapsuleHtml = previewMarkup;
 
     return `
-      ${secBar}
       ${fontDatalistHtml}
       <div class="section-group">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -6218,8 +6308,8 @@ function createStudioPanel(options) {
               thumbStyle = "background:#090b14;border-color:var(--rx-accent)";
               capsuleStyle = "width:28px;height:11px;border-radius:999px;background:var(--rx-accent-soft);border:1px solid var(--rx-accent)";
             } else if (wt.id === "minimal") {
-              thumbStyle = "background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.14)";
-              capsuleStyle = "width:28px;height:10px;border-radius:999px;background:transparent;border:1px solid rgba(255,255,255,0.24)";
+              thumbStyle = "background:var(--rx-bg);border-color:var(--rx-border-strong)";
+              capsuleStyle = "width:28px;height:10px;border-radius:999px;background:var(--rx-surface);border:1px solid var(--rx-border-strong)";
             } else if (wt.id === "solid") {
               thumbStyle = "background:#191a20;border-color:rgba(255,255,255,0.16)";
               capsuleStyle = "width:28px;height:11px;border-radius:999px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.14)";
@@ -6303,6 +6393,19 @@ function createStudioPanel(options) {
               <button type="button" class="switch${mf[f.key] ? " is-on" : ""}" role="switch" aria-checked="${mf[f.key] ? "true" : "false"}" data-action="toggle-mini-field" data-key="${f.key}"><span class="switch-thumb"></span></button>
             </div>
           `).join("")}
+        </div>
+      </div>
+
+      <div class="section-group">
+        <span class="section-label">${escHtml(isRu ? "Индикаторы в чате" : "In-Chat Indicators")}</span>
+        <div class="card">
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${escHtml(isRu ? "Контекстное окно модели в чате" : "Model context window meter in chat")}</span>
+              <span class="row-desc">${escHtml(isRu ? "Показывает над вводом, сколько контекстного окна выбранной модели занято этим чатом" : "Shows above composer how much of the selected model's context window this chat occupies")}</span>
+            </div>
+            <button type="button" class="switch${Boolean(s.liveEditInline && s.liveEditInline.showContextMeter) ? " is-on" : ""}" role="switch" aria-checked="${Boolean(s.liveEditInline && s.liveEditInline.showContextMeter) ? "true" : "false"}" data-action="toggle-live-inline" data-field="showContextMeter"><span class="switch-thumb"></span></button>
+          </div>
         </div>
       </div>
     `;
@@ -6432,7 +6535,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "4.4.7";
+    const ver = inst.version || pluginMeta.version || "5.0.0";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -6464,13 +6567,6 @@ function createStudioPanel(options) {
               <span class="${thinkingRu ? "badge-active" : "nav-badge"}">${escHtml(thinkingRu ? tr.thinkingRuOn : tr.thinkingRuDefault)}</span>
               <button type="button" class="switch${thinkingRu ? " is-on" : ""}" role="switch" aria-checked="${thinkingRu ? "true" : "false"}" data-action="toggle-thinking-ru" aria-label="${escAttr(tr.thinkingRuTitle)}"><span class="switch-thumb"></span></button>
             </div>
-          </div>
-          <div class="row-item">
-            <div class="row-info">
-              <span class="row-title">${isRu ? "Черновики чатов и история ввода (последние 20)" : "Chat drafts & input history (last 20)"}</span>
-              <span class="row-desc">${isRu ? "Автосохранение текста и файлов в чатах + копирование последних 20 сообщений и файлов." : "Auto-saves composer text & files per chat + copy your last 20 messages & files."}</span>
-            </div>
-            <button type="button" class="btn btn-sm" data-action="open-input-history">${isRu ? "Открыть →" : "Open →"}</button>
           </div>
         </div>
       </div>
@@ -6519,18 +6615,6 @@ function createStudioPanel(options) {
       </div>
 
       <div class="section-group">
-        <span class="section-label">${escHtml(tr.hotkeysTitle)}</span>
-        <div class="card">
-          <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleLang)}</span><span class="kbd">Ctrl + Alt + L</span></div>
-          <div class="row-item"><span class="row-title">${escHtml(tr.hkToggleModal)}</span><span class="kbd">Ctrl + Alt + P</span></div>
-          <div class="row-item"><span class="row-title">${escHtml(tr.hkAppScale)}</span><span class="kbd">Ctrl + / − / 0</span></div>
-          <div class="row-item"><span class="row-title">${escHtml(tr.hkWidgetResize)}</span><span class="kbd">${escHtml(tr.hkWidgetResizeKey)}</span></div>
-          <div class="row-item"><span class="row-title">${escHtml(tr.hkDoubleClick)}</span><span class="kbd">${escHtml(tr.hkDoubleClickKey)}</span></div>
-          <div class="row-item"><span class="row-title">${escHtml(tr.hkEsc)}</span><span class="kbd">Esc</span></div>
-        </div>
-      </div>
-
-      <div class="section-group">
         <span class="section-label">${escHtml(tr.pluginInfoTitle)}</span>
         <div class="card">
           <div class="row-item">
@@ -6555,24 +6639,168 @@ function createStudioPanel(options) {
     `;
   }
 
+  function getSearchQuickHits(queryStr, isRu) {
+    const searchQ = String(queryStr || "").trim().toLowerCase();
+    if (!searchQ) return [];
+    return [
+      { k: "тема палитра цвет акцент темная светлая claude theme palette accent dark light", label: isRu ? "Темы, палитра и акцент" : "Themes, Palette & Accent", tab: "appearance", appSub: "theme" },
+      { k: "стиль ui композер ввод чат модел claude code codex opencode antigravity style composer bubble model", label: isRu ? "Стиль UI (Claude Code / Codex / OpenCode)" : "UI Style (Claude Code / Codex / OpenCode)", tab: "appearance", appSub: "uistyle" },
+      { k: "обои градиент видео картинк фон wallpaper gradient image video", label: isRu ? "Обои, фото, видео и градиенты" : "Wallpaper, Video & Gradients", tab: "appearance", appSub: "wallpaper" },
+      { k: "границ обводк стекло прозрачн размыт border surface glass blur", label: isRu ? "Стекло, размытие и границы" : "Glass, Blur & Borders", tab: "appearance", appSub: "surface" },
+      { k: "шрифт font типографика размер текст код ввод агент", label: isRu ? "Шрифты (4 слота) и типографика" : "Fonts (4 slots) & Typography", tab: "appearance", appSub: "text" },
+      { k: "угл радиус скруглен corner radius", label: isRu ? "Скругление углов" : "Corner Radii", tab: "appearance", appSub: "corners" },
+      { k: "приветств экран шаблон greeting welcome placeholder", label: isRu ? "Приветствие на новом чате" : "New Chat Greeting", tab: "appearance", appSub: "greeting" },
+      { k: "прицел элемент цвет размер переимен скрыть picker inspector rename override", label: isRu ? "🎯 Прицел и правка элементов" : "🎯 Element Picker & Rename", tab: "appearance", appSub: "elements" },
+      { k: "лимит квот экран 5ч недел quota limit bar", label: isRu ? "Виджет лимитов Antigravity" : "Antigravity Limits Widget", tab: "widgets", widgetSub: "limits" },
+      { k: "мини окно виджет капсул tps плавающ закреп контекст модел заполнен mini widget capsule dock context window meter", label: isRu ? "Мини-окно и контекстное окно модели в чате" : "Mini Widget & Model Context Window Meter", tab: "widgets", widgetSub: "mini" },
+      { k: "монитор tps график экспорт zip архив чат квот monitor export archive", label: isRu ? "Монитор TPS и экспорт чата в ZIP" : "TPS Monitor & Chat ZIP Export", tab: "widgets", widgetSub: "monitor" },
+      { k: "инструмент субагент тумблер браузер поиск на лету правк tool subagent browser live edit", label: isRu ? "Инструменты агента и правки на лету" : "Agent Tools & Inline Live Edits", tab: "persona", agentSub: "tools" },
+      { k: "характер персона промпт инструкц agents.md persona system prompt", label: isRu ? "Характер агента (для текущего чата)" : "Chat Agent Persona", tab: "persona", agentSub: "persona" },
+      { k: "пресет режим агент preset mode", label: isRu ? "Пресеты поведения агента" : "Agent Behavior Presets", tab: "persona", agentSub: "presets" },
+      { k: "история черновик сообщен буфер draft history last 20", label: isRu ? "Черновики и история последних 20 сообщений" : "Drafts & Last 20 Messages History", tab: "history" },
+      { k: "мастерская правил скилл skill rule mcp хук hook плагин workshop", label: isRu ? "Мастерская AGY (Rules / Skills / MCP)" : "AGY Workshop (Rules / Skills / MCP)", tab: "workshop" },
+      { k: "язык перевод мысл масштаб scale zoom обновл бекап json system language update backup", label: isRu ? "Язык, масштаб, обновления и JSON-бекап" : "Language, Scale, Updates & JSON Backup", tab: "settings", setSub: "system" },
+      { k: "окно studio макет сайдбар тема дизайн window layout sidebar rail topbar", label: isRu ? "Дизайн и макет окна Rudex Studio" : "Rudex Studio Window & Layout", tab: "settings", setSub: "studio" },
+      { k: "клавиш хоткей shortcut hotkey keybind дзен zen", label: isRu ? "Горячие клавиши и режим Дзен" : "Hotkeys & Zen Mode", tab: "settings", setSub: "hotkeys" },
+    ].filter((it) => it.k.includes(searchQ) || it.label.toLowerCase().includes(searchQ));
+  }
+
+  function buildSearchHitsHtml(queryStr, isRu) {
+    const qTrim = String(queryStr || "").trim();
+    if (!qTrim) return "";
+    const hits = getSearchQuickHits(qTrim, isRu);
+    if (hits.length === 0) {
+      return `<div class="rx-search-empty">${escHtml(isRu ? "Ничего не найдено" : "No matches")}</div>`;
+    }
+    return `<div class="rx-search-hits">${hits.slice(0, 6).map((q) =>
+      `<button type="button" class="btn btn-sm" style="justify-content:flex-start;text-align:left;font-size:11px;padding:5px 8px" data-action="jump-search-hit" data-tab="${escAttr(q.tab)}" data-app-sub="${escAttr(q.appSub || "")}" data-set-sub="${escAttr(q.setSub || "")}" data-widget-sub="${escAttr(q.widgetSub || "")}" data-agent-sub="${escAttr(q.agentSub || "")}">${escHtml(q.label)}</button>`
+    ).join("")}</div>`;
+  }
+
   function renderModalShell() {
     if (!state.isOpen) return "";
     const tr = t();
     const sui = spNormalizeStudioUi(state.settings.studioUi);
     const isRu = state.locale !== "en";
-    const tabs = [
-      { id: "persona", label: isRu ? "Агент" : "Agent", ic: "persona", title: isRu ? "Агент и правки на лету" : "Agent & Live Edits", sub: isRu ? "Тумблеры инструментов (по умолчанию Авто), правки без остановки и характер" : "Tool toggles (Auto by default), inline live edits & persona", dot: Boolean(state.chatPersona.enabled || (state.chatAgentProfile && state.chatAgentProfile.enabled)) },
-      { id: "appearance", label: isRu ? "Оформление" : "Appearance", ic: "palette", title: tr.modalTitleAppearance, sub: isRu ? "Темы, 4 слота шрифтов, прицел по элементам, границы, обои и углы" : "Themes, 4 font slots, element picker, borders, wallpaper & corners" },
-      { id: "settings", label: isRu ? "Настройки" : "Settings", ic: "gear", title: isRu ? "Виджеты, лимиты, мастерская и система" : "Widgets, Limits, Workshop & System", sub: isRu ? "Мини-окно, лимиты, история, мастерская AGY, клавиши, монитор и язык" : "Mini widget, limits, history, AGY workshop, hotkeys, monitor & language", dot: Boolean((state.update && state.update.available) || (state.settings.limitsWidget && state.settings.limitsWidget.enabled)) },
+    const lwOn = Boolean(state.settings.limitsWidget && state.settings.limitsWidget.enabled);
+    const navGroups = [
+      {
+        label: isRu ? "Оформление и вид" : "Look & Widgets",
+        items: [
+          {
+            id: "appearance",
+            label: isRu ? "Оформление" : "Appearance",
+            ic: "palette",
+            title: tr.modalTitleAppearance,
+            sub: isRu ? "Темы, стили Claude / Codex / OpenCode, обои, стекло, шрифты и прицел" : "Themes, Claude / Codex / OpenCode styles, wallpaper, glass, fonts & picker",
+            dot: Boolean(state.appearanceDirty),
+          },
+          {
+            id: "widgets",
+            label: isRu ? "Виджеты" : "Widgets",
+            ic: "gauge",
+            title: isRu ? "Виджеты, лимиты и монитор" : "Widgets, Limits & Monitor",
+            sub: isRu ? "Живые лимиты Antigravity, мини-окно TPS и экспорт чата в ZIP" : "Live Antigravity limits, mini TPS capsule & chat ZIP export",
+            dot: lwOn,
+          },
+        ],
+      },
+      {
+        label: isRu ? "Агент и система" : "Agent & System",
+        items: [
+          {
+            id: "persona",
+            label: isRu ? "Агент" : "Agent",
+            ic: "persona",
+            title: isRu ? "Пульт агента и характер" : "Agent Hub & Persona",
+            sub: isRu ? "Инструменты, правки на лету без остановки, характер чата и пресеты" : "Tool toggles, inline live edits, chat persona & presets",
+            dot: Boolean(state.chatPersona.enabled || (state.chatAgentProfile && state.chatAgentProfile.enabled)),
+          },
+          {
+            id: "history",
+            label: isRu ? "История" : "History",
+            ic: "clock",
+            title: isRu ? "Черновики и история ввода" : "Drafts & Input History",
+            sub: isRu ? "Автосохранение текста и вложений в каждом чате + последние 20 отправок" : "Per-chat auto-saved drafts & your last 20 messages and attachments",
+            badge: state.inputHistory && state.inputHistory.draftCount > 0 ? String(state.inputHistory.draftCount) : "",
+          },
+          {
+            id: "workshop",
+            label: isRu ? "Мастерская" : "Workshop",
+            ic: "puzzle",
+            title: isRu ? "Мастерская AGY" : "AGY Workshop",
+            sub: isRu ? "Глобальные и проектные Rules, Skills, MCP-серверы и Hooks" : "Global & project Rules, Skills, MCP servers & Hooks",
+          },
+          {
+            id: "settings",
+            label: isRu ? "Настройки" : "Settings",
+            ic: "gear",
+            title: isRu ? "Настройки и система" : "Settings & System",
+            sub: isRu ? "Язык интерфейса, перевод мыслей, дизайн окна Studio, клавиши и бекап" : "Language, thinking translation, Studio window design, hotkeys & backup",
+            dot: Boolean(state.update && state.update.available),
+          },
+        ],
+      },
     ];
-    const effTabId = state.activeTab === "monitor" ? "settings" : state.activeTab;
-    const current = tabs.find((x) => x.id === effTabId) || tabs[0];
+    const allTabs = navGroups.reduce((acc, g) => acc.concat(g.items), []);
+    const effTabId = state.activeTab === "monitor" || state.activeTab === "live-edits"
+      ? (state.activeTab === "live-edits" ? "persona" : "widgets")
+      : state.activeTab;
+    const current = allTabs.find((x) => x.id === effTabId) || allTabs[0];
     const isAppearanceTab = current.id === "appearance";
     const isAppearanceDrawer = isAppearanceTab && Boolean(state.appearanceDockedRight);
+
+    let stickySubTabsHtml = "";
     let bodyHtml = "";
     if (current.id === "appearance") {
+      const appSub = state.appearanceSubTab || "theme";
+      const appSubTabs = [
+        { id: "theme", label: tr.appSubTheme },
+        { id: "uistyle", label: isRu ? "Стиль UI" : "UI Style" },
+        { id: "wallpaper", label: tr.appSubWallpaper },
+        { id: "surface", label: isRu ? "Стекло и рамки" : "Glass & Borders" },
+        { id: "text", label: isRu ? "Шрифты" : "Fonts" },
+        { id: "corners", label: tr.appSubCorners },
+        { id: "greeting", label: tr.appSubGreeting },
+        { id: "elements", label: isRu ? "🎯 Элементы" : "🎯 Elements" },
+      ];
+      stickySubTabsHtml = `
+        <div class="modal-sticky-subtabs">
+          <div class="subtab-bar">
+            ${appSubTabs.map((st) => `<button type="button" class="subtab-btn${st.id === appSub ? " is-active" : ""}" data-action="set-app-subtab" data-val="${st.id}">${escHtml(st.label)}</button>`).join("")}
+          </div>
+        </div>
+      `;
       bodyHtml = renderAppearanceDrawerBody();
+    } else if (current.id === "widgets") {
+      const wSec = state.widgetSubSection || "limits";
+      const wTabs = [
+        { id: "limits", label: isRu ? "Лимиты Antigravity" : "Antigravity Limits", dot: lwOn },
+        { id: "mini", label: isRu ? "Мини-окно (TPS)" : "Mini Widget (TPS)" },
+        { id: "monitor", label: isRu ? "Монитор и Экспорт" : "Monitor & Export" },
+      ];
+      stickySubTabsHtml = `
+        <div class="modal-sticky-subtabs">
+          <div class="subtab-bar">
+            ${wTabs.map((st) => `<button type="button" class="subtab-btn${st.id === wSec ? " is-active" : ""}" data-action="set-widget-subsection" data-val="${st.id}">${escHtml(st.label)}${st.dot ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:999px;background:var(--rx-accent);margin-left:4px;vertical-align:middle"></span>' : ""}</button>`).join("")}
+          </div>
+        </div>
+      `;
+      bodyHtml = renderWidgetsTab();
     } else if (current.id === "persona") {
+      const aSub = state.agentSubTab || "tools";
+      const aTabs = [
+        { id: "tools", label: isRu ? "Инструменты и правки" : "Tools & Live Edits" },
+        { id: "persona", label: isRu ? "Характер чата" : "Chat Persona", dot: Boolean(state.chatPersona.enabled) },
+        { id: "presets", label: isRu ? "Пресеты" : "Presets" },
+      ];
+      stickySubTabsHtml = `
+        <div class="modal-sticky-subtabs">
+          <div class="subtab-bar">
+            ${aTabs.map((st) => `<button type="button" class="subtab-btn${st.id === aSub ? " is-active" : ""}" data-action="set-agent-subtab" data-val="${st.id}">${escHtml(st.label)}${st.dot ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:999px;background:var(--rx-success);margin-left:4px;vertical-align:middle"></span>' : ""}</button>`).join("")}
+          </div>
+        </div>
+      `;
       bodyHtml = typeof rv5RenderAgentHubTabHtml === "function"
         ? rv5RenderAgentHubTabHtml({
             agentProfile: state.chatAgentProfile,
@@ -6582,25 +6810,37 @@ function createStudioPanel(options) {
             personaHtml: renderPersonaTab(),
             isRu,
             newAgentPresetName: state.newAgentPresetName,
+            agentSubTab: aSub,
+            chatBadgeLabel: formatChatBadgeLabel(),
           })
         : renderPersonaTab();
+    } else if (current.id === "history") {
+      bodyHtml = renderHistoryTab();
+    } else if (current.id === "workshop") {
+      bodyHtml = renderWorkshopTab();
     } else {
+      const sSub = state.settingsSubTab || "system";
+      const sTabs = [
+        { id: "system", label: isRu ? "Система и язык" : "System & Language" },
+        { id: "studio", label: isRu ? "Окно Studio" : "Studio Window" },
+        { id: "hotkeys", label: isRu ? "Горячие клавиши" : "Hotkeys" },
+      ];
+      stickySubTabsHtml = `
+        <div class="modal-sticky-subtabs">
+          <div class="subtab-bar">
+            ${sTabs.map((st) => `<button type="button" class="subtab-btn${st.id === sSub ? " is-active" : ""}" data-action="set-settings-subtab" data-val="${st.id}">${escHtml(st.label)}</button>`).join("")}
+          </div>
+        </div>
+      `;
       bodyHtml = renderSettingsTab();
     }
 
-    const searchQ = String(state.settingsSearchQuery || "").trim().toLowerCase();
-    const quickIndex = searchQ ? [
-      { k: "стиль ui композер ввод чат модел claude code codex opencode antigravity style composer bubble model", label: isRu ? "Стиль UI (Antigravity / Claude Code / Codex / OpenCode)" : "UI Style (Antigravity / Claude Code / Codex / OpenCode)", tab: "appearance", appSub: "uistyle" },
-      { k: "шрифт font типографика ввод агент код", label: isRu ? "Шрифты (4 слота)" : "Fonts (4 slots)", tab: "appearance", appSub: "text" },
-      { k: "прицел элемент цвет размер переимен скрыть picker rename", label: isRu ? "🎯 Прицел и переименование элементов" : "🎯 Element Picker & Rename", tab: "appearance", appSub: "elements" },
-      { k: "границ обводк стекло прозрачн border surface", label: isRu ? "Границы блоков и обводка" : "Block Borders & Surface", tab: "appearance", appSub: "surface" },
-      { k: "обои градиент видео картинк wallpaper", label: isRu ? "Обои и градиенты" : "Wallpaper & Gradients", tab: "appearance", appSub: "wallpaper" },
-      { k: "лимит квот экран 5ч недел quota limit виджет мини", label: isRu ? "Виджеты и Лимиты Antigravity" : "Widgets & Antigravity Limits", tab: "settings", setSub: "widget" },
-      { k: "субагент тумблер пресет инструмент чат на лету правк характер agent preset subagent", label: isRu ? "Пульт агента, пресеты и правки на лету" : "Agent Presets & Live Edits", tab: "persona" },
-      { k: "клавиш хоткей shortcut hotkey keybind дзен", label: isRu ? "⌨ Редактор горячих клавиш" : "⌨ Keybindings Editor", tab: "settings", setSub: "hotkeys" },
-      { k: "правил скилл skill rule mcp хук hook плагин кастом workshop", label: isRu ? "🧩 Мастерская AGY (Rules / Skills / MCP)" : "🧩 AGY Workshop", tab: "settings", setSub: "workshop" },
-      { k: "масштаб scale zoom язык бекап экспорт json монитор tps", label: isRu ? "Система, масштаб и JSON-бекап" : "System, Scale & JSON Backup", tab: "settings", setSub: "system" },
-    ].filter((it) => it.k.includes(searchQ) || it.label.toLowerCase().includes(searchQ)) : [];
+    const searchHitsHtml = buildSearchHitsHtml(state.settingsSearchQuery, isRu);
+    const hasSearchVal = Boolean(String(state.settingsSearchQuery || "").trim());
+    const toggleStudioKb = (state.settings.keybindings && state.settings.keybindings.toggleStudio) || "Ctrl+Alt+P";
+    const showHeaderSearch = !isAppearanceDrawer && (sui.windowLayout === "rail" || sui.windowLayout === "topbar");
+    const canUndo = state.appearanceUndoStack.length > 0;
+    const canRedo = state.appearanceRedoStack.length > 0;
 
     return `
       <div class="modal-backdrop${isAppearanceDrawer ? " is-appearance-live" : ""}" data-action="backdrop-close">
@@ -6615,21 +6855,23 @@ function createStudioPanel(options) {
                 <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.0.0")}</span>
               </div>
               <div class="rx-search-wrap">
-                <input type="text" class="rx-search-input" data-role="settingsSearch" value="${escAttr(state.settingsSearchQuery || "")}" placeholder="${isRu ? "Поиск настроек…" : "Search settings…"}"/>
-                ${quickIndex.length > 0 ? `
-                  <div style="display:flex;flex-direction:column;gap:3px;margin-top:6px">
-                    ${quickIndex.slice(0, 5).map((q) => `<button type="button" class="btn btn-sm" style="justify-content:flex-start;text-align:left;font-size:11px" data-action="jump-search-hit" data-tab="${escAttr(q.tab)}" data-app-sub="${escAttr(q.appSub || "")}" data-set-sub="${escAttr(q.setSub || "")}">${escHtml(q.label)}</button>`).join("")}
-                  </div>
-                ` : ""}
+                <div class="rx-search-box">
+                  <input type="text" class="rx-search-input" data-role="settingsSearch" value="${escAttr(state.settingsSearchQuery || "")}" placeholder="${isRu ? "Поиск настроек…" : "Search settings…"}"/>
+                  <button type="button" class="rx-search-clear${hasSearchVal ? " is-shown" : ""}" data-action="clear-search" data-role="searchClear" aria-label="${isRu ? "Очистить" : "Clear"}">×</button>
+                </div>
+                <div data-role="searchHits">${searchHitsHtml}</div>
               </div>
               <nav class="nav-list">
-                ${tabs.map((tb) => `
-                  <button type="button" class="nav-item${tb.id === current.id ? " is-active" : ""}" data-action="switch-tab" data-tab="${tb.id}" title="${escAttr(tb.label)}">
-                    <span class="nav-ic">${iconSvg(tb.ic, 15)}</span>
-                    <span class="nav-label">${escHtml(tb.label)}</span>
-                    ${tb.dot ? '<span class="nav-dot"></span>' : ""}
-                    ${tb.badge ? `<span class="nav-badge">${escHtml(tb.badge)}</span>` : ""}
-                  </button>
+                ${navGroups.map((grp) => `
+                  <div class="nav-group-label">${escHtml(grp.label)}</div>
+                  ${grp.items.map((tb) => `
+                    <button type="button" class="nav-item${tb.id === current.id ? " is-active" : ""}" data-action="switch-tab" data-tab="${tb.id}" title="${escAttr(tb.label)}">
+                      <span class="nav-ic">${iconSvg(tb.ic, 15)}</span>
+                      <span class="nav-label">${escHtml(tb.label)}</span>
+                      ${tb.dot ? '<span class="nav-dot"></span>' : ""}
+                      ${tb.badge ? `<span class="nav-badge">${escHtml(tb.badge)}</span>` : ""}
+                    </button>
+                  `).join("")}
                 `).join("")}
               </nav>
               <div class="sidebar-foot">
@@ -6639,7 +6881,7 @@ function createStudioPanel(options) {
                     <button type="button" class="icon-btn" data-action="cycle-studio-theme" title="${escAttr(tr.studioThemeCycleTip)}">${iconSvg("palette", 13)}</button>
                     <button type="button" class="icon-btn" data-action="open-studio-design" title="${escAttr(tr.setSubStudio)}">${iconSvg("layout", 13)}</button>
                   </div>
-                  <span class="kbd">Ctrl+Alt+P</span>
+                  <span class="kbd" title="${escAttr(tr.hkToggleModal)}">${escHtml(toggleStudioKb)}</span>
                 </div>
               </div>
             </aside>
@@ -6654,6 +6896,15 @@ function createStudioPanel(options) {
                 </div>
               </div>
               <div class="modal-header-actions">
+                ${showHeaderSearch ? `
+                  <div class="modal-header-search">
+                    <div class="rx-search-box">
+                      <input type="text" class="rx-search-input" data-role="settingsSearch" value="${escAttr(state.settingsSearchQuery || "")}" placeholder="${isRu ? "Поиск…" : "Search…"}"/>
+                      <button type="button" class="rx-search-clear${hasSearchVal ? " is-shown" : ""}" data-action="clear-search" data-role="searchClear" aria-label="${isRu ? "Очистить" : "Clear"}">×</button>
+                    </div>
+                    <div data-role="searchHits">${searchHitsHtml}</div>
+                  </div>
+                ` : ""}
                 ${isAppearanceTab ? `
                   <button type="button" class="btn btn-sm" data-action="toggle-appearance-dock">
                     ${iconSvg(isAppearanceDrawer ? "panelCenter" : "panelRight", 13)}
@@ -6668,21 +6919,22 @@ function createStudioPanel(options) {
                 <button type="button" class="icon-btn" data-action="close-modal" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 15)}</button>
               </div>
             </header>
+            ${stickySubTabsHtml}
             <div class="modal-body">${bodyHtml}</div>
             ${isAppearanceTab ? `
               <footer class="drawer-sticky-footer">
-                <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+                <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1">
+                  <button type="button" class="icon-btn" data-action="undo-appearance" data-role="appUndoBtn" ${canUndo ? "" : "disabled"} title="${escAttr(isRu ? "Отменить изменение" : "Undo")}">${iconSvg("undo", 13)}</button>
+                  <button type="button" class="icon-btn" data-action="redo-appearance" data-role="appRedoBtn" ${canRedo ? "" : "disabled"} title="${escAttr(isRu ? "Повторить изменение" : "Redo")}">${iconSvg("redo", 13)}</button>
                   <button type="button" class="btn btn-sm btn-ghost" data-action="reset-appearance">${escHtml(tr.appResetBtn)}</button>
-                  ${state.toastMsg
-                    ? `<span class="studio-toast-pill${state.toastError ? " is-err" : ""}" data-role="toast">${escHtml(state.toastMsg)}</span>`
-                    : (state.appearanceDirty ? `<span class="studio-dirty-pill" data-role="toast">${escHtml(tr.appDirtyBadge)}</span>` : `<span class="studio-toast-pill" data-role="toast"></span>`)}
+                  <span class="${state.toastMsg ? "studio-toast-pill" : (state.appearanceDirty ? "studio-dirty-pill" : "studio-toast-pill")}${state.toastError ? " is-err" : ""}" data-role="toast">${escHtml(state.toastMsg || (state.appearanceDirty ? tr.appDirtyBadge : ""))}</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
                   <button type="button" class="btn btn-sm" data-action="discard-appearance">${escHtml(tr.appCancelBtn)}</button>
                   <button type="button" class="btn btn-sm${state.appearanceDirty ? " btn-primary" : ""}" data-action="apply-appearance">${iconSvg("check", 12)}${escHtml(tr.appApplyBtn)}</button>
                 </div>
               </footer>
-            ` : ""}
+            ` : `<div class="modal-global-toast${state.toastMsg ? " is-visible" : ""}${state.toastError ? " is-err" : ""}" data-role="toast">${escHtml(state.toastMsg)}</div>`}
           </section>
           <span class="resize-hud-badge" data-role="studioResizeHud"></span>
           <div class="modal-resize-grip" data-studio-resize="1" title="${escAttr(tr.studioResizeGripTip)}"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M11 5L5 11M11 9L9 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
@@ -6854,15 +7106,22 @@ function createStudioPanel(options) {
     }
   }
 
+  function measureWidgetBoxRect() {
+    if (!widgetMountEl) return null;
+    const bodyEl = typeof widgetMountEl.querySelector === "function" ? widgetMountEl.querySelector('[data-widget-body="1"]') : null;
+    const target = bodyEl || widgetMountEl;
+    return typeof target.getBoundingClientRect === "function" ? target.getBoundingClientRect() : null;
+  }
+
   function clampWidgetToViewport() {
     if (!widgetMountEl || !win || state.settings.layoutMode !== "floating") return;
     try {
       const vw = Number(win.innerWidth) || 0;
       const vh = Number(win.innerHeight) || 0;
       if (vw <= 40 || vh <= 40) return;
-      const rect = typeof widgetMountEl.getBoundingClientRect === "function" ? widgetMountEl.getBoundingClientRect() : null;
-      const w = rect && rect.width ? rect.width : 240;
-      const h = rect && rect.height ? rect.height : 40;
+      const rect = measureWidgetBoxRect();
+      const w = rect && rect.width > 20 ? rect.width : 240;
+      const h = rect && rect.height > 16 ? rect.height : 40;
       const maxX = Math.max(8, vw - w - 8);
       const maxY = Math.max(8, vh - h - 8);
       const curX = typeof state.settings.floatX === "number" ? state.settings.floatX : 18;
@@ -6940,6 +7199,9 @@ function createStudioPanel(options) {
       }
       setLiveSlot(widgetMountEl, '[data-live="quotaMini"]', qMiniText, false);
       setLiveSlot(widgetMountEl, '[data-live="quotaMed"]', qMiniText, false);
+      if (state.settings.layoutMode === "floating" && !dragState) {
+        clampWidgetToViewport();
+      }
     }
 
     if (state.settings.limitsWidget && state.settings.limitsWidget.enabled && limitsMountEl) {
@@ -6951,6 +7213,9 @@ function createStudioPanel(options) {
         state.lastLimitsQuotaSig = limSig;
         renderLimitsWidgetMount();
       }
+    }
+    if (state.settings.liveEditInline && state.settings.liveEditInline.showContextMeter && chatDockMountEl) {
+      renderChatDockMount();
     }
     if (modalMountEl && state.isOpen) {
       setLiveSlot(modalMountEl, '[data-live="resp"]', respText, false);
@@ -6974,15 +7239,15 @@ function createStudioPanel(options) {
         setLiveSlot(modalMountEl, '[data-live="sparkModal"]', buildSparklineMarkup(tel.samples, 560, 102, "modal"), true);
       }
       setLiveSlot(modalMountEl, '[data-live="quotaMed"]', qMiniText, false);
-      if (state.activeTab === "settings" && state.settingsSubTab === "widget") {
+      if (state.activeTab === "widgets") {
         if (state.widgetSubSection === "limits") {
           const prevStage = typeof modalMountEl.querySelector === "function" ? modalMountEl.querySelector('[data-role="limitsPreviewStage"]') : null;
           if (prevStage && typeof rv5BuildLimitsWidgetHtml === "function") {
             const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : state.settings.limitsWidget;
             prevStage.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, tel.modelName || "", state.locale !== "en", true);
           }
-        } else {
-          const nextPreview = renderMiniCapsuleMarkup(true);
+        } else if (state.widgetSubSection === "mini") {
+          const nextPreview = state.widgetPreviewMode === "medium" ? renderMediumCardMarkup(true) : renderMiniCapsuleMarkup(true);
           if (nextPreview !== state.lastPreviewCapsuleHtml) {
             state.lastPreviewCapsuleHtml = nextPreview;
             setLiveSlot(modalMountEl, '[data-live="previewCapsule"]', nextPreview, true);
@@ -7023,12 +7288,16 @@ function createStudioPanel(options) {
         }
       }
 
+      const navKey = `${state.activeTab}|${state.appearanceSubTab}|${state.widgetSubSection}|${state.agentSubTab}|${state.settingsSubTab}`;
+      const navChanged = navKey !== state.lastRenderedNavKey;
+      state.lastRenderedNavKey = navKey;
+
       modalMountEl.innerHTML = state.isOpen ? renderModalShell() : "";
       state.lastSparkModalSig = (state.telemetry.samples || []).join(",");
 
-      if (state.isOpen && prevScrollTop > 0) {
+      if (state.isOpen) {
         const newBody = modalMountEl.querySelector(".modal-body");
-        if (newBody) newBody.scrollTop = prevScrollTop;
+        if (newBody) newBody.scrollTop = navChanged ? 0 : prevScrollTop;
       }
       if (state.isOpen && focusedSel) {
         const restored = modalMountEl.querySelector(focusedSel);
@@ -7074,15 +7343,29 @@ function createStudioPanel(options) {
     });
   }
 
+  function resolveWorkshopWorkspacePath() {
+    if (state.detectedWorkspacePath) return Promise.resolve(state.detectedWorkspacePath);
+    return invokeIpc("agy-studio:get-workspace-path").then((res) => {
+      if (res && typeof res.workspacePath === "string" && res.workspacePath) {
+        state.detectedWorkspacePath = res.workspacePath;
+        return res.workspacePath;
+      }
+      return "";
+    });
+  }
+
   function refreshWorkshopData() {
     state.workshop.loading = true;
-    invokeIpc("agy-studio:workshop-list", { workspacePath: "" }).then((res) => {
+    resolveWorkshopWorkspacePath().then((wsPath) => {
       if (state.destroyed) return;
-      state.workshop.loading = false;
-      if (res && res.ok) state.workshop.data = res;
-      if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "workshop") {
-        renderStructure();
-      }
+      invokeIpc("agy-studio:workshop-list", { workspacePath: wsPath || "" }).then((res) => {
+        if (state.destroyed) return;
+        state.workshop.loading = false;
+        if (res && res.ok) state.workshop.data = res;
+        if (state.isOpen && state.activeTab === "workshop") {
+          renderStructure();
+        }
+      });
     });
   }
 
@@ -7143,9 +7426,16 @@ function createStudioPanel(options) {
       limitsMountEl.innerHTML = "";
       return;
     }
+    if (typeof rv5BuildLimitsWidgetHtml === "function") {
+      limitsMountEl.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName, state.locale !== "en");
+    }
     if (effPos === "floating" && typeof lw.floatX === "number" && typeof lw.floatY === "number") {
-      const nx = Math.max(8, Math.min(Math.max(8, hm.vw - 140), Math.round(lw.floatX)));
-      const ny = Math.max(8, Math.min(Math.max(8, hm.vh - 44), Math.round(lw.floatY)));
+      const boxEl = typeof limitsMountEl.querySelector === "function" ? limitsMountEl.querySelector(".rx-limits-box") : null;
+      const br = boxEl && typeof boxEl.getBoundingClientRect === "function" ? boxEl.getBoundingClientRect() : null;
+      const bw = br && br.width > 30 ? br.width : 220;
+      const bh = br && br.height > 20 ? br.height : 60;
+      const nx = Math.max(8, Math.min(Math.max(8, hm.vw - bw - 8), Math.round(lw.floatX)));
+      const ny = Math.max(8, Math.min(Math.max(8, hm.vh - bh - 8), Math.round(lw.floatY)));
       limitsMountEl.style.left = `${nx}px`;
       limitsMountEl.style.top = `${ny}px`;
     } else {
@@ -7153,7 +7443,7 @@ function createStudioPanel(options) {
       const safeTop = hm.headerBottom + 12;
       const miniVisible = !lw.onlyLimitsMode && state.settings.dockPosition !== "hidden" && state.settings.layoutMode !== "floating";
       const miniDock = normalizeDockPosition(state.settings.dockPosition);
-      const miniRect = miniVisible && widgetMountEl && typeof widgetMountEl.getBoundingClientRect === "function" ? widgetMountEl.getBoundingClientRect() : null;
+      const miniRect = miniVisible ? measureWidgetBoxRect() : null;
       const miniH = miniRect && miniRect.height > 16 ? Math.round(miniRect.height) : 34;
       const miniW = miniRect && miniRect.width > 40 ? Math.round(miniRect.width) : 220;
       const sameSlot = miniVisible && effPos === miniDock;
@@ -7181,9 +7471,6 @@ function createStudioPanel(options) {
           limitsMountEl.style.maxWidth = `${Math.max(190, hm.composerLeft - safeLeft - 14)}px`;
         }
       }
-    }
-    if (typeof rv5BuildLimitsWidgetHtml === "function") {
-      limitsMountEl.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName, state.locale !== "en");
     }
   }
 
@@ -7528,6 +7815,36 @@ function createStudioPanel(options) {
     return false;
   }
 
+  let dockComposerObserver = null;
+  let dockObservedComposerEl = null;
+
+  function syncDockComposerResizeObserver(container) {
+    if (!win || typeof win.ResizeObserver !== "function") return;
+    if (!container) {
+      if (dockComposerObserver && dockObservedComposerEl) {
+        try { dockComposerObserver.unobserve(dockObservedComposerEl); } catch (_e) {}
+      }
+      dockObservedComposerEl = null;
+      return;
+    }
+    if (dockObservedComposerEl === container) return;
+    if (!dockComposerObserver) {
+      try {
+        dockComposerObserver = new win.ResizeObserver(() => {
+          if (!state.destroyed) positionChatDock();
+        });
+      } catch (_e) {
+        dockComposerObserver = null;
+        return;
+      }
+    }
+    if (dockObservedComposerEl) {
+      try { dockComposerObserver.unobserve(dockObservedComposerEl); } catch (_e) {}
+    }
+    dockObservedComposerEl = container;
+    try { dockComposerObserver.observe(container); } catch (_e) {}
+  }
+
   function positionChatDock() {
     if (!chatDockMountEl || !doc || typeof rv5FindNativeComposer !== "function") return;
     if (state.settings.zenMode || hasVisibleNativeModal()) {
@@ -7535,6 +7852,7 @@ function createStudioPanel(options) {
       return;
     }
     const { container } = rv5FindNativeComposer(doc);
+    syncDockComposerResizeObserver(container);
     if (!container || typeof container.getBoundingClientRect !== "function") {
       chatDockMountEl.style.display = "none";
       return;
@@ -7544,8 +7862,15 @@ function createStudioPanel(options) {
       chatDockMountEl.style.display = "none";
       return;
     }
+    const vw = (win && win.innerWidth) || 1280;
     const vh = (win && win.innerHeight) || 800;
+    const hm = measureHostUiMetrics();
     const dockLeft = Math.max(8, Math.round(rect.left));
+    const dockRightLimit = hm.drawerRightReserve > 0 ? vw - hm.drawerRightReserve - 12 : vw - 8;
+    if (hm.drawerRightReserve > 0 && dockLeft + 180 > dockRightLimit) {
+      chatDockMountEl.style.display = "none";
+      return;
+    }
     const dockBottom = Math.max(12, Math.round(vh - rect.top + 6));
     const dockBox = {
       left: dockLeft,
@@ -7553,14 +7878,19 @@ function createStudioPanel(options) {
       top: vh - dockBottom - 32,
       bottom: vh - dockBottom,
     };
-    if (!state.agentPopoverOpen && hasOverlappingNativePopover(dockBox)) {
+    if (!state.agentPopoverOpen && !state.contextPopoverOpen && hasOverlappingNativePopover(dockBox)) {
       chatDockMountEl.style.display = "none";
       return;
     }
+    const availW = Math.max(160, Math.min(Math.round(rect.width), dockRightLimit - dockLeft));
+    const popMaxH = Math.max(180, Math.min(440, Math.round(rect.top - 24)));
     chatDockMountEl.style.display = "flex";
     chatDockMountEl.style.left = `${dockLeft}px`;
-    chatDockMountEl.style.width = `${Math.round(rect.width)}px`;
+    chatDockMountEl.style.width = `${availW}px`;
     chatDockMountEl.style.bottom = `${dockBottom}px`;
+    if (typeof chatDockMountEl.style.setProperty === "function") {
+      chatDockMountEl.style.setProperty("--rx-pop-max-h", `${popMaxH}px`);
+    }
   }
 
   function renderChatDockMount() {
@@ -7573,6 +7903,9 @@ function createStudioPanel(options) {
       }
       return;
     }
+    const tel = state.telemetry || {};
+    const hasExactCtx = Number(tel.exactContextTokens) > 0;
+    const usedCtxTok = hasExactCtx ? Number(tel.exactContextTokens) : Number(tel.chatTokens) || 0;
     const nextHtml = rv5BuildChatDockHtml({
       agentProfile: state.chatAgentProfile,
       defaultProfile: state.settings.agentProfileDefault,
@@ -7584,6 +7917,14 @@ function createStudioPanel(options) {
       liveEditInline: state.settings.liveEditInline,
       urgentMode: Boolean(state.inlineUrgent),
       popoverOpen: Boolean(state.agentPopoverOpen),
+      contextPopoverOpen: Boolean(state.contextPopoverOpen),
+      contextInfo: {
+        modelName: tel.modelName || "",
+        usedTokens: usedCtxTok,
+        exact: hasExactCtx,
+        chatTitle: state.activeChatTitle || "",
+        isNewChat: !state.activeChatKey || state.activeChatKey === "__new__",
+      },
       isRu: state.locale !== "en",
     });
     if (!nextHtml) {
@@ -7677,13 +8018,16 @@ function createStudioPanel(options) {
         </div>
       `;
     };
+    const lockNoteHtml = state.telemetry && state.telemetry.isGenerating
+      ? `<div class="rx-usage-lock-note">${escHtml(isRu ? "Агент сейчас работает — сменить модель в этом чате нельзя, но лимиты доступны для просмотра." : "Agent is running — model switching is locked in this chat, but limits remain viewable.")}</div>`
+      : `<div class="rx-usage-lock-note">${escHtml(isRu ? "Смена модели в этом чате сейчас недоступна, но лимиты доступны для просмотра." : "Model switching is currently locked in this chat, but limits remain viewable.")}</div>`;
     const nextHtml = `
       <div class="rx-usage-pop" role="dialog" aria-label="${escAttr(isRu ? "Использование моделей" : "Model Usage")}">
         <div class="rx-usage-head">
           <span class="rx-usage-title">${escHtml(isRu ? "Использование" : "Usage")}</span>
           <button type="button" class="rx-lim-btn" data-action="close-model-usage-pop" title="${escAttr(isRu ? "Закрыть" : "Close")}">✕</button>
         </div>
-        <div class="rx-usage-lock-note">${escHtml(isRu ? "Агент сейчас работает — сменить модель в этом чате нельзя, но лимиты доступны для просмотра." : "Agent is running — model switching is locked in this chat, but limits remain viewable.")}</div>
+        ${lockNoteHtml}
         ${renderFamSec(isRu ? "Модели Gemini" : "Gemini Models", gem)}
         ${renderFamSec(isRu ? "Модели Claude и GPT" : "Claude & GPT Models", cla)}
         <div class="rx-usage-foot">
@@ -7706,12 +8050,16 @@ function createStudioPanel(options) {
         if (r && r.width > 10 && r.height > 8) rect = r;
       }
     } catch (_e) {}
-    const popW = 316;
+    const popBox = typeof usagePopMountEl.querySelector === "function" ? usagePopMountEl.querySelector(".rx-usage-pop") : null;
+    const popRect = popBox && typeof popBox.getBoundingClientRect === "function" ? popBox.getBoundingClientRect() : null;
+    const popW = popRect && popRect.width > 100 ? Math.round(popRect.width) : 316;
+    const popH = popRect && popRect.height > 80 ? Math.round(popRect.height) : 310;
     const desiredLeft = rect
       ? (rect.left > vw * 0.45 ? Math.round(rect.right - popW) : Math.round(rect.left))
       : Math.round(vw / 2 - popW / 2);
     const left = Math.max(12, Math.min(vw - popW - 12, desiredLeft));
-    const bottom = rect ? Math.max(14, Math.min(vh - 180, Math.round(vh - rect.top + 10))) : 88;
+    const maxBottom = Math.max(14, vh - popH - 12);
+    const bottom = rect ? Math.max(14, Math.min(maxBottom, Math.round(vh - rect.top + 10))) : 88;
     usagePopMountEl.style.left = `${left}px`;
     usagePopMountEl.style.bottom = `${bottom}px`;
     usagePopMountEl.style.top = "";
@@ -7757,6 +8105,9 @@ function createStudioPanel(options) {
     } catch (_e) {}
   }
 
+  const lastKnownComposerSnapByChat = new Map();
+  let draftSaveSeq = 0;
+
   function syncChatDockLiveState() {
     if (!doc || typeof rv5FindNativeComposer !== "function") return;
     const { container, editable } = rv5FindNativeComposer(doc);
@@ -7764,8 +8115,14 @@ function createStudioPanel(options) {
     const hasTxt = curTxt.length > 0;
     const hasExpiredDoneToast = state.lastChatDockHtml.includes("is-done") &&
       !(state.liveEdits || []).some((it) => it && it.status === "delivered" && !state.dismissedLiveEditIds.has(it.id) && Date.now() - (it.deliveredAt || 0) < 4000);
-    if (hasTxt !== state.hasComposerText || hasExpiredDoneToast) {
+    if (hasTxt !== state.hasComposerText) {
       state.hasComposerText = hasTxt;
+      if (state.telemetry.isGenerating || hasExpiredDoneToast) {
+        renderChatDockMount();
+      } else {
+        positionChatDock();
+      }
+    } else if (hasExpiredDoneToast) {
       renderChatDockMount();
     } else {
       positionChatDock();
@@ -7782,10 +8139,20 @@ function createStudioPanel(options) {
         }
       }
       const chipCnt = collectComposerChipFileMatches(scope, editable).length;
-      const obsSig = `${state.activeChatKey || "__new__"}|${curTxt.length}|${curTxt.slice(0, 40)}|${curTxt.slice(-24)}|${imgCnt}|${chipCnt}`;
+      const curKey = state.activeChatKey || "__new__";
+      const obsSig = `${curKey}|${curTxt.length}|${curTxt.slice(0, 40)}|${curTxt.slice(-24)}|${imgCnt}|${chipCnt}`;
       if (obsSig !== lastDraftObsSig) {
-        const hadPrev = lastDraftObsSig.startsWith((state.activeChatKey || "__new__") + "|");
+        const hadPrev = lastDraftObsSig.startsWith(curKey + "|");
         lastDraftObsSig = obsSig;
+        if (hasTxt || imgCnt > 0 || chipCnt > 0) {
+          lastKnownComposerSnapByChat.set(curKey, collectComposerSnapshotSync(container, editable));
+          if (lastKnownComposerSnapByChat.size > 16) {
+            const oldest = lastKnownComposerSnapByChat.keys().next().value;
+            lastKnownComposerSnapByChat.delete(oldest);
+          }
+        } else if (hadPrev) {
+          lastKnownComposerSnapByChat.delete(curKey);
+        }
         if (hadPrev || hasTxt || imgCnt > 0 || chipCnt > 0) {
           scheduleComposerDraftSave(350);
         }
@@ -7795,8 +8162,9 @@ function createStudioPanel(options) {
 
   function openAnnotator(opts) {
     if (annotatorCtrl && typeof annotatorCtrl.open === "function") {
-      if (state.agentPopoverOpen) {
+      if (state.agentPopoverOpen || state.contextPopoverOpen) {
         state.agentPopoverOpen = false;
+        state.contextPopoverOpen = false;
         renderChatDockMount();
       }
       annotatorCtrl.open(opts);
@@ -7896,6 +8264,9 @@ function createStudioPanel(options) {
       const submitKey = state.activeChatKey || "__new__";
       const submitTitle = state.activeChatTitle || "";
       lastSavedDraftByChat.delete(submitKey);
+      lastKnownComposerSnapByChat.delete(submitKey);
+      draftDataUrlToFileName.clear();
+      draftSaveSeq += 1;
       invokeIpc("agy-studio:clear-composer-draft", { chatKey: submitKey });
       if (state.settings.inputHistoryEnabled !== false) {
         const histAtts = [
@@ -7909,7 +8280,7 @@ function createStudioPanel(options) {
           source: "live-edit",
           attachments: histAtts,
         }).then(() => {
-          if (!state.destroyed && state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "history") {
+          if (!state.destroyed && state.isOpen && state.activeTab === "history") {
             refreshInputHistory();
           }
         });
@@ -7918,14 +8289,15 @@ function createStudioPanel(options) {
       // Guarantee Lexical/ProseMirror/React editor state clears via native Chromium webContents.selectAll + delete if DOM text remains
       const ensureClearedNative = () => {
         if (state.destroyed || !editable) return;
-        const stillHas = typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).length > 0;
-        if (!stillHas) return;
+        const curNow = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+        if (!curNow || (text && curNow !== text)) return;
         try {
           if (typeof editable.focus === "function") editable.focus();
         } catch (_e) {}
         invokeIpc("agy-studio:clear-focused-input").then(() => {
-          if (!state.destroyed && typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).length > 0) {
-            if (typeof rv5ClearEditableText === "function") rv5ClearEditableText(editable, win);
+          const after = !state.destroyed && typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+          if (after && (!text || after === text) && typeof rv5ClearEditableText === "function") {
+            rv5ClearEditableText(editable, win);
           }
         });
       };
@@ -8057,7 +8429,9 @@ function createStudioPanel(options) {
     const tag = String(editable.tagName || "").toUpperCase();
     if (tag === "TEXTAREA" || tag === "INPUT") {
       try {
-        const proto = win && win.HTMLTextAreaElement && win.HTMLTextAreaElement.prototype;
+        const proto = tag === "INPUT"
+          ? (win && win.HTMLInputElement && win.HTMLInputElement.prototype)
+          : (win && win.HTMLTextAreaElement && win.HTMLTextAreaElement.prototype);
         const desc = proto ? Object.getOwnPropertyDescriptor(proto, "value") : null;
         if (desc && typeof desc.set === "function") desc.set.call(editable, text);
         else editable.value = text;
@@ -8160,21 +8534,27 @@ function createStudioPanel(options) {
             attached += 1;
           }
         } else {
+          const scopeBefore = getComposerAttachmentScope(container);
+          const beforeTextLen = scopeBefore ? String(scopeBefore.textContent || "").length : 0;
+          const beforeBtnCnt = scopeBefore && typeof scopeBefore.querySelectorAll === "function" ? scopeBefore.querySelectorAll("button").length : 0;
           let sent = false;
           if (PasteEvt) {
             editable.dispatchEvent(new PasteEvt("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
             sent = true;
           }
-          // Also try drop on composer container if paste did not pick up non-image files
+          // Also try drop on composer container ONLY if paste did not visibly add any attachment chip
           if (DragEvt && container && win && typeof win.setTimeout === "function") {
             const targetBox = container;
             const fileObj = item.file;
             const fnameLow = item.fname.toLowerCase();
+            const baseStem = fnameLow.replace(/\.[^.]+$/, "").slice(0, 12);
             win.setTimeout(() => {
               if (state.destroyed) return;
               const scopeNow = getComposerAttachmentScope(targetBox);
               const txtNow = scopeNow ? String(scopeNow.textContent || "").toLowerCase() : "";
-              if (!txtNow.includes(fnameLow)) {
+              const btnCntNow = scopeNow && typeof scopeNow.querySelectorAll === "function" ? scopeNow.querySelectorAll("button").length : 0;
+              const looksAttached = txtNow.includes(fnameLow) || (baseStem.length >= 4 && txtNow.includes(baseStem)) || btnCntNow > beforeBtnCnt || txtNow.length > beforeTextLen + 4;
+              if (!looksAttached) {
                 try {
                   const dt2 = new DtCtor();
                   dt2.items.add(fileObj);
@@ -8259,20 +8639,23 @@ function createStudioPanel(options) {
     if (state.destroyed || isRestoringDraft || state.settings.composerDraftsEnabled === false) return;
     if (Date.now() < draftJustSubmittedUntil) return;
     if (!doc || typeof rv5FindNativeComposer !== "function") return;
+    const key = explicitKey || state.activeChatKey || "__new__";
+    const saveSeq = ++draftSaveSeq;
     if (pendingComposerReads.size > 0) {
       await Promise.race([
         Promise.all(Array.from(pendingComposerReads)),
         new Promise((r) => (win && typeof win.setTimeout === "function" ? win.setTimeout(r, 1200) : setTimeout(r, 1200))),
       ]);
     }
-    if (state.destroyed || isRestoringDraft || Date.now() < draftJustSubmittedUntil) return;
+    if (state.destroyed || isRestoringDraft || saveSeq !== draftSaveSeq || Date.now() < draftJustSubmittedUntil) return;
+    if (!explicitKey && (state.activeChatKey || "__new__") !== key) return;
     const { container, editable } = rv5FindNativeComposer(doc);
     if (!editable) return;
-    const key = explicitKey || state.activeChatKey || "__new__";
     const title = typeof explicitTitle === "string" ? explicitTitle : (state.activeChatTitle || "");
     const snap = collectComposerSnapshotSync(container, editable);
     const resolvedAtts = await resolveSnapshotAttachments(snap.items, true);
-    if (state.destroyed || isRestoringDraft || Date.now() < draftJustSubmittedUntil) return;
+    if (state.destroyed || isRestoringDraft || saveSeq !== draftSaveSeq || Date.now() < draftJustSubmittedUntil) return;
+    if (!explicitKey && (state.activeChatKey || "__new__") !== key) return;
     const payloadAtts = resolvedAtts.map((a) => ({
       name: a.name,
       mime: a.mime,
@@ -8286,7 +8669,7 @@ function createStudioPanel(options) {
       text: snap.text,
       attachments: payloadAtts,
     });
-    if (!state.destroyed && res && res.ok) {
+    if (!state.destroyed && saveSeq === draftSaveSeq && res && res.ok) {
       if (res.draft && Array.isArray(res.draft.attachments)) {
         for (let i = 0; i < res.draft.attachments.length && i < resolvedAtts.length; i += 1) {
           const saved = res.draft.attachments[i];
@@ -8302,15 +8685,25 @@ function createStudioPanel(options) {
     }
   }
 
-  function flushComposerDraftSync(explicitKey, explicitTitle) {
+  function flushComposerDraftSync(explicitKey, explicitTitle, isChatSwitch) {
     if (state.destroyed || isRestoringDraft || state.settings.composerDraftsEnabled === false) return;
     if (Date.now() < draftJustSubmittedUntil) return;
     if (!doc || typeof rv5FindNativeComposer !== "function" || !ipc || typeof ipc.send !== "function") return;
-    const { container, editable } = rv5FindNativeComposer(doc);
-    if (!editable) return;
     const key = explicitKey || state.activeChatKey || "__new__";
     const title = typeof explicitTitle === "string" ? explicitTitle : (state.activeChatTitle || "");
-    const snap = collectComposerSnapshotSync(container, editable);
+    const { container, editable } = rv5FindNativeComposer(doc);
+    let snap = editable ? collectComposerSnapshotSync(container, editable) : { text: "", items: [] };
+    const isSnapEmpty = !String(snap.text || "").trim() && (!snap.items || snap.items.length === 0);
+    if (isChatSwitch && isSnapEmpty) {
+      // On chat switch Antigravity often resets the composer BEFORE we detect the new chat key:
+      // NEVER wipe an existing saved draft with an empty composer — flush our last known non-empty snapshot instead!
+      const cached = lastKnownComposerSnapByChat.get(key);
+      if (cached && (String(cached.text || "").trim() || (cached.items && cached.items.length > 0))) {
+        snap = cached;
+      } else {
+        return;
+      }
+    }
     const atts = [];
     for (let i = 0; i < snap.items.length; i += 1) {
       const it = snap.items[i];
@@ -8321,7 +8714,11 @@ function createStudioPanel(options) {
       }
     }
     try {
-      ipc.send("agy-studio:save-composer-draft-sync", { chatKey: key, title, text: snap.text, attachments: atts });
+      if (typeof ipc.sendSync === "function" && !isChatSwitch) {
+        ipc.sendSync("agy-studio:save-composer-draft-sync", { chatKey: key, title, text: snap.text, attachments: atts });
+      } else {
+        ipc.send("agy-studio:save-composer-draft-sync", { chatKey: key, title, text: snap.text, attachments: atts });
+      }
     } catch (_e) {}
   }
 
@@ -8406,11 +8803,14 @@ function createStudioPanel(options) {
     if (!snap.text.trim() && snap.items.length === 0) return;
 
     draftJustSubmittedUntil = Date.now() + 2000;
+    draftSaveSeq += 1;
     if (draftSaveTimer && win && typeof win.clearTimeout === "function") {
       win.clearTimeout(draftSaveTimer);
       draftSaveTimer = null;
     }
     lastSavedDraftByChat.delete(chatKey);
+    lastKnownComposerSnapByChat.delete(chatKey);
+    draftDataUrlToFileName.clear();
     invokeIpc("agy-studio:clear-composer-draft", { chatKey });
 
     if (state.settings.inputHistoryEnabled === false) return;
@@ -8436,7 +8836,7 @@ function createStudioPanel(options) {
         source: source || "chat",
         attachments: payloadAtts,
       });
-      if (!state.destroyed && state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "history") {
+      if (!state.destroyed && state.isOpen && state.activeTab === "history") {
         refreshInputHistory();
       }
     })();
@@ -8444,7 +8844,7 @@ function createStudioPanel(options) {
 
   function refreshInputHistory() {
     state.inputHistory = Object.assign({}, state.inputHistory || {}, { loading: true });
-    if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "history") renderStructure();
+    if (state.isOpen && state.activeTab === "history") renderStructure();
     return invokeIpc("agy-studio:get-input-history").then((res) => {
       if (state.destroyed) return res;
       state.inputHistory = {
@@ -8452,11 +8852,51 @@ function createStudioPanel(options) {
         items: res && Array.isArray(res.items) ? res.items : [],
         draftCount: res && typeof res.draftCount === "number" ? res.draftCount : 0,
       };
-      if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "history") {
+      if (state.isOpen && state.activeTab === "history") {
         renderStructure();
       }
       return res;
     });
+  }
+
+  let pickerMoveRafId = 0;
+  let pickerPendingEl = null;
+  let pickerPointerDownHandler = null;
+  let inspectorDragUndoCaptured = false;
+
+  function isIgnoredPickerTarget(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (el === doc.body || el === doc.documentElement) return true;
+    if (el.id === "rudex-bg" || el.id === "rudex-studio-host") return true;
+    if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) return true;
+    if (typeof el.closest === "function") {
+      try {
+        if (el.closest("#rudex-bg, [data-rudex-live-slot], [data-rudex-native-entry], [data-rudex-img-edit-btn]")) return true;
+      } catch (_e) {}
+    }
+    return false;
+  }
+
+  function updatePickerHighlightFast() {
+    if (!pickerMountEl) return;
+    const hl = typeof pickerMountEl.querySelector === "function" ? pickerMountEl.querySelector('[data-role="pickerHighlight"]') : null;
+    if (!hl) {
+      renderPickerMount();
+      return;
+    }
+    const r = state.pickerHoverRect;
+    if (!r) {
+      hl.style.display = "none";
+      return;
+    }
+    hl.style.display = "block";
+    hl.style.left = `${Math.round(r.left)}px`;
+    hl.style.top = `${Math.round(r.top)}px`;
+    hl.style.width = `${Math.round(r.width)}px`;
+    hl.style.height = `${Math.round(r.height)}px`;
+    if (hl.classList) hl.classList.toggle("is-tag-below", r.top < 28);
+    const tag = typeof hl.querySelector === "function" ? hl.querySelector(".rx-picker-tag") : null;
+    if (tag) tag.textContent = state.pickerHoverLabel || "";
   }
 
   function renderPickerMount() {
@@ -8470,14 +8910,16 @@ function createStudioPanel(options) {
           <button type="button" class="btn btn-sm" data-action="stop-element-picker">${isRu ? "Готово" : "Done"}</button>
         </div>
       `);
-      if (state.pickerHoverRect) {
-        const r = state.pickerHoverRect;
-        parts.push(`
-          <div class="rx-picker-highlight" style="left:${Math.round(r.left)}px;top:${Math.round(r.top)}px;width:${Math.round(r.width)}px;height:${Math.round(r.height)}px">
-            <span class="rx-picker-tag">${escHtml(state.pickerHoverLabel || "")}</span>
-          </div>
-        `);
-      }
+      const r = state.pickerHoverRect;
+      const styleStr = r
+        ? `left:${Math.round(r.left)}px;top:${Math.round(r.top)}px;width:${Math.round(r.width)}px;height:${Math.round(r.height)}px`
+        : "display:none";
+      const belowCls = r && r.top < 28 ? " is-tag-below" : "";
+      parts.push(`
+        <div class="rx-picker-highlight${belowCls}" data-role="pickerHighlight" style="${styleStr}">
+          <span class="rx-picker-tag">${escHtml(state.pickerHoverLabel || "")}</span>
+        </div>
+      `);
     }
     if (state.pickerSelected && typeof rv5BuildElementInspectorHtml === "function") {
       parts.push(rv5BuildElementInspectorHtml(
@@ -8514,10 +8956,19 @@ function createStudioPanel(options) {
     state.pickerActive = false;
     state.pickerHoverRect = null;
     state.pickerHoverLabel = "";
+    pickerPendingEl = null;
+    if (pickerMoveRafId && win && typeof win.cancelAnimationFrame === "function") {
+      try { win.cancelAnimationFrame(pickerMoveRafId); } catch (_e) {}
+      pickerMoveRafId = 0;
+    }
     setPickerCursorStyle(false);
     if (doc && typeof doc.removeEventListener === "function") {
       if (pickerMoveHandler) { doc.removeEventListener("mousemove", pickerMoveHandler, true); pickerMoveHandler = null; }
+      if (pickerPointerDownHandler) { doc.removeEventListener("pointerdown", pickerPointerDownHandler, true); pickerPointerDownHandler = null; }
       if (pickerClickHandler) { doc.removeEventListener("click", pickerClickHandler, true); pickerClickHandler = null; }
+    }
+    if (!state.isOpen && !state.pickerSelected) {
+      state.appearanceLivePreview = false;
     }
     renderPickerMount();
     if (state.isOpen) renderStructure();
@@ -8635,24 +9086,42 @@ function createStudioPanel(options) {
       if (modalMountEl) modalMountEl.innerHTML = "";
     }
     const isRu = state.locale !== "en";
-    pickerMoveHandler = (e) => {
-      if (!state.pickerActive || !e || !e.target) return;
-      const el = e.target;
-      if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) return;
+    const flushHover = () => {
+      pickerMoveRafId = 0;
+      const el = pickerPendingEl;
+      pickerPendingEl = null;
+      if (!state.pickerActive || !el || isIgnoredPickerTarget(el)) return;
       if (typeof el.getBoundingClientRect !== "function") return;
       const rect = el.getBoundingClientRect();
       if (!rect || rect.width < 4 || rect.height < 4) return;
       state.pickerHoverRect = rect;
       const origTxt = translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(el) : "";
       state.pickerHoverLabel = typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(el, isRu, origTxt) : (el.tagName || "");
-      renderPickerMount();
+      updatePickerHighlightFast();
+    };
+    pickerMoveHandler = (e) => {
+      if (!state.pickerActive || !e || !e.target) return;
+      if (isIgnoredPickerTarget(e.target)) return;
+      pickerPendingEl = e.target;
+      if (win && typeof win.requestAnimationFrame === "function") {
+        if (!pickerMoveRafId) pickerMoveRafId = win.requestAnimationFrame(flushHover);
+      } else {
+        flushHover();
+      }
+    };
+    pickerPointerDownHandler = (e) => {
+      if (!state.pickerActive || !e || !e.target) return;
+      if (isIgnoredPickerTarget(e.target)) return;
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
     };
     pickerClickHandler = (e) => {
       if (!state.pickerActive || !e || !e.target) return;
       const el = e.target;
-      if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) return;
+      if (isIgnoredPickerTarget(el)) return;
       if (typeof e.preventDefault === "function") e.preventDefault();
       if (typeof e.stopPropagation === "function") e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
       const origTxt = translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(el) : "";
       const curTxt = String(el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
       const exactSel = typeof rv5BuildSmartSelector === "function" ? rv5BuildSmartSelector(el, "exact") : "";
@@ -8677,6 +9146,7 @@ function createStudioPanel(options) {
     };
     if (doc && typeof doc.addEventListener === "function") {
       doc.addEventListener("mousemove", pickerMoveHandler, true);
+      doc.addEventListener("pointerdown", pickerPointerDownHandler, true);
       doc.addEventListener("click", pickerClickHandler, true);
     }
     renderPickerMount();
@@ -8685,7 +9155,15 @@ function createStudioPanel(options) {
   function upsertSelectedElementStyle(prop, rawVal, opts) {
     if (!state.pickerSelected || !state.pickerSelected.selector) return;
     const o = opts && typeof opts === "object" ? opts : {};
-    if (!o.skipUndo) pushAppearanceUndo();
+    if (o.skipUndo) {
+      if (!inspectorDragUndoCaptured) {
+        pushAppearanceUndo();
+        inspectorDragUndoCaptured = true;
+      }
+    } else {
+      inspectorDragUndoCaptured = false;
+      pushAppearanceUndo();
+    }
     const sel = state.pickerSelected;
     const list = Array.isArray(state.appearanceDraft.elementOverrides) ? state.appearanceDraft.elementOverrides.slice() : [];
     let idx = list.findIndex((x) => x.id === sel.overrideId || x.selector === sel.selector);
@@ -8699,6 +9177,9 @@ function createStudioPanel(options) {
       styles: {},
     };
     sel.overrideId = item.id;
+    if (prop === "bgOpacity" && !item.styles.bgColor && rawVal !== 100) {
+      item.styles.bgColor = (sel.computed && sel.computed.bgColor) || (detectAppTheme() === "light" ? "#fbfaf6" : "#262624");
+    }
     item.styles[prop] = rawVal;
     if (idx >= 0) list[idx] = item;
     else list.push(item);
@@ -8707,6 +9188,10 @@ function createStudioPanel(options) {
     if (o.liveOnly) {
       scheduleInspectorPersist();
     } else {
+      if (inspSaveTimer && win && typeof win.clearTimeout === "function") {
+        win.clearTimeout(inspSaveTimer);
+        inspSaveTimer = null;
+      }
       saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
     }
     if (!o.preserveDom) {
@@ -8726,7 +9211,10 @@ function createStudioPanel(options) {
     // Also check if View Usage button exists in DOM to trigger native refresh if user has no snapshot
     if (doc && typeof doc.querySelectorAll === "function") {
       const qs = state.quotaSummary;
-      const hasSnap = Boolean(qs && qs.families && (qs.families.gemini.fiveHourRem !== null || qs.families.claudeGpt.fiveHourRem !== null));
+      const fams = qs && qs.families ? qs.families : null;
+      const gemRem = fams && fams.gemini ? fams.gemini.fiveHourRem : null;
+      const claRem = fams && fams.claudeGpt ? fams.claudeGpt.fiveHourRem : null;
+      const hasSnap = Boolean(gemRem !== null || claRem !== null);
       if (!hasSnap) {
         const btns = doc.querySelectorAll("button, a");
         for (let i = 0; i < btns.length; i += 1) {
@@ -8776,13 +9264,15 @@ function createStudioPanel(options) {
     if (action === "cycleWallpaper") {
       const app = spCloneAppearance(state.settings.appearance);
       const grads = spGetGradientPresets();
-      if (state.mediaLibrary && state.mediaLibrary.length > 0 && app.wallpaper.type === "image") {
+      if (state.mediaLibrary && state.mediaLibrary.length > 0 && (app.wallpaper.type === "image" || app.wallpaper.type === "video")) {
         const curIdx = state.mediaLibrary.findIndex((m) => m.fileName === app.wallpaper.mediaFile);
         const nxt = state.mediaLibrary[(curIdx + 1) % state.mediaLibrary.length];
         if (nxt) {
-          app.wallpaper.mediaFile = nxt.fileName;
-          app.wallpaper.mediaUrl = nxt.url;
-          app.wallpaper.type = nxt.type === "video" ? "video" : "image";
+          app.wallpaper.mediaFile = nxt.fileName || "";
+          app.wallpaper.mediaUrl = nxt.mediaUrl || nxt.url || "";
+          app.wallpaper.mediaMime = nxt.mime || "";
+          const isVid = nxt.kind === "video" || nxt.type === "video" || String(nxt.mime || "").startsWith("video/") || /\.(?:mp4|webm|mov)$/i.test(nxt.fileName || "");
+          app.wallpaper.type = isVid ? "video" : "image";
         }
       } else {
         const curIdx = grads.findIndex((g) => g.id === app.wallpaper.gradientPreset);
@@ -8798,7 +9288,16 @@ function createStudioPanel(options) {
     }
     if (action === "toggleWallpaper") {
       const app = spCloneAppearance(state.settings.appearance);
-      app.wallpaper.type = app.wallpaper.type === "none" ? (app.wallpaper.mediaUrl ? "image" : "gradient") : "none";
+      if (app.wallpaper.type === "none") {
+        if (app.wallpaper.mediaUrl) {
+          const isVid = String(app.wallpaper.mediaMime || "").startsWith("video/") || /\.(?:mp4|webm|mov)$/i.test(app.wallpaper.mediaFile || app.wallpaper.mediaUrl || "");
+          app.wallpaper.type = isVid ? "video" : "image";
+        } else {
+          app.wallpaper.type = "gradient";
+        }
+      } else {
+        app.wallpaper.type = "none";
+      }
       state.appearanceDraft = spCloneAppearance(app);
       saveSettingsPatch({ appearance: app });
       return;
@@ -8837,11 +9336,10 @@ function createStudioPanel(options) {
     if (action === "openTabAgent") { setOpen(true, { tab: "persona" }); return; }
     if (action === "openTabDesign") { setOpen(true, { tab: "appearance" }); return; }
     if (action === "openTabLimits") {
-      state.widgetSubSection = "limits";
-      setOpen(true, { tab: "settings", subTab: "widget" });
+      setOpen(true, { tab: "widgets", widgetSub: "limits" });
       return;
     }
-    if (action === "openTabWorkshop") { setOpen(true, { tab: "settings", subTab: "workshop" }); refreshWorkshopData(); return; }
+    if (action === "openTabWorkshop") { setOpen(true, { tab: "workshop" }); return; }
     if (action === "emergencyResetOverrides") {
       const app = spCloneAppearance(state.settings.appearance);
       app.overridesPaused = !app.overridesPaused;
@@ -8921,6 +9419,19 @@ function createStudioPanel(options) {
     state.appearanceDirty = true;
     state.appearanceLivePreview = true;
     applyThemeFastToHost(state.appearanceDraft);
+    if (modalMountEl && typeof modalMountEl.querySelector === "function") {
+      const applyBtn = modalMountEl.querySelector('[data-action="apply-appearance"]');
+      if (applyBtn && applyBtn.classList) applyBtn.classList.add("btn-primary");
+      const toastEl = modalMountEl.querySelector('.drawer-sticky-footer [data-role="toast"]');
+      if (toastEl && !state.toastMsg) {
+        toastEl.className = "studio-dirty-pill";
+        toastEl.textContent = t().appDirtyBadge;
+      }
+      const undoBtn = modalMountEl.querySelector('[data-role="appUndoBtn"]');
+      const redoBtn = modalMountEl.querySelector('[data-role="appRedoBtn"]');
+      if (undoBtn) undoBtn.disabled = state.appearanceUndoStack.length === 0;
+      if (redoBtn) redoBtn.disabled = state.appearanceRedoStack.length === 0;
+    }
   }
 
   function updateGreetingLivePreview() {
@@ -8952,17 +9463,46 @@ function createStudioPanel(options) {
     }
     if (action === "close-modal") { setOpen(false); return; }
     // === RUDEX 5.0 ACTIONS ===
+    if (action === "clear-search") {
+      state.settingsSearchQuery = "";
+      if (modalMountEl) {
+        const inputs = modalMountEl.querySelectorAll('[data-role="settingsSearch"]');
+        for (let i = 0; i < inputs.length; i += 1) inputs[i].value = "";
+        const hitsBoxes = modalMountEl.querySelectorAll('[data-role="searchHits"]');
+        for (let i = 0; i < hitsBoxes.length; i += 1) hitsBoxes[i].innerHTML = "";
+        const clearBtns = modalMountEl.querySelectorAll('[data-role="searchClear"]');
+        for (let i = 0; i < clearBtns.length; i += 1) {
+          if (clearBtns[i].classList) clearBtns[i].classList.remove("is-shown");
+        }
+      }
+      return;
+    }
+    if (action === "set-theme-filter") {
+      const f = actionEl.getAttribute("data-val") || "all";
+      state.themeModeFilter = f === "dark" || f === "light" ? f : "all";
+      renderStructure();
+      return;
+    }
+    if (action === "set-agent-subtab") {
+      const s = actionEl.getAttribute("data-val") || "tools";
+      state.agentSubTab = s === "persona" || s === "presets" ? s : "tools";
+      renderStructure();
+      return;
+    }
     if (action === "jump-search-hit") {
       const tab = actionEl.getAttribute("data-tab") || "appearance";
       const appSub = actionEl.getAttribute("data-app-sub") || "";
       const setSub = actionEl.getAttribute("data-set-sub") || "";
+      const widgetSub = actionEl.getAttribute("data-widget-sub") || "";
+      const agentSub = actionEl.getAttribute("data-agent-sub") || "";
       state.settingsSearchQuery = "";
-      state.activeTab = tab;
-      if (appSub) state.appearanceSubTab = appSub;
-      if (setSub) state.settingsSubTab = setSub;
-      if (tab === "appearance" && (appSub === "text" || appSub === "elements")) loadSystemFontsOnce();
-      if (setSub === "workshop") refreshWorkshopData();
-      renderStructure();
+      setOpen(true, {
+        tab,
+        appSubTab: appSub || undefined,
+        subTab: setSub || undefined,
+        widgetSub: widgetSub || undefined,
+        agentSub: agentSub || undefined,
+      });
       return;
     }
     if (action === "set-border-preset") {
@@ -8999,7 +9539,13 @@ function createStudioPanel(options) {
     }
     if (action === "start-element-picker") { startElementPicker(); return; }
     if (action === "stop-element-picker") { stopElementPicker(); return; }
-    if (action === "close-element-inspector") { state.pickerSelected = null; renderPickerMount(); return; }
+    if (action === "close-element-inspector") {
+      state.pickerSelected = null;
+      inspectorDragUndoCaptured = false;
+      if (!state.isOpen && !state.pickerActive) state.appearanceLivePreview = false;
+      renderPickerMount();
+      return;
+    }
     if (action === "close-model-usage-pop") { state.usagePopOpen = false; renderModelUsagePopover(); return; }
     if (action === "open-native-usage-settings") { openNativeAntigravityUsageSettings(); return; }
     if (action === "toggle-overrides-paused") {
@@ -9025,6 +9571,10 @@ function createStudioPanel(options) {
           origText: "",
           computed: readElementComputedMetrics(zone.selector),
         };
+        if (state.isOpen && state.activeTab === "appearance" && !state.appearanceDockedRight) {
+          state.appearanceDockedRight = true;
+          renderStructure();
+        }
         renderPickerMount();
       }
       return;
@@ -9045,6 +9595,10 @@ function createStudioPanel(options) {
           origText: "",
           computed: readElementComputedMetrics(ov.selector),
         };
+        if (state.isOpen && state.activeTab === "appearance" && !state.appearanceDockedRight) {
+          state.appearanceDockedRight = true;
+          renderStructure();
+        }
         renderPickerMount();
       }
       return;
@@ -9077,8 +9631,22 @@ function createStudioPanel(options) {
     }
     if (action === "inspector-set-scope" && state.pickerSelected) {
       const sc = actionEl.getAttribute("data-val") === "similar" ? "similar" : "exact";
+      const nextSel = sc === "similar" ? state.pickerSelected.similarSelector : state.pickerSelected.exactSelector;
+      const oldId = state.pickerSelected.overrideId;
       state.pickerSelected.scope = sc;
-      state.pickerSelected.selector = sc === "similar" ? state.pickerSelected.similarSelector : state.pickerSelected.exactSelector;
+      state.pickerSelected.selector = nextSel;
+      const list = Array.isArray(state.appearanceDraft.elementOverrides) ? state.appearanceDraft.elementOverrides.slice() : [];
+      const idx = oldId ? list.findIndex((o) => o.id === oldId) : -1;
+      if (idx >= 0 && nextSel) {
+        pushAppearanceUndo();
+        list[idx] = Object.assign({}, list[idx], { scope: sc, selector: nextSel });
+        state.appearanceDraft.elementOverrides = list;
+        applyThemeFastToHost(state.appearanceDraft);
+        saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+      } else {
+        const match = list.find((o) => o.selector === nextSel);
+        state.pickerSelected.overrideId = match ? match.id : "";
+      }
       renderPickerMount();
       return;
     }
@@ -9152,6 +9720,13 @@ function createStudioPanel(options) {
     }
     if (action === "toggle-agent-popover") {
       state.agentPopoverOpen = !state.agentPopoverOpen;
+      if (state.agentPopoverOpen) state.contextPopoverOpen = false;
+      renderChatDockMount();
+      return;
+    }
+    if (action === "toggle-context-popover") {
+      state.contextPopoverOpen = !state.contextPopoverOpen;
+      if (state.contextPopoverOpen) state.agentPopoverOpen = false;
       renderChatDockMount();
       return;
     }
@@ -9214,23 +9789,25 @@ function createStudioPanel(options) {
       const f = actionEl.getAttribute("data-field");
       const v = actionEl.getAttribute("data-val");
       if (f && v) {
-        const next = Object.assign({}, state.chatAgentProfile, { [f]: v, presetId: "custom" });
+        const keepDef = Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats);
+        const next = Object.assign({}, state.chatAgentProfile, { [f]: v, presetId: "custom", applyToNewChats: keepDef });
         const cnt = typeof rv5CountActiveAgentFeatures === "function" ? rv5CountActiveAgentFeatures(next) : 1;
         next.enabled = cnt > 0;
         if (!next.enabled) next.presetId = "default";
-        saveChatAgentProfile(next, { setAsDefault: Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats) });
+        saveChatAgentProfile(next, { setAsDefault: keepDef });
       }
       return;
     }
     if (action === "toggle-agent-bool") {
       const f = actionEl.getAttribute("data-field");
       if (f) {
+        const keepDef = Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats);
         const curOn = Boolean(state.chatAgentProfile.enabled && state.chatAgentProfile[f]);
-        const next = Object.assign({}, state.chatAgentProfile, { [f]: !curOn, presetId: "custom" });
+        const next = Object.assign({}, state.chatAgentProfile, { [f]: !curOn, presetId: "custom", applyToNewChats: keepDef });
         const cnt = typeof rv5CountActiveAgentFeatures === "function" ? rv5CountActiveAgentFeatures(next) : 1;
         next.enabled = cnt > 0;
         if (!next.enabled) next.presetId = "default";
-        saveChatAgentProfile(next, { setAsDefault: Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats) });
+        saveChatAgentProfile(next, { setAsDefault: keepDef });
       }
       return;
     }
@@ -9244,7 +9821,8 @@ function createStudioPanel(options) {
     }
     if (action === "quick-toggle-agent") {
       const k = actionEl.getAttribute("data-key");
-      const next = Object.assign({}, state.chatAgentProfile, { presetId: "custom" });
+      const keepDef = Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats);
+      const next = Object.assign({}, state.chatAgentProfile, { presetId: "custom", applyToNewChats: keepDef });
       if (!next.enabled) {
         next.subagents = "auto";
         next.webSearch = "auto";
@@ -9264,7 +9842,7 @@ function createStudioPanel(options) {
       const cnt = typeof rv5CountActiveAgentFeatures === "function" ? rv5CountActiveAgentFeatures(next) : 1;
       next.enabled = cnt > 0;
       if (!next.enabled) next.presetId = "default";
-      saveChatAgentProfile(next, { setAsDefault: Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats) });
+      saveChatAgentProfile(next, { setAsDefault: keepDef });
       return;
     }
     if (action === "open-annotator") {
@@ -9410,24 +9988,22 @@ function createStudioPanel(options) {
       lw.bgColor = "";
       lw.textColor = "";
       lw.borderColor = "";
+      lw.barColor = "";
       saveSettingsPatch({ limitsWidget: lw });
       return;
     }
     if (action === "sync-limits-now") { triggerQuotaSyncClick(); return; }
     if (action === "open-limits-settings") {
-      state.widgetSubSection = "limits";
-      setOpen(true, { tab: "settings", subTab: "widget" });
+      setOpen(true, { tab: "widgets", widgetSub: "limits" });
       return;
     }
     if (action === "set-widget-subsection") {
-      state.widgetSubSection = actionEl.getAttribute("data-val") === "limits" ? "limits" : "mini";
+      const v = actionEl.getAttribute("data-val") || "limits";
+      state.widgetSubSection = v === "mini" || v === "monitor" ? v : "limits";
       loadSystemFontsOnce();
-      if (state.widgetSubSection === "limits") {
-        invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
-          if (!state.destroyed && qs) {
-            state.quotaSummary = qs;
-            if (state.isOpen) renderStructure();
-          }
+      if (state.widgetSubSection === "limits" || state.widgetSubSection === "monitor") {
+        invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+          if (!state.destroyed && qs) applyQuotaSummary(qs);
         });
       }
       renderStructure();
@@ -9436,6 +10012,7 @@ function createStudioPanel(options) {
     if (action === "record-keybinding") {
       const id = actionEl.getAttribute("data-id") || "";
       state.recordingKeybindingId = state.recordingKeybindingId === id ? "" : id;
+      invokeIpc("agy-studio:set-recording-keybinding", { active: Boolean(state.recordingKeybindingId) });
       renderStructure();
       return;
     }
@@ -9450,6 +10027,7 @@ function createStudioPanel(options) {
     }
     if (action === "reset-all-keybindings" && typeof RUDEX_KEYBINDINGS_DEFAULTS !== "undefined") {
       state.recordingKeybindingId = "";
+      invokeIpc("agy-studio:set-recording-keybinding", { active: false });
       saveSettingsPatch({ keybindings: Object.assign({}, RUDEX_KEYBINDINGS_DEFAULTS) });
       return;
     }
@@ -9472,17 +10050,24 @@ function createStudioPanel(options) {
     if (action === "ws-save-rule") {
       const d = state.workshop.draft || {};
       if (!String(d.ruleBody || "").trim()) return;
-      invokeIpc("agy-studio:workshop-save-rule", {
-        scope: state.workshop.scope === "workspace" ? "workspace" : "global",
-        fileName: d.ruleFileName || "custom-rule.md",
-        body: d.ruleBody,
-        enabled: true,
-      }).then((res) => {
-        if (res && res.ok) {
-          state.workshop.draft.ruleFileName = "";
-          state.workshop.draft.ruleBody = "";
-          refreshWorkshopData();
-        }
+      resolveWorkshopWorkspacePath().then((wsPath) => {
+        invokeIpc("agy-studio:workshop-save-rule", {
+          scope: state.workshop.scope === "workspace" ? "workspace" : "global",
+          workspacePath: wsPath || "",
+          fileName: d.ruleFileName || "custom-rule.md",
+          body: d.ruleBody,
+          enabled: true,
+        }).then((res) => {
+          if (state.destroyed) return;
+          if (res && res.ok) {
+            state.workshop.draft.ruleFileName = "";
+            state.workshop.draft.ruleBody = "";
+            setToast(state.locale !== "en" ? "Правило сохранено" : "Rule saved", false);
+            refreshWorkshopData();
+          } else {
+            setToast((res && res.error) || (state.locale !== "en" ? "Не удалось сохранить правило" : "Failed to save rule"), true);
+          }
+        });
       });
       return;
     }
@@ -9502,18 +10087,25 @@ function createStudioPanel(options) {
     if (action === "ws-save-skill") {
       const d = state.workshop.draft || {};
       if (!String(d.skillName || "").trim()) return;
-      invokeIpc("agy-studio:workshop-save-skill", {
-        scope: state.workshop.scope === "workspace" ? "workspace" : "global",
-        name: d.skillName,
-        description: d.skillDesc || "",
-        body: d.skillBody || "",
-      }).then((res) => {
-        if (res && res.ok) {
-          state.workshop.draft.skillName = "";
-          state.workshop.draft.skillDesc = "";
-          state.workshop.draft.skillBody = "";
-          refreshWorkshopData();
-        }
+      resolveWorkshopWorkspacePath().then((wsPath) => {
+        invokeIpc("agy-studio:workshop-save-skill", {
+          scope: state.workshop.scope === "workspace" ? "workspace" : "global",
+          workspacePath: wsPath || "",
+          name: d.skillName,
+          description: d.skillDesc || "",
+          body: d.skillBody || "",
+        }).then((res) => {
+          if (state.destroyed) return;
+          if (res && res.ok) {
+            state.workshop.draft.skillName = "";
+            state.workshop.draft.skillDesc = "";
+            state.workshop.draft.skillBody = "";
+            setToast(state.locale !== "en" ? "Скилл создан" : "Skill created", false);
+            refreshWorkshopData();
+          } else {
+            setToast((res && res.error) || (state.locale !== "en" ? "Не удалось создать скилл" : "Failed to create skill"), true);
+          }
+        });
       });
       return;
     }
@@ -9521,29 +10113,46 @@ function createStudioPanel(options) {
       const sname = actionEl.getAttribute("data-name");
       if (sname) {
         const cur = Array.isArray(state.chatAgentProfile.pinnedSkills) ? state.chatAgentProfile.pinnedSkills.slice() : [];
-        if (!cur.includes(sname)) cur.push(sname);
-        saveChatAgentProfile(Object.assign({}, state.chatAgentProfile, { pinnedSkills: cur, enabled: true }));
-        setToast(state.locale !== "en" ? `Скилл «${sname}» прикреплён к агенту` : `Pinned "${sname}" to Agent`, false);
+        const idx = cur.indexOf(sname);
+        if (idx >= 0) {
+          cur.splice(idx, 1);
+          const next = Object.assign({}, state.chatAgentProfile, { pinnedSkills: cur });
+          const cnt = typeof rv5CountActiveAgentFeatures === "function" ? rv5CountActiveAgentFeatures(next) : cur.length;
+          next.enabled = cnt > 0;
+          saveChatAgentProfile(next);
+          setToast(state.locale !== "en" ? `Скилл «${sname}» откреплён` : `Unpinned "${sname}"`, false);
+        } else {
+          cur.push(sname);
+          saveChatAgentProfile(Object.assign({}, state.chatAgentProfile, { pinnedSkills: cur, enabled: true }));
+          setToast(state.locale !== "en" ? `Скилл «${sname}» закреплён у агента` : `Pinned "${sname}" to Agent`, false);
+        }
       }
       return;
     }
     if (action === "ws-save-mcp") {
       const d = state.workshop.draft || {};
       if (!String(d.mcpName || "").trim()) return;
-      invokeIpc("agy-studio:workshop-save-mcp", {
-        scope: state.workshop.scope === "workspace" ? "workspace" : "global",
-        name: d.mcpName,
-        command: d.mcpCommand || "",
-        argsText: d.mcpArgs || "",
-        url: d.mcpUrl || "",
-      }).then((res) => {
-        if (res && res.ok) {
-          state.workshop.draft.mcpName = "";
-          state.workshop.draft.mcpCommand = "";
-          state.workshop.draft.mcpArgs = "";
-          state.workshop.draft.mcpUrl = "";
-          refreshWorkshopData();
-        }
+      resolveWorkshopWorkspacePath().then((wsPath) => {
+        invokeIpc("agy-studio:workshop-save-mcp", {
+          scope: state.workshop.scope === "workspace" ? "workspace" : "global",
+          workspacePath: wsPath || "",
+          name: d.mcpName,
+          command: d.mcpCommand || "",
+          argsText: d.mcpArgs || "",
+          url: d.mcpUrl || "",
+        }).then((res) => {
+          if (state.destroyed) return;
+          if (res && res.ok) {
+            state.workshop.draft.mcpName = "";
+            state.workshop.draft.mcpCommand = "";
+            state.workshop.draft.mcpArgs = "";
+            state.workshop.draft.mcpUrl = "";
+            setToast(state.locale !== "en" ? "MCP-сервер сохранён" : "MCP server saved", false);
+            refreshWorkshopData();
+          } else {
+            setToast((res && res.error) || (state.locale !== "en" ? "Ошибка сохранения MCP (проверьте mcp_config.json)" : "Failed to save MCP server"), true);
+          }
+        });
       });
       return;
     }
@@ -9552,14 +10161,23 @@ function createStudioPanel(options) {
       const mscope = actionEl.getAttribute("data-scope") || "global";
       const wasDis = actionEl.getAttribute("data-disabled") === "1";
       if (mname) {
-        invokeIpc("agy-studio:workshop-save-mcp", { scope: mscope, name: mname, disabled: !wasDis }).then(() => refreshWorkshopData());
+        resolveWorkshopWorkspacePath().then((wsPath) => {
+          invokeIpc("agy-studio:workshop-save-mcp", { scope: mscope, workspacePath: wsPath || "", name: mname, disabled: !wasDis }).then((res) => {
+            if (res && res.ok === false) setToast(res.error || "MCP error", true);
+            refreshWorkshopData();
+          });
+        });
       }
       return;
     }
     if (action === "ws-delete-mcp") {
       const mname = actionEl.getAttribute("data-name");
       const mscope = actionEl.getAttribute("data-scope") || "global";
-      if (mname) invokeIpc("agy-studio:workshop-delete-mcp", { scope: mscope, name: mname }).then(() => refreshWorkshopData());
+      if (mname) {
+        resolveWorkshopWorkspacePath().then((wsPath) => {
+          invokeIpc("agy-studio:workshop-delete-mcp", { scope: mscope, workspacePath: wsPath || "", name: mname }).then(() => refreshWorkshopData());
+        });
+      }
       return;
     }
     if (action === "export-config-json") {
@@ -9578,22 +10196,18 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "open-settings") { setOpen(true); return; }
-    if (action === "open-persona-tab") { state.activeTab = "persona"; setOpen(true); return; }
+    if (action === "open-persona-tab") { setOpen(true, { tab: "persona", agentSub: "persona" }); return; }
     if (action === "open-export-limits") {
-      state.activeTab = "settings";
-      state.settingsSubTab = "export";
-      invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
-        if (!state.destroyed && qs) {
-          state.quotaSummary = qs;
-          if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "export") renderStructure();
-        }
-      });
-      setOpen(true);
+      setOpen(true, { tab: "widgets", widgetSub: "monitor" });
       return;
     }
     if (action === "switch-tab") {
       const prevTab = state.activeTab;
-      const tab = actionEl.getAttribute("data-tab") || "monitor";
+      const tab = actionEl.getAttribute("data-tab") || "appearance";
+      if (state.recordingKeybindingId) {
+        state.recordingKeybindingId = "";
+        invokeIpc("agy-studio:set-recording-keybinding", { active: false });
+      }
       state.activeTab = tab;
       if (prevTab === "appearance" && tab !== "appearance") {
         cleanupTempUploadedMedia();
@@ -9607,14 +10221,25 @@ function createStudioPanel(options) {
       }
       if (tab === "appearance") {
         state.appearanceLivePreview = true;
+        loadSystemFontsOnce();
         if (!state.appearanceDirty) {
           state.appearanceDraft = spCloneAppearance(state.settings.appearance);
           state.greetingDraft = spCloneGreeting(state.settings.greeting);
         }
         applyThemeFastToHost(state.appearanceDraft);
         if (state.appearanceSubTab === "wallpaper") refreshMediaLibrary();
+      } else if (tab === "widgets") {
+        loadSystemFontsOnce();
+        invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+          if (!state.destroyed && qs) applyQuotaSummary(qs);
+        });
+      } else if (tab === "history") {
+        refreshInputHistory();
+      } else if (tab === "workshop") {
+        refreshWorkshopData();
+      } else if (tab === "live-edits") {
+        refreshLiveEdits();
       }
-      if (tab === "live-edits") refreshLiveEdits();
       renderStructure();
       return;
     }
@@ -9723,10 +10348,7 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "open-input-history") {
-      state.activeTab = "settings";
-      state.settingsSubTab = "history";
-      refreshInputHistory();
-      renderStructure();
+      setOpen(true, { tab: "history" });
       return;
     }
     if (action === "toggle-composer-drafts") {
@@ -9745,6 +10367,8 @@ function createStudioPanel(options) {
       invokeIpc("agy-studio:clear-composer-draft", { all: true }).then(() => {
         if (state.destroyed) return;
         lastSavedDraftByChat.clear();
+        lastKnownComposerSnapByChat.clear();
+        draftDataUrlToFileName.clear();
         if (state.inputHistory) state.inputHistory.draftCount = 0;
         setToast(state.locale !== "en" ? "Все черновики чатов очищены" : "All saved drafts cleared", false);
         renderStructure();
@@ -9847,8 +10471,15 @@ function createStudioPanel(options) {
           if (state.destroyed || typeof rv5FindNativeComposer !== "function") return;
           const { container, editable } = rv5FindNativeComposer(doc);
           if (!editable) return;
-          if (atts.length > 0) insertAttachmentsIntoNativeComposer(atts, container, editable);
-          if (found.text) await insertTextIntoNativeComposerRich(editable, found.text);
+          isRestoringDraft = true;
+          try {
+            if (typeof rv5ClearEditableText === "function") rv5ClearEditableText(editable, win);
+            if (atts.length > 0) insertAttachmentsIntoNativeComposer(atts, container, editable);
+            if (found.text) await insertTextIntoNativeComposerRich(editable, found.text);
+          } finally {
+            isRestoringDraft = false;
+            lastDraftObsSig = "";
+          }
           scheduleComposerDraftSave(250);
         })();
       }
@@ -9960,10 +10591,14 @@ function createStudioPanel(options) {
     }
     if (action === "toggle-pin") {
       const nextPinned = !state.settings.pinned;
-      if (nextPinned && state.settings.layoutMode === "floating") {
-        saveSettingsPatch({ pinned: true });
+      if (nextPinned) {
+        const dock = state.settings.dockPosition === "hidden" ? "bottom-right" : state.settings.dockPosition;
+        saveSettingsPatch({ pinned: true, layoutMode: "docked", dockPosition: dock, floatX: null, floatY: null });
       } else {
-        saveSettingsPatch({ pinned: nextPinned });
+        const r = measureWidgetBoxRect();
+        const fx = r && r.width > 20 ? Math.max(8, Math.round(r.left)) : (typeof state.settings.floatX === "number" ? state.settings.floatX : 18);
+        const fy = r && r.height > 16 ? Math.max(8, Math.round(r.top)) : (typeof state.settings.floatY === "number" ? state.settings.floatY : 18);
+        saveSettingsPatch({ pinned: false, layoutMode: "floating", floatX: fx, floatY: fy });
       }
       return;
     }
@@ -10131,6 +10766,7 @@ function createStudioPanel(options) {
       const presetId = variant === "light" ? "claude-code-light" : "claude-code-dark";
       const pr = spFindThemePreset(presetId);
       const sw = pr && pr.vars ? pr.vars : null;
+      pushAppearanceUndo();
       state.appearanceDraft.presetId = presetId;
       state.appearanceDraft.customAccent = false;
       if (sw) {
@@ -10146,16 +10782,54 @@ function createStudioPanel(options) {
       if (!state.appearanceDraft.typography) state.appearanceDraft.typography = spDefaultAppearance().typography;
       state.appearanceDraft.typography.uiFont = "claude-sans";
       state.appearanceDraft.typography.monoFont = "claude-mono";
-      saveSettingsPatch({
-        studioUi: {
-          windowTheme: variant === "light" ? "claude-light" : "claude-dark",
-          widgetTheme: "claude",
-        },
-      });
-      state.appearanceDirty = true;
-      state.appearanceLivePreview = true;
+      if (!state.appearanceDraft.uiStyle) state.appearanceDraft.uiStyle = spDefaultUiStyle();
+      state.appearanceDraft.uiStyle.preset = "claude-code";
+      state.appearanceDraft.uiStyle.composer = "claude-code";
+      state.appearanceDraft.uiStyle.chat = "claude-code";
+      state.appearanceDraft.uiStyle.modelSelector = "claude-code";
+      const suiPatch = { windowTheme: variant === "light" ? "claude-light" : "claude-dark", widgetTheme: "claude" };
+      state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, suiPatch));
+      invokeIpc("agy-studio:save-settings", { studioUi: suiPatch });
+      markAppearanceDirty();
       applyThemeToHost(state.appearanceDraft);
       setToast(tr.claudeSuiteApplied, false);
+      renderStructure();
+      return;
+    }
+    if (action === "apply-platform-suite") {
+      const suite = actionEl.getAttribute("data-val") || "codex";
+      const isCodex = suite === "codex";
+      const presetId = isCodex ? "oled-midnight" : "claude-terminal";
+      const pr = spFindThemePreset(presetId);
+      const sw = pr && pr.vars ? pr.vars : null;
+      pushAppearanceUndo();
+      state.appearanceDraft.presetId = presetId;
+      state.appearanceDraft.customAccent = !isCodex;
+      if (sw) {
+        state.appearanceDraft.accentColor = isCodex ? sw.accentColor : "#38bdf8";
+        state.appearanceDraft.canvasBg = sw.canvasBg;
+        state.appearanceDraft.cardBg = sw.cardBg;
+        state.appearanceDraft.radius = isCodex ? 14 : 6;
+        if (state.appearanceDraft.corners) {
+          state.appearanceDraft.corners.mode = "linked";
+          state.appearanceDraft.corners.all = isCodex ? 14 : 6;
+        }
+      }
+      if (!state.appearanceDraft.typography) state.appearanceDraft.typography = spDefaultAppearance().typography;
+      state.appearanceDraft.typography.uiFont = isCodex ? "inter" : "claude-mono";
+      state.appearanceDraft.typography.monoFont = "jetbrains";
+      if (!state.appearanceDraft.uiStyle) state.appearanceDraft.uiStyle = spDefaultUiStyle();
+      const targetStyle = isCodex ? "codex" : "opencode";
+      state.appearanceDraft.uiStyle.preset = targetStyle;
+      state.appearanceDraft.uiStyle.composer = targetStyle;
+      state.appearanceDraft.uiStyle.chat = targetStyle;
+      state.appearanceDraft.uiStyle.modelSelector = targetStyle;
+      const suiPatch = { windowTheme: isCodex ? "obsidian" : "midnight", widgetTheme: isCodex ? "island" : "solid" };
+      state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, suiPatch));
+      invokeIpc("agy-studio:save-settings", { studioUi: suiPatch });
+      markAppearanceDirty();
+      applyThemeToHost(state.appearanceDraft);
+      setToast(state.locale !== "en" ? `Применён образ ${isCodex ? "Codex" : "OpenCode"} (нажмите «Применить»)` : `Previewing ${isCodex ? "Codex" : "OpenCode"} suite (click Apply)`, false);
       renderStructure();
       return;
     }
@@ -10362,6 +11036,7 @@ function createStudioPanel(options) {
       const pid = actionEl.getAttribute("data-id");
       const found = WALLPAPER_ATMOS_PRESETS.find((x) => x.id === pid);
       if (found) {
+        pushAppearanceUndo();
         const wp = state.appearanceDraft.wallpaper;
         wp.dim = found.dim;
         wp.blur = found.blur;
@@ -10370,6 +11045,19 @@ function createStudioPanel(options) {
         wp.saturate = found.saturate;
         wp.hue = found.hue;
         wp.vignette = found.vignette;
+        if (found.id === "original") {
+          wp.fit = "cover";
+          wp.scale = 100;
+          wp.posX = 50;
+          wp.posY = 50;
+          wp.offsetX = 0;
+          wp.offsetY = 0;
+          wp.rotate = 0;
+          wp.flipX = false;
+          wp.flipY = false;
+          wp.opacity = 85;
+          wp.tintEnabled = false;
+        }
         markAppearanceDirty();
         renderStructure();
       }
@@ -11006,9 +11694,7 @@ function createStudioPanel(options) {
       try { widgetMountEl.setPointerCapture(e.pointerId); } catch (_e) {}
     }
 
-    const rect = typeof widgetMountEl.getBoundingClientRect === "function"
-      ? widgetMountEl.getBoundingClientRect()
-      : { left: 16, top: 16, width: 220, height: 36 };
+    const rect = measureWidgetBoxRect() || { left: 16, top: 16, width: 220, height: 36 };
     dragState = {
       pointerId: e.pointerId,
       startX: e.clientX,
@@ -11080,6 +11766,7 @@ function createStudioPanel(options) {
       state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, { widgetZoom: nextZoom, widgetScale: nextBucket }));
       syncTheme();
       clampWidgetToViewport();
+      renderLimitsWidgetMount();
       const hud = typeof widgetMountEl.querySelector === "function" ? widgetMountEl.querySelector('[data-role="widgetResizeHud"]') : null;
       if (hud) hud.textContent = `${nextZoom}%`;
       if (modalMountEl) {
@@ -11123,11 +11810,13 @@ function createStudioPanel(options) {
       limitsDragState.moved = true;
       const vw = (win && win.innerWidth) || 1280;
       const vh = (win && win.innerHeight) || 800;
-      const nx = Math.max(8, Math.min(vw - 120, Math.round(limitsDragState.origLeft + dx)));
-      const ny = Math.max(8, Math.min(vh - 40, Math.round(limitsDragState.origTop + dy)));
+      const maxX = Math.max(8, vw - (limitsDragState.width || 220) - 8);
+      const maxY = Math.max(8, vh - (limitsDragState.height || 60) - 8);
+      const nx = Math.max(8, Math.min(maxX, Math.round(limitsDragState.origLeft + dx)));
+      const ny = Math.max(8, Math.min(maxY, Math.round(limitsDragState.origTop + dy)));
       limitsDragState.lastX = nx;
       limitsDragState.lastY = ny;
-      limitsMountEl.className = "rx-limits-mount";
+      limitsMountEl.className = "rx-limits-mount is-dragging";
       limitsMountEl.style.left = `${nx}px`;
       limitsMountEl.style.top = `${ny}px`;
       limitsMountEl.style.right = "";
@@ -11201,9 +11890,16 @@ function createStudioPanel(options) {
     if (limitsDragState) {
       const ls = limitsDragState;
       limitsDragState = null;
+      if (limitsMountEl) {
+        if (limitsMountEl.classList && typeof limitsMountEl.classList.remove === "function") limitsMountEl.classList.remove("is-dragging");
+        if (typeof limitsMountEl.releasePointerCapture === "function" && ls.pointerId !== undefined) {
+          try { limitsMountEl.releasePointerCapture(ls.pointerId); } catch (_e) {}
+        }
+      }
       if (ls.moved) {
         const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
         lw.position = "floating";
+        lw.pinned = false;
         lw.floatX = ls.lastX;
         lw.floatY = ls.lastY;
         saveSettingsPatch({ limitsWidget: lw });
@@ -11257,6 +11953,7 @@ function createStudioPanel(options) {
     rootEl.addEventListener("input", (e) => {
       const target = e.target;
       if (!target || typeof target.getAttribute !== "function") return;
+      if (String(target.tagName || "").toUpperCase() === "SELECT") return;
       if (handleAppearanceFieldInput(target)) return;
       const gf = target.getAttribute("data-greet-field");
       if (gf) {
@@ -11294,7 +11991,28 @@ function createStudioPanel(options) {
         state.newProfileName = target.value || "";
       } else if (role === "settingsSearch") {
         state.settingsSearchQuery = target.value || "";
-        renderStructure();
+        const hitsHtml = buildSearchHitsHtml(state.settingsSearchQuery, state.locale !== "en");
+        const hasVal = Boolean(state.settingsSearchQuery.trim());
+        if (modalMountEl) {
+          const hitsBoxes = modalMountEl.querySelectorAll('[data-role="searchHits"]');
+          for (let i = 0; i < hitsBoxes.length; i += 1) hitsBoxes[i].innerHTML = hitsHtml;
+          const clearBtns = modalMountEl.querySelectorAll('[data-role="searchClear"]');
+          for (let i = 0; i < clearBtns.length; i += 1) {
+            if (clearBtns[i].classList) clearBtns[i].classList.toggle("is-shown", hasVal);
+          }
+        }
+        return;
+      } else if (role === "historySearch") {
+        state.historySearchQuery = target.value || "";
+        if (modalMountEl) {
+          const qLow = state.historySearchQuery.trim().toLowerCase();
+          const cards = modalMountEl.querySelectorAll('[data-role="historyList"] .rx-hist-card');
+          for (let i = 0; i < cards.length; i += 1) {
+            const hay = cards[i].getAttribute("data-hist-search") || "";
+            cards[i].style.display = !qLow || hay.includes(qLow) ? "" : "none";
+          }
+        }
+        return;
       } else if (role === "newLabelMatch") {
         state.newLabelMatch = target.value || "";
       } else if (role === "newLabelText") {
@@ -11322,7 +12040,20 @@ function createStudioPanel(options) {
               ? `${lw[lf]}%`
               : (lf === "width" ? (lw.width >= 180 ? `${lw.width}px` : (state.locale !== "en" ? "Авто" : "Auto")) : `${lw[lf]}px`);
             setLiveSlot(modalMountEl, `[data-live-lim-val="${lf}"]`, lbl, false);
-            const prevStage = modalMountEl.querySelector(".preview-stage");
+            const prevStage = modalMountEl.querySelector('[data-role="limitsPreviewStage"]') || modalMountEl.querySelector(".preview-stage");
+            if (prevStage && typeof rv5BuildLimitsWidgetHtml === "function") {
+              prevStage.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName || "", state.locale !== "en", true);
+            }
+          }
+          invokeIpc("agy-studio:save-settings", { limitsWidget: lw });
+          return;
+        }
+        if (target.getAttribute("data-limits-live-text") === "1" || target.type === "color") {
+          lw[lf] = target.value || "";
+          state.settings.limitsWidget = lw;
+          renderLimitsWidgetMount();
+          if (modalMountEl) {
+            const prevStage = modalMountEl.querySelector('[data-role="limitsPreviewStage"]') || modalMountEl.querySelector(".preview-stage");
             if (prevStage && typeof rv5BuildLimitsWidgetHtml === "function") {
               prevStage.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName || "", state.locale !== "en", true);
             }
@@ -11366,7 +12097,6 @@ function createStudioPanel(options) {
             const badge = pickerMountEl.querySelector(`[data-insp-badge="${inspNumProp}"]`);
             if (badge) badge.textContent = inspNumProp === "bgOpacity" ? `${val}%` : (state.locale !== "en" ? "изменено" : "custom");
           }
-          // Only apply live once value is within valid bounds so typing multi-digit numbers (e.g. "16" or "320") never jumps
           if ((!Number.isFinite(minAttr) || val >= minAttr) && (!Number.isFinite(maxAttr) || val <= maxAttr)) {
             upsertSelectedElementStyle(inspNumProp, val, { preserveDom: true, liveOnly: true, skipUndo: true });
           }
@@ -11376,11 +12106,12 @@ function createStudioPanel(options) {
       const inspProp = target.getAttribute("data-insp-style");
       if (inspProp) {
         const isColor = target.type === "color";
+        const isLiveText = target.getAttribute("data-insp-live-text") === "1";
         if (isColor && pickerMountEl) {
           const hexEl = pickerMountEl.querySelector(`[data-insp-hex="${inspProp}"]`);
           if (hexEl) hexEl.textContent = String(target.value || "").toLowerCase();
         }
-        upsertSelectedElementStyle(inspProp, target.value || "", { preserveDom: isColor, liveOnly: isColor, skipUndo: isColor });
+        upsertSelectedElementStyle(inspProp, target.value || "", { preserveDom: isColor || isLiveText, liveOnly: isColor || isLiveText, skipUndo: isColor || isLiveText });
         return;
       }
       const wsDraftKey = target.getAttribute("data-ws-draft");
@@ -11390,8 +12121,8 @@ function createStudioPanel(options) {
       }
       const agentListKey = target.getAttribute("data-agent-list");
       if (agentListKey) {
-        const arr = String(target.value || "").split(",").map((s) => s.trim()).filter(Boolean);
-        saveChatAgentProfile(Object.assign({}, state.chatAgentProfile, { [agentListKey]: arr, enabled: true }));
+        // Keep raw typing buffer untouched until change/blur so trailing commas aren't wiped mid-edit
+        state.workshop.draft["agentList_" + agentListKey] = target.value || "";
         return;
       }
       const liveInlineField = target.getAttribute("data-live-inline-field");
@@ -11406,6 +12137,14 @@ function createStudioPanel(options) {
     rootEl.addEventListener("keydown", (e) => {
       const target = e ? e.target : null;
       if (!target || typeof target.getAttribute !== "function") return;
+      if (target.getAttribute("data-role") === "settingsSearch" && e.key === "Enter" && !e.isComposing) {
+        const firstHit = modalMountEl ? modalMountEl.querySelector('[data-role="searchHits"] [data-action="jump-search-hit"]') : null;
+        if (firstHit) {
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          handleActionClick(firstHit);
+        }
+        return;
+      }
       if (target.getAttribute("data-role") === "liveEditInput" && e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.isComposing) {
         if (typeof e.preventDefault === "function") e.preventDefault();
         sendLiveEditFromDraft();
@@ -11519,6 +12258,8 @@ function createStudioPanel(options) {
       if (!target || typeof target.closest !== "function") return;
       const stage = target.closest('[data-wp-stage="1"]');
       if (!stage || (stage.classList && stage.classList.contains("is-empty"))) return;
+      // Only zoom preview stage when Ctrl/Cmd is held so normal panel scrolling never shrinks wp.scale!
+      if (!e.ctrlKey && !e.metaKey) return;
       if (typeof e.preventDefault === "function") e.preventDefault();
       const wp = state.appearanceDraft.wallpaper;
       const step = (e.deltaY || 0) < 0 ? 5 : -5;
@@ -11562,35 +12303,24 @@ function createStudioPanel(options) {
         }
       } else if (target.type === "color" && target.getAttribute("data-insp-style")) {
         upsertSelectedElementStyle(target.getAttribute("data-insp-style"), target.value || "");
+      } else if (target.getAttribute("data-insp-live-text") === "1" && target.getAttribute("data-insp-style")) {
+        upsertSelectedElementStyle(target.getAttribute("data-insp-style"), target.value || "");
+      } else if (target.getAttribute("data-limits-live-text") === "1" && target.getAttribute("data-limits-field")) {
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+        lw[target.getAttribute("data-limits-field")] = target.value || "";
+        saveSettingsPatch({ limitsWidget: lw });
+      } else if (target.getAttribute("data-agent-list")) {
+        const agentListKey = target.getAttribute("data-agent-list");
+        const arr = String(target.value || "").split(",").map((s) => s.trim()).filter(Boolean);
+        const keepDef = Boolean(state.settings.agentProfileDefault && state.settings.agentProfileDefault.applyToNewChats);
+        const next = Object.assign({}, state.chatAgentProfile, { [agentListKey]: arr, applyToNewChats: keepDef });
+        const cnt = typeof rv5CountActiveAgentFeatures === "function" ? rv5CountActiveAgentFeatures(next) : arr.length;
+        next.enabled = cnt > 0;
+        saveChatAgentProfile(next, { setAsDefault: keepDef });
       } else if (target.tagName === "SELECT" && target.getAttribute("data-live-inline-field")) {
         const cur = Object.assign({}, state.settings.liveEditInline || {});
         cur[target.getAttribute("data-live-inline-field")] = target.value || "enter";
         saveSettingsPatch({ liveEditInline: cur });
-      }
-    });
-
-    let sheenRaf = 0;
-    let pendingSheenEvt = null;
-    const applyPointerSheen = () => {
-      sheenRaf = 0;
-      const ev = pendingSheenEvt;
-      pendingSheenEvt = null;
-      if (!ev || !ev.target || typeof ev.target.closest !== "function") return;
-      const surface = ev.target.closest(".mini-pill, .med-card, .modal-shell");
-      if (!surface || typeof surface.getBoundingClientRect !== "function" || !surface.style) return;
-      const r = surface.getBoundingClientRect();
-      if (!r || r.width <= 0 || r.height <= 0) return;
-      const mx = Math.round(ev.clientX - r.left);
-      const my = Math.round(ev.clientY - r.top);
-      surface.style.setProperty("--rx-mx", `${mx}px`);
-      surface.style.setProperty("--rx-my", `${my}px`);
-    };
-    rootEl.addEventListener("pointermove", (e) => {
-      pendingSheenEvt = e;
-      if (win && typeof win.requestAnimationFrame === "function") {
-        if (!sheenRaf) sheenRaf = win.requestAnimationFrame(applyPointerSheen);
-      } else {
-        applyPointerSheen();
       }
     });
 
@@ -11618,7 +12348,9 @@ function createStudioPanel(options) {
 
       resizeHandler = () => {
         syncTheme();
+        applyWidgetPosition();
         clampWidgetToViewport();
+        renderLimitsWidgetMount();
         positionPopover();
         positionChatDock();
         if (annotatorCtrl && typeof annotatorCtrl.isOpen === "function" && annotatorCtrl.isOpen() && typeof annotatorCtrl.fitCanvasDisplay === "function") {
@@ -11672,51 +12404,81 @@ function createStudioPanel(options) {
             if (typeof e.stopPropagation === "function") e.stopPropagation();
             if (formatted === "__CANCEL__") {
               state.recordingKeybindingId = "";
+              invokeIpc("agy-studio:set-recording-keybinding", { active: false });
               renderStructure();
               return;
             }
             const kb = Object.assign({}, state.settings.keybindings || {});
-            kb[state.recordingKeybindingId] = formatted === "__CLEAR__" ? "" : formatted;
+            const targetId = state.recordingKeybindingId;
+            const nextVal = formatted === "__CLEAR__" ? "" : formatted;
+            let clearedDup = false;
+            if (nextVal) {
+              for (const k of Object.keys(kb)) {
+                if (k !== targetId && kb[k] === nextVal) {
+                  kb[k] = "";
+                  clearedDup = true;
+                }
+              }
+            }
+            kb[targetId] = nextVal;
             state.recordingKeybindingId = "";
+            invokeIpc("agy-studio:set-recording-keybinding", { active: false });
             saveSettingsPatch({ keybindings: kb });
+            if (clearedDup) {
+              setToast(state.locale !== "en" ? `Клавиша ${nextVal} переназначена (дубликат снят)` : `Reassigned ${nextVal} (previous duplicate cleared)`, false);
+            }
             return;
           }
         }
         // 2. Escape closes Picker / Inspector / Popovers / Studio
         if (e.key === "Escape") {
+          const consumeEsc = () => {
+            if (typeof e.preventDefault === "function") e.preventDefault();
+            if (typeof e.stopPropagation === "function") e.stopPropagation();
+          };
           if (state.pickerActive) {
+            consumeEsc();
             stopElementPicker();
             return;
           }
           if (state.pickerSelected) {
+            consumeEsc();
             state.pickerSelected = null;
+            inspectorDragUndoCaptured = false;
+            if (!state.isOpen) state.appearanceLivePreview = false;
             renderPickerMount();
             return;
           }
           if (state.usagePopOpen) {
+            consumeEsc();
             state.usagePopOpen = false;
             renderModelUsagePopover();
             return;
           }
-          if (state.agentPopoverOpen) {
+          if (state.agentPopoverOpen || state.contextPopoverOpen) {
+            consumeEsc();
             state.agentPopoverOpen = false;
+            state.contextPopoverOpen = false;
             renderChatDockMount();
             return;
           }
           if (state.liveEditOpen) {
+            consumeEsc();
             state.liveEditOpen = false;
             renderPopoverStructure();
           } else if (state.isOpen) {
+            consumeEsc();
             setOpen(false);
           }
           return;
         }
-        // 2.5 Auto-close Agent Tools popover whenever the user submits a message via Enter
-        if (state.agentPopoverOpen && !e.isComposing && e.key === "Enter" && !e.shiftKey && !e.altKey) {
+        // 2.5 Auto-close Agent Tools / Context popovers whenever the user submits a message via Enter
+        if ((state.agentPopoverOpen || state.contextPopoverOpen) && !e.isComposing && e.key === "Enter" && !e.shiftKey && !e.altKey) {
           if (typeof rv5FindNativeComposer === "function") {
             const { editable } = rv5FindNativeComposer(doc);
             if (editable && (e.target === editable || (typeof editable.contains === "function" && editable.contains(e.target)))) {
               state.agentPopoverOpen = false;
+              state.contextPopoverOpen = false;
               renderChatDockMount();
             }
           }
@@ -11726,6 +12488,17 @@ function createStudioPanel(options) {
         if (!e.isComposing && e.key === "Enter" && !e.shiftKey && !e.altKey && typeof rv5FindNativeComposer === "function") {
           const { container, editable } = rv5FindNativeComposer(doc);
           if (editable && (e.target === editable || (typeof editable.contains === "function" && editable.contains(e.target)))) {
+            // Skip when an autocomplete/mention/slash popup is open in the host DOM
+            let hasOpenPopup = false;
+            try {
+              const popups = doc.querySelectorAll('[role="listbox"], [role="menu"]');
+              for (let pi = 0; popups && pi < popups.length; pi += 1) {
+                const p = popups[pi];
+                if (!p || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(p))) continue;
+                if (!isHiddenAncestor(p, doc.body)) { hasOpenPopup = true; break; }
+              }
+            } catch (_e) {}
+            if (hasOpenPopup) return;
             const runningNow = isAgentRunningNow();
             const hasCtrl = Boolean(e.ctrlKey || e.metaKey);
             if (le && le.enabled && runningNow) {
@@ -11740,7 +12513,7 @@ function createStudioPanel(options) {
                   sendInlineLiveEditFromComposer();
                 }
               }
-            } else if (!runningNow && !hasCtrl) {
+            } else if (!runningNow) {
               captureAndRecordUserSubmission(container, editable, "chat");
             }
           }
@@ -11873,6 +12646,7 @@ function createStudioPanel(options) {
       };
       doc.addEventListener("pointerdown", outsidePopoverHandler, true);
 
+      let lastUsagePopInterceptAt = 0;
       modelTriggerClickHandler = (e) => {
         if (state.destroyed || !e || (typeof e.button === "number" && e.button !== 0)) return;
         if (hostEl && e.target && (e.target === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(e.target)))) return;
@@ -11898,6 +12672,7 @@ function createStudioPanel(options) {
           scheduleQuotaDomScrapeBurst();
           return;
         }
+        lastUsagePopInterceptAt = Date.now();
         if (typeof e.preventDefault === "function") e.preventDefault();
         if (typeof e.stopPropagation === "function") e.stopPropagation();
         if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
@@ -11913,7 +12688,17 @@ function createStudioPanel(options) {
         }
         renderModelUsagePopover();
       };
+      modelTriggerSuppressClickHandler = (e) => {
+        if (!e || Date.now() - lastUsagePopInterceptAt > 400) return;
+        const trig = e.target && typeof e.target.closest === "function" ? e.target.closest('[data-testid="model-selector-trigger"]') : null;
+        if (trig) {
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          if (typeof e.stopPropagation === "function") e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+        }
+      };
       doc.addEventListener("pointerdown", modelTriggerClickHandler, true);
+      doc.addEventListener("click", modelTriggerSuppressClickHandler, true);
     }
   }
 
@@ -11943,6 +12728,7 @@ function createStudioPanel(options) {
     styleEl.textContent = stylesFn() + (typeof rv5BuildExtraShadowCss === "function" ? "\n" + rv5BuildExtraShadowCss() : "");
     rootEl = doc.createElement("div");
     rootEl.className = "studio-root";
+    rootEl.setAttribute("data-rudex-ignore", "1");
     widgetMountEl = doc.createElement("div");
     widgetMountEl.className = "widget-wrap";
     limitsMountEl = doc.createElement("div");
@@ -12011,8 +12797,24 @@ function createStudioPanel(options) {
         const tEl = e.target;
         if (!tEl || typeof tEl.closest !== "function" || tEl.closest("button")) return;
         if (!tEl.closest('[data-limits-drag="1"]')) return;
-        const rect = typeof limitsMountEl.getBoundingClientRect === "function" ? limitsMountEl.getBoundingClientRect() : { left: 20, top: 44, width: 240, height: 60 };
-        limitsDragState = { startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top, lastX: rect.left, lastY: rect.top, moved: false };
+        if (typeof limitsMountEl.setPointerCapture === "function" && e.pointerId !== undefined) {
+          try { limitsMountEl.setPointerCapture(e.pointerId); } catch (_e) {}
+        }
+        const boxEl = typeof limitsMountEl.querySelector === "function" ? limitsMountEl.querySelector(".rx-limits-box") : null;
+        const targetEl = boxEl || limitsMountEl;
+        const rect = typeof targetEl.getBoundingClientRect === "function" ? targetEl.getBoundingClientRect() : { left: 20, top: 44, width: 240, height: 60 };
+        limitsDragState = {
+          pointerId: e.pointerId,
+          startX: e.clientX,
+          startY: e.clientY,
+          origLeft: rect.left,
+          origTop: rect.top,
+          width: rect.width || 240,
+          height: rect.height || 60,
+          lastX: rect.left,
+          lastY: rect.top,
+          moved: false,
+        };
       });
     }
 
@@ -12147,21 +12949,51 @@ function createStudioPanel(options) {
   function setOpen(nextOpen, opts) {
     const next = Boolean(nextOpen);
     if (next && opts && typeof opts === "object") {
-      if (opts.tab) {
-        const reqTab = String(opts.tab);
-        if (reqTab === "monitor" || reqTab === "live-edits") {
-          state.activeTab = "settings";
-          if (!opts.subTab) {
-            state.settingsSubTab = "widget";
-            state.widgetSubSection = "limits";
-          }
+      const reqTab = opts.tab ? String(opts.tab) : "";
+      const reqSub = opts.subTab ? String(opts.subTab) : "";
+      if (reqTab === "monitor") {
+        state.activeTab = "widgets";
+        state.widgetSubSection = "monitor";
+      } else if (reqTab === "live-edits") {
+        state.activeTab = "persona";
+        state.agentSubTab = "tools";
+      } else if (reqTab === "settings" && reqSub === "widget") {
+        state.activeTab = "widgets";
+        state.widgetSubSection = opts.widgetSub ? String(opts.widgetSub) : "mini";
+      } else if (reqTab === "settings" && reqSub === "export") {
+        state.activeTab = "widgets";
+        state.widgetSubSection = "monitor";
+      } else if (reqTab === "settings" && reqSub === "history") {
+        state.activeTab = "history";
+      } else if (reqTab === "settings" && reqSub === "workshop") {
+        state.activeTab = "workshop";
+      } else if (reqTab) {
+        state.activeTab = reqTab;
+        if (reqSub && reqTab === "settings") state.settingsSubTab = reqSub;
+      } else if (reqSub) {
+        if (reqSub === "widget") {
+          state.activeTab = "widgets";
+          state.widgetSubSection = "mini";
+        } else if (reqSub === "export") {
+          state.activeTab = "widgets";
+          state.widgetSubSection = "monitor";
+        } else if (reqSub === "history") {
+          state.activeTab = "history";
+        } else if (reqSub === "workshop") {
+          state.activeTab = "workshop";
         } else {
-          state.activeTab = reqTab;
+          state.activeTab = "settings";
+          state.settingsSubTab = reqSub;
         }
       }
-      if (opts.subTab) state.settingsSubTab = String(opts.subTab);
+      if (opts.widgetSub) state.widgetSubSection = String(opts.widgetSub);
+      if (opts.agentSub) state.agentSubTab = String(opts.agentSub);
       if (opts.appSubTab) state.appearanceSubTab = String(opts.appSubTab);
       if (typeof opts.dockedRight === "boolean") state.appearanceDockedRight = opts.dockedRight;
+    }
+    if (!next && state.recordingKeybindingId) {
+      state.recordingKeybindingId = "";
+      invokeIpc("agy-studio:set-recording-keybinding", { active: false });
     }
     if (!next && (state.appearanceLivePreview || state.activeTab === "appearance")) {
       cleanupTempUploadedMedia();
@@ -12186,25 +13018,20 @@ function createStudioPanel(options) {
       applyThemeFastToHost(state.appearanceDraft);
       if (state.appearanceSubTab === "wallpaper") refreshMediaLibrary();
     }
-    if (next && state.activeTab === "settings" && state.settingsSubTab === "widget") {
+    if (next && state.activeTab === "widgets") {
       loadSystemFontsOnce();
       invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
         if (!state.destroyed && qs) applyQuotaSummary(qs);
       });
     }
-    if (next && state.activeTab === "settings" && state.settingsSubTab === "workshop") {
+    if (next && state.activeTab === "workshop") {
       refreshWorkshopData();
     }
-    if (next && state.activeTab === "settings" && state.settingsSubTab === "history") {
+    if (next && state.activeTab === "history") {
       refreshInputHistory();
     }
-    if (next && state.activeTab === "live-edits") {
+    if (next && state.activeTab === "persona") {
       refreshLiveEdits();
-    }
-    if (next && state.activeTab === "settings" && state.settingsSubTab === "export") {
-      invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
-        if (!state.destroyed && qs) applyQuotaSummary(qs);
-      });
     }
     renderStructure();
   }
@@ -12259,14 +13086,23 @@ function createStudioPanel(options) {
       cancelPendingResizeHold(studioResizeState, sh);
       studioResizeState = null;
     }
-    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftRestoreTimer, titleBarBootTimer]) {
+    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftRestoreTimer, titleBarBootTimer, inspSaveTimer]) {
       if (timer && win && typeof win.clearTimeout === "function") win.clearTimeout(timer);
     }
     for (const qt of quotaScrapeTimers) {
       if (qt && win && typeof win.clearTimeout === "function") win.clearTimeout(qt);
     }
     quotaScrapeTimers = [];
-    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftRestoreTimer = titleBarBootTimer = null;
+    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftRestoreTimer = titleBarBootTimer = inspSaveTimer = null;
+    if (dockComposerObserver && typeof dockComposerObserver.disconnect === "function") {
+      try { dockComposerObserver.disconnect(); } catch (_e) {}
+      dockComposerObserver = null;
+      dockObservedComposerEl = null;
+    }
+    if (state.recordingKeybindingId) {
+      state.recordingKeybindingId = "";
+      invokeIpc("agy-studio:set-recording-keybinding", { active: false });
+    }
     restoreAllThinkingNodes();
     thinkingCache.clear();
     thinkingInflight.clear();
@@ -12305,6 +13141,7 @@ function createStudioPanel(options) {
       if (docInputHandler) doc.removeEventListener("input", docInputHandler, true);
       if (outsidePopoverHandler) doc.removeEventListener("pointerdown", outsidePopoverHandler, true);
       if (modelTriggerClickHandler) doc.removeEventListener("pointerdown", modelTriggerClickHandler, true);
+      if (modelTriggerSuppressClickHandler) doc.removeEventListener("click", modelTriggerSuppressClickHandler, true);
     }
     revokeCachedMedia("");
     mediaLoadInflight.clear();

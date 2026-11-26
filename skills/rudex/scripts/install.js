@@ -406,7 +406,7 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "4.4.7",
+    version: pkg.version || "5.0.0",
     dictEntries,
     dynamicRulesCount,
     commitSha: commitMeta.commitSha,
@@ -675,13 +675,19 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
   // Sync hooks.json (using hook-runner.cmd fallback on Windows if node isn't on global PATH)
   const hooksObj = JSON.parse(fs.readFileSync(path.join(repoRoot, "hooks.json"), "utf8"));
   if (process.platform === "win32" && !hasSystemNode() && hooksObj && typeof hooksObj === "object") {
+    const rewriteHookCmd = (entry) => {
+      if (entry && typeof entry.command === "string" && /rudex-hook\.js\b/.test(entry.command)) {
+        entry.command = "cmd /c skills\\rudex\\scripts\\hook-runner.cmd";
+      }
+    };
     for (const group of Object.values(hooksObj)) {
       if (!group || typeof group !== "object") continue;
       for (const hookList of Object.values(group)) {
         if (!Array.isArray(hookList)) continue;
         for (const item of hookList) {
-          if (item && typeof item.command === "string" && /rudex-hook\.js\b/.test(item.command)) {
-            item.command = "cmd /c skills\\rudex\\scripts\\hook-runner.cmd";
+          rewriteHookCmd(item);
+          if (item && Array.isArray(item.hooks)) {
+            for (const sub of item.hooks) rewriteHookCmd(sub);
           }
         }
       }
@@ -701,7 +707,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "4.4.7";
+    let pkgVer = "5.0.0";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {
@@ -837,6 +843,7 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
     path.join(distDir, "i18nData", "zip-builder.js"),
     path.join(distDir, "i18nData", "updater-core.js"),
     path.join(distDir, "i18nData", "thinking-translator.js"),
+    path.join(distDir, "i18nData", "agy-workshop.js"),
   ]);
 
   return { unpackedCount, patchResult, cleanAsarPath, stampVersion, asarLocked };
@@ -883,7 +890,7 @@ function writeApplyRestartCmd(info, opts = {}) {
     "echo Restarting Antigravity to apply Rudex...",
     "taskkill /IM Antigravity.exe >nul 2>&1",
     "ping -n 3 127.0.0.1 >nul",
-    "taskkill /F /T /IM Antigravity.exe >nul 2>&1",
+    "taskkill /F /IM Antigravity.exe >nul 2>&1",
     "for /L %%I in (1,1,12) do (",
     '  tasklist /FI "IMAGENAME eq Antigravity.exe" 2>nul | find /I "Antigravity.exe" >nul',
     "  if errorlevel 1 goto after_exit",
