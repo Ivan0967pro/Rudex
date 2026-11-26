@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "rudex",
   "displayName": "Rudex",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "Rudex 5.0 — студия кастомизации и апгрейд Google Antigravity 2.0: стили UI (Claude Code, OpenAI Codex, OpenCode), 6-раздельная Studio с живым предпросмотром, 14+ тем, 4 слота шрифтов, обои и «Прицел», динамические лимиты, уведомления о восстановлении квот (включая закрытый Antigravity) и автопродолжение чатов, контекст модели, правки на лету с карандашом, черновики, «Пульт агента», «Мастерская AGY», полная русификация и бесплатный перевод мыслей.",
   "logo": "assets/logo.svg",
   "author": {

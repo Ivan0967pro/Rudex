@@ -4,7 +4,7 @@
   <p><strong>Студия кастомизации, стили Claude Code / Codex / OpenCode, живые лимиты, контекст модели, правки на лету и полная русификация Google Antigravity 2.0</strong></p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-5.0.0-d97757?style=flat-square" alt="Version 5.0.0" />
+    <img src="https://img.shields.io/badge/version-5.0.1-d97757?style=flat-square" alt="Version 5.0.1" />
     <img src="https://img.shields.io/badge/Antigravity-2.0-262624?style=flat-square" alt="Google Antigravity 2.0" />
     <img src="https://img.shields.io/badge/UI%20Styles-Claude%20Code%20%7C%20Codex%20%7C%20OpenCode-5e5ce6?style=flat-square" alt="UI Styles" />
     <img src="https://img.shields.io/badge/locale-RU%20%E2%86%94%20EN-788c5d?style=flat-square" alt="RU / EN" />
@@ -20,9 +20,9 @@
 irm https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.ps1 | iex
 ```
 
-Скрипт скачает свежую версию **Rudex 5.0.0**, установит или обновит плагин в `%USERPROFILE%\.gemini\config\plugins\rudex`, аккуратно пропатчит интерфейс и перезапустит Antigravity.
+Скрипт скачает свежую версию **Rudex 5.0.1**, установит или обновит плагин в `%USERPROFILE%\.gemini\config\plugins\rudex`, аккуратно пропатчит интерфейс и перезапустит Antigravity.
 
-> **Уже стоит Rudex 4.x?** Обновление до **v5.0.0** прилетит автоматически прямо внутри Antigravity (кнопка **«Обновить сейчас»** в уведомлении или **Система → Проверить обновления**). Все настройки, темы, обои, характеры чатов, статистика TPS и квоты сохраняются в `%APPDATA%\Antigravity\`.
+> **Уже стоит Rudex 4.x или 5.0.0?** Обновление до **v5.0.1** прилетит автоматически прямо внутри Antigravity (кнопка **«Обновить сейчас»** в уведомлении или **Система → Проверить обновления**). Все настройки, темы, обои, характеры чатов, статистика TPS и квоты сохраняются в `%APPDATA%\Antigravity\`.
 
 ---
 
@@ -103,6 +103,15 @@ irm https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.ps1 | iex
 - **Установка / обновление:** запустите **[`Install-Rudex.cmd`](./Install-Rudex.cmd)** или `powershell -ExecutionPolicy Bypass -File .\install.ps1 -RestartApp`.
 - **Проверка без изменений:** `node skills/rudex/scripts/install.js --dry-run` и `node skills/rudex/scripts/install.js --status`.
 - **Полное удаление:** удалите плагин **Rudex** в Antigravity и перезапустите приложение, либо запустите **[`Uninstall-Rudex.cmd`](./Uninstall-Rudex.cmd)** / `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall -RestartApp`.
+
+---
+
+## Что нового в v5.0.1
+
+- **Скрытие кнопки «Инструменты» над полем ввода** — теперь можно отключить в **Виджеты → Мини-окно**, **Агент → Инструменты** или прямо из всплывающего меню самой кнопки (индикатор контекста модели работает независимо).
+- **Кликабельные уведомления на рабочий стол (включая закрытый Antigravity)** — системное уведомление при восстановлении лимитов `5ч / Неделя` (вкл. по умолчанию, кнопка **«🔔 Тест»** в **Виджеты → Лимиты**, работает даже при закрытом Antigravity через тихий планировщик Windows). Клик по уведомлению о завершении задачи агентом или восстановлении лимитов сразу открывает и разворачивает Antigravity.
+- **Автопродолжение чата после восстановления лимитов (выкл. по умолчанию)** — если агент остановился из-за исчерпания квоты, после сброса он сам продолжит работу (через «Повторить» или настраиваемый промпт). Выбор области: **Все чаты**, **Выбранные** или **Текущий чат** + ручная постановка в очередь.
+- **Тихое восстановление без всплывающих окон PowerShell** — все фоновые наблюдатели и перезапуски переведены на невидимый `wscript.exe` (0 консольных окон), а `install.js` отслеживает изменения `app.asar` по SHA-256 и аккуратно накатывает Rudex поверх сторонних патчеров и анблокеров без потери их правок.
 
 ---
 
