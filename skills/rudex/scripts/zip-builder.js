@@ -1136,7 +1136,7 @@ async function buildChatExportArchive(options = {}) {
     includeFullLog = false,
     includeThinking = false,
     locale = "ru",
-    pluginVersion = "5.0.1",
+    pluginVersion = "5.0.2",
     outPath = "",
   } = options;
 

@@ -825,12 +825,35 @@ function createDomTranslator(options) {
   const pendingNodes = new Set();
   const pendingAttrElements = new Set();
   let flushScheduled = false;
+  let titleDirty = false;
+  let lastCheckedDocTitle = null;
   let observer = null;
+
+  function isInsideFastIgnoredSubtree(node) {
+    let cur = node && node.nodeType === 1 ? node : (node && (node.parentElement || node.parentNode));
+    let depth = 0;
+    while (cur && depth < 10) {
+      if (cur.nodeType === 1) {
+        if (cur.id === "rudex-studio-host" || cur.id === "agy-ru-studio-host") return true;
+        const tag = cur.tagName ? cur.tagName.toUpperCase() : "";
+        if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SVG" || tag === "CANVAS" || tag === "CODE" || tag === "PRE" || tag === "SCRIPT" || tag === "STYLE") {
+          return true;
+        }
+        const ce = getAttrSafe(cur, "contenteditable");
+        if (ce === "true" || ce === "") return true;
+      }
+      cur = cur.parentElement || cur.parentNode;
+      depth += 1;
+    }
+    return false;
+  }
 
   function flushPending() {
     flushScheduled = false;
     const nodes = Array.from(pendingNodes);
     const attrs = Array.from(pendingAttrElements);
+    const shouldCheckTitle = titleDirty || (doc && typeof doc.title === "string" && doc.title !== lastCheckedDocTitle);
+    titleDirty = false;
     pendingNodes.clear();
     pendingAttrElements.clear();
 
@@ -840,7 +863,10 @@ function createDomTranslator(options) {
     for (let i = 0; i < nodes.length; i++) {
       walkSubtree(nodes[i]);
     }
-    processDocumentTitle();
+    if (shouldCheckTitle) {
+      processDocumentTitle();
+      if (doc && typeof doc.title === "string") lastCheckedDocTitle = doc.title;
+    }
   }
 
   function scheduleFlush() {
@@ -865,6 +891,7 @@ function createDomTranslator(options) {
           const t = m.target;
           if (t && t.nodeType === 3) {
             if (textLastWritten.get(t) === t.nodeValue) continue;
+            if (isInsideFastIgnoredSubtree(t)) continue;
             pendingNodes.add(t);
           }
         } else if (m.type === "attributes") {
@@ -875,17 +902,22 @@ function createDomTranslator(options) {
             if (lastMap && attrName && lastMap.get(attrName) === getAttrSafe(el, attrName)) {
               continue;
             }
+            if (el.id === "rudex-studio-host" || el.id === "agy-ru-studio-host") continue;
             pendingAttrElements.add(el);
           }
         } else if (m.type === "childList") {
           if (m.target && m.target.nodeType === 1 && m.target.tagName === "TITLE") {
+            titleDirty = true;
             scheduleFlush();
+            continue;
           }
+          if (isInsideFastIgnoredSubtree(m.target)) continue;
           let addedTextNode = false;
           if (m.addedNodes) {
             for (let j = 0; j < m.addedNodes.length; j++) {
               const an = m.addedNodes[j];
-              if (an && an.nodeType === 3) addedTextNode = true;
+              if (!an) continue;
+              if (an.nodeType === 3) addedTextNode = true;
               pendingNodes.add(an);
             }
           }

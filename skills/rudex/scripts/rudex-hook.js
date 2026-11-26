@@ -446,7 +446,7 @@ function runLiveEditsEngine(userDataDir, payload, injectSteps) {
     }
 
     let fallbackMatch = false;
-    if (!exactMatch && it.fallbackAny === true && age <= FALLBACK_MAX_AGE_MS && !isSubagent && stepNum <= 6) {
+    if (!exactMatch && it.fallbackAny === true && age <= FALLBACK_MAX_AGE_MS && !isSubagent && stepNum <= 24) {
       const map = getChatsMap();
       const isExistingOtherChat = Boolean(convId && map[convId] && itemChat && itemChat !== convId);
       if (!isExistingOtherChat) {

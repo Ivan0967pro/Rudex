@@ -1685,7 +1685,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "5.0.1", dictEntries: 4065, dynamicRulesCount: 479 };
+    : { version: "5.0.2", dictEntries: 4065, dynamicRulesCount: 479 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1987,7 +1987,18 @@ function createStudioPanel(options) {
   let draftJustSubmittedUntil = 0;
   let lastDraftObsSig = "";
   let liveEditSendInFlight = false;
+  let liveEditClearToken = 0;
+  let userTypedAfterLiveEdit = false;
+  let lastLiveEditSendAt = 0;
+  let lastLiveEditSendText = "";
   let limitsDragState = null;
+  let limitsResizeState = null;
+  let limitsSaveTimer = null;
+  let limitsLiveEditUntil = 0;
+  let studioUiSaveTimer = null;
+  let studioUiLiveEditUntil = 0;
+  let quotaAutoSaveTimer = null;
+  let quotaAutoLiveEditUntil = 0;
   let pickerMoveHandler = null;
   let pickerClickHandler = null;
   let thinkingScanTimer = null;
@@ -2264,6 +2275,51 @@ function createStudioPanel(options) {
           rootEl.style.removeProperty(themePropNames[i]);
         }
       }
+
+      // Sync exact composer surface/glass/border/blur/radius tokens so the "Tools" chip & context pill
+      // share the EXACT same frosted glass material & gradient as the chat input box below them
+      try {
+        const isCompLight = appNext === "light";
+        const wpObj = activeApp && activeApp.wallpaper ? activeApp.wallpaper : null;
+        const hasWpActive = Boolean(wpObj && wpObj.type && wpObj.type !== "none" && (wpObj.type === "gradient" || wpObj.mediaUrl));
+        const usObj = activeApp && activeApp.uiStyle ? activeApp.uiStyle : {};
+        const compStyle = usObj.composer || usObj.preset || "antigravity";
+        const themeVars = activeApp.presetId === "custom"
+          ? { canvasBg: activeApp.canvasBg, cardBg: activeApp.cardBg, fgColor: isCompLight ? "#141418" : "#ececef", borderColor: isCompLight ? "rgba(17,18,24,0.14)" : "rgba(255,255,255,0.10)" }
+          : (preset && preset.vars ? preset.vars : null);
+        let baseCard = hasThemePalette && themeVars && themeVars.cardBg
+          ? themeVars.cardBg
+          : (compStyle === "claude-code" ? (isCompLight ? "#faf9f5" : "#262624") : (compStyle === "codex" ? (isCompLight ? "#ffffff" : "#18181b") : (isCompLight ? "#faf9f5" : "#1f1e1d")));
+        if (hasThemePalette && themeVars && themeVars.canvasBg && typeof teGetYiq === "function") {
+          if (Math.abs(teGetYiq(baseCard) - teGetYiq(themeVars.canvasBg)) < 14) {
+            baseCard = spMixHexColor(baseCard, isCompLight ? "#000000" : "#ffffff", isCompLight ? 0.03 : 0.045);
+          }
+        }
+        const glassPct = Math.min(94, Math.max(78, Number(activeApp.glassOpacity) || 86));
+        const compBgCss = hasWpActive
+          ? (typeof teHexToRgba === "function" ? teHexToRgba(baseCard, glassPct) : `color-mix(in srgb, ${baseCard} ${glassPct}%, transparent)`)
+          : baseCard;
+        const compBrdCss = hasThemePalette && themeVars && themeVars.borderColor
+          ? `color-mix(in srgb, ${themeVars.fgColor || (isCompLight ? "#141418" : "#ececef")} ${isCompLight ? "14%" : "15%"}, ${themeVars.borderColor})`
+          : (isCompLight ? "rgba(31, 30, 29, 0.16)" : "rgba(250, 249, 245, 0.16)");
+        const compBlurVal = hasWpActive ? Math.max(10, Number(activeApp.glassBlur) || 16) : 14;
+        const rawCompRad = Number(usObj.composerRadius) > 0
+          ? Number(usObj.composerRadius)
+          : (compStyle === "claude-code" ? 14 : (compStyle === "codex" ? 20 : (compStyle === "opencode" ? 6 : 12)));
+        const chipRadVal = activeApp.corners && activeApp.corners.mode === "linked" && Number(activeApp.corners.all) === 0
+          ? 0
+          : Math.max(6, Math.min(11, Math.round(rawCompRad * 0.72)));
+        const compGradImg = activeApp.presetId === "liquid-glass"
+          ? (isCompLight
+              ? "linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.08) 100%)"
+              : "linear-gradient(180deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.02) 100%)")
+          : "none";
+        rootEl.style.setProperty("--rx-comp-bg", compBgCss);
+        rootEl.style.setProperty("--rx-comp-bg-image", compGradImg);
+        rootEl.style.setProperty("--rx-comp-border", compBrdCss);
+        rootEl.style.setProperty("--rx-comp-blur", `${compBlurVal}px`);
+        rootEl.style.setProperty("--rx-comp-radius", `${chipRadVal}px`);
+      } catch (_e) {}
       if (prevAppTheme !== appNext && state.liveEdits && state.liveEdits.length > 0) {
         syncLiveChatBubbles(false);
       }
@@ -2400,12 +2456,110 @@ function createStudioPanel(options) {
     });
   }
 
+  function isControlActivelyFocused(attrName, prefix) {
+    try {
+      const ae = (shadowRoot && shadowRoot.activeElement) || (doc && doc.activeElement) || null;
+      if (!ae || typeof ae.getAttribute !== "function") return false;
+      const v = ae.getAttribute(attrName);
+      if (v === null) return false;
+      if (prefix) return String(v).startsWith(prefix);
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function isLimitsLiveEditingNow() {
+    if (limitsResizeState || limitsDragState) return true;
+    if (Date.now() < limitsLiveEditUntil) return true;
+    return isControlActivelyFocused("data-limits-field", "");
+  }
+
+  function isStudioUiLiveEditingNow() {
+    if (studioResizeState || widgetResizeState) return true;
+    if (Date.now() < studioUiLiveEditUntil) return true;
+    return isControlActivelyFocused("data-app-field", "studioUi.");
+  }
+
+  function isQuotaAutoLiveEditingNow() {
+    if (Date.now() < quotaAutoLiveEditUntil) return true;
+    return isControlActivelyFocused("data-quota-auto-field", "");
+  }
+
+  function flushDebouncedSettingsSave(kind, patch) {
+    const now = Date.now();
+    if (kind === "limits") {
+      if (limitsSaveTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(limitsSaveTimer);
+      limitsSaveTimer = null;
+      limitsLiveEditUntil = now + 420;
+    } else if (kind === "studioUi") {
+      if (studioUiSaveTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(studioUiSaveTimer);
+      studioUiSaveTimer = null;
+      studioUiLiveEditUntil = now + 420;
+    } else if (kind === "quotaAuto") {
+      if (quotaAutoSaveTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(quotaAutoSaveTimer);
+      quotaAutoSaveTimer = null;
+      quotaAutoLiveEditUntil = now + 420;
+    }
+    const seq = ++state.settingsSaveSeq;
+    return invokeIpc("agy-studio:save-settings", patch).then((res) => {
+      if (state.destroyed || seq !== state.settingsSaveSeq) return res;
+      if (res && res.settings) {
+        const sig = computeSettingsStateSig(res);
+        if (sig) state.lastRemoteStateSig = sig;
+      }
+      return res;
+    });
+  }
+
+  function scheduleDebouncedSettingsSave(kind, patch, delayMs) {
+    const now = Date.now();
+    const wait = typeof delayMs === "number" ? delayMs : 160;
+    if (kind === "limits") {
+      limitsLiveEditUntil = now + Math.max(850, wait + 600);
+      if (limitsSaveTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(limitsSaveTimer);
+      if (win && typeof win.setTimeout === "function") {
+        limitsSaveTimer = win.setTimeout(() => {
+          limitsSaveTimer = null;
+          flushDebouncedSettingsSave("limits", patch);
+        }, wait);
+      } else {
+        flushDebouncedSettingsSave("limits", patch);
+      }
+    } else if (kind === "studioUi") {
+      studioUiLiveEditUntil = now + Math.max(850, wait + 600);
+      if (studioUiSaveTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(studioUiSaveTimer);
+      if (win && typeof win.setTimeout === "function") {
+        studioUiSaveTimer = win.setTimeout(() => {
+          studioUiSaveTimer = null;
+          flushDebouncedSettingsSave("studioUi", patch);
+        }, wait);
+      } else {
+        flushDebouncedSettingsSave("studioUi", patch);
+      }
+    } else if (kind === "quotaAuto") {
+      quotaAutoLiveEditUntil = now + Math.max(850, wait + 600);
+      if (quotaAutoSaveTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(quotaAutoSaveTimer);
+      if (win && typeof win.setTimeout === "function") {
+        quotaAutoSaveTimer = win.setTimeout(() => {
+          quotaAutoSaveTimer = null;
+          flushDebouncedSettingsSave("quotaAuto", patch);
+        }, wait);
+      } else {
+        flushDebouncedSettingsSave("quotaAuto", patch);
+      }
+    }
+  }
+
   function applyRemoteState(remote, forceRender) {
     if (!remote || typeof remote !== "object") return;
     const sig = computeSettingsStateSig(remote);
     if (!forceRender && sig && sig === state.lastRemoteStateSig) return;
     if (sig) state.lastRemoteStateSig = sig;
 
+    const editingLimits = !forceRender && isLimitsLiveEditingNow();
+    const editingStudioUi = !forceRender && isStudioUiLiveEditingNow();
+    const editingQuotaAuto = !forceRender && isQuotaAutoLiveEditingNow();
     const prevThinkRu = Boolean(state.settings.thinkingInRussian);
     if (typeof remote.appZoomSupported === "boolean") {
       state.appZoomSupported = remote.appZoomSupported;
@@ -2455,7 +2609,7 @@ function createStudioPanel(options) {
       if (Array.isArray(rawSettings.appearanceProfiles)) {
         state.settings.appearanceProfiles = rawSettings.appearanceProfiles.slice(0, 12);
       }
-      if (rawSettings.studioUi && typeof rawSettings.studioUi === "object") {
+      if (rawSettings.studioUi && typeof rawSettings.studioUi === "object" && !editingStudioUi) {
         state.settings.studioUi = spNormalizeStudioUi(rawSettings.studioUi);
       }
       if (Array.isArray(rawSettings.customLabels)) {
@@ -2464,7 +2618,7 @@ function createStudioPanel(options) {
           try { translator.setCustomLabels(state.settings.customLabels); } catch (_e) {}
         }
       }
-      if (rawSettings.limitsWidget && typeof rawSettings.limitsWidget === "object") {
+      if (rawSettings.limitsWidget && typeof rawSettings.limitsWidget === "object" && !editingLimits) {
         state.settings.limitsWidget = typeof rv5NormalizeLimitsWidget === "function"
           ? rv5NormalizeLimitsWidget(rawSettings.limitsWidget)
           : Object.assign({}, state.settings.limitsWidget, rawSettings.limitsWidget);
@@ -2478,8 +2632,9 @@ function createStudioPanel(options) {
         state.settings.zenMode = rawSettings.zenMode;
       }
       if (rawSettings.liveEditInline && typeof rawSettings.liveEditInline === "object") {
+        const prevUrgent = Boolean(state.settings.liveEditInline && state.settings.liveEditInline.urgentIntercept);
         state.settings.liveEditInline = Object.assign({}, state.settings.liveEditInline, rawSettings.liveEditInline);
-        if (typeof rawSettings.liveEditInline.urgentIntercept === "boolean" && !state.inlineUrgent) {
+        if (typeof rawSettings.liveEditInline.urgentIntercept === "boolean" && rawSettings.liveEditInline.urgentIntercept !== prevUrgent) {
           state.inlineUrgent = rawSettings.liveEditInline.urgentIntercept;
         }
       }
@@ -2491,7 +2646,7 @@ function createStudioPanel(options) {
       if (Array.isArray(rawSettings.customAgentPresets)) {
         state.settings.customAgentPresets = rawSettings.customAgentPresets.slice(0, 20);
       }
-      if (rawSettings.quotaAutomation && typeof rawSettings.quotaAutomation === "object") {
+      if (rawSettings.quotaAutomation && typeof rawSettings.quotaAutomation === "object" && !editingQuotaAuto) {
         state.settings.quotaAutomation = typeof rv5NormalizeQuotaAutomation === "function"
           ? rv5NormalizeQuotaAutomation(rawSettings.quotaAutomation)
           : Object.assign({}, state.settings.quotaAutomation, rawSettings.quotaAutomation);
@@ -2517,7 +2672,12 @@ function createStudioPanel(options) {
       state.quotaSummary = remote.quotaSummary;
     }
     if (typeof remote.personaFilePath === "string" && remote.personaFilePath) state.personaFilePath = remote.personaFilePath;
-    renderStructure();
+    if (editingLimits || editingStudioUi || editingQuotaAuto) {
+      syncTheme();
+      if (!editingLimits) renderLimitsWidgetMount();
+    } else {
+      renderStructure();
+    }
     if (state.settings.thinkingInRussian !== prevThinkRu) {
       if (state.settings.thinkingInRussian) scanThinkingBlocks(true);
       else restoreAllThinkingNodes();
@@ -3540,7 +3700,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "5.0.1";
+    const instVer = (inst && inst.version) || pluginMeta.version || "5.0.2";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -3586,9 +3746,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "5.0.1" },
+          installed: realU.installed || { version: pluginMeta.version || "5.0.2" },
           remote: {
-            version: pluginMeta.version || "5.0.1",
+            version: pluginMeta.version || "5.0.2",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -4311,12 +4471,23 @@ function createStudioPanel(options) {
     return isAuth;
   }
 
+  function isVoiceDictationActive() {
+    if (!doc || typeof doc.querySelector !== "function") return false;
+    try {
+      if (doc.querySelector('[data-rudex-comp-mic-active="1"]')) return true;
+      const actMic = doc.querySelector('button[aria-pressed="true"][aria-label*="dictat" i], button[aria-pressed="true"][aria-label*="record" i], button[aria-pressed="true"][aria-label*="запис" i], button[aria-label*="stop dictat" i], button[aria-label*="stop record" i], button[aria-label*="останов" i][aria-label*="запис" i]');
+      if (actMic && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(actMic))) return true;
+    } catch (_e) {}
+    return false;
+  }
+
   function pollStream() {
     if (state.destroyed) return;
     if (doc && doc.hidden) return;
     const now = Date.now();
-    const isBusy = state.telemetry.isGenerating || (now - state.lastDomMutationAt < 3000);
-    if (!isBusy && now - state.lastPollAt < 650) return;
+    const dictatingNow = isVoiceDictationActive();
+    const isBusy = state.telemetry.isGenerating || (!dictatingNow && now - state.lastDomMutationAt < 3000);
+    if (!isBusy && now - state.lastPollAt < (dictatingNow ? 550 : 650)) return;
     state.lastPollAt = now;
 
     if (syncAuthScreenVisibility()) {
@@ -4324,27 +4495,27 @@ function createStudioPanel(options) {
     }
 
     sampleStreamTick();
-    scrapeDomQuotaSnapshot(false);
+    if (!dictatingNow) scrapeDomQuotaSnapshot(false);
     pollQuotaSummaryIfDue(now);
     checkAutoContinueMonitoring(now);
-    if (state.settings.thinkingInRussian) scanThinkingBlocks(false);
+    if (state.settings.thinkingInRussian && !dictatingNow) scanThinkingBlocks(false);
     updateLiveDom();
     syncChatDockLiveState();
-    if (now - (state.lastHostMetricsAt || 0) > 900) {
+    if (!dictatingNow && now - (state.lastHostMetricsAt || 0) > 900) {
       state.lastHostMetricsAt = now;
       const hm = measureHostUiMetrics();
       const mSig = `${hm.vw}|${hm.vh}|${hm.drawerRightReserve}|${hm.sidebarRight}|${hm.headerTop}|${hm.headerBottom}|${hm.headerRightClear}|${hm.composerLeft}|${hm.composerRight}`;
       if (mSig !== state.lastHostMetricsSig) {
         state.lastHostMetricsSig = mSig;
         applyWidgetPosition();
-        renderLimitsWidgetMount();
+        if (!limitsResizeState && !limitsDragState) renderLimitsWidgetMount();
       }
     }
-    if (typeof rv5InjectImageEditTriggers === "function" && now - state.lastImgInjectAt > 350) {
+    if (!dictatingNow && typeof rv5InjectImageEditTriggers === "function" && now - state.lastImgInjectAt > 350) {
       state.lastImgInjectAt = now;
       rv5InjectImageEditTriggers(doc, state.locale !== "en", handleEditImageFromDom);
     }
-    if (typeof rv5InjectNativeSettingsEntries === "function" && now - state.lastNativeInjectAt > 1600) {
+    if (!dictatingNow && typeof rv5InjectNativeSettingsEntries === "function" && now - state.lastNativeInjectAt > 1600) {
       state.lastNativeInjectAt = now;
       rv5InjectNativeSettingsEntries(doc, state.locale !== "en", (tab, sub) => {
         if (sub && tab === "settings") state.settingsSubTab = sub;
@@ -6565,7 +6736,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "5.0.1";
+    const ver = inst.version || pluginMeta.version || "5.0.2";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -6882,7 +7053,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.0.1")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.0.2")}</span>
               </div>
               <div class="rx-search-wrap">
                 <div class="rx-search-box">
@@ -7491,13 +7662,13 @@ function createStudioPanel(options) {
       } else if (effPos === "bottom-right") {
         limitsMountEl.style.bottom = `${14 + (sameSlot ? miniH + 10 : 0)}px`;
         limitsMountEl.style.right = "18px";
-        if (hm.composerRight > 0 && hm.vw - hm.composerRight > 200) {
+        if (!lw.width && hm.composerRight > 0 && hm.vw - hm.composerRight > 200) {
           limitsMountEl.style.maxWidth = `${Math.max(190, hm.vw - hm.composerRight - 32)}px`;
         }
       } else if (effPos === "bottom-left") {
         limitsMountEl.style.bottom = `${14 + (sameSlot ? miniH + 10 : 0)}px`;
         limitsMountEl.style.left = `${safeLeft}px`;
-        if (hm.composerLeft > safeLeft + 180) {
+        if (!lw.width && hm.composerLeft > safeLeft + 180) {
           limitsMountEl.style.maxWidth = `${Math.max(190, hm.composerLeft - safeLeft - 14)}px`;
         }
       }
@@ -8103,37 +8274,116 @@ function createStudioPanel(options) {
     state.usagePopOpen = false;
     renderModelUsagePopover();
     if (!doc || typeof doc.querySelectorAll !== "function") return;
+    const isExcludedHostEl = (el) => {
+      if (!el) return true;
+      if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) return true;
+      if (typeof el.hasAttribute === "function" && (el.hasAttribute("data-rudex-native-entry") || el.hasAttribute("data-rudex-img-edit-btn"))) return true;
+      if (typeof el.closest === "function" && el.closest('#rudex-studio-host, [data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"]')) return true;
+      return false;
+    };
+    const isNativeSettingsViewOpen = () => {
+      try {
+        const items = doc.querySelectorAll('[role="dialog"] button, [role="dialog"] [role="tab"], main button, main [role="tab"], nav button, aside button');
+        let hasGeneral = false;
+        let hasModels = false;
+        for (let i = 0; items && i < items.length; i += 1) {
+          const it = items[i];
+          if (isExcludedHostEl(it) || isHiddenAncestor(it, doc.body)) continue;
+          const tLow = String(it.textContent || it.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim().toLowerCase();
+          if (tLow.length > 48) continue;
+          if (tLow === "модели" || tLow === "models" || tLow.includes("модели и использован") || tLow.includes("models & usage") || tLow.includes("models and usage")) hasModels = true;
+          if (tLow === "общие" || tLow === "основные" || tLow === "general" || tLow === "внешний вид" || tLow === "appearance" || tLow === "браузер" || tLow === "browser") hasGeneral = true;
+          if (hasGeneral && hasModels) return true;
+        }
+      } catch (_e) {}
+      return false;
+    };
+    const trySelectModelsTab = () => {
+      try {
+        const items = doc.querySelectorAll('[role="dialog"] button, [role="dialog"] [role="tab"], [role="dialog"] a, main button, main [role="tab"], main a, nav button, aside button, [data-rudex-bg-sidebar="1"] button');
+        for (let j = 0; items && j < items.length; j += 1) {
+          const it = items[j];
+          if (isExcludedHostEl(it) || isHiddenAncestor(it, doc.body)) continue;
+          const tLow = String(it.textContent || it.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim().toLowerCase();
+          if (!tLow || tLow.length > 48) continue;
+          if (tLow === "модели" || tLow === "models" || tLow.includes("модели и использован") || tLow.includes("models & usage") || tLow.includes("models and usage")) {
+            if (typeof it.click === "function") it.click();
+            if (win && typeof win.setTimeout === "function") {
+              win.setTimeout(() => scrapeDomQuotaSnapshot(true), 320);
+            } else {
+              scrapeDomQuotaSnapshot(true);
+            }
+            return true;
+          }
+        }
+      } catch (_e2) {}
+      return false;
+    };
+    const triggerNativeSettingsShortcut = () => {
+      try {
+        invokeIpc("agy-studio:open-native-settings");
+      } catch (_e) {}
+      try {
+        const KeyEv = (win && win.KeyboardEvent) || (typeof KeyboardEvent !== "undefined" ? KeyboardEvent : null);
+        if (KeyEv) {
+          const isMac = typeof navigator !== "undefined" && /mac/i.test(String(navigator.platform || ""));
+          const ev = new KeyEv("keydown", { key: ",", code: "Comma", keyCode: 188, which: 188, ctrlKey: !isMac, metaKey: isMac, bubbles: true, cancelable: true });
+          if (doc && typeof doc.dispatchEvent === "function") doc.dispatchEvent(ev);
+          if (win && typeof win.dispatchEvent === "function") win.dispatchEvent(ev);
+        }
+      } catch (_e) {}
+    };
     try {
-      const btns = doc.querySelectorAll('aside button, aside a, nav button, nav a, button[aria-label*="Settings" i], button[aria-label*="Настройк" i]');
+      if (isNativeSettingsViewOpen()) {
+        trySelectModelsTab();
+        return;
+      }
+      const allBtns = doc.querySelectorAll('button, a, [role="button"], [role="menuitem"]');
       let settingsBtn = null;
-      for (let i = btns.length - 1; i >= 0; i -= 1) {
-        const b = btns[i];
-        if (!b || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(b))) continue;
-        const txt = String(b.textContent || b.getAttribute("aria-label") || "").trim().toLowerCase();
-        if (txt === "настройки" || txt === "settings") {
+      let settingsScore = -1;
+      for (let i = 0; allBtns && i < allBtns.length; i += 1) {
+        const b = allBtns[i];
+        if (isExcludedHostEl(b) || isHiddenAncestor(b, doc.body)) continue;
+        const tid = String((b.getAttribute && b.getAttribute("data-testid")) || "").trim().toLowerCase();
+        const aria = String((b.getAttribute && (b.getAttribute("aria-label") || b.getAttribute("title") || b.getAttribute("data-tooltip"))) || "").replace(/\s+/g, " ").trim().toLowerCase();
+        const txt = String(b.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+        const combined = `${tid} ${aria} ${txt}`;
+        if (/(?:rudex|studio|voice|голос|агент|agent|browser|браузер|лимит|limit|model|модел|mcp|plugin|плагин|skill|скилл|profile|профил)/.test(combined)) continue;
+        const cleanTxt = txt.replace(/\s*(?:\([^)]*\)|\[[^\]]*\]|ctrl\s*\+.*|cmd\s*\+.*|⌘.*)$/i, "").trim();
+        const cleanAria = aria.replace(/\s*(?:\([^)]*\)|\[[^\]]*\]|ctrl\s*\+.*|cmd\s*\+.*|⌘.*)$/i, "").trim();
+        const matchExact = cleanTxt === "настройки" || cleanTxt === "settings" || cleanAria === "настройки" || cleanAria === "settings" || cleanAria === "open settings" || cleanAria === "открыть настройки";
+        const matchTestId = tid === "settings" || tid === "settings-button" || tid === "open-settings" || tid === "sidebar-settings";
+        if (!matchExact && !matchTestId) continue;
+        let score = matchTestId ? 4 : 2;
+        if (typeof b.closest === "function" && b.closest('aside, nav, [data-rudex-bg-sidebar="1"], [data-testid*="sidebar"]')) score += 3;
+        if (score >= settingsScore) {
+          settingsScore = score;
           settingsBtn = b;
-          break;
         }
       }
       if (settingsBtn && typeof settingsBtn.click === "function") {
         settingsBtn.click();
-        if (win && typeof win.setTimeout === "function") {
-          win.setTimeout(() => {
-            try {
-              const items = doc.querySelectorAll('[role="dialog"] button, [role="dialog"] [role="tab"], aside button, nav button');
-              for (let j = 0; items && j < items.length; j += 1) {
-                const it = items[j];
-                if (!it || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(it))) continue;
-                const tLow = String(it.textContent || "").trim().toLowerCase();
-                if (tLow.includes("модели") || tLow.includes("models")) {
-                  it.click();
-                  win.setTimeout(() => scrapeDomQuotaSnapshot(true), 320);
-                  break;
-                }
-              }
-            } catch (_e2) {}
-          }, 260);
-        }
+      } else {
+        triggerNativeSettingsShortcut();
+      }
+      if (win && typeof win.setTimeout === "function") {
+        let selected = false;
+        win.setTimeout(() => {
+          if (state.destroyed) return;
+          if (!isNativeSettingsViewOpen() && settingsBtn) {
+            triggerNativeSettingsShortcut();
+          } else {
+            selected = trySelectModelsTab();
+          }
+        }, 160);
+        win.setTimeout(() => {
+          if (!state.destroyed && !selected) selected = trySelectModelsTab();
+        }, 360);
+        win.setTimeout(() => {
+          if (!state.destroyed && !selected) trySelectModelsTab();
+        }, 650);
+      } else {
+        trySelectModelsTab();
       }
     } catch (_e) {}
   }
@@ -8161,8 +8411,8 @@ function createStudioPanel(options) {
       positionChatDock();
       if (state.liveEdits && state.liveEdits.length > 0) syncLiveChatBubbles(false);
     }
-    // Observe composer content/attachment changes to persist chat draft reliably (even when clicking attachment ×)
-    if (state.hasActivatedChat && state.settings.composerDraftsEnabled !== false && !isRestoringDraft && Date.now() > draftJustSubmittedUntil && editable) {
+    // Observe composer content/attachment changes to persist chat draft reliably (defer during active voice dictation so speech stays silky smooth)
+    if (state.hasActivatedChat && state.settings.composerDraftsEnabled !== false && !isRestoringDraft && Date.now() > draftJustSubmittedUntil && editable && !isVoiceDictationActive()) {
       const scope = getComposerAttachmentScope(container);
       let imgCnt = 0;
       if (scope && typeof scope.querySelectorAll === "function") {
@@ -8171,14 +8421,17 @@ function createStudioPanel(options) {
           if (imgs[i] && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(imgs[i]))) imgCnt += 1;
         }
       }
-      const chipCnt = collectComposerChipFileMatches(scope, editable).length;
+      const chipCnt = composerOrigFiles.length > 0 ? collectComposerChipFileMatches(scope, editable).length : 0;
       const curKey = state.activeChatKey || "__new__";
       const obsSig = `${curKey}|${curTxt.length}|${curTxt.slice(0, 40)}|${curTxt.slice(-24)}|${imgCnt}|${chipCnt}`;
       if (obsSig !== lastDraftObsSig) {
         const hadPrev = lastDraftObsSig.startsWith(curKey + "|");
         lastDraftObsSig = obsSig;
         if (hasTxt || imgCnt > 0 || chipCnt > 0) {
-          lastKnownComposerSnapByChat.set(curKey, collectComposerSnapshotSync(container, editable));
+          const snap = imgCnt === 0 && chipCnt === 0
+            ? { text: curTxt, items: [] }
+            : collectComposerSnapshotSync(container, editable);
+          lastKnownComposerSnapByChat.set(curKey, snap);
           if (lastKnownComposerSnapByChat.size > 16) {
             const oldest = lastKnownComposerSnapByChat.keys().next().value;
             lastKnownComposerSnapByChat.delete(oldest);
@@ -8187,7 +8440,7 @@ function createStudioPanel(options) {
           lastKnownComposerSnapByChat.delete(curKey);
         }
         if (hadPrev || hasTxt || imgCnt > 0 || chipCnt > 0) {
-          scheduleComposerDraftSave(350);
+          scheduleComposerDraftSave(550);
         }
       }
     }
@@ -8289,7 +8542,13 @@ function createStudioPanel(options) {
       }
 
       if (!text && images.length === 0 && files.length === 0) return false;
-      draftJustSubmittedUntil = Date.now() + 2000;
+      const sendNowMs = Date.now();
+      if (text && text === lastLiveEditSendText && sendNowMs - lastLiveEditSendAt < 320 && images.length === 0 && files.length === 0) {
+        return false;
+      }
+      lastLiveEditSendAt = sendNowMs;
+      lastLiveEditSendText = text;
+      draftJustSubmittedUntil = sendNowMs + 2000;
       if (draftSaveTimer && win && typeof win.clearTimeout === "function") {
         win.clearTimeout(draftSaveTimer);
         draftSaveTimer = null;
@@ -8318,25 +8577,61 @@ function createStudioPanel(options) {
           }
         });
       }
-      if (typeof rv5ClearEditableText === "function") rv5ClearEditableText(editable, win);
-      // Guarantee Lexical/ProseMirror/React editor state clears via native Chromium webContents.selectAll + delete if DOM text remains
-      const ensureClearedNative = () => {
-        if (state.destroyed || !editable) return;
-        const curNow = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
-        if (!curNow || (text && curNow !== text)) return;
-        try {
-          if (typeof editable.focus === "function") editable.focus();
-        } catch (_e) {}
-        invokeIpc("agy-studio:clear-focused-input").then(() => {
-          const after = !state.destroyed && typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
-          if (after && (!text || after === text) && typeof rv5ClearEditableText === "function") {
-            rv5ClearEditableText(editable, win);
-          }
-        });
+      const clearToken = ++liveEditClearToken;
+      userTypedAfterLiveEdit = false;
+      const isContentEditableLexical = editable.tagName !== "TEXTAREA" && editable.tagName !== "INPUT";
+      const normResidual = (s) => String(s || "").toLowerCase().replace(/[\s\u00A0]+/g, " ").replace(/[.,!?;:…]+$/g, "").trim();
+      const normSent = normResidual(text);
+      const isResidualOfSent = (curNow) => {
+        const nc = normResidual(curNow);
+        if (!nc) return false;
+        if (!normSent) return !userTypedAfterLiveEdit;
+        if (nc === normSent || nc.startsWith(normSent) || normSent.startsWith(nc)) return true;
+        const probeSent = normSent.slice(0, Math.min(24, normSent.length));
+        const probeCur = nc.slice(0, Math.min(24, nc.length));
+        if (probeSent.length >= 4 && nc.includes(probeSent)) return true;
+        if (probeCur.length >= 4 && normSent.includes(probeCur)) return true;
+        return false;
       };
+      const isEditableFocusedNow = () => {
+        try {
+          const ae = doc && doc.activeElement;
+          return Boolean(ae && (ae === editable || (typeof editable.contains === "function" && editable.contains(ae))));
+        } catch (_e) {
+          return false;
+        }
+      };
+      const performClearPass = (allowRawFallback) => {
+        if (state.destroyed || !editable || clearToken !== liveEditClearToken || userTypedAfterLiveEdit) return;
+        const curNow = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+        if (!curNow) return;
+        if (allowRawFallback !== "initial" && !isResidualOfSent(curNow)) return;
+        if (typeof rv5ClearEditableText === "function") {
+          rv5ClearEditableText(editable, win, { skipRawTextFallback: isContentEditableLexical && allowRawFallback !== true });
+        }
+        if (isContentEditableLexical) {
+          try {
+            if (typeof editable.focus === "function") editable.focus();
+          } catch (_e) {}
+          const stillHasText = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+          if ((stillHasText || allowRawFallback === "initial") && isEditableFocusedNow()) {
+            invokeIpc("agy-studio:clear-focused-input").then(() => {
+              if (state.destroyed || clearToken !== liveEditClearToken || userTypedAfterLiveEdit) return;
+              const after = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+              if (after && isResidualOfSent(after) && typeof rv5ClearEditableText === "function") {
+                rv5ClearEditableText(editable, win, { skipRawTextFallback: allowRawFallback !== true });
+              }
+            });
+          }
+        }
+      };
+      // Pass 0: Clear Lexical cleanly via native selection/delete without desyncing EditorState
+      performClearPass("initial");
+      // Follow-up passes catch speech-to-text / voice-typing converters that flush trailing text 40–320ms after Enter/Send
       if (win && typeof win.setTimeout === "function") {
-        win.setTimeout(ensureClearedNative, 16);
-        win.setTimeout(ensureClearedNative, 85);
+        win.setTimeout(() => performClearPass(false), 35);
+        win.setTimeout(() => performClearPass(false), 140);
+        win.setTimeout(() => performClearPass(true), 320);
       }
       const clickedSet = new Set();
       for (let i = 0; i < removeBtns.length; i += 1) {
@@ -11571,8 +11866,12 @@ function createStudioPanel(options) {
         const uiPatch = { [sub]: strVal };
         state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, uiPatch));
         syncTheme();
-        invokeIpc("agy-studio:save-settings", { studioUi: uiPatch });
-        if (sub === "widgetFont") renderStructure();
+        if (sub === "widgetFont") {
+          flushDebouncedSettingsSave("studioUi", { studioUi: uiPatch });
+          renderStructure();
+        } else {
+          scheduleDebouncedSettingsSave("studioUi", { studioUi: uiPatch }, 220);
+        }
         return true;
       }
       const rawNum = Number(rawVal) || 0;
@@ -11601,7 +11900,7 @@ function createStudioPanel(options) {
           }
         }
       }
-      invokeIpc("agy-studio:save-settings", { studioUi: uiPatch });
+      scheduleDebouncedSettingsSave("studioUi", { studioUi: uiPatch }, 160);
       return true;
     } else if (field === "wallpaper.gradColor0" || field === "wallpaper.gradColor1" || field === "wallpaper.gradColor2") {
       const idx = parseInt(field.slice(-1), 10);
@@ -11948,6 +12247,51 @@ function createStudioPanel(options) {
       updateLiveWallpaperPreviewDom();
       return;
     }
+    if (limitsResizeState && limitsMountEl) {
+      const rs = limitsResizeState;
+      const dx = e.clientX - rs.startX;
+      const dy = e.clientY - rs.startY;
+      if (!rs.moved && Math.hypot(dx, dy) < 4) return;
+      rs.moved = true;
+      limitsLiveEditUntil = Date.now() + 900;
+      if (limitsMountEl.classList && typeof limitsMountEl.classList.add === "function") {
+        limitsMountEl.classList.add("is-resizing");
+      }
+      const boxEl = typeof limitsMountEl.querySelector === "function" ? limitsMountEl.querySelector(".rx-limits-box") : null;
+      const lw = typeof rv5NormalizeLimitsWidget === "function"
+        ? rv5NormalizeLimitsWidget(state.settings.limitsWidget)
+        : Object.assign({}, state.settings.limitsWidget);
+      if (rs.mode === "scale") {
+        const delta = (dx * rs.signX + dy * rs.signY) * 0.45;
+        const nextScale = Math.max(70, Math.min(160, Math.round((rs.startScale + delta) / 5) * 5));
+        rs.currentScale = nextScale;
+        lw.scale = nextScale;
+        state.settings.limitsWidget = lw;
+        if (boxEl && boxEl.style) boxEl.style.zoom = (nextScale / 100).toFixed(2);
+        if (modalMountEl) {
+          setLiveSlot(modalMountEl, '[data-live-lim-val="scale"]', `${nextScale}%`, false);
+          const inp = modalMountEl.querySelector('[data-limits-field="scale"]');
+          if (inp) inp.value = String(nextScale);
+        }
+      } else {
+        const nextW = Math.max(180, Math.min(420, Math.round((rs.startWidth + dx * rs.signX) / 5) * 5));
+        rs.currentWidth = nextW;
+        lw.width = nextW;
+        state.settings.limitsWidget = lw;
+        if (boxEl && boxEl.style) {
+          boxEl.style.width = `${nextW}px`;
+          boxEl.style.minWidth = `${nextW}px`;
+          boxEl.style.maxWidth = `${nextW}px`;
+        }
+        limitsMountEl.style.maxWidth = "";
+        if (modalMountEl) {
+          setLiveSlot(modalMountEl, '[data-live-lim-val="width"]', `${nextW}px`, false);
+          const inp = modalMountEl.querySelector('[data-limits-field="width"]');
+          if (inp) inp.value = String(nextW);
+        }
+      }
+      return;
+    }
     if (limitsDragState && limitsMountEl) {
       const dx = e.clientX - limitsDragState.startX;
       const dy = e.clientY - limitsDragState.startY;
@@ -12031,6 +12375,31 @@ function createStudioPanel(options) {
           try { stageEl.releasePointerCapture(pid); } catch (_e) {}
         }
       }
+    }
+    if (limitsResizeState) {
+      const rs = limitsResizeState;
+      limitsResizeState = null;
+      if (limitsMountEl) {
+        if (limitsMountEl.classList && typeof limitsMountEl.classList.remove === "function") limitsMountEl.classList.remove("is-resizing");
+        if (typeof limitsMountEl.releasePointerCapture === "function" && rs.pointerId !== undefined) {
+          try { limitsMountEl.releasePointerCapture(rs.pointerId); } catch (_e) {}
+        }
+      }
+      if (rs.moved) {
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+        if (rs.mode === "scale") lw.scale = rs.currentScale;
+        else lw.width = rs.currentWidth;
+        state.settings.limitsWidget = lw;
+        renderLimitsWidgetMount();
+        if (modalMountEl) {
+          const prevStage = modalMountEl.querySelector('[data-role="limitsPreviewStage"]') || modalMountEl.querySelector(".preview-stage");
+          if (prevStage && typeof rv5BuildLimitsWidgetHtml === "function") {
+            prevStage.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName || "", state.locale !== "en", true);
+          }
+        }
+        flushDebouncedSettingsSave("limits", { limitsWidget: lw });
+      }
+      return;
     }
     if (limitsDragState) {
       const ls = limitsDragState;
@@ -12190,7 +12559,7 @@ function createStudioPanel(options) {
               prevStage.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName || "", state.locale !== "en", true);
             }
           }
-          invokeIpc("agy-studio:save-settings", { limitsWidget: lw });
+          scheduleDebouncedSettingsSave("limits", { limitsWidget: lw }, 160);
           return;
         }
         if (target.getAttribute("data-limits-live-text") === "1" || target.type === "color") {
@@ -12203,7 +12572,7 @@ function createStudioPanel(options) {
               prevStage.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName || "", state.locale !== "en", true);
             }
           }
-          invokeIpc("agy-studio:save-settings", { limitsWidget: lw });
+          scheduleDebouncedSettingsSave("limits", { limitsWidget: lw }, 180);
           return;
         }
         lw[lf] = target.value || "";
@@ -12284,7 +12653,7 @@ function createStudioPanel(options) {
           : Object.assign({}, state.settings.quotaAutomation || {});
         qa[quotaAutoField] = String(target.value || "").slice(0, 500);
         state.settings.quotaAutomation = qa;
-        saveSettingsPatch({ quotaAutomation: qa });
+        scheduleDebouncedSettingsSave("quotaAuto", { quotaAutomation: qa }, 220);
         return;
       }
     });
@@ -12433,11 +12802,34 @@ function createStudioPanel(options) {
       if (!target || typeof target.getAttribute !== "function") return;
       if (target.tagName === "SELECT" && target.getAttribute("data-app-field")) {
         handleAppearanceFieldInput(target);
+      } else if (target.getAttribute("data-app-field") && String(target.getAttribute("data-app-field")).startsWith("studioUi.")) {
+        handleAppearanceFieldInput(target);
+        flushDebouncedSettingsSave("studioUi", { studioUi: spNormalizeStudioUi(state.settings.studioUi) });
       } else if (target.tagName === "SELECT" && target.getAttribute("data-limits-field")) {
         const lf = target.getAttribute("data-limits-field");
         const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
         lw[lf] = target.value || "";
         saveSettingsPatch({ limitsWidget: lw });
+      } else if (target.getAttribute("data-limits-field")) {
+        const lf = target.getAttribute("data-limits-field");
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+        if (lf === "fontSize" || lf === "scale" || lf === "bgOpacity" || lf === "borderRadius" || lf === "blur" || lf === "width") {
+          const numV = Math.round(Number(target.value) || 0);
+          lw[lf] = lf === "width" && numV < 180 ? 0 : numV;
+        } else {
+          lw[lf] = target.value || "";
+        }
+        state.settings.limitsWidget = lw;
+        renderLimitsWidgetMount();
+        flushDebouncedSettingsSave("limits", { limitsWidget: lw });
+      } else if (target.getAttribute("data-quota-auto-field")) {
+        const qf = target.getAttribute("data-quota-auto-field");
+        const qa = typeof rv5NormalizeQuotaAutomation === "function"
+          ? rv5NormalizeQuotaAutomation(state.settings.quotaAutomation)
+          : Object.assign({}, state.settings.quotaAutomation || {});
+        qa[qf] = String(target.value || "").slice(0, 500);
+        state.settings.quotaAutomation = qa;
+        flushDebouncedSettingsSave("quotaAuto", { quotaAutomation: qa });
       } else if (target.tagName === "SELECT" && target.getAttribute("data-insp-style")) {
         upsertSelectedElementStyle(target.getAttribute("data-insp-style"), target.value || "");
       } else if (target.getAttribute("data-insp-range") || target.getAttribute("data-insp-num")) {
@@ -12627,6 +13019,15 @@ function createStudioPanel(options) {
           }
           return;
         }
+        // 2.4 Abort any pending post-live-edit residual clear immediately if the user manually starts typing a new message
+        if (!userTypedAfterLiveEdit && e.isTrusted !== false && e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          if (typeof rv5FindNativeComposer === "function") {
+            const { editable: edCheck } = rv5FindNativeComposer(doc);
+            if (edCheck && (e.target === edCheck || (typeof edCheck.contains === "function" && edCheck.contains(e.target)))) {
+              userTypedAfterLiveEdit = true;
+            }
+          }
+        }
         // 2.5 Auto-close Agent Tools / Context popovers whenever the user submits a message via Enter
         if ((state.agentPopoverOpen || state.contextPopoverOpen) && !e.isComposing && e.key === "Enter" && !e.shiftKey && !e.altKey) {
           if (typeof rv5FindNativeComposer === "function") {
@@ -12689,7 +13090,7 @@ function createStudioPanel(options) {
         const lbl = String(btn.getAttribute("aria-label") || btn.getAttribute("title") || "").toLowerCase();
         const typeAttr = String(btn.getAttribute("type") || "").toLowerCase();
         if (/cancel|stop|abort|останов|отмен|model|mode|mic|voice|attach|upload|plus|add|remove|delete|close|удал|закры/.test(tid + " " + lbl)) return;
-        const looksSend = typeAttr === "submit" || /send|submit|отправ/.test(tid + " " + lbl);
+        const looksSend = typeAttr === "submit" || btn.getAttribute("data-rudex-comp-send") === "1" || /send|submit|queue|отправ|очеред/.test(tid + " " + lbl);
         if (!looksSend) return;
         const txt = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
         const hasAtt = hasComposerAttachments(container, editable);
@@ -12764,7 +13165,7 @@ function createStudioPanel(options) {
         if (typeof rv5FindNativeComposer === "function") {
           const { editable } = rv5FindNativeComposer(doc);
           if (editable && (tEl === editable || (typeof editable.contains === "function" && editable.contains(tEl)))) {
-            scheduleComposerDraftSave(350);
+            scheduleComposerDraftSave(isVoiceDictationActive() ? 1400 : 550);
           }
         }
       };
@@ -12783,7 +13184,14 @@ function createStudioPanel(options) {
           }
         }
         if (state.usagePopOpen) {
-          const insideUsage = Boolean(usagePopMountEl && (cPath.indexOf(usagePopMountEl) !== -1 || e.target === usagePopMountEl));
+          const insideUsage = Boolean(
+            usagePopMountEl && (
+              cPath.indexOf(usagePopMountEl) !== -1 ||
+              e.target === usagePopMountEl ||
+              (typeof usagePopMountEl.contains === "function" && usagePopMountEl.contains(e.target)) ||
+              (e.target && typeof e.target.closest === "function" && e.target.closest(".rx-usage-pop-mount"))
+            )
+          );
           const trig = typeof doc.querySelector === "function" ? doc.querySelector('[data-testid="model-selector-trigger"]') : null;
           let onTrigger = false;
           if (trig) {
@@ -12948,10 +13356,40 @@ function createStudioPanel(options) {
     if (limitsMountEl) {
       limitsMountEl.addEventListener("pointerdown", (e) => {
         if (!e || (typeof e.button === "number" && e.button !== 0)) return;
-        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : state.settings.limitsWidget;
-        if (lw && lw.pinned) return;
         const tEl = e.target;
         if (!tEl || typeof tEl.closest !== "function" || tEl.closest("button")) return;
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : state.settings.limitsWidget;
+        const resizeGrip = tEl.closest('[data-limits-resize="1"]');
+        if (resizeGrip) {
+          if (typeof limitsMountEl.setPointerCapture === "function" && e.pointerId !== undefined) {
+            try { limitsMountEl.setPointerCapture(e.pointerId); } catch (_e) {}
+          }
+          const boxEl = typeof limitsMountEl.querySelector === "function" ? limitsMountEl.querySelector(".rx-limits-box") : null;
+          const rect = boxEl && typeof boxEl.getBoundingClientRect === "function" ? boxEl.getBoundingClientRect() : { left: 20, top: 44, width: 260, height: 80 };
+          const isPill = lw && (lw.layout === "pill" || lw.layout === "inline-header" || lw.position === "inline-header");
+          const effPos = lw && lw.position ? lw.position : "top-right";
+          const isRightAnchored = effPos === "top-right" || effPos === "bottom-right" || effPos === "inline-header";
+          const isBottomAnchored = effPos === "bottom-right" || effPos === "bottom-left";
+          const curW = lw && Number(lw.width) >= 180 ? Math.round(lw.width) : Math.max(180, Math.min(420, Math.round(rect.width || 260)));
+          const curScale = lw && Number(lw.scale) ? Math.round(lw.scale) : 100;
+          limitsResizeState = {
+            pointerId: e.pointerId,
+            mode: isPill ? "scale" : "width",
+            startX: e.clientX,
+            startY: e.clientY,
+            startWidth: curW,
+            currentWidth: curW,
+            startScale: curScale,
+            currentScale: curScale,
+            signX: isRightAnchored && lw && lw.pinned ? -1 : 1,
+            signY: isBottomAnchored && lw && lw.pinned ? -1 : 1,
+            moved: false,
+          };
+          limitsLiveEditUntil = Date.now() + 900;
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          return;
+        }
+        if (lw && lw.pinned) return;
         if (!tEl.closest('[data-limits-drag="1"]')) return;
         if (typeof limitsMountEl.setPointerCapture === "function" && e.pointerId !== undefined) {
           try { limitsMountEl.setPointerCapture(e.pointerId); } catch (_e) {}
@@ -12971,6 +13409,16 @@ function createStudioPanel(options) {
           lastY: rect.top,
           moved: false,
         };
+      });
+      limitsMountEl.addEventListener("dblclick", (e) => {
+        const tEl = e && e.target;
+        if (!tEl || typeof tEl.closest !== "function" || !tEl.closest('[data-limits-resize="1"]')) return;
+        const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : Object.assign({}, state.settings.limitsWidget);
+        lw.width = 0;
+        lw.scale = 100;
+        state.settings.limitsWidget = lw;
+        renderLimitsWidgetMount();
+        flushDebouncedSettingsSave("limits", { limitsWidget: lw });
       });
     }
 
@@ -13007,6 +13455,16 @@ function createStudioPanel(options) {
               const tId = tNode.id || "";
               if (tId === "rudex-studio-host" || tId === "rudex-bg" || tId === "rudex-studio-theme" || tId === "rudex-greeting-style" || tId === "agy-ru-studio-host" || tId === "agy-ru-studio-bg" || tId === "agy-ru-studio-theme") continue;
               if (hostEl && (tNode === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(tNode)))) continue;
+              const tEl = tNode.nodeType === 1 ? tNode : tNode.parentElement;
+              if (tEl) {
+                const tTag = tEl.tagName ? String(tEl.tagName).toUpperCase() : "";
+                if (tTag === "TEXTAREA" || tTag === "INPUT" || tTag === "SVG" || tTag === "PATH" || tTag === "RECT" || tTag === "CIRCLE" || tTag === "LINE" || tTag === "CANVAS") continue;
+                if (typeof tEl.closest === "function") {
+                  try {
+                    if (tEl.closest('[contenteditable="true"], [role="textbox"], [data-rudex-comp-mic-active="1"], [data-rudex-comp-mic="1"], [data-rudex-comp-voice="1"]')) continue;
+                  } catch (_e) {}
+                }
+              }
               hasExternal = true;
               break;
             }
@@ -13242,14 +13700,15 @@ function createStudioPanel(options) {
       cancelPendingResizeHold(studioResizeState, sh);
       studioResizeState = null;
     }
-    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftRestoreTimer, titleBarBootTimer, inspSaveTimer]) {
+    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftRestoreTimer, titleBarBootTimer, inspSaveTimer, limitsSaveTimer, studioUiSaveTimer, quotaAutoSaveTimer]) {
       if (timer && win && typeof win.clearTimeout === "function") win.clearTimeout(timer);
     }
     for (const qt of quotaScrapeTimers) {
       if (qt && win && typeof win.clearTimeout === "function") win.clearTimeout(qt);
     }
     quotaScrapeTimers = [];
-    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftRestoreTimer = titleBarBootTimer = inspSaveTimer = null;
+    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftRestoreTimer = titleBarBootTimer = inspSaveTimer = limitsSaveTimer = studioUiSaveTimer = quotaAutoSaveTimer = null;
+    limitsResizeState = null;
     if (dockComposerObserver && typeof dockComposerObserver.disconnect === "function") {
       try { dockComposerObserver.disconnect(); } catch (_e) {}
       dockComposerObserver = null;

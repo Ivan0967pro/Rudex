@@ -514,7 +514,7 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
     cfg.borderColor ? `border-color:${cfg.borderColor};` : "",
     `border-radius:${cfg.borderRadius}px;`,
     cfg.blur > 0 ? `backdrop-filter:blur(${cfg.blur}px) saturate(135%);-webkit-backdrop-filter:blur(${cfg.blur}px) saturate(135%);` : "backdrop-filter:none;-webkit-backdrop-filter:none;",
-    !isPreview && cfg.scale !== 100 ? `zoom:${(cfg.scale / 100).toFixed(2)};` : "",
+    cfg.scale !== 100 ? `zoom:${(cfg.scale / 100).toFixed(2)};` : "",
   ].filter(Boolean).join("");
 
   const label5h = isRu ? "5ч" : "5h";
@@ -525,6 +525,9 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
     ? (isRu ? "Открепить (плавающее окно)" : "Undock (floating window)")
     : (isRu ? "Закрепить как часть интерфейса" : "Dock into UI");
   const pinIconSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>';
+  const resizeGripHtml = isPreview
+    ? ""
+    : `<span class="rx-lim-resize-grip" data-limits-resize="1" title="${rv5EscapeHtml(isRu ? "Потяните, чтобы изменить размер (двойной клик — сброс)" : "Drag to resize (double-click to reset)")}"></span>`;
 
   if (cfg.layout === "pill" || cfg.layout === "inline-header" || cfg.position === "inline-header") {
     const effLay = cfg.position === "inline-header" ? "inline-header" : cfg.layout;
@@ -548,6 +551,7 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
           <button type="button" class="rx-lim-btn${isDockedUi ? " is-pinned" : ""}" data-action="toggle-limits-pin" title="${rv5EscapeHtml(pinTitle)}">${pinIconSvg}</button>
           <button type="button" class="rx-lim-btn" data-action="open-limits-settings" title="${isRu ? "Настроить окно лимитов" : "Configure limits widget"}">⚙</button>
         `}
+        ${effLay !== "inline-header" ? resizeGripHtml : ""}
       </div>
     `;
   }
@@ -598,6 +602,7 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
         }).join("")}
         ${!hasAnyValues && !isPreview ? `<div class="rx-lim-tip">${isRu ? "Синхронизируется автоматически при открытии Настройки → Модели и использование" : "Auto-syncs when opening Settings → Models & Usage"}</div>` : ""}
       </div>
+      ${resizeGripHtml}
     </div>
   `;
 }
@@ -756,8 +761,9 @@ function rv5ReadEditableText(editable) {
   return String(editable.innerText || editable.textContent || "").trim();
 }
 
-function rv5ClearEditableText(editable, win) {
+function rv5ClearEditableText(editable, win, opts) {
   if (!editable) return;
+  const skipRawFallback = Boolean(opts && opts.skipRawTextFallback);
   try {
     if (editable.tagName === "TEXTAREA" || editable.tagName === "INPUT") {
       const proto = editable.tagName === "TEXTAREA"
@@ -771,6 +777,7 @@ function rv5ClearEditableText(editable, win) {
       const ownerDoc = editable.ownerDocument || (win && win.document) || null;
       if (typeof editable.focus === "function") editable.focus();
       let clearedViaExec = false;
+      const hasExecCmd = Boolean(ownerDoc && typeof ownerDoc.execCommand === "function");
       try {
         const sel = win && typeof win.getSelection === "function" ? win.getSelection() : null;
         if (sel && ownerDoc && typeof ownerDoc.createRange === "function") {
@@ -778,19 +785,22 @@ function rv5ClearEditableText(editable, win) {
           range.selectNodeContents(editable);
           sel.removeAllRanges();
           sel.addRange(range);
-        } else if (ownerDoc && typeof ownerDoc.execCommand === "function") {
+        } else if (hasExecCmd) {
           ownerDoc.execCommand("selectAll", false, null);
         }
         const InpEvt = (win && win.InputEvent) || (typeof InputEvent !== "undefined" ? InputEvent : null);
         if (InpEvt) {
           editable.dispatchEvent(new InpEvt("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true }));
         }
-        if (ownerDoc && typeof ownerDoc.execCommand === "function") {
-          ownerDoc.execCommand("delete", false, null);
+        if (hasExecCmd) {
+          if (rv5ReadEditableText(editable).length > 0) {
+            ownerDoc.execCommand("selectAll", false, null);
+            ownerDoc.execCommand("delete", false, null);
+          }
         }
         clearedViaExec = rv5ReadEditableText(editable).length === 0;
       } catch (_ex) {}
-      if (!clearedViaExec) {
+      if (!clearedViaExec && (!skipRawFallback || !hasExecCmd)) {
         editable.textContent = "";
         editable.dispatchEvent(new ((win && win.Event) || Event)("input", { bubbles: true }));
       }
@@ -826,6 +836,7 @@ function rv5BuildExtraShadowCss() {
 .rx-limits-mount.pos-bottom-left { bottom: 14px; left: 268px; }
 .rx-limits-mount.pos-inline-header { top: 34px; right: 204px; }
 .rx-limits-box {
+  position: relative;
   box-sizing: border-box;
   max-width: 100%;
   overflow: hidden;
@@ -836,6 +847,25 @@ function rv5BuildExtraShadowCss() {
   font-family: var(--rx-font-ui);
   transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
 }
+.rx-limits-mount.is-resizing .rx-limits-box {
+  transition: none !important;
+  border-color: var(--rx-accent) !important;
+}
+.rx-lim-resize-grip {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+  opacity: 0.22;
+  border-radius: 3px;
+  background: linear-gradient(135deg, transparent 48%, currentColor 48%, currentColor 58%, transparent 58%, transparent 74%, currentColor 74%, currentColor 84%, transparent 84%);
+  transition: opacity 0.14s ease, color 0.14s ease;
+  z-index: 3;
+}
+.rx-limits-box:hover .rx-lim-resize-grip { opacity: 0.62; }
+.rx-lim-resize-grip:hover, .rx-limits-mount.is-resizing .rx-lim-resize-grip { opacity: 1; color: var(--rx-accent); }
 .rx-limits-box.is-docked-ui {
   box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.12);
 }
@@ -858,7 +888,7 @@ function rv5BuildExtraShadowCss() {
 }
 .rx-limits-box.is-bars, .rx-limits-box.is-card {
   min-width: min(224px, 100%);
-  max-width: min(360px, calc(100vw - 32px));
+  max-width: min(440px, calc(100vw - 32px));
   padding: 10px 12px;
 }
 .rx-lim-head {
@@ -940,33 +970,34 @@ function rv5BuildExtraShadowCss() {
   align-items: center;
   gap: 6px;
   height: 26px;
-  padding: 0 9px;
-  border-radius: 7px;
+  padding: 0 10px;
+  border-radius: var(--rx-comp-radius, 9px);
   font-size: 11px;
   font-weight: 500;
   font-family: var(--rx-font-ui);
-  border: 1px solid color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 26%, var(--rx-theme-border-strong, var(--rx-border-strong)));
-  background: color-mix(in srgb, var(--rx-theme-surface-2, var(--rx-theme-surface, var(--rx-surface))) 94%, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 6%);
+  border: 1px solid var(--rx-comp-border, color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 16%, var(--rx-theme-border-strong, var(--rx-border-strong))));
+  background-color: var(--rx-comp-bg, var(--rx-theme-surface, var(--rx-surface)));
+  background-image: var(--rx-comp-bg-image, none);
   color: color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 90%, var(--rx-theme-muted, var(--rx-muted)));
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.42), 0 3px 12px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(var(--rx-comp-blur, 14px)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--rx-comp-blur, 14px)) saturate(160%);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
   cursor: pointer;
   opacity: 1;
-  transition: opacity 0.14s ease, color 0.14s ease, border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+  transition: opacity 0.14s ease, color 0.14s ease, border-color 0.14s ease, background-color 0.14s ease, box-shadow 0.14s ease;
 }
 .studio-root[data-app-theme="light"] .rx-agent-chip,
 .studio-root[data-app-theme="light"] .rx-dock-tool-btn,
 .studio-root[data-app-theme="light"] .rx-ctx-pill {
-  border-color: color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 18%, var(--rx-theme-border-strong, var(--rx-border-strong)));
-  background: color-mix(in srgb, var(--rx-theme-surface, var(--rx-surface)) 97%, #ffffff 3%);
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  border-color: var(--rx-comp-border, color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 15%, var(--rx-theme-border-strong, var(--rx-border-strong))));
+  background-color: var(--rx-comp-bg, var(--rx-theme-surface, var(--rx-surface)));
+  background-image: var(--rx-comp-bg-image, none);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.10);
 }
 .rx-agent-chip:hover, .rx-dock-tool-btn:hover, .rx-ctx-pill:hover {
   opacity: 1;
   color: var(--rx-theme-fg-strong, var(--rx-fg-strong));
-  background: color-mix(in srgb, var(--rx-theme-surface, var(--rx-surface)) 92%, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 8%);
-  border-color: color-mix(in srgb, var(--rx-accent) 52%, var(--rx-theme-border-strong, var(--rx-border-strong)));
+  border-color: color-mix(in srgb, var(--rx-accent) 48%, var(--rx-comp-border, var(--rx-theme-border-strong, var(--rx-border-strong))));
 }
 .rx-agent-chip.is-active {
   opacity: 1;

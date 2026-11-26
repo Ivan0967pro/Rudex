@@ -403,7 +403,7 @@ test("Manifest & hooks.json follow Rudex v5.0 safe hook architecture (no global 
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "5.0.1");
+  assert.equal(pkg.version, "5.0.2");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "agy-workshop.js")), "agy-workshop.js must exist");
@@ -3086,7 +3086,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v5.0.1"), "install.ps1 banner must show v5.0.1");
+  assert.ok(ps1Text.includes("Rudex v5.0.2"), "install.ps1 banner must show v5.0.2");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -5548,9 +5548,28 @@ test("Chat tools chip visibility, opt-in model context window meter (default OFF
   assert.ok(dockOn.includes("50K / 200K") && dockOn.includes("25%"), "Context pill must show exact used/max tokens and % fill");
   assert.ok(dockOn.includes("rx-ctx-popover") && dockOn.includes("Рефакторинг UI"), "Context popover must show active chat name & breakdown");
 
-  // 4) Tools chip CSS has full opacity and stronger border/shadow so it stands out in Claude Code
+  // 4) Tools chip CSS inherits exact composer glass/gradient tokens & Claude Code wallpaper adds subtle contrast backdrop to top/bottom bars
   const v5Css = v5Core.rv5BuildExtraShadowCss();
-  assert.ok(v5Css.includes(".rx-ctx-pill") && v5Css.includes("opacity: 1;"), "Tools & context chips must have full opacity and crisp border contrast");
+  assert.ok(
+    v5Css.includes(".rx-ctx-pill") &&
+      v5Css.includes("opacity: 1;") &&
+      v5Css.includes("var(--rx-comp-bg") &&
+      v5Css.includes("var(--rx-comp-bg-image") &&
+      v5Css.includes("var(--rx-comp-border") &&
+      v5Css.includes("var(--rx-comp-blur"),
+    "Tools & context chips must match composer glass/gradient tokens"
+  );
+  const ccWpCss = te.buildThemeCss({
+    presetId: "custom",
+    uiStyle: { preset: "claude-code", composer: "claude-code", chat: "claude-code", modelSelector: "claude-code" },
+    wallpaper: { type: "gradient", gradientPreset: "antigravity" },
+  });
+  assert.ok(
+    ccWpCss.includes('[data-rudex-comp-top-row="1"]') &&
+      ccWpCss.includes('[data-rudex-comp-toolbar="1"]') &&
+      ccWpCss.includes("backdrop-filter: blur("),
+    "Claude Code over wallpaper must give top context strip and bottom toolbar a subtle frosted backdrop"
+  );
 
   // 5) Wallpaper 'Оригинал' atmosphere preset resets full-bleed fit='cover', scale=100, offset=0, rotate=0, blur=0
   const { doc, win } = createMockDom();
@@ -6039,6 +6058,264 @@ test("Hideable Tools chip, clickable task/quota notifications (including offline
     assert.equal(markedResumed, 1, "Auto-continue must atomically mark chat resumed before sending");
     assert.equal(editable.textContent, "Продолжи работу пожалуйста", "Auto-continue must fill composer with continue prompt");
     assert.equal(sentClicks, 1, "Auto-continue must click Send button to resume task");
+  } finally {
+    panel.destroy();
+    translator.destroy();
+  }
+});
+
+test("Limits resize stability, Settings trigger, voice dictation mutation filtering, and speech-to-text live-edit clear", async () => {
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+  const { createThemeEngine } = require(path.join(RES_DIR, "theme-engine.js"));
+
+  // 1) Limits widget preview honors scale AND live widget renders corner resize grip (max-width allows up to 440px)
+  const previewScaled = v5Core.rv5BuildLimitsWidgetHtml(
+    { enabled: true, layout: "card", scale: 125, width: 390 },
+    {},
+    "Claude Opus",
+    true,
+    true
+  );
+  assert.ok(previewScaled.includes("zoom:1.25"), "Limits preview must reflect scale immediately");
+  assert.ok(previewScaled.includes("width:390px"), "Limits widget must honor custom width up to 420px");
+  assert.equal(previewScaled.includes("data-limits-resize"), false, "Preview must not render interactive corner resize grip");
+
+  const liveWidgetHtml = v5Core.rv5BuildLimitsWidgetHtml(
+    { enabled: true, layout: "card", scale: 115, width: 340 },
+    {},
+    "Claude Opus",
+    true,
+    false
+  );
+  assert.ok(liveWidgetHtml.includes('data-limits-resize="1"'), "Live limits card must expose corner resize grip");
+
+  // 2) rv5ClearEditableText supports skipRawTextFallback so Lexical EditorState isn't prematurely desynced
+  const fakeLexical = {
+    tagName: "DIV",
+    textContent: "диктовка текста",
+    innerText: "диктовка текста",
+    ownerDocument: {
+      execCommand() { return false; },
+      createRange() { return { selectNodeContents() {} }; },
+    },
+    focus() {},
+    dispatchEvent() {},
+  };
+  v5Core.rv5ClearEditableText(fakeLexical, { getSelection: () => ({ removeAllRanges() {}, addRange() {} }) }, { skipRawTextFallback: true });
+  assert.equal(fakeLexical.textContent, "диктовка текста", "skipRawTextFallback must preserve DOM until native webContents clear runs");
+  v5Core.rv5ClearEditableText(fakeLexical, { getSelection: () => ({ removeAllRanges() {}, addRange() {} }) });
+  assert.equal(fakeLexical.textContent, "", "Default clear still falls back when execCommand fails");
+
+  // 3) StudioPanel: (a) Limits slider drag never snaps back when stale applyRemoteState arrives,
+  //    (b) "Настройки Antigravity →" finds div-sidebar Settings OR falls back to open-native-settings IPC,
+  //    (c) Speech-to-text live-edit clears residual/re-flushed dictated text cleanly!
+  const { doc, win } = createMockDom();
+  let clearFocusedCalls = 0;
+  let openNativeSettingsIpcCalls = 0;
+  let liveEditSentCount = 0;
+  const savedPatches = [];
+  const translator = createDomTranslator({ document: doc, window: win, initialLocale: "ru" });
+
+  // Build composer + running cancel button + sidebar Settings inside a <div> (non-aside)
+  const sidebarDiv = doc.createElement("div");
+  sidebarDiv.setAttribute("data-rudex-bg-sidebar", "1");
+  let settingsBtnClicks = 0;
+  const nativeSettingsBtn = doc.createElement("button");
+  nativeSettingsBtn.textContent = "Настройки (Ctrl+,)";
+  nativeSettingsBtn.click = () => { settingsBtnClicks += 1; };
+  sidebarDiv.appendChild(nativeSettingsBtn);
+  doc.body.appendChild(sidebarDiv);
+
+  const compForm = doc.createElement("form");
+  compForm.setAttribute("data-testid", "composer");
+  const editable = doc.createElement("div");
+  editable.setAttribute("contenteditable", "true");
+  editable.setAttribute("role", "textbox");
+  editable.textContent = "привет проверь баги";
+  editable.innerText = "привет проверь баги";
+  editable.focus = () => { doc.activeElement = editable; };
+  const cancelBtn = doc.createElement("button");
+  cancelBtn.setAttribute("data-testid", "input-cancel-button");
+  const sendBtn = doc.createElement("button");
+  sendBtn.setAttribute("data-rudex-comp-send", "1");
+  compForm.appendChild(editable);
+  compForm.appendChild(cancelBtn);
+  compForm.appendChild(sendBtn);
+  doc.body.appendChild(compForm);
+
+  // Stub execCommand as no-op to simulate Lexical ignoring non-native execCommand while native IPC clears it
+  doc.execCommand = () => false;
+  doc.createRange = () => ({ selectNodeContents() {} });
+  win.getSelection = () => ({ removeAllRanges() {}, addRange() {} });
+
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      on() {},
+      removeListener() {},
+      send() {},
+      sendSync() { return { ok: true }; },
+      async invoke(ch, payload) {
+        if (ch === "agy-studio:save-settings") {
+          savedPatches.push(payload);
+          return { ok: true, settings: payload };
+        }
+        if (ch === "agy-studio:clear-focused-input") {
+          clearFocusedCalls += 1;
+          // Simulate speech-to-text flushing trailing punctuation after 1st clear, then clearing completely on 2nd clear!
+          if (clearFocusedCalls === 1) {
+            editable.textContent = "привет проверь баги.";
+            editable.innerText = "привет проверь баги.";
+          } else {
+            editable.textContent = "";
+            editable.innerText = "";
+          }
+          return { ok: true };
+        }
+        if (ch === "agy-studio:open-native-settings") {
+          openNativeSettingsIpcCalls += 1;
+          return { ok: true };
+        }
+        if (ch === "agy-studio:send-live-edit") {
+          liveEditSentCount += 1;
+          return { ok: true, entry: { id: "le-test-1", status: "pending", text: payload.text }, items: [] };
+        }
+        return { ok: true };
+      },
+    },
+    translator,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+  });
+
+  try {
+    panel.init();
+    panel.setOpen(true, { tab: "widgets", widgetSub: "limits" });
+
+    // (a) Simulate dragging the Limits Width slider -> stale remote echo arrives mid-drag -> must NOT snap back!
+    const rootEl = doc.getElementById("rudex-studio-host").shadowRoot.querySelector(".studio-root");
+    const modalMount = rootEl.querySelector(".modal-mount");
+    const limitsMount = rootEl.querySelector(".rx-limits-mount");
+    assert.ok(modalMount.innerHTML.includes('data-limits-field="width"'), "Limits width slider markup must render in Limits tab");
+    const widthSlider = doc.createElement("input");
+    widthSlider.type = "range";
+    widthSlider.setAttribute("data-limits-field", "width");
+    widthSlider.value = "350";
+    rootEl.appendChild(widthSlider);
+    panel.applyRemoteState({ locale: "ru", settings: { limitsWidget: { enabled: true, layout: "card", width: 220, scale: 100 } } }, true);
+    modalMount.innerHTML = "__SENTINEL_MID_DRAG__";
+    rootEl.dispatchEvent({ type: "input", target: widthSlider });
+    assert.equal(savedPatches.length, 0, "Slider drag must debounce IPC instead of flooding save-settings per pixel");
+    assert.ok(limitsMount.innerHTML.includes("width:350px"), "Live limits widget must immediately resize to 350px");
+
+    // Stale broadcast from main process tries to revert width back to 220 mid-drag
+    panel.applyRemoteState({ locale: "ru", settings: { limitsWidget: { enabled: true, layout: "card", width: 220, scale: 100 } } }, false);
+    assert.equal(modalMount.innerHTML, "__SENTINEL_MID_DRAG__", "applyRemoteState must NOT rebuild modal DOM mid-drag (which kills active range drag)");
+    assert.ok(limitsMount.innerHTML.includes("width:350px"), "Limits widget must NOT snap back to 220px on stale remote echo");
+
+    // Release slider (change) -> flushes save immediately with 350px
+    rootEl.dispatchEvent({ type: "change", target: widthSlider });
+    assert.equal(savedPatches.length, 1, "Releasing Limits slider must flush debounced save immediately");
+    assert.equal(savedPatches[0].limitsWidget.width, 350, "Flushed save must persist resized width=350");
+
+    // (b) Clicking "Настройки Antigravity →" finds div-sidebar Settings button (even with shortcut suffix) AND falls back to IPC if missing
+    panel.setOpen(false);
+    const fakeActionBtn = doc.createElement("button");
+    fakeActionBtn.setAttribute("data-action", "open-native-usage-settings");
+    rootEl.appendChild(fakeActionBtn);
+    rootEl.dispatchEvent({ type: "click", target: fakeActionBtn });
+    assert.equal(settingsBtnClicks, 1, "Antigravity Settings button in non-aside div sidebar must be clicked");
+
+    // Remove sidebar button -> fallback must invoke agy-studio:open-native-settings (Ctrl+,)
+    sidebarDiv.removeChild(nativeSettingsBtn);
+    rootEl.dispatchEvent({ type: "click", target: fakeActionBtn });
+    assert.equal(openNativeSettingsIpcCalls, 1, "When sidebar Settings button is hidden/collapsed, fallback IPC must fire");
+
+    // (c) Dictated text sent via live-edit (Enter while agent running) must clear even when STT re-flushes trailing period!
+    let prevented = false;
+    const kdEvt = {
+      type: "keydown",
+      key: "Enter",
+      target: editable,
+      isComposing: false,
+      shiftKey: false,
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      preventDefault() { prevented = true; },
+      stopPropagation() {},
+      stopImmediatePropagation() {},
+    };
+    for (const fn of (doc.listeners.get("keydown") || [])) fn(kdEvt);
+    assert.equal(prevented, true, "Inline live-edit Enter while generating must be cleanly intercepted");
+    await new Promise((r) => setTimeout(r, 220));
+    assert.equal(liveEditSentCount, 1, "Live-edit must be dispatched exactly once");
+    assert.ok(clearFocusedCalls >= 2, "Residual dictated text with trailing period must trigger follow-up native clear");
+    assert.equal(editable.textContent, "", "Composer must be completely empty after speech-to-text live-edit");
+
+    // (d) dom-translator & theme-engine MutationObserver filter out contenteditable/SVG voice-dictation noise
+    let domMoCb = null;
+    let flushedCount = 0;
+    const { doc: d2, win: w2 } = createMockDom();
+    w2.MutationObserver = class {
+      constructor(cb) { domMoCb = cb; }
+      observe() {}
+      disconnect() {}
+    };
+    const origQm = global.queueMicrotask;
+    global.queueMicrotask = (fn) => { flushedCount += 1; fn(); };
+    const t2 = createDomTranslator({ document: d2, window: w2, initialLocale: "ru", dictionary: { Settings: "Настройки" } });
+    try {
+      t2.init();
+      const ce = d2.createElement("div");
+      ce.setAttribute("contenteditable", "true");
+      const tn = d2.createTextNode("speaking fast");
+      ce.appendChild(tn);
+      d2.body.appendChild(ce);
+      flushedCount = 0;
+      domMoCb([{ type: "characterData", target: tn }]);
+      assert.equal(flushedCount, 0, "dom-translator must ignore characterData inside contenteditable during dictation");
+    } finally {
+      global.queueMicrotask = origQm;
+      t2.destroy();
+    }
+
+    // (e) theme-engine ignores SVG waveform mutations inside active mic without scheduling shell scan
+    let teMoCb = null;
+    let teTimerCount = 0;
+    const { doc: d3, win: w3 } = createMockDom();
+    w3.MutationObserver = class {
+      constructor(cb) { teMoCb = cb; }
+      observe() {}
+      disconnect() {}
+    };
+    w3.setTimeout = () => { teTimerCount += 1; return teTimerCount; };
+    w3.clearTimeout = () => {};
+    const te = createThemeEngine({ document: d3, window: w3 });
+    try {
+      te.apply({
+        presetId: "custom",
+        uiStyle: { preset: "claude-code", composer: "claude-code", chat: "claude-code", modelSelector: "claude-code" },
+        wallpaper: { type: "gradient", gradientPreset: "antigravity" },
+      });
+      const micWrap = d3.createElement("div");
+      micWrap.setAttribute("data-rudex-comp-mic-active", "1");
+      const waveSvg = d3.createElement("svg");
+      micWrap.appendChild(waveSvg);
+      d3.body.appendChild(micWrap);
+      teTimerCount = 0;
+      assert.ok(typeof teMoCb === "function", "theme-engine must register shell MutationObserver");
+      teMoCb([{ type: "attributes", attributeName: "style", target: waveSvg }]);
+      assert.equal(teTimerCount, 0, "theme-engine must skip SVG waveform style mutations during dictation");
+    } finally {
+      te.destroy();
+    }
   } finally {
     panel.destroy();
     translator.destroy();

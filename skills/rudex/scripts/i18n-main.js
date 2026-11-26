@@ -2778,7 +2778,7 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "5.0.1");
+  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "5.0.2");
   const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
   const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
   const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
@@ -5183,7 +5183,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "5.0.1",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "5.0.2",
         outPath,
       });
       return res;
@@ -5953,6 +5953,21 @@ function registerI18nIpc() {
       if (typeof wc.selectAll === "function") wc.selectAll();
       if (typeof wc.delete === "function") wc.delete();
       return { ok: true };
+    } catch (_err) {
+      return { ok: false };
+    }
+  });
+  ipcMain.handle("agy-studio:open-native-settings", (event) => {
+    try {
+      const wc = event && event.sender;
+      if (!wc || (typeof wc.isDestroyed === "function" && wc.isDestroyed())) return { ok: false };
+      const mod = process.platform === "darwin" ? "meta" : "control";
+      if (typeof wc.sendInputEvent === "function") {
+        wc.sendInputEvent({ type: "keyDown", keyCode: ",", modifiers: [mod] });
+        wc.sendInputEvent({ type: "keyUp", keyCode: ",", modifiers: [mod] });
+        return { ok: true };
+      }
+      return { ok: false };
     } catch (_err) {
       return { ok: false };
     }
