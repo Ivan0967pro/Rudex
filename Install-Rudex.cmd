@@ -5,7 +5,7 @@ set "USER_ARGS=%*"
 setlocal EnableDelayedExpansion
 
 echo ========================================================
-echo   Rudex v5.0.2 -- Installer ^& Antigravity Patcher
+echo   Rudex v5.0.3 -- Installer ^& Antigravity Patcher
 echo ========================================================
 echo.
 
@@ -84,7 +84,7 @@ if !EXIT_CODE! neq 0 (
 )
 
 echo.
-echo Rudex v5.0.2 installed cleanly!
+echo Rudex v5.0.3 installed cleanly!
 if "!WAS_RUNNING!"=="1" if defined AGY_EXE (
   echo Relaunching Antigravity...
   start "" "!AGY_EXE!"

@@ -515,15 +515,35 @@ function detectAntigravityResourcesFast() {
   } else if (process.platform === "darwin") {
     candidates.push(
       "/Applications/Antigravity.app/Contents/Resources",
-      path.join(os.homedir(), "Applications", "Antigravity.app", "Contents", "Resources")
+      path.join(os.homedir(), "Applications", "Antigravity.app", "Contents", "Resources"),
+      "/Applications/Google Antigravity.app/Contents/Resources",
+      path.join(os.homedir(), "Applications", "Google Antigravity.app", "Contents", "Resources")
     );
   } else {
     candidates.push(
       "/usr/share/antigravity/resources",
+      "/usr/lib/antigravity/resources",
+      "/usr/lib64/antigravity/resources",
+      "/usr/local/share/antigravity/resources",
       "/opt/Antigravity/resources",
       "/opt/antigravity/resources",
-      path.join(os.homedir(), ".local", "share", "antigravity", "resources")
+      "/opt/google/antigravity/resources",
+      path.join(os.homedir(), ".local", "share", "antigravity", "resources"),
+      path.join(os.homedir(), ".local", "share", "Antigravity", "resources"),
+      path.join(os.homedir(), ".local", "opt", "antigravity", "resources"),
+      path.join(os.homedir(), ".local", "share", "flatpak", "app", "com.google.antigravity", "current", "active", "files", "antigravity", "resources"),
+      "/var/lib/flatpak/app/com.google.antigravity/current/active/files/antigravity/resources",
+      "/snap/antigravity/current/resources",
+      "/snap/antigravity/current/opt/antigravity/resources"
     );
+    try {
+      const { spawnSync } = require("child_process");
+      const w = spawnSync("which", ["antigravity"], { encoding: "utf8" });
+      if (w && w.status === 0 && w.stdout && w.stdout.trim()) {
+        const realBin = fs.realpathSync(w.stdout.trim());
+        candidates.push(path.join(path.dirname(realBin), "resources"));
+      }
+    } catch {}
   }
   const seen = new Set();
   for (let i = 0; i < candidates.length; i += 1) {
@@ -536,11 +556,15 @@ function detectAntigravityResourcesFast() {
     const asarPath = path.join(resolved, "app.asar");
     const appDir = path.join(resolved, "app");
     if (!fs.existsSync(asarPath) && !fs.existsSync(appDir)) continue;
+    const rootDir = path.dirname(resolved);
+    const v1 = path.join(rootDir, "version");
+    const v2 = path.join(resolved, "version");
     return {
       resourcesDir: resolved,
       asarPath,
       appDir,
-      versionPath: path.join(path.dirname(resolved), "version"),
+      versionPath: fs.existsSync(v1) ? v1 : (fs.existsSync(v2) ? v2 : v1),
+      plistPath: path.join(rootDir, "Info.plist"),
     };
   }
   return null;
@@ -567,50 +591,70 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
   try {
     if (fs.existsSync(info.versionPath)) {
       const txt = fs.readFileSync(info.versionPath, "utf8").trim();
-      if (txt) curVer = txt;
+      if (txt) curVer = txt.split(/\s+/)[0];
+    } else if (process.platform === "darwin" && info.plistPath && fs.existsSync(info.plistPath)) {
+      const pt = fs.readFileSync(info.plistPath, "utf8");
+      const m = /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/i.exec(pt);
+      if (m && m[1]) curVer = m[1].trim();
     }
   } catch {}
 
   let asarSize = 0;
-  let asarMtimeSec = 0;
+  let asarMtimeMs = 0;
   try {
     const st = fs.statSync(info.asarPath);
     asarSize = st.size || 0;
-    asarMtimeSec = Math.floor((st.mtimeMs || 0) / 1000);
+    asarMtimeMs = Math.floor(st.mtimeMs || 0);
   } catch {}
   if (!asarSize) return;
 
-  const sig = `${curVer}:${asarSize}:${asarMtimeSec}`;
+  const sig = `${curVer}:${asarSize}:${Math.floor(asarMtimeMs / 1000)}`;
+  const sigMs = `${curVer}:${asarSize}:${asarMtimeMs}`;
   const cooldownPath = path.join(userDataDir, "rudex_auto_repatch.json");
   const prev = readJsonSafe(cooldownPath);
   const now = Date.now();
-  // Once we've staged/armed recovery for this exact app.asar (version+size+mtime), don't re-spawn
-  // for 6 hours; if a third-party patcher or update modifies app.asar even 1s later, `sig` changes immediately.
-  if (prev && prev.sig === sig && now - (Number(prev.at) || 0) < 6 * 60 * 60 * 1000) {
+  const appMetaPath = path.join(info.resourcesDir, "app", "rudex-patch-meta.json");
+  const appMeta = readJsonSafe(appMetaPath);
+
+  let hashMismatch = false;
+  if (appMeta && appMeta.sourceAsarHash && asarSize <= 32 * 1024 * 1024) {
+    try {
+      const curHash = require("crypto").createHash("sha256").update(fs.readFileSync(info.asarPath)).digest("hex");
+      if (curHash && curHash !== appMeta.sourceAsarHash) hashMismatch = true;
+    } catch {}
+  }
+
+  // Once we've staged/armed recovery for this exact app.asar (version+size+mtime+hash), don't re-spawn
+  // for 6 hours; if a third-party patcher or update modifies app.asar even in-place, `sigMs` or hash changes immediately.
+  if (!hashMismatch && prev && (prev.sigMs === sigMs || prev.sig === sig) && now - (Number(prev.at) || 0) < 6 * 60 * 60 * 1000) {
     return;
   }
 
   // If resources/app/rudex-patch-meta.json ALREADY matches this exact app.asar AND the silent on-exit
   // activator lock is still fresh, nothing more to do until Antigravity closes once.
   try {
-    const appMetaPath = path.join(info.resourcesDir, "app", "rudex-patch-meta.json");
-    const appMeta = readJsonSafe(appMetaPath);
-    const exitLockPath = path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
-    if (appMeta && appMeta.sourceAsarSig === sig && fs.existsSync(exitLockPath)) {
+    const exitLockName = process.platform === "win32" ? "rudex-on-exit-activate.lock" : "rudex-on-exit-activate.lock";
+    const exitLockPath = path.join(os.tmpdir(), exitLockName);
+    if (!hashMismatch && appMeta && appMeta.sourceAsarSig === sig && fs.existsSync(exitLockPath)) {
       const lSt = fs.statSync(exitLockPath);
       if (now - (lSt.mtimeMs || 0) < 90 * 60 * 1000) {
-        safeWriteJsonAtomic(cooldownPath, { sig, at: now, version: curVer });
+        safeWriteJsonAtomic(cooldownPath, { sig, sigMs, at: now, version: curVer });
         return;
       }
     }
   } catch {}
 
   try {
-    safeWriteJsonAtomic(cooldownPath, { sig, at: now, version: curVer });
+    safeWriteJsonAtomic(cooldownPath, { sig, sigMs, at: now, version: curVer });
   } catch {}
 
   try {
     let launched = false;
+    const childEnv = Object.assign({}, process.env, {
+      ELECTRON_RUN_AS_NODE: "1",
+      ELECTRON_NO_ASAR: "1",
+      ANTIGRAVITY_RESOURCES_DIR: info.resourcesDir,
+    });
     if (process.platform === "win32") {
       try {
         const updaterCore = require("./updater-core.js");
@@ -619,8 +663,8 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
             process.execPath,
             [installJsPath, "--no-sync-plugin", "--on-exit-activate"],
             {
-              env: process.env,
-              envPatch: { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1" },
+              env: childEnv,
+              envPatch: { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1", ANTIGRAVITY_RESOURCES_DIR: info.resourcesDir },
             }
           );
         }
@@ -631,7 +675,7 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
         detached: true,
         stdio: "ignore",
         windowsHide: true,
-        env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1" }),
+        env: childEnv,
       });
       if (child && typeof child.unref === "function") child.unref();
     }

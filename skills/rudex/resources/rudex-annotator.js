@@ -16,13 +16,36 @@ const RUDEX_ANNOTATOR_COLORS = [
   "#ffffff",
 ];
 
+const RUDEX_ANN_ICON_PATHS = {
+  pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  arrow: '<line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>',
+  rect: '<rect x="4" y="4" width="16" height="16" rx="2"/>',
+  highlight: '<path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>',
+  text: '<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>',
+  blur: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  clipboard: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+};
+
+function annIconSvg(name, size) {
+  const s = size || 13;
+  const p = RUDEX_ANN_ICON_PATHS[name] || RUDEX_ANN_ICON_PATHS.pencil;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+}
+
 const RUDEX_ANNOTATOR_TOOLS = [
-  { id: "pencil", icon: "✎", labelRu: "Карандаш", labelEn: "Pencil" },
-  { id: "arrow", icon: "↗", labelRu: "Стрелка", labelEn: "Arrow" },
-  { id: "rect", icon: "▢", labelRu: "Рамка", labelEn: "Box" },
-  { id: "highlight", icon: "🖍", labelRu: "Маркер", labelEn: "Highlight" },
-  { id: "text", icon: "T", labelRu: "Текст", labelEn: "Text" },
-  { id: "blur", icon: "▦", labelRu: "Скрыть", labelEn: "Redact" },
+  { id: "pencil", iconKey: "pencil", labelRu: "Карандаш", labelEn: "Pencil" },
+  { id: "arrow", iconKey: "arrow", labelRu: "Стрелка", labelEn: "Arrow" },
+  { id: "rect", iconKey: "rect", labelRu: "Рамка", labelEn: "Box" },
+  { id: "highlight", iconKey: "highlight", labelRu: "Маркер", labelEn: "Highlight" },
+  { id: "text", iconKey: "text", labelRu: "Текст", labelEn: "Text" },
+  { id: "blur", iconKey: "blur", labelRu: "Скрыть", labelEn: "Redact" },
 ];
 
 const RUDEX_ANNOTATOR_SIZES = [
@@ -516,7 +539,7 @@ function createScreenshotAnnotator(options) {
     if (!dataUrl) return;
     invokeIpc("agy-studio:write-clipboard-image", { dataUrl }).then((res) => {
       st.statusMsg = res && res.ok
-        ? (isRu() ? "✓ Скопировано в буфер обмена (Ctrl+V в чат)" : "✓ Copied to clipboard")
+        ? (isRu() ? "Скопировано в буфер обмена (Ctrl+V в чат)" : "Copied to clipboard")
         : (isRu() ? "Ошибка копирования" : "Copy failed");
       render();
     });
@@ -645,7 +668,7 @@ function createScreenshotAnnotator(options) {
             <div class="rx-ann-seg">
               ${RUDEX_ANNOTATOR_TOOLS.map((tl) => `
                 <button type="button" class="rx-ann-tool-btn${st.tool === tl.id ? " is-active" : ""}" data-ann-tool="${tl.id}" title="${annEscapeHtml(ru ? tl.labelRu : tl.labelEn)}">
-                  <span>${tl.icon}</span>
+                  ${annIconSvg(tl.iconKey, 13)}
                   <span>${annEscapeHtml(ru ? tl.labelRu : tl.labelEn)}</span>
                 </button>
               `).join("")}
@@ -663,18 +686,18 @@ function createScreenshotAnnotator(options) {
                 }).join("")}
               </div>
               <span class="rx-ann-sep"></span>
-              <button type="button" class="rx-ann-tool-btn" data-ann-act="undo" ${st.strokes.length === 0 ? "disabled" : ""} title="Ctrl+Z">↶</button>
-              <button type="button" class="rx-ann-tool-btn" data-ann-act="redo" ${st.redoStack.length === 0 ? "disabled" : ""} title="Ctrl+Y">↷</button>
-              <button type="button" class="rx-ann-tool-btn" data-ann-act="clear" ${st.strokes.length === 0 ? "disabled" : ""} title="${ru ? "Очистить штрихи" : "Clear drawing"}">🗑</button>
+              <button type="button" class="rx-ann-tool-btn" data-ann-act="undo" ${st.strokes.length === 0 ? "disabled" : ""} title="Ctrl+Z">${annIconSvg("undo", 13)}</button>
+              <button type="button" class="rx-ann-tool-btn" data-ann-act="redo" ${st.redoStack.length === 0 ? "disabled" : ""} title="Ctrl+Y">${annIconSvg("redo", 13)}</button>
+              <button type="button" class="rx-ann-tool-btn" data-ann-act="clear" ${st.strokes.length === 0 ? "disabled" : ""} title="${ru ? "Очистить штрихи" : "Clear drawing"}">${annIconSvg("trash", 13)}</button>
             </div>
 
             <div class="rx-ann-group">
               ${!(st.sourceCtx && st.sourceCtx.sourceImgEl && st.baseImage) ? `
-                <button type="button" class="btn btn-sm" data-ann-act="capture" title="${ru ? "Снять текущее окно Antigravity" : "Capture window"}">📷 ${ru ? "Снимок" : "Capture"}</button>
-                <button type="button" class="btn btn-sm" data-ann-act="clipboard" title="${ru ? "Вставить картинку из буфера обмена" : "From clipboard"}">📋 ${ru ? "Буфер" : "Paste"}</button>
-                <button type="button" class="btn btn-sm" data-ann-act="pick-file">📁 ${ru ? "Файл" : "File"}</button>
+                <button type="button" class="btn btn-sm" data-ann-act="capture" title="${ru ? "Снять текущее окно Antigravity" : "Capture window"}">${annIconSvg("camera", 13)}<span>${ru ? "Снимок" : "Capture"}</span></button>
+                <button type="button" class="btn btn-sm" data-ann-act="clipboard" title="${ru ? "Вставить картинку из буфера обмена" : "From clipboard"}">${annIconSvg("clipboard", 13)}<span>${ru ? "Буфер" : "Paste"}</span></button>
+                <button type="button" class="btn btn-sm" data-ann-act="pick-file">${annIconSvg("folder", 13)}<span>${ru ? "Файл" : "File"}</span></button>
               ` : ""}
-              <button type="button" class="icon-btn" data-ann-act="close" title="Esc">✕</button>
+              <button type="button" class="icon-btn" data-ann-act="close" title="Esc">${annIconSvg("close", 13)}</button>
               <input type="file" accept="image/*" style="display:none" data-ann-role="fileInput"/>
             </div>
           </div>
@@ -686,7 +709,7 @@ function createScreenshotAnnotator(options) {
               </div>
             ` : `
               <div class="rx-ann-empty">
-                <div>${st.loading ? (ru ? "Загружаю скриншот…" : "Loading screenshot…") : (ru ? "Нажмите Ctrl+V, «📷 Снимок» или выберите файл, чтобы рисовать правки карандашом." : "Press Ctrl+V, click Capture, or pick a file to start drawing.")}</div>
+                <div>${st.loading ? (ru ? "Загружаю скриншот…" : "Loading screenshot…") : (ru ? "Нажмите Ctrl+V, «Снимок» или выберите файл, чтобы рисовать правки карандашом." : "Press Ctrl+V, click Capture, or pick a file to start drawing.")}</div>
               </div>
             `}
           </div>
@@ -696,7 +719,7 @@ function createScreenshotAnnotator(options) {
               <span style="font-size:11.5px;color:var(--rx-muted)">${ru ? "Подпись на скрин:" : "Text label:"}</span>
               <input type="text" class="text-input" style="flex:1" data-ann-role="textOverlayInput" placeholder="${ru ? "Введите текст и нажмите Enter…" : "Type text and press Enter…"}"/>
               <button type="button" class="btn btn-sm btn-primary" data-ann-act="commit-text">${ru ? "Добавить" : "Add"}</button>
-              <button type="button" class="btn btn-sm" data-ann-act="cancel-text">✕</button>
+              <button type="button" class="btn btn-sm" data-ann-act="cancel-text">${annIconSvg("close", 12)}</button>
             </div>
           ` : ""}
 
@@ -711,8 +734,8 @@ function createScreenshotAnnotator(options) {
             </div>
             ${st.statusMsg ? `<span style="font-size:11.5px;color:var(--rx-accent)">${annEscapeHtml(st.statusMsg)}</span>` : ""}
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-              <button type="button" class="btn btn-sm" data-ann-act="copy" ${st.baseImage ? "" : "disabled"}>📋 ${ru ? "Копировать" : "Copy"}</button>
-              <button type="button" class="btn btn-sm btn-primary" data-ann-act="attach" ${st.baseImage ? "" : "disabled"}>✓ ${ru ? "Готово · Вставить в чат" : "Done · Attach"}</button>
+              <button type="button" class="btn btn-sm" data-ann-act="copy" ${st.baseImage ? "" : "disabled"}>${annIconSvg("clipboard", 12)}<span>${ru ? "Копировать" : "Copy"}</span></button>
+              <button type="button" class="btn btn-sm btn-primary" data-ann-act="attach" ${st.baseImage ? "" : "disabled"}>${annIconSvg("check", 12)}<span>${ru ? "Готово · Вставить в чат" : "Done · Attach"}</span></button>
             </div>
           </div>
         </div>

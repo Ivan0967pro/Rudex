@@ -704,7 +704,7 @@ function teNormalizeElementOverrides(raw) {
     const it = raw[i];
     if (!it || typeof it !== "object") continue;
     const selector = typeof it.selector === "string" ? it.selector.trim().slice(0, 260) : "";
-    if (!selector || /[{}<>\\;]|\/\*/.test(selector) || /url\s*\(|expression\s*\(|@import/i.test(selector)) continue;
+    if (!selector || /[{}<\\;]|\/\*/.test(selector) || /url\s*\(|expression\s*\(|@import/i.test(selector)) continue;
     const st = it.styles && typeof it.styles === "object" ? it.styles : {};
     out.push({
       id: typeof it.id === "string" && it.id ? it.id.slice(0, 64) : "ov-" + i,
@@ -736,54 +736,115 @@ function teNormalizeElementOverrides(raw) {
   return out;
 }
 
-function teBuildElementOverridesCss(overrides, paused) {
+function teSplitTopLevelCommas(sel) {
+  const out = [];
+  let cur = "";
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let quote = "";
+  for (let i = 0; i < sel.length; i += 1) {
+    const ch = sel[i];
+    if (quote) {
+      cur += ch;
+      if (ch === quote && sel[i - 1] !== "\\") quote = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      cur += ch;
+      continue;
+    }
+    if (ch === "(") parenDepth += 1;
+    else if (ch === ")" && parenDepth > 0) parenDepth -= 1;
+    else if (ch === "[") bracketDepth += 1;
+    else if (ch === "]" && bracketDepth > 0) bracketDepth -= 1;
+    if (ch === "," && parenDepth === 0 && bracketDepth === 0) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+function teBoostOverrideSelector(rawSel) {
+  const boostPrefix = ":not(#_rx1):not(#_rx2):not(#_rx3):not(#_rx4)";
+  const branches = teSplitTopLevelCommas(String(rawSel || "").trim());
+  if (branches.length === 0) return rawSel;
+  return branches.map((b) => {
+    if (/^(?:html|:root)(?=[\s.:#[>+~]|$)/i.test(b)) {
+      return b.replace(/^(html|:root)/i, `$1${boostPrefix}`);
+    }
+    return `html${boostPrefix} ${b}`;
+  }).join(",\n");
+}
+
+function teBuildElementOverridesCss(overrides, paused, cfg) {
   if (paused || !Array.isArray(overrides) || overrides.length === 0) return "";
+  const usCfg = cfg && cfg.uiStyle ? cfg.uiStyle : null;
+  const isClaudeSplit = Boolean(usCfg && (usCfg.composer === "claude-code" || (usCfg.composer === "preset" && usCfg.preset === "claude-code")));
   const blocks = [];
   for (let i = 0; i < overrides.length; i += 1) {
     const ov = overrides[i];
     if (!ov || ov.enabled === false || !ov.selector) continue;
     const st = ov.styles || {};
-    const decls = [];
+    const splitComposerSurface = isClaudeSplit && (ov.zone === "composer" || ov.selector.trim() === '[data-rudex-theme-composer="1"]') && !st.hidden;
+    const outerDecls = [];
+    const surfaceDecls = [];
+    const targetSurface = splitComposerSurface ? surfaceDecls : outerDecls;
     if (st.hidden) {
-      decls.push("display: none !important;");
+      outerDecls.push("display: none !important;");
     } else {
       const fStack = st.fontFamily ? teResolveFontStack("ui", st.fontFamily, st.fontFamilyCustom) : "";
-      if (fStack) decls.push(`font-family: ${fStack} !important;`);
-      if (st.fontSize > 0) decls.push(`font-size: ${st.fontSize}px !important;`);
-      if (st.fontWeight > 0) decls.push(`font-weight: ${st.fontWeight} !important;`);
-      if (st.lineHeight > 0) decls.push(`line-height: ${st.lineHeight} !important;`);
-      if (st.color) decls.push(`color: ${st.color} !important;`);
+      if (fStack) outerDecls.push(`font-family: ${fStack} !important;`);
+      if (st.fontSize > 0) outerDecls.push(`font-size: ${st.fontSize}px !important;`);
+      if (st.fontWeight > 0) outerDecls.push(`font-weight: ${st.fontWeight} !important;`);
+      if (st.lineHeight > 0) outerDecls.push(`line-height: ${st.lineHeight} !important;`);
+      if (st.color) outerDecls.push(`color: ${st.color} !important;`);
       if (st.bgColor) {
         const bgVal = st.bgOpacity < 100 ? teHexToRgba(st.bgColor, st.bgOpacity) : st.bgColor;
-        decls.push(`background-color: ${bgVal} !important;`);
+        targetSurface.push(`background: ${bgVal} !important;`);
+        targetSurface.push(`background-color: ${bgVal} !important;`);
+      } else if (st.bgOpacity === 0) {
+        targetSurface.push("background: transparent !important;");
+        targetSurface.push("background-color: transparent !important;");
       }
       if (st.opacity >= 5 && st.opacity <= 100) {
-        decls.push(`opacity: ${(st.opacity / 100).toFixed(2)} !important;`);
+        outerDecls.push(`opacity: ${(st.opacity / 100).toFixed(2)} !important;`);
       }
       if (st.borderColor && st.borderWidth >= 0) {
-        decls.push(st.borderWidth === 0 ? "border: none !important;" : `border: ${st.borderWidth}px solid ${st.borderColor} !important;`);
+        targetSurface.push(st.borderWidth === 0 ? "border: none !important;" : `border: ${st.borderWidth}px solid ${st.borderColor} !important;`);
       } else if (st.borderColor) {
-        decls.push(`border-color: ${st.borderColor} !important;`);
+        targetSurface.push(`border-color: ${st.borderColor} !important;`);
       } else if (st.borderWidth === 0) {
-        decls.push("border: none !important;");
+        targetSurface.push("border: none !important;");
       } else if (st.borderWidth > 0) {
-        decls.push(`border-width: ${st.borderWidth}px !important; border-style: solid !important;`);
+        targetSurface.push(`border-width: ${st.borderWidth}px !important; border-style: solid !important;`);
       }
-      if (st.borderRadius >= 0) decls.push(`border-radius: ${st.borderRadius}px !important;`);
-      if (st.padding >= 0) decls.push(`padding: ${st.padding}px !important;`);
-      if (st.width > 0) decls.push(`width: ${st.width}px !important; max-width: ${st.width}px !important;`);
-      if (st.minHeight > 0) decls.push(`min-height: ${st.minHeight}px !important;`);
+      if (st.borderRadius >= 0) targetSurface.push(`border-radius: ${st.borderRadius}px !important;`);
+      if (st.padding >= 0) targetSurface.push(`padding: ${st.padding}px !important;`);
+      if (st.width > 0) outerDecls.push(`width: ${st.width}px !important; max-width: min(100%, ${st.width}px) !important; margin-inline: auto !important;`);
+      if (st.minHeight > 0) targetSurface.push(`min-height: ${st.minHeight}px !important;`);
     }
-    if (decls.length > 0) {
-      blocks.push(`${ov.selector} {\n  ${decls.join("\n  ")}\n}`);
-      if (!st.hidden && (st.fontFamily || st.fontSize > 0 || st.color)) {
-        const subDecls = [];
-        const fStack = st.fontFamily ? teResolveFontStack("ui", st.fontFamily, st.fontFamilyCustom) : "";
-        if (fStack) subDecls.push(`font-family: ${fStack} !important;`);
-        if (st.fontSize > 0) subDecls.push(`font-size: inherit !important;`);
-        if (st.color) subDecls.push(`color: ${st.color} !important;`);
-        blocks.push(`${ov.selector} :where(span, p, div, label):not(code):not(pre):not(a):not(a *) {\n  ${subDecls.join("\n  ")}\n}`);
-      }
+    if (outerDecls.length > 0) {
+      blocks.push(`${teBoostOverrideSelector(ov.selector)} {\n  ${outerDecls.join("\n  ")}\n}`);
+    }
+    if (splitComposerSurface && surfaceDecls.length > 0) {
+      const innerSel = `${ov.selector} [data-rudex-comp-input-row="1"]`;
+      blocks.push(`${teBoostOverrideSelector(innerSel)} {\n  ${surfaceDecls.join("\n  ")}\n}`);
+    }
+    if (!st.hidden && (st.fontFamily || st.fontSize > 0 || st.color)) {
+      const subDecls = [];
+      const fStack = st.fontFamily ? teResolveFontStack("ui", st.fontFamily, st.fontFamilyCustom) : "";
+      if (fStack) subDecls.push(`font-family: ${fStack} !important;`);
+      if (st.fontSize > 0) subDecls.push(`font-size: inherit !important;`);
+      if (st.color) subDecls.push(`color: ${st.color} !important;`);
+      const descSel = teSplitTopLevelCommas(ov.selector)
+        .map((b) => `${b} :where(span, p, div, label):not(code):not(pre):not(a):not(a *)`)
+        .join(", ");
+      blocks.push(`${teBoostOverrideSelector(descSel)} {\n  ${subDecls.join("\n  ")}\n}`);
     }
   }
   return blocks.join("\n");
@@ -2852,7 +2913,7 @@ function buildThemeCss(rawAppearance, options) {
   color: ${codeInlineFg} !important;
   border: 1px solid color-mix(in srgb, ${vars.accentColor} 22%, transparent);
   padding: 1px 5px;
-  border-radius: 5px;
+  border-radius: ${cRadii.inlineCode}px;
 }
 :where([data-testid="agent-response"], [data-markdown-root]) pre {
   background-color: ${codeBlockBg} !important;
@@ -3355,7 +3416,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   border: 1px solid rgba(15, 23, 42, 0.14);
   color: #111216 !important;
   padding: 1px 5px;
-  border-radius: 5px;
+  border-radius: ${cRadii.inlineCode}px;
 }`
           : `
 [data-testid="agent-response"] code:not(pre code), [data-markdown-root] code:not(pre code) {
@@ -3363,7 +3424,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #f8fafc !important;
   padding: 1px 5px;
-  border-radius: 5px;
+  border-radius: ${cRadii.inlineCode}px;
 }`);
     const msgContrastCss = cfg.highContrastText !== false
       ? (isLight
@@ -3379,7 +3440,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 :where([data-testid="agent-response"], [data-markdown-root]) pre {
   border: 1px solid rgba(15, 23, 42, 0.14);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  border-radius: ${Math.max(6, vars.radius - 2)}px;
+  border-radius: ${cRadii.code}px;
 }`
           : `
 [data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root] {
@@ -3393,7 +3454,7 @@ form:has([contenteditable="true"]):not([data-rudex-theme-composer="1"] *):not(:h
 :where([data-testid="agent-response"], [data-markdown-root]) pre {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  border-radius: ${Math.max(6, vars.radius - 2)}px;
+  border-radius: ${cRadii.code}px;
 }`)
       : "";
     const fallbackBg = hasThemeOverride ? vars.canvasBg : (isLight ? "#f6f7fa" : "#09090b");
@@ -3678,7 +3739,7 @@ main div[tabindex]:focus-visible {
 main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="step-group"], [data-testid*="tool-call"], [data-rudex-zone="steps"], [data-rudex-zone="thinking"]):not(#rudex-studio-host *) {
   box-shadow: inset 0 0 0 1px ${stepBorderCol};
   background-color: ${stepSurfaceBg};
-  border-radius: ${Math.max(6, Math.min(10, cRadii.cards))}px;
+  border-radius: ${cRadii.cards === 0 ? 0 : Math.max(4, Math.min(10, cRadii.cards))}px;
 }
 :where([data-testid="agent-response"], [data-markdown-root], main) pre:not(#rudex-studio-host *) {
   border: 1px solid ${crispBorderCol} !important;
@@ -3898,7 +3959,7 @@ form:has(textarea[placeholder]:focus-within):not([data-rudex-theme-composer="1"]
     if (uiStyleCss) chunks.push(uiStyleCss);
   }
 
-  const overridesCss = teBuildElementOverridesCss(cfg.elementOverrides, cfg.overridesPaused);
+  const overridesCss = teBuildElementOverridesCss(cfg.elementOverrides, cfg.overridesPaused, cfg);
   if (overridesCss) {
     chunks.push(overridesCss);
   }

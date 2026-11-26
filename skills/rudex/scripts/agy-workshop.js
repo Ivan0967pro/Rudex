@@ -711,6 +711,39 @@ function listSystemFonts() {
         }
       } catch {}
     }
+  } else if (process.platform === "darwin") {
+    const macFontDirs = [
+      "/System/Library/Fonts",
+      "/Library/Fonts",
+      path.join(os.homedir(), "Library", "Fonts"),
+    ];
+    for (const fd of macFontDirs) {
+      try {
+        if (!fs.existsSync(fd)) continue;
+        for (const f of fs.readdirSync(fd)) {
+          if (!/\.(?:ttf|otf|ttc|dfont)$/i.test(f)) continue;
+          let name = f.replace(/\.(?:ttf|otf|ttc|dfont)$/i, "").replace(/[-_]+/g, " ").trim();
+          name = name.replace(/\s+(?:Bold|Italic|Regular|Light|Medium|SemiBold|ExtraBold|Black|Thin|Condensed|Oblique)(?:\s+(?:Italic|Oblique))?$/i, "").trim();
+          if (name && name.length >= 2 && name.length <= 56 && !name.startsWith(".")) {
+            found.add(name);
+          }
+        }
+      } catch {}
+    }
+  } else {
+    try {
+      const out = execFileSync("fc-list", [":", "family"], { encoding: "utf8", timeout: 2500, maxBuffer: 2 * 1024 * 1024 });
+      const lines = String(out || "").split(/\r?\n/);
+      for (let i = 0; i < lines.length; i += 1) {
+        const parts = lines[i].split(",");
+        for (let j = 0; j < parts.length; j += 1) {
+          const name = parts[j].trim();
+          if (name && name.length >= 2 && name.length <= 56) {
+            found.add(name);
+          }
+        }
+      }
+    } catch {}
   }
   cachedSystemFonts = Array.from(found).sort((a, b) => a.localeCompare(b));
   cachedSystemFontsAt = now;

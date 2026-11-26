@@ -17,6 +17,7 @@ const {
   readZipEocdComment,
   extractCommitShaFromText,
   readGitHeadMeta,
+  posixShellQuote,
   wshEscapeJsString,
   resolveWscriptExe,
   spawnSilentWindowsWsh,
@@ -111,6 +112,7 @@ function findBackups(resourcesDir) {
 function detectAntigravity(options = {}) {
   const env = options.env || process.env;
   const platform = options.platform || process.platform;
+  const homeDir = (env && (env.HOME || env.USERPROFILE)) || os.homedir();
   const candidates = [];
 
   if (env.ANTIGRAVITY_RESOURCES_DIR) {
@@ -118,7 +120,7 @@ function detectAntigravity(options = {}) {
   }
 
   if (platform === "win32") {
-    const localApp = env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+    const localApp = env.LOCALAPPDATA || path.join(homeDir, "AppData", "Local");
     const progFiles = env.ProgramFiles || "C:\\Program Files";
     const progFiles86 = env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
     candidates.push(
@@ -132,15 +134,38 @@ function detectAntigravity(options = {}) {
   } else if (platform === "darwin") {
     candidates.push(
       "/Applications/Antigravity.app/Contents/Resources",
-      path.join(os.homedir(), "Applications", "Antigravity.app", "Contents", "Resources")
+      path.join(homeDir, "Applications", "Antigravity.app", "Contents", "Resources"),
+      "/Applications/Google Antigravity.app/Contents/Resources",
+      path.join(homeDir, "Applications", "Google Antigravity.app", "Contents", "Resources")
     );
   } else {
     candidates.push(
       "/usr/share/antigravity/resources",
+      "/usr/lib/antigravity/resources",
+      "/usr/lib64/antigravity/resources",
+      "/usr/local/share/antigravity/resources",
       "/opt/Antigravity/resources",
       "/opt/antigravity/resources",
-      path.join(os.homedir(), ".local", "share", "antigravity", "resources")
+      "/opt/google/antigravity/resources",
+      path.join(homeDir, ".local", "share", "antigravity", "resources"),
+      path.join(homeDir, ".local", "share", "Antigravity", "resources"),
+      path.join(homeDir, ".local", "opt", "antigravity", "resources"),
+      path.join(homeDir, "Applications", "antigravity", "resources"),
+      path.join(homeDir, "Applications", "Antigravity", "resources"),
+      path.join(homeDir, ".local", "share", "flatpak", "app", "com.google.antigravity", "current", "active", "files", "antigravity", "resources"),
+      "/var/lib/flatpak/app/com.google.antigravity/current/active/files/antigravity/resources",
+      "/snap/antigravity/current/resources",
+      "/snap/antigravity/current/opt/antigravity/resources"
     );
+    if (platform === process.platform && !options.skipPathLookup) {
+      try {
+        const w = spawnSync("which", ["antigravity"], { encoding: "utf8", windowsHide: true });
+        if (w && w.status === 0 && w.stdout && w.stdout.trim()) {
+          const realBin = fs.realpathSync(w.stdout.trim());
+          candidates.push(path.join(path.dirname(realBin), "resources"));
+        }
+      } catch (_e) {}
+    }
   }
 
   const seen = new Set();
@@ -157,15 +182,37 @@ function detectAntigravity(options = {}) {
     if (!fs.existsSync(asarPath) && !fs.existsSync(appDir) && backups.length === 0) continue;
 
     const rootDir = path.dirname(resolved);
-    const versionFile = path.join(rootDir, "version");
+    const versionCandidates = [
+      path.join(rootDir, "version"),
+      path.join(resolved, "version"),
+    ];
     let versionFileText = "";
     let appVersion = "";
-    try {
-      if (fs.existsSync(versionFile)) {
-        versionFileText = fs.readFileSync(versionFile, "utf8").trim();
-        appVersion = versionFileText.split(/\s+/)[0] || "";
-      }
-    } catch (_e) {}
+    for (const vf of versionCandidates) {
+      try {
+        if (fs.existsSync(vf)) {
+          versionFileText = fs.readFileSync(vf, "utf8").trim();
+          appVersion = versionFileText.split(/\s+/)[0] || "";
+          if (appVersion) break;
+        }
+      } catch (_e) {}
+    }
+
+    let plistText = "";
+    if (platform === "darwin") {
+      try {
+        const plistPath = path.join(rootDir, "Info.plist");
+        if (fs.existsSync(plistPath)) {
+          plistText = fs.readFileSync(plistPath, "utf8");
+          if (!appVersion) {
+            const shortM = /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/i.exec(plistText);
+            const verM = /<key>CFBundleVersion<\/key>\s*<string>([^<]+)<\/string>/i.exec(plistText);
+            if (shortM && shortM[1]) appVersion = shortM[1].trim();
+            else if (verM && verM[1]) appVersion = verM[1].trim();
+          }
+        }
+      } catch (_e) {}
+    }
 
     let shellVersion = "";
     const pkgCandidates = [
@@ -187,14 +234,61 @@ function detectAntigravity(options = {}) {
     if (!appVersion) appVersion = shellVersion || (backups[0] ? backups[0].version : "unknown");
 
     let exePath = "";
+    let appBundlePath = "";
     if (platform === "win32") {
       const exe = path.join(rootDir, "Antigravity.exe");
       if (fs.existsSync(exe)) exePath = exe;
     } else if (platform === "darwin") {
-      exePath = path.dirname(rootDir);
+      appBundlePath = path.dirname(rootDir);
+      const macosDir = path.join(rootDir, "MacOS");
+      if (fs.existsSync(macosDir)) {
+        const darwinBinCandidates = [];
+        if (plistText) {
+          const execM = /<key>CFBundleExecutable<\/key>\s*<string>([^<]+)<\/string>/i.exec(plistText);
+          if (execM && execM[1]) darwinBinCandidates.push(path.join(macosDir, execM[1].trim()));
+        }
+        darwinBinCandidates.push(
+          path.join(macosDir, "Antigravity"),
+          path.join(macosDir, "Google Antigravity")
+        );
+        for (const cand of darwinBinCandidates) {
+          if (fs.existsSync(cand)) { exePath = cand; break; }
+        }
+        if (!exePath) {
+          try {
+            for (const f of fs.readdirSync(macosDir)) {
+              const full = path.join(macosDir, f);
+              try {
+                if (fs.statSync(full).isFile()) { exePath = full; break; }
+              } catch (_e) {}
+            }
+          } catch (_e) {}
+        }
+      }
+      if (!exePath) exePath = appBundlePath;
     } else {
-      const bin = path.join(rootDir, "antigravity");
-      if (fs.existsSync(bin)) exePath = bin;
+      const binCandidates = [
+        path.join(rootDir, "antigravity"),
+        path.join(rootDir, "Antigravity"),
+        "/usr/bin/antigravity",
+        "/usr/bin/Antigravity",
+        "/usr/local/bin/antigravity",
+        "/opt/antigravity/antigravity",
+        "/opt/Antigravity/Antigravity",
+        "/opt/google/antigravity/antigravity",
+        path.join(homeDir, ".local", "share", "antigravity", "antigravity"),
+      ];
+      for (const b of binCandidates) {
+        if (fs.existsSync(b)) { exePath = b; break; }
+      }
+      if (!exePath && platform === process.platform && !options.skipPathLookup) {
+        try {
+          const w = spawnSync("which", ["antigravity"], { encoding: "utf8", windowsHide: true });
+          if (w && w.status === 0 && w.stdout && w.stdout.trim()) {
+            exePath = w.stdout.trim();
+          }
+        } catch (_e) {}
+      }
     }
 
     return {
@@ -204,6 +298,7 @@ function detectAntigravity(options = {}) {
       asarPath,
       appDir,
       exePath,
+      appBundlePath,
       appVersion,
       versionFileText,
       shellVersion: shellVersion || appVersion,
@@ -218,6 +313,7 @@ function detectAntigravity(options = {}) {
     asarPath: "",
     appDir: "",
     exePath: "",
+    appBundlePath: "",
     appVersion: "",
     versionFileText: "",
     shellVersion: "",
@@ -414,7 +510,7 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "5.0.2",
+    version: pkg.version || "5.0.3",
     dictEntries,
     dynamicRulesCount,
     commitSha: commitMeta.commitSha,
@@ -551,6 +647,10 @@ function ensureDirSafe(dirPath) {
           err.message =
             `${err.message} (Windows NTFS lock / DELETE_PENDING on "${dirPath}". ` +
             `Close Antigravity and any Explorer or terminal windows opened inside plugins\\rudex, then re-run the installer.)`;
+        } else if (err && (err.code === "EACCES" || err.code === "EROFS") && process.platform !== "win32") {
+          err.message =
+            `${err.message} (Insufficient permissions or read-only filesystem on "${dirPath}". ` +
+            `Run install.sh with sudo support or extract AppImage and set ANTIGRAVITY_RESOURCES_DIR.)`;
         }
         throw err;
       }
@@ -645,7 +745,11 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
   const pluginsBase = path.join(os.homedir(), ".gemini", "config", "plugins");
   const targetDir = path.join(pluginsBase, "rudex");
   const legacyDir = path.join(pluginsBase, "antigravity-ru");
-  const isSameDir = path.resolve(repoRoot).toLowerCase() === path.resolve(targetDir).toLowerCase();
+  const resolvedRepo = path.resolve(repoRoot);
+  const resolvedTarget = path.resolve(targetDir);
+  const isSameDir = (process.platform === "win32" || process.platform === "darwin")
+    ? resolvedRepo.toLowerCase() === resolvedTarget.toLowerCase()
+    : resolvedRepo === resolvedTarget;
 
   if (!isSameDir) {
     const targetRulePath = path.join(targetDir, "rules", "AGENTS.md");
@@ -682,12 +786,30 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
     }
   }
 
-  // Sync hooks.json (using hook-runner.cmd fallback on Windows if node isn't on global PATH)
+  if (process.platform !== "win32") {
+    const execFiles = [
+      path.join(targetDir, "skills", "rudex", "scripts", "hook-runner.sh"),
+      path.join(targetDir, "skills", "rudex", "scripts", "install.js"),
+      path.join(targetDir, "skills", "rudex", "scripts", "uninstall.js"),
+      path.join(targetDir, "skills", "rudex", "scripts", "rudex-hook.js"),
+    ];
+    for (const ef of execFiles) {
+      try {
+        if (fs.existsSync(ef)) fs.chmodSync(ef, 0o755);
+      } catch (_e) {}
+    }
+  }
+
+  // Sync hooks.json (using hook-runner fallback on Windows/Linux without global node, and always on macOS where GUI PATH omits Homebrew/nvm)
   const hooksObj = JSON.parse(fs.readFileSync(path.join(repoRoot, "hooks.json"), "utf8"));
-  if (process.platform === "win32" && !hasSystemNode() && hooksObj && typeof hooksObj === "object") {
+  const needsHookRunner = process.platform === "darwin" || !hasSystemNode();
+  if (needsHookRunner && hooksObj && typeof hooksObj === "object") {
+    const targetCmd = process.platform === "win32"
+      ? "cmd /c skills\\rudex\\scripts\\hook-runner.cmd"
+      : "sh ./skills/rudex/scripts/hook-runner.sh";
     const rewriteHookCmd = (entry) => {
       if (entry && typeof entry.command === "string" && /rudex-hook\.js\b/.test(entry.command)) {
-        entry.command = "cmd /c skills\\rudex\\scripts\\hook-runner.cmd";
+        entry.command = targetCmd;
       }
     };
     for (const group of Object.values(hooksObj)) {
@@ -717,7 +839,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "5.0.2";
+    let pkgVer = "5.0.3";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {
@@ -1111,7 +1233,7 @@ function writeOnExitActivateWsh(info, opts = {}) {
     "        try {",
     "          var af = fso.GetFile(asarPath);",
     "          var curM = Math.floor(new Date(af.DateLastModified).getTime() / 1000);",
-    "          if (af.Size !== expectedSize || (expectedMtimeSec > 0 && Math.abs(curM - expectedMtimeSec) > 2)) curChanged = true;",
+    "          if (af.Size !== expectedSize || (expectedMtimeSec > 0 && curM !== expectedMtimeSec)) curChanged = true;",
     "        } catch (e) {}",
     "      }",
     "      if (curChanged) {",
@@ -1147,8 +1269,106 @@ function writeOnExitActivateWsh(info, opts = {}) {
   }
 }
 
+function writeOnExitActivatePosix(info, opts = {}) {
+  if (!info || !info.resourcesDir) return "";
+  const outPath = opts.outPath || path.join(os.tmpdir(), "rudex-on-exit-activate.sh");
+  const lockPath = opts.lockPath || path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
+  const installJs = opts.installJs || path.join(os.homedir(), ".gemini", "config", "plugins", "rudex", "skills", "rudex", "scripts", "install.js");
+  const expectedSize = Number(opts.expectedAsarSize) || 0;
+  const expectedMtimeSec = Number(opts.expectedAsarMtimeSec) || 0;
+  const runnerBin = info.exePath && fs.existsSync(info.exePath) ? info.exePath : process.execPath;
+  const q = posixShellQuote;
+  const lines = [
+    "#!/bin/sh",
+    `RES_DIR=${q(info.resourcesDir)}`,
+    `ASAR_PATH=${q(info.asarPath)}`,
+    `APP_DIR=${q(info.appDir)}`,
+    `META_PATH=${q(path.join(info.appDir, PATCH_META_FILENAME))}`,
+    `LOCK_FILE=${q(lockPath)}`,
+    `INSTALL_JS=${q(installJs)}`,
+    `RUNNER_BIN=${q(runnerBin)}`,
+    `EXPECTED_SIZE=${expectedSize}`,
+    `EXPECTED_MTIME=${expectedMtimeSec}`,
+    `SELF_PATH=${q(outPath)}`,
+    "cleanup() {",
+    '  rm -f "$LOCK_FILE" "$SELF_PATH" 2>/dev/null || true',
+    "}",
+    "trap cleanup EXIT INT TERM",
+    "is_running() {",
+    '  pgrep -x "Antigravity" >/dev/null 2>&1 || pgrep -x "antigravity" >/dev/null 2>&1 || pgrep -x "Google Antigravity" >/dev/null 2>&1',
+    "}",
+    "file_size() {",
+    '  wc -c < "$1" 2>/dev/null | tr -d " "',
+    "}",
+    "file_mtime() {",
+    '  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0',
+    "}",
+    "i=0",
+    "while [ $i -lt 3600 ]; do",
+    '  [ ! -f "$ASAR_PATH" ] && break',
+    "  if ! is_running; then",
+    "    sleep 2",
+    "    is_running && continue",
+    '    [ ! -f "$ASAR_PATH" ] && break',
+    "    CUR_CHANGED=0",
+    '    if [ "$EXPECTED_SIZE" -gt 0 ] 2>/dev/null; then',
+    '      CUR_SIZE="$(file_size "$ASAR_PATH")"',
+    '      CUR_MTIME="$(file_mtime "$ASAR_PATH")"',
+    '      if [ "$CUR_SIZE" != "$EXPECTED_SIZE" ] || { [ "$EXPECTED_MTIME" -gt 0 ] 2>/dev/null && [ "$CUR_MTIME" != "$EXPECTED_MTIME" ]; }; then',
+    "        CUR_CHANGED=1",
+    "      fi",
+    "    fi",
+    '    if [ "$CUR_CHANGED" -eq 1 ]; then',
+    '      S1="$(file_size "$ASAR_PATH"):$(file_mtime "$ASAR_PATH")"',
+    "      sleep 2",
+    '      S2="$(file_size "$ASAR_PATH"):$(file_mtime "$ASAR_PATH")"',
+    '      if [ -n "$S1" ] && [ "$S1" = "$S2" ] && ! is_running && [ -f "$INSTALL_JS" ]; then',
+    '        ELECTRON_RUN_AS_NODE=1 ELECTRON_NO_ASAR=1 ANTIGRAVITY_RESOURCES_DIR="$RES_DIR" "$RUNNER_BIN" "$INSTALL_JS" --no-sync-plugin >/dev/null 2>&1 || true',
+    "      fi",
+    '    elif [ -f "$META_PATH" ] && ls "$RES_DIR"/app.asar.orig-* >/dev/null 2>&1 && [ -d "$APP_DIR" ]; then',
+    '      rm -f "$ASAR_PATH" 2>/dev/null || true',
+    "    fi",
+    "    break",
+    "  fi",
+    "  sleep 2",
+    "  i=$((i + 1))",
+    "done",
+    "",
+  ];
+  try {
+    fs.writeFileSync(outPath, lines.join("\n"), "utf8");
+    try { fs.chmodSync(outPath, 0o755); } catch (_c) {}
+    return outPath;
+  } catch (_e) {
+    return "";
+  }
+}
+
 function spawnOnExitActivatorIfNeeded(info, extraOpts = {}) {
-  if (process.platform !== "win32" || !info || !info.resourcesDir) return false;
+  if (!info || !info.resourcesDir) return false;
+  if (process.platform !== "win32") {
+    const shTarget = path.join(os.tmpdir(), "rudex-on-exit-activate.sh");
+    const lockPath = path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
+    try {
+      if (fs.existsSync(lockPath) && fs.existsSync(shTarget)) {
+        const st = fs.statSync(lockPath);
+        if (Date.now() - st.mtimeMs < 90 * 60 * 1000) return true;
+      }
+      fs.writeFileSync(lockPath, String(Date.now()), "utf8");
+      const shPath = writeOnExitActivatePosix(info, {
+        outPath: shTarget,
+        lockPath,
+        expectedAsarSize: extraOpts.expectedAsarSize || 0,
+        expectedAsarMtimeSec: extraOpts.expectedAsarMtimeSec || 0,
+      });
+      if (!shPath || !fs.existsSync(shPath)) return false;
+      const child = spawn("sh", [shPath], { detached: true, stdio: "ignore" });
+      if (child && typeof child.unref === "function") child.unref();
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
   const wshTarget = path.join(os.tmpdir(), "rudex-on-exit-activate.js");
   const cmdTarget = path.join(os.tmpdir(), "rudex-on-exit-activate.cmd");
   const lockPath = path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
@@ -1257,6 +1477,21 @@ function runInstall(options = {}) {
       path.join(info.appDir, "dist", "preload.js"),
     ]);
 
+    // Remove obsolete app.asar.orig-* backups from older Antigravity versions once current backup & patched app are verified
+    if (info.appVersion && info.appVersion !== "unknown") {
+      const keepBackupName = `app.asar.orig-${info.appVersion}`;
+      const keepBackupPath = path.join(info.resourcesDir, keepBackupName);
+      try {
+        if (fs.existsSync(keepBackupPath) && fs.statSync(keepBackupPath).size > 0) {
+          for (const entryName of fs.readdirSync(info.resourcesDir)) {
+            if (/^app\.asar\.orig-.+$/.test(entryName) && entryName !== keepBackupName) {
+              try { fs.unlinkSync(path.join(info.resourcesDir, entryName)); } catch (_e) {}
+            }
+          }
+        }
+      } catch (_e) {}
+    }
+
     console.log(`Syntax verification (vm.Script) PASSED.`);
     console.log(`Patched ${patchResult.patchedFiles.length} files (${info.appDir}) [warnings=${patchResult.warnings.length}]`);
     if (info.exePath) {
@@ -1326,9 +1561,20 @@ function runStatus() {
   console.log(`Active locale: ${locale}`);
 }
 
+function printResourcesInfo() {
+  const info = detectAntigravity();
+  console.log(`FOUND=${info.found ? "YES" : "NO"}`);
+  if (info.resourcesDir) console.log(`RESOURCES_DIR=${info.resourcesDir}`);
+  if (info.exePath) console.log(`AGY_EXE=${info.exePath}`);
+  if (info.appBundlePath) console.log(`APP_BUNDLE=${info.appBundlePath}`);
+  if (info.appVersion) console.log(`APP_VERSION=${info.appVersion}`);
+}
+
 function main() {
   const args = new Set(process.argv.slice(2));
-  if (args.has("--dry-run")) {
+  if (args.has("--print-resources")) {
+    printResourcesInfo();
+  } else if (args.has("--dry-run")) {
     runDryRun();
   } else if (args.has("--status")) {
     runStatus();
@@ -1359,6 +1605,8 @@ module.exports = {
   syncPluginToGlobalConfig,
   readPluginMeta,
   hashFileSha256,
+  posixShellQuote,
   writeOnExitActivateCmd,
   writeOnExitActivateWsh,
+  writeOnExitActivatePosix,
 };

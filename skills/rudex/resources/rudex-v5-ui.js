@@ -5,6 +5,11 @@
  * Styled strictly with studio-styles.js editorial primitives (.card, .row-item, .rx-details, .color-box).
  */
 
+function rv5UiIcon(name, size) {
+  if (typeof rv5IconSvg === "function") return rv5IconSvg(name, size);
+  return "";
+}
+
 function rv5FontSelectOptions(selectedVal, group, systemFonts, isRu, allowInherit) {
   const fonts = typeof FONT_PRESETS !== "undefined" ? FONT_PRESETS : { ui: [], mono: [] };
   const primary = group === "mono" ? (fonts.mono || []) : (fonts.ui || []);
@@ -60,8 +65,8 @@ function rv5RenderDetailedTypographyHtml(draft, systemFonts, isRu) {
             ${ty.uiFont === "custom" ? customInput("uiFontCustom", ty.uiFontCustom) : ""}
           </div>
           <div class="slider-box">
-            <div class="slider-head"><span>${isRu ? "Размер UI" : "UI Size"}</span><b class="num">${ty.uiFontSize > 0 ? ty.uiFontSize + "px" : (isRu ? "Авто" : "Auto")}</b></div>
-            <input type="range" class="range-input" min="0" max="20" step="1" data-app-field="typography.uiFontSize" value="${ty.uiFontSize || 0}"/>
+            <div class="slider-head"><span>${isRu ? "Размер UI" : "UI Size"}</span><b class="num" data-live-app-val="typography.uiFontSize">${ty.uiFontSize >= 11 ? ty.uiFontSize + "px" : (isRu ? "Авто" : "Auto")}</b></div>
+            <input type="range" class="range-input" min="10" max="20" step="1" data-app-field="typography.uiFontSize" value="${ty.uiFontSize >= 11 ? ty.uiFontSize : 10}"/>
           </div>
         </div>
 
@@ -74,8 +79,8 @@ function rv5RenderDetailedTypographyHtml(draft, systemFonts, isRu) {
             ${ty.inputFont === "custom" ? customInput("inputFontCustom", ty.inputFontCustom) : ""}
           </div>
           <div class="slider-box">
-            <div class="slider-head"><span>${isRu ? "Размер ввода" : "Input Size"}</span><b class="num">${ty.inputFontSize > 0 ? ty.inputFontSize + "px" : (isRu ? "Как чат" : "Default")}</b></div>
-            <input type="range" class="range-input" min="0" max="22" step="1" data-app-field="typography.inputFontSize" value="${ty.inputFontSize || 0}"/>
+            <div class="slider-head"><span>${isRu ? "Размер ввода" : "Input Size"}</span><b class="num" data-live-app-val="typography.inputFontSize">${ty.inputFontSize >= 12 ? ty.inputFontSize + "px" : (isRu ? "Как чат" : "Default")}</b></div>
+            <input type="range" class="range-input" min="11" max="22" step="1" data-app-field="typography.inputFontSize" value="${ty.inputFontSize >= 12 ? ty.inputFontSize : 11}"/>
           </div>
         </div>
 
@@ -88,8 +93,8 @@ function rv5RenderDetailedTypographyHtml(draft, systemFonts, isRu) {
             ${ty.agentFont === "custom" ? customInput("agentFontCustom", ty.agentFontCustom) : ""}
           </div>
           <div class="slider-box">
-            <div class="slider-head"><span>${isRu ? "Размер агента" : "Agent Size"}</span><b class="num">${ty.agentFontSize > 0 ? ty.agentFontSize + "px" : (isRu ? "Как чат" : "Default")}</b></div>
-            <input type="range" class="range-input" min="0" max="22" step="1" data-app-field="typography.agentFontSize" value="${ty.agentFontSize || 0}"/>
+            <div class="slider-head"><span>${isRu ? "Размер агента" : "Agent Size"}</span><b class="num" data-live-app-val="typography.agentFontSize">${ty.agentFontSize >= 12 ? ty.agentFontSize + "px" : (isRu ? "Как чат" : "Default")}</b></div>
+            <input type="range" class="range-input" min="11" max="22" step="1" data-app-field="typography.agentFontSize" value="${ty.agentFontSize >= 12 ? ty.agentFontSize : 11}"/>
           </div>
         </div>
 
@@ -119,8 +124,8 @@ function rv5RenderDetailedTypographyHtml(draft, systemFonts, isRu) {
             ${ty.monoFont === "custom" ? customInput("monoFontCustom", ty.monoFontCustom) : ""}
           </div>
           <div class="slider-box">
-            <div class="slider-head"><span>${isRu ? "Размер кода" : "Code Size"}</span><b class="num">${ty.codeFontSize > 0 ? ty.codeFontSize + "px" : (isRu ? "Авто" : "Auto")}</b></div>
-            <input type="range" class="range-input" min="0" max="20" step="1" data-app-field="typography.codeFontSize" value="${ty.codeFontSize || 0}"/>
+            <div class="slider-head"><span>${isRu ? "Размер кода" : "Code Size"}</span><b class="num" data-live-app-val="typography.codeFontSize">${ty.codeFontSize >= 11 ? ty.codeFontSize + "px" : (isRu ? "Авто" : "Auto")}</b></div>
+            <input type="range" class="range-input" min="10" max="20" step="1" data-app-field="typography.codeFontSize" value="${ty.codeFontSize >= 11 ? ty.codeFontSize : 10}"/>
           </div>
         </div>
       </div>
@@ -169,9 +174,9 @@ function rv5RenderElementsBuilderHtml(ctx) {
             <span class="row-desc">${isRu ? "Кликни по любому элементу Antigravity, чтобы поменять размер, шрифт, цвета, скрыть или переименовать его." : "Click any element to change its size, font, colors, border, visibility or label."}</span>
           </div>
           <div style="display:flex;gap:5px;flex-shrink:0">
-            <button type="button" class="btn btn-sm btn-primary" data-action="start-element-picker">${pickerActive ? (isRu ? "Стоп" : "Stop") : (isRu ? "🎯 Выбрать" : "🎯 Pick")}</button>
-            <button type="button" class="btn btn-sm" ${canUndo ? "" : "disabled"} data-action="undo-appearance" title="${isRu ? "Отменить" : "Undo"}">↶</button>
-            <button type="button" class="btn btn-sm" ${canRedo ? "" : "disabled"} data-action="redo-appearance" title="${isRu ? "Повторить" : "Redo"}">↷</button>
+            <button type="button" class="btn btn-sm btn-primary" data-action="start-element-picker">${pickerActive ? (isRu ? "Стоп" : "Stop") : `${rv5UiIcon("crosshair", 12)}<span>${isRu ? "Выбрать" : "Pick"}</span>`}</button>
+            <button type="button" class="btn btn-sm" ${canUndo ? "" : "disabled"} data-action="undo-appearance" title="${isRu ? "Отменить" : "Undo"}">${rv5UiIcon("undo", 12)}</button>
+            <button type="button" class="btn btn-sm" ${canRedo ? "" : "disabled"} data-action="redo-appearance" title="${isRu ? "Повторить" : "Redo"}">${rv5UiIcon("redo", 12)}</button>
           </div>
         </div>
         ${overrides.length > 0 ? `
@@ -204,7 +209,7 @@ function rv5RenderElementsBuilderHtml(ctx) {
         ${overrides.length > 0 ? `<button type="button" class="btn btn-sm btn-ghost" data-action="clear-all-overrides">${isRu ? "Сбросить все" : "Clear all"}</button>` : ""}
       </div>
       ${overrides.length === 0
-        ? `<div class="empty-msg">${isRu ? "Пока нет правок. Нажмите «🎯 Выбрать» или выберите любую зону выше." : "No overrides yet. Click Pick or select a zone above."}</div>`
+        ? `<div class="empty-msg">${isRu ? "Пока нет правок. Нажмите «Выбрать» или выберите любую зону выше." : "No overrides yet. Click Pick or select a zone above."}</div>`
         : `<div class="card">${overrides.map((ov) => `
             <div class="row-item">
               <div class="row-info" style="min-width:0">
@@ -212,9 +217,9 @@ function rv5RenderElementsBuilderHtml(ctx) {
                 <span class="row-desc" style="font-family:var(--rx-font-mono);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${rv5EscapeHtml(ov.selector)}</span>
               </div>
               <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-                <button type="button" class="btn btn-sm" data-action="toggle-override-item" data-id="${rv5EscapeHtml(ov.id)}">${ov.enabled !== false ? "👁" : "⊘"}</button>
-                <button type="button" class="btn btn-sm" data-action="edit-override-item" data-id="${rv5EscapeHtml(ov.id)}">✎</button>
-                <button type="button" class="btn btn-sm" data-action="delete-override-item" data-id="${rv5EscapeHtml(ov.id)}">✕</button>
+                <button type="button" class="btn btn-sm" data-action="toggle-override-item" data-id="${rv5EscapeHtml(ov.id)}" title="${ov.enabled !== false ? (isRu ? "Скрыть правку" : "Disable") : (isRu ? "Включить правку" : "Enable")}">${rv5UiIcon(ov.enabled !== false ? "eye" : "eyeOff", 12)}</button>
+                <button type="button" class="btn btn-sm" data-action="edit-override-item" data-id="${rv5EscapeHtml(ov.id)}" title="${isRu ? "Редактировать" : "Edit"}">${rv5UiIcon("edit", 12)}</button>
+                <button type="button" class="btn btn-sm" data-action="delete-override-item" data-id="${rv5EscapeHtml(ov.id)}" title="${isRu ? "Удалить" : "Delete"}">${rv5UiIcon("close", 12)}</button>
               </div>
             </div>
           `).join("")}</div>`
@@ -235,8 +240,8 @@ function rv5RenderElementsBuilderHtml(ctx) {
           <div class="row-item" style="padding:7px 0">
             <span class="row-title" style="font-size:12px"><b>${rv5EscapeHtml(lb.match)}</b> → ${rv5EscapeHtml(lb.label)}</span>
             <div style="display:flex;gap:4px">
-              <button type="button" class="btn btn-sm" data-action="toggle-custom-label" data-id="${rv5EscapeHtml(lb.id)}">${lb.enabled !== false ? "✓" : "○"}</button>
-              <button type="button" class="btn btn-sm" data-action="delete-custom-label" data-id="${rv5EscapeHtml(lb.id)}">✕</button>
+              <button type="button" class="btn btn-sm" data-action="toggle-custom-label" data-id="${rv5EscapeHtml(lb.id)}" title="${lb.enabled !== false ? (isRu ? "Отключить" : "Disable") : (isRu ? "Включить" : "Enable")}">${rv5UiIcon(lb.enabled !== false ? "check" : "eyeOff", 12)}</button>
+              <button type="button" class="btn btn-sm" data-action="delete-custom-label" data-id="${rv5EscapeHtml(lb.id)}" title="${isRu ? "Удалить" : "Delete"}">${rv5UiIcon("close", 12)}</button>
             </div>
           </div>
         `).join("") : ""}
@@ -309,8 +314,8 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
           <div style="font-size:10.5px;color:var(--rx-muted);font-family:var(--rx-font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${rv5EscapeHtml(sel.selector)}</div>
         </div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-          <button type="button" class="btn btn-sm btn-ghost" data-action="start-element-picker" title="${isRu ? "Выбрать другой элемент" : "Pick another element"}">🎯</button>
-          <button type="button" class="icon-btn" data-action="close-element-inspector">✕</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-action="start-element-picker" title="${isRu ? "Выбрать другой элемент" : "Pick another element"}">${rv5UiIcon("crosshair", 12)}</button>
+          <button type="button" class="icon-btn" data-action="close-element-inspector" title="${isRu ? "Закрыть" : "Close"}">${rv5UiIcon("close", 13)}</button>
         </div>
       </div>
 
@@ -331,6 +336,7 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
         </div>
       ` : ""}
 
+      <span class="rx-insp-sec-title">${isRu ? "Типографика и форма" : "Typography & Shape"}</span>
       <div class="section-group">
         <div style="display:flex;align-items:center;justify-content:space-between">
           <span class="section-label">${isRu ? "Шрифт" : "Font"}</span>
@@ -350,6 +356,7 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
         ${numSlider("borderWidth", isRu ? "Рамка" : "Border", "px", 0, 6, 1, true)}
       </div>
 
+      <span class="rx-insp-sec-title">${isRu ? "Цвета и прозрачность" : "Colors & Opacity"}</span>
       <div class="control-grid-2">
         <div class="color-box">
           <span>${isRu ? "Текст" : "Text"}</span>
@@ -390,6 +397,7 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
         </div>
       </div>
 
+      <span class="rx-insp-sec-title">${isRu ? "Размеры и видимость" : "Dimensions & Visibility"}</span>
       <div class="rx-insp-slider-grid">
         ${numSlider("width", isRu ? "Ширина" : "Width", "px", 24, 1600, 320, false)}
         ${numSlider("minHeight", isRu ? "Мин. высота" : "Min Height", "px", 16, 600, 36, false)}
@@ -617,11 +625,11 @@ function rv5RenderAgentHubTabHtml(ctx) {
         <div class="rx-preset-strip">
           ${RUDEX_AGENT_PRESETS.map((p) => {
             const sel = (ap.enabled ? ap.presetId : "default") === p.id;
-            return `<button type="button" class="rx-preset-chip${sel ? " is-selected" : ""}" data-action="apply-agent-preset" data-id="${rv5EscapeHtml(p.id)}" title="${rv5EscapeHtml(isRu ? p.descRu : p.descEn)}"><span>${rv5EscapeHtml(p.icon)}</span><span>${rv5EscapeHtml(isRu ? p.nameRu : p.nameEn)}</span></button>`;
+            return `<button type="button" class="rx-preset-chip${sel ? " is-selected" : ""}" data-action="apply-agent-preset" data-id="${rv5EscapeHtml(p.id)}" title="${rv5EscapeHtml(isRu ? p.descRu : p.descEn)}">${p.iconKey ? rv5UiIcon(p.iconKey, 12) : ""}<span>${rv5EscapeHtml(isRu ? p.nameRu : p.nameEn)}</span></button>`;
           }).join("")}
           ${(customPresets || []).map((cp) => {
             const sel = ap.enabled && ap.presetId === cp.id;
-            return `<span class="rx-preset-chip${sel ? " is-selected" : ""}" role="button" tabindex="0" data-action="apply-custom-agent-preset" data-id="${rv5EscapeHtml(cp.id)}"><span>${rv5EscapeHtml(cp.name)}</span><button type="button" class="preset-del-btn" data-action="delete-custom-agent-preset" data-id="${rv5EscapeHtml(cp.id)}">✕</button></span>`;
+            return `<span class="rx-preset-chip${sel ? " is-selected" : ""}" role="button" tabindex="0" data-action="apply-custom-agent-preset" data-id="${rv5EscapeHtml(cp.id)}"><span>${rv5EscapeHtml(cp.name)}</span><button type="button" class="preset-del-btn" data-action="delete-custom-agent-preset" data-id="${rv5EscapeHtml(cp.id)}">${rv5UiIcon("close", 10)}</button></span>`;
           }).join("")}
         </div>
         <div class="preset-add-row">
@@ -746,7 +754,7 @@ function rv5RenderLimitsTabHtml(ctx) {
         <div class="row-item">
           <div class="row-info">
             <span class="row-title">${isRu ? "Вывести лимиты Antigravity в интерфейс" : "Show Antigravity Limits in UI"}</span>
-            <span class="row-desc">${isRu ? "Живые квоты (5ч / Неделя и таймер сброса). Автоматически подстраивается под активную тему." : "Live 5h / weekly quotas and reset timer. Adapts automatically to your active theme."}</span>
+            <span class="row-desc">${isRu ? "Живые квоты (Неделя / 5ч и таймер сброса). Автоматически подстраивается под активную тему." : "Live weekly / 5h quotas and reset timer. Adapts automatically to your active theme."}</span>
           </div>
           <button type="button" class="switch${lw.enabled ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="enabled"><span class="switch-thumb"></span></button>
         </div>
@@ -758,109 +766,6 @@ function rv5RenderLimitsTabHtml(ctx) {
           <button type="button" class="switch${lw.onlyLimitsMode ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="onlyLimitsMode"><span class="switch-thumb"></span></button>
         </div>
       </div>
-    </div>
-
-    <div class="section-group">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span class="section-label">${isRu ? "Уведомления и автопродолжение чата" : "Limit Reset Alerts & Auto-Continue"}</span>
-        <button type="button" class="btn btn-sm btn-ghost" data-action="test-quota-notification">${isRu ? "🔔 Тест уведомления" : "🔔 Test alert"}</button>
-      </div>
-      <div class="card">
-        <div class="row-item">
-          <div class="row-info">
-            <span class="row-title">${isRu ? "Уведомлять на рабочий стол, когда лимиты обновятся" : "Desktop notification when limits restore"}</span>
-            <span class="row-desc">${isRu ? "Кликабельное системное уведомление — нажатие сразу открывает Antigravity (вкл. по умолчанию)." : "Clickable desktop toast — clicking opens & focuses Antigravity (on by default)."}</span>
-          </div>
-          <button type="button" class="switch${qa.notifyOnReset ? " is-on" : ""}" role="switch" aria-checked="${qa.notifyOnReset ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="notifyOnReset"><span class="switch-thumb"></span></button>
-        </div>
-        ${qa.notifyOnReset ? `
-          <div class="row-item">
-            <div class="row-info">
-              <span class="row-title">${isRu ? "Присылать уведомление, даже если Antigravity закрыт" : "Notify even when Antigravity is closed"}</span>
-              <span class="row-desc">${isRu ? "Тихое системное напоминание Windows (без консольных окон) — клик запустит Antigravity." : "Silent Windows scheduled notification (zero popups) — clicking launches Antigravity."}</span>
-            </div>
-            <button type="button" class="switch${qa.notifyWhenClosed ? " is-on" : ""}" role="switch" aria-checked="${qa.notifyWhenClosed ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="notifyWhenClosed"><span class="switch-thumb"></span></button>
-          </div>
-        ` : ""}
-        <div class="row-item">
-          <div class="row-info">
-            <span class="row-title">${isRu ? "Автопродолжение чата после восстановления лимитов" : "Auto-continue chat when limits restore"}</span>
-            <span class="row-desc">${isRu ? "Если агент не успел закончить задачу из-за лимита, он автоматически продолжит работу после сброса (выкл. по умолчанию)." : "If the agent stopped due to a quota limit, automatically resume once limits reset (off by default)."}</span>
-          </div>
-          <button type="button" class="switch${qa.autoContinueEnabled ? " is-on" : ""}" role="switch" aria-checked="${qa.autoContinueEnabled ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="autoContinueEnabled"><span class="switch-thumb"></span></button>
-        </div>
-      </div>
-
-      ${qa.autoContinueEnabled ? `
-        <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
-          <div class="section-group" style="gap:5px">
-            <span class="section-label">${isRu ? "Для каких чатов работает автопродолжение" : "Auto-Continue Scope"}</span>
-            <div class="subtab-bar is-segmented">
-              <button type="button" class="subtab-btn${qa.autoContinueScope === "all" ? " is-active" : ""}" data-action="set-quota-auto-scope" data-val="all">${isRu ? "Все чаты" : "All chats"}</button>
-              <button type="button" class="subtab-btn${qa.autoContinueScope === "selected" ? " is-active" : ""}" data-action="set-quota-auto-scope" data-val="selected">${isRu ? "Выбранные" : "Selected"}</button>
-              <button type="button" class="subtab-btn${qa.autoContinueScope === "current" ? " is-active" : ""}" data-action="set-quota-auto-scope" data-val="current">${isRu ? "Текущий чат" : "Current chat"}</button>
-            </div>
-          </div>
-
-          ${qa.autoContinueScope === "selected" ? `
-            <div class="section-group" style="gap:5px">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-                <span class="section-label">${isRu ? "Выбранные чаты" : "Selected Chats"} (${selectedSet.size})</span>
-                ${curKey && !selectedSet.has(curKey) ? `<button type="button" class="btn btn-sm" data-action="add-current-chat-auto-continue">${isRu ? "+ Добавить текущий" : "+ Add current"}</button>` : ""}
-              </div>
-              ${knownChats.length > 0 ? `
-                <div class="rx-ac-chat-list">
-                  ${knownChats.map((ch) => {
-                    const checked = selectedSet.has(ch.chatKey);
-                    return `
-                      <div class="rx-ac-chat-row">
-                        <span class="rx-ac-chat-name" title="${rv5EscapeHtml(ch.title)}">${rv5EscapeHtml(ch.title)}${ch.isCurrent ? ` <span class="nav-badge" style="margin-left:4px">${isRu ? "текущий" : "active"}</span>` : ""}</span>
-                        <button type="button" class="switch${checked ? " is-on" : ""}" role="switch" aria-checked="${checked ? "true" : "false"}" data-action="toggle-quota-auto-chat" data-chat-key="${rv5EscapeHtml(ch.chatKey)}"><span class="switch-thumb"></span></button>
-                      </div>
-                    `;
-                  }).join("")}
-                </div>
-              ` : `<span class="row-desc">${isRu ? "Откройте нужный чат и нажмите «+ Добавить текущий»." : "Open a chat and click «+ Add current»."}</span>`}
-            </div>
-          ` : ""}
-
-          ${qa.autoContinueScope === "current" ? `
-            <div class="row-desc">${curKey
-              ? (isRu ? `Привязано к чату: «${rv5EscapeHtml(curTitle)}»` : `Targeted chat: "${rv5EscapeHtml(curTitle)}"`)
-              : (isRu ? "Откройте нужный чат — автопродолжение применится к нему." : "Open any chat — auto-continue will target it.")}</div>
-          ` : ""}
-
-          <div class="section-group" style="gap:5px">
-            <span class="section-label">${isRu ? "Сообщение для автопродолжения" : "Auto-Continue Prompt"}</span>
-            <input type="text" class="text-input" data-quota-auto-field="autoContinuePrompt" value="${rv5EscapeHtml(qa.autoContinuePrompt || "")}" placeholder="${rv5EscapeHtml(defaultContinuePrompt)}"/>
-          </div>
-
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <span class="row-title" style="font-size:12px">${isRu ? "Сначала нажимать родную кнопку «Повторить»" : "Click native «Retry» button first if shown"}</span>
-            <button type="button" class="switch${qa.autoContinueRetryFirst ? " is-on" : ""}" role="switch" aria-checked="${qa.autoContinueRetryFirst ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="autoContinueRetryFirst"><span class="switch-thumb"></span></button>
-          </div>
-
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:4px;border-top:1px solid var(--rx-border)">
-            <span class="row-desc">${waitingList.length > 0
-              ? (isRu ? `В очереди ожидания лимита: ${waitingList.length}` : `Waiting for limit reset: ${waitingList.length}`)
-              : (isRu ? "Сработает автоматически при ошибке лимита или по кнопке справа." : "Triggers automatically on limit error or via the manual arm button.")}</span>
-            ${curKey ? (curIsArmed
-              ? `<button type="button" class="btn btn-sm btn-danger" data-action="disarm-auto-continue" data-chat-key="${rv5EscapeHtml(curKey)}">${isRu ? "✕ Отменить для чата" : "✕ Cancel for chat"}</button>`
-              : `<button type="button" class="btn btn-sm btn-primary" data-action="arm-current-auto-continue">${isRu ? "⏳ Ждать лимит для этого чата" : "⏳ Arm for this chat"}</button>`) : ""}
-          </div>
-
-          ${waitingList.length > 0 ? `
-            <div class="rx-ac-chat-list">
-              ${waitingList.map((w) => `
-                <div class="rx-ac-chat-row">
-                  <span class="rx-ac-chat-name">⏳ ${rv5EscapeHtml(w.title || w.chatKey.slice(0, 12))} · ${rv5EscapeHtml(w.family === "gemini" ? "Gemini" : (w.family === "claudeGpt" ? "Claude/GPT" : (isRu ? "Любой" : "Any")))}</span>
-                  <button type="button" class="btn btn-sm btn-ghost" style="padding:2px 6px" data-action="disarm-auto-continue" data-chat-key="${rv5EscapeHtml(w.chatKey)}" title="${isRu ? "Убрать из очереди" : "Remove"}">✕</button>
-                </div>
-              `).join("")}
-            </div>
-          ` : ""}
-        </div>
-      ` : ""}
     </div>
 
     <div class="section-group">
@@ -962,8 +867,8 @@ function rv5RenderLimitsTabHtml(ctx) {
               <button type="button" class="subtab-btn${lw.displayMode === "used" ? " is-active" : ""}" data-action="set-limits-field" data-field="displayMode" data-val="used">${isRu ? "Потрачено %" : "Used %"}</button>
             </div>
           </div>
-          <div class="row-item"><span class="row-title">${isRu ? "Показывать лимит 5ч" : "Show 5h limit"}</span><button type="button" class="switch${lw.show5h ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="show5h"><span class="switch-thumb"></span></button></div>
           <div class="row-item"><span class="row-title">${isRu ? "Показывать недельный лимит" : "Show Weekly limit"}</span><button type="button" class="switch${lw.showWeekly ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="showWeekly"><span class="switch-thumb"></span></button></div>
+          <div class="row-item"><span class="row-title">${isRu ? "Показывать лимит 5ч" : "Show 5h limit"}</span><button type="button" class="switch${lw.show5h ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="show5h"><span class="switch-thumb"></span></button></div>
           <div class="row-item"><span class="row-title">${isRu ? "Показывать таймер сброса" : "Show reset timer"}</span><button type="button" class="switch${lw.showResetTimer ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="showResetTimer"><span class="switch-thumb"></span></button></div>
           <div class="row-item"><span class="row-title">${isRu ? "Авто-светофор (зелёный → жёлтый → красный)" : "Auto traffic-light colors"}</span><button type="button" class="switch${lw.trafficLight ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="trafficLight"><span class="switch-thumb"></span></button></div>
           ${!lw.trafficLight ? `
@@ -975,6 +880,109 @@ function rv5RenderLimitsTabHtml(ctx) {
         </div>
       </div>
     </details>
+
+    <div class="section-group">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span class="section-label">${isRu ? "Уведомления и автопродолжение чата" : "Limit Reset Alerts & Auto-Continue"}</span>
+        <button type="button" class="btn btn-sm btn-ghost" data-action="test-quota-notification">${rv5UiIcon("bell", 12)}<span>${isRu ? "Тест уведомления" : "Test alert"}</span></button>
+      </div>
+      <div class="card">
+        <div class="row-item">
+          <div class="row-info">
+            <span class="row-title">${isRu ? "Уведомлять на рабочий стол, когда лимиты обновятся" : "Desktop notification when limits restore"}</span>
+            <span class="row-desc">${isRu ? "Кликабельное системное уведомление — нажатие сразу открывает Antigravity (вкл. по умолчанию)." : "Clickable desktop toast — clicking opens & focuses Antigravity (on by default)."}</span>
+          </div>
+          <button type="button" class="switch${qa.notifyOnReset ? " is-on" : ""}" role="switch" aria-checked="${qa.notifyOnReset ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="notifyOnReset"><span class="switch-thumb"></span></button>
+        </div>
+        ${qa.notifyOnReset ? `
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${isRu ? "Присылать уведомление, даже если Antigravity закрыт" : "Notify even when Antigravity is closed"}</span>
+              <span class="row-desc">${isRu ? "Тихое системное напоминание (Windows / macOS / Linux) без всплывающих консольных окон." : "Silent OS scheduled notification (Windows / macOS / Linux) with zero console popups."}</span>
+            </div>
+            <button type="button" class="switch${qa.notifyWhenClosed ? " is-on" : ""}" role="switch" aria-checked="${qa.notifyWhenClosed ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="notifyWhenClosed"><span class="switch-thumb"></span></button>
+          </div>
+        ` : ""}
+        <div class="row-item">
+          <div class="row-info">
+            <span class="row-title">${isRu ? "Автопродолжение чата после восстановления лимитов" : "Auto-continue chat when limits restore"}</span>
+            <span class="row-desc">${isRu ? "Если агент не успел закончить задачу из-за лимита, он автоматически продолжит работу после сброса (выкл. по умолчанию)." : "If the agent stopped due to a quota limit, automatically resume once limits reset (off by default)."}</span>
+          </div>
+          <button type="button" class="switch${qa.autoContinueEnabled ? " is-on" : ""}" role="switch" aria-checked="${qa.autoContinueEnabled ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="autoContinueEnabled"><span class="switch-thumb"></span></button>
+        </div>
+      </div>
+
+      ${qa.autoContinueEnabled ? `
+        <div class="card card-pad" style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
+          <div class="section-group" style="gap:5px">
+            <span class="section-label">${isRu ? "Для каких чатов работает автопродолжение" : "Auto-Continue Scope"}</span>
+            <div class="subtab-bar is-segmented">
+              <button type="button" class="subtab-btn${qa.autoContinueScope === "all" ? " is-active" : ""}" data-action="set-quota-auto-scope" data-val="all">${isRu ? "Все чаты" : "All chats"}</button>
+              <button type="button" class="subtab-btn${qa.autoContinueScope === "selected" ? " is-active" : ""}" data-action="set-quota-auto-scope" data-val="selected">${isRu ? "Выбранные" : "Selected"}</button>
+              <button type="button" class="subtab-btn${qa.autoContinueScope === "current" ? " is-active" : ""}" data-action="set-quota-auto-scope" data-val="current">${isRu ? "Текущий чат" : "Current chat"}</button>
+            </div>
+          </div>
+
+          ${qa.autoContinueScope === "selected" ? `
+            <div class="section-group" style="gap:5px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                <span class="section-label">${isRu ? "Выбранные чаты" : "Selected Chats"} (${selectedSet.size})</span>
+                ${curKey && !selectedSet.has(curKey) ? `<button type="button" class="btn btn-sm" data-action="add-current-chat-auto-continue">${isRu ? "+ Добавить текущий" : "+ Add current"}</button>` : ""}
+              </div>
+              ${knownChats.length > 0 ? `
+                <div class="rx-ac-chat-list">
+                  ${knownChats.map((ch) => {
+                    const checked = selectedSet.has(ch.chatKey);
+                    return `
+                      <div class="rx-ac-chat-row">
+                        <span class="rx-ac-chat-name" title="${rv5EscapeHtml(ch.title)}">${rv5EscapeHtml(ch.title)}${ch.isCurrent ? ` <span class="nav-badge" style="margin-left:4px">${isRu ? "текущий" : "active"}</span>` : ""}</span>
+                        <button type="button" class="switch${checked ? " is-on" : ""}" role="switch" aria-checked="${checked ? "true" : "false"}" data-action="toggle-quota-auto-chat" data-chat-key="${rv5EscapeHtml(ch.chatKey)}"><span class="switch-thumb"></span></button>
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+              ` : `<span class="row-desc">${isRu ? "Откройте нужный чат и нажмите «+ Добавить текущий»." : "Open a chat and click «+ Add current»."}</span>`}
+            </div>
+          ` : ""}
+
+          ${qa.autoContinueScope === "current" ? `
+            <div class="row-desc">${curKey
+              ? (isRu ? `Привязано к чату: «${rv5EscapeHtml(curTitle)}»` : `Targeted chat: "${rv5EscapeHtml(curTitle)}"`)
+              : (isRu ? "Откройте нужный чат — автопродолжение применится к нему." : "Open any chat — auto-continue will target it.")}</div>
+          ` : ""}
+
+          <div class="section-group" style="gap:5px">
+            <span class="section-label">${isRu ? "Сообщение для автопродолжения" : "Auto-Continue Prompt"}</span>
+            <input type="text" class="text-input" data-quota-auto-field="autoContinuePrompt" value="${rv5EscapeHtml(qa.autoContinuePrompt || "")}" placeholder="${rv5EscapeHtml(defaultContinuePrompt)}"/>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span class="row-title" style="font-size:12px">${isRu ? "Сначала нажимать родную кнопку «Повторить»" : "Click native «Retry» button first if shown"}</span>
+            <button type="button" class="switch${qa.autoContinueRetryFirst ? " is-on" : ""}" role="switch" aria-checked="${qa.autoContinueRetryFirst ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="autoContinueRetryFirst"><span class="switch-thumb"></span></button>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:4px;border-top:1px solid var(--rx-border)">
+            <span class="row-desc">${waitingList.length > 0
+              ? (isRu ? `В очереди ожидания лимита: ${waitingList.length}` : `Waiting for limit reset: ${waitingList.length}`)
+              : (isRu ? "Сработает автоматически при ошибке лимита или по кнопке справа." : "Triggers automatically on limit error or via the manual arm button.")}</span>
+            ${curKey ? (curIsArmed
+              ? `<button type="button" class="btn btn-sm btn-danger" data-action="disarm-auto-continue" data-chat-key="${rv5EscapeHtml(curKey)}">${rv5UiIcon("close", 11)}<span>${isRu ? "Отменить для чата" : "Cancel for chat"}</span></button>`
+              : `<button type="button" class="btn btn-sm btn-primary" data-action="arm-current-auto-continue">${rv5UiIcon("clock", 12)}<span>${isRu ? "Ждать лимит для этого чата" : "Arm for this chat"}</span></button>`) : ""}
+          </div>
+
+          ${waitingList.length > 0 ? `
+            <div class="rx-ac-chat-list">
+              ${waitingList.map((w) => `
+                <div class="rx-ac-chat-row">
+                  <span class="rx-ac-chat-name" style="display:inline-flex;align-items:center;gap:5px">${rv5UiIcon("clock", 11)}<span>${rv5EscapeHtml(w.title || w.chatKey.slice(0, 12))} · ${rv5EscapeHtml(w.family === "gemini" ? "Gemini" : (w.family === "claudeGpt" ? "Claude/GPT" : (isRu ? "Любой" : "Any")))}</span></span>
+                  <button type="button" class="btn btn-sm btn-ghost" style="padding:2px 6px" data-action="disarm-auto-continue" data-chat-key="${rv5EscapeHtml(w.chatKey)}" title="${isRu ? "Убрать из очереди" : "Remove"}">${rv5UiIcon("close", 11)}</button>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+        </div>
+      ` : ""}
+    </div>
 
     ${monitorHtml || exportHtml ? `
       <details class="rx-details" data-disc="limitsMonitor">
@@ -1021,7 +1029,7 @@ function rv5RenderKeybindingsHtml(keybindings, recordingId, isRu) {
                       <button type="button" class="rx-kb-btn${isRec ? " is-recording" : ""}" data-action="record-keybinding" data-id="${rv5EscapeHtml(d.id)}">
                         ${isRec ? (isRu ? "Нажмите клавиши…" : "Press keys…") : (val || (isRu ? "Не задано" : "Not set"))}
                       </button>
-                      ${val ? `<button type="button" class="btn btn-sm btn-ghost" data-action="clear-keybinding" data-id="${rv5EscapeHtml(d.id)}" title="${isRu ? "Отключить" : "Clear"}">✕</button>` : ""}
+                      ${val ? `<button type="button" class="btn btn-sm btn-ghost" data-action="clear-keybinding" data-id="${rv5EscapeHtml(d.id)}" title="${isRu ? "Отключить" : "Clear"}">${rv5UiIcon("close", 11)}</button>` : ""}
                     </div>
                   </div>
                 `;
@@ -1074,8 +1082,8 @@ function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills) {
             </div>
             <div style="display:flex;gap:5px;flex-shrink:0">
               <button type="button" class="switch${r.enabled ? " is-on" : ""}" role="switch" data-action="ws-toggle-rule" data-path="${rv5EscapeHtml(r.path)}" data-enabled="${r.enabled ? "1" : "0"}"><span class="switch-thumb"></span></button>
-              <button type="button" class="btn btn-sm" data-action="ws-open-path" data-path="${rv5EscapeHtml(r.path)}" title="${isRu ? "Открыть файл" : "Reveal"}">↗</button>
-              <button type="button" class="btn btn-sm" data-action="ws-delete-rule" data-path="${rv5EscapeHtml(r.path)}" title="${isRu ? "Удалить" : "Delete"}">✕</button>
+              <button type="button" class="btn btn-sm" data-action="ws-open-path" data-path="${rv5EscapeHtml(r.path)}" title="${isRu ? "Открыть файл" : "Reveal"}">${rv5UiIcon("arrowUpRight", 12)}</button>
+              <button type="button" class="btn btn-sm" data-action="ws-delete-rule" data-path="${rv5EscapeHtml(r.path)}" title="${isRu ? "Удалить" : "Delete"}">${rv5UiIcon("close", 12)}</button>
             </div>
           </div>
           <div class="row-desc" style="font-size:11.5px;white-space:pre-wrap;max-height:56px;overflow:hidden">${rv5EscapeHtml((r.body || r.content || "").trim().slice(0, 220))}</div>
@@ -1101,12 +1109,12 @@ function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills) {
         <div class="rx-ws-card">
           <div class="rx-ws-head">
             <div style="min-width:0">
-              <div class="row-title">${rv5EscapeHtml(sk.name)} <span class="nav-badge">${rv5EscapeHtml(sk.plugin || sk.scope)}</span>${isPinned ? ` <span class="badge-active">★ ${isRu ? "Закреплён" : "Pinned"}</span>` : ""}</div>
+              <div class="row-title">${rv5EscapeHtml(sk.name)} <span class="nav-badge">${rv5EscapeHtml(sk.plugin || sk.scope)}</span>${isPinned ? ` <span class="badge-active">${rv5UiIcon("starFilled", 10)}<span>${isRu ? "Закреплён" : "Pinned"}</span></span>` : ""}</div>
               <div class="row-desc">${rv5EscapeHtml(sk.description || sk.path)}</div>
             </div>
             <div style="display:flex;gap:5px;flex-shrink:0">
-              <button type="button" class="btn btn-sm${isPinned ? " btn-primary" : ""}" data-action="ws-pin-skill" data-name="${rv5EscapeHtml(sk.name)}" title="${isPinned ? (isRu ? "Открепить от агента" : "Unpin from Agent") : (isRu ? "Прикрепить к агенту" : "Pin to Agent")}">${isPinned ? "★" : "☆"}</button>
-              <button type="button" class="btn btn-sm" data-action="ws-open-path" data-path="${rv5EscapeHtml(sk.dir || sk.path)}">↗</button>
+              <button type="button" class="btn btn-sm${isPinned ? " btn-primary" : ""}" data-action="ws-pin-skill" data-name="${rv5EscapeHtml(sk.name)}" title="${isPinned ? (isRu ? "Открепить от агента" : "Unpin from Agent") : (isRu ? "Прикрепить к агенту" : "Pin to Agent")}">${rv5UiIcon(isPinned ? "starFilled" : "star", 12)}</button>
+              <button type="button" class="btn btn-sm" data-action="ws-open-path" data-path="${rv5EscapeHtml(sk.dir || sk.path)}" title="${isRu ? "Открыть папку" : "Reveal"}">${rv5UiIcon("arrowUpRight", 12)}</button>
             </div>
           </div>
         </div>
@@ -1138,7 +1146,7 @@ function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills) {
             </div>
             <div style="display:flex;gap:5px;flex-shrink:0">
               <button type="button" class="switch${!m.disabled ? " is-on" : ""}" role="switch" data-action="ws-toggle-mcp" data-name="${rv5EscapeHtml(m.name)}" data-scope="${rv5EscapeHtml(m.scope)}" data-disabled="${m.disabled ? "1" : "0"}"><span class="switch-thumb"></span></button>
-              <button type="button" class="btn btn-sm" data-action="ws-delete-mcp" data-name="${rv5EscapeHtml(m.name)}" data-scope="${rv5EscapeHtml(m.scope)}">✕</button>
+              <button type="button" class="btn btn-sm" data-action="ws-delete-mcp" data-name="${rv5EscapeHtml(m.name)}" data-scope="${rv5EscapeHtml(m.scope)}" title="${isRu ? "Удалить" : "Delete"}">${rv5UiIcon("close", 12)}</button>
             </div>
           </div>
         </div>
@@ -1151,7 +1159,7 @@ function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills) {
         <div class="rx-ws-card">
           <div class="rx-ws-head">
             <div><div class="row-title">${rv5EscapeHtml(p.name)} ${p.version ? `<span class="nav-badge">v${rv5EscapeHtml(p.version)}</span>` : ""}</div><div class="row-desc">${rv5EscapeHtml(p.description || p.dir)}</div></div>
-            <button type="button" class="btn btn-sm" data-action="ws-open-path" data-path="${rv5EscapeHtml(p.dir)}">↗</button>
+            <button type="button" class="btn btn-sm" data-action="ws-open-path" data-path="${rv5EscapeHtml(p.dir)}" title="${isRu ? "Открыть папку" : "Reveal"}">${rv5UiIcon("arrowUpRight", 12)}</button>
           </div>
         </div>
       `).join("")}
@@ -1160,7 +1168,7 @@ function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills) {
         <div class="rx-ws-card">
           <div class="rx-ws-head">
             <div><div class="row-title">${rv5EscapeHtml(h.name)} <span class="nav-badge">${rv5EscapeHtml(h.source)}</span></div><div class="row-desc">${rv5EscapeHtml((h.events || []).join(" · "))}</div></div>
-            <button type="button" class="btn btn-sm" data-action="ws-open-path" data-path="${rv5EscapeHtml(h.path)}">↗</button>
+            <button type="button" class="btn btn-sm" data-action="ws-open-path" data-path="${rv5EscapeHtml(h.path)}" title="${isRu ? "Открыть файл" : "Reveal"}">${rv5UiIcon("arrowUpRight", 12)}</button>
           </div>
         </div>
       `).join("")}
@@ -1174,7 +1182,7 @@ function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills) {
         <button type="button" class="subtab-btn${scope === "workspace" ? " is-active" : ""}" data-action="ws-set-scope" data-val="workspace">${isRu ? "Проект" : "Project"}</button>
         <button type="button" class="subtab-btn${scope === "all" ? " is-active" : ""}" data-action="ws-set-scope" data-val="all">${isRu ? "Всё" : "All"}</button>
       </div>
-      <button type="button" class="btn btn-sm" data-action="ws-refresh">↻ ${isRu ? "Обновить" : "Refresh"}</button>
+      <button type="button" class="btn btn-sm" data-action="ws-refresh">${rv5UiIcon("refresh", 12)}<span>${isRu ? "Обновить" : "Refresh"}</span></button>
     </div>
     <div class="subtab-bar">
       <button type="button" class="subtab-btn${sub === "rules" ? " is-active" : ""}" data-action="ws-set-sub" data-val="rules">${isRu ? "Правила" : "Rules"} (${rules.length})</button>
@@ -1330,11 +1338,11 @@ function rv5BuildChatDockHtml(ctx) {
       <div class="rx-live-queue-strip">
         ${queueItems.map((it) => `
           <div class="rx-lq-item">
-            <span class="rx-lq-badge${it.status === "delivered" ? " is-done" : ""}">${it.status === "delivered" ? (isRu ? "✓ Учтено" : "✓ Applied") : (isRu ? "⚡ В очереди" : "⚡ Queued")}</span>
+            <span class="rx-lq-badge${it.status === "delivered" ? " is-done" : ""}">${it.status === "delivered" ? (isRu ? "Учтено" : "Applied") : (isRu ? "В очереди" : "Queued")}</span>
             <span class="rx-lq-text">${rv5EscapeHtml(it.text || (isRu ? "Скриншот с правкой" : "Annotated screenshot"))}</span>
             ${it.status === "pending"
-              ? `<button type="button" class="rx-lim-btn" data-action="cancel-live-edit" data-id="${rv5EscapeHtml(it.id)}" title="${isRu ? "Отменить правку" : "Cancel edit"}">✕</button>`
-              : `<button type="button" class="rx-lim-btn" data-action="dismiss-live-edit-toast" data-id="${rv5EscapeHtml(it.id)}" title="${isRu ? "Скрыть" : "Dismiss"}">✕</button>`}
+              ? `<button type="button" class="rx-lim-btn" data-action="cancel-live-edit" data-id="${rv5EscapeHtml(it.id)}" title="${isRu ? "Отменить правку" : "Cancel edit"}">${rv5UiIcon("close", 11)}</button>`
+              : `<button type="button" class="rx-lim-btn" data-action="dismiss-live-edit-toast" data-id="${rv5EscapeHtml(it.id)}" title="${isRu ? "Скрыть" : "Dismiss"}">${rv5UiIcon("close", 11)}</button>`}
           </div>
         `).join("")}
       </div>
@@ -1351,8 +1359,8 @@ function rv5BuildChatDockHtml(ctx) {
         ` : ""}
         ${hasWaiting ? `
           <span class="rx-ac-pill" title="${rv5EscapeHtml(isRu ? "Чат автоматически продолжится, когда лимиты восстановятся" : "Chat will auto-continue once limits restore")}">
-            <span>⏳ ${isRu ? "Автопродолжение после лимита" : "Auto-continue armed"}</span>
-            <button type="button" class="rx-ac-cancel" data-action="disarm-auto-continue" data-chat-key="${rv5EscapeHtml(waitingEntry.chatKey)}" title="${isRu ? "Отменить" : "Cancel"}">✕</button>
+            ${rv5UiIcon("clock", 11)}<span>${isRu ? "Автопродолжение после лимита" : "Auto-continue armed"}</span>
+            <button type="button" class="rx-ac-cancel" data-action="disarm-auto-continue" data-chat-key="${rv5EscapeHtml(waitingEntry.chatKey)}" title="${isRu ? "Отменить" : "Cancel"}">${rv5UiIcon("close", 10)}</button>
           </span>
         ` : ""}
         ${ctxPillHtml}
@@ -1377,9 +1385,10 @@ function rv5InjectImageEditTriggers(doc, isRu, onEditImage) {
       if (!dlg || (dlg.closest && dlg.closest("#rudex-studio-host"))) continue;
       const existingLbBtn = dlg.querySelector ? dlg.querySelector('[data-rudex-img-edit-btn="lightbox"]') : null;
       if (existingLbBtn) {
-        const wantTxt = isRu ? "✎ Редактировать" : "✎ Edit";
-        if (existingLbBtn.textContent !== wantTxt) {
-          existingLbBtn.textContent = wantTxt;
+        const wantTxt = isRu ? "Редактировать" : "Edit";
+        if (existingLbBtn.getAttribute("data-rudex-lbl") !== wantTxt) {
+          existingLbBtn.setAttribute("data-rudex-lbl", wantTxt);
+          existingLbBtn.innerHTML = `${rv5UiIcon("edit", 12)}<span>${rv5EscapeHtml(wantTxt)}</span>`;
           existingLbBtn.title = isRu ? "Нарисовать правки карандашом" : "Draw edits on screenshot";
         }
         continue;
@@ -1408,7 +1417,9 @@ function rv5InjectImageEditTriggers(doc, isRu, onEditImage) {
       btn.setAttribute("data-rudex-ignore", "1");
       btn.title = isRu ? "Нарисовать правки карандашом" : "Draw edits on screenshot";
       btn.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:2147483500;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:9px;border:1px solid rgba(255,255,255,0.22);background:rgba(24,24,23,0.92);color:#faf9f5;font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.45);backdrop-filter:blur(10px);";
-      btn.textContent = isRu ? "✎ Редактировать" : "✎ Edit";
+      const lbTxt = isRu ? "Редактировать" : "Edit";
+      btn.setAttribute("data-rudex-lbl", lbTxt);
+      btn.innerHTML = `${rv5UiIcon("edit", 12)}<span>${rv5EscapeHtml(lbTxt)}</span>`;
       btn.addEventListener("click", (ev) => {
         if (ev && typeof ev.preventDefault === "function") ev.preventDefault();
         if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation();
@@ -1442,7 +1453,7 @@ function rv5InjectImageEditTriggers(doc, isRu, onEditImage) {
         tBtn.setAttribute("data-rudex-ignore", "1");
         tBtn.title = isRu ? "Редактировать скрин карандашом" : "Annotate screenshot";
         tBtn.style.cssText = "position:absolute;left:2px;bottom:2px;z-index:12;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:1px solid rgba(255,255,255,0.26);background:rgba(20,20,19,0.82);color:#faf9f5;font-size:10px;line-height:1;padding:0;cursor:pointer;opacity:0.74;transition:opacity 0.12s ease;";
-        tBtn.textContent = "✎";
+        tBtn.innerHTML = rv5UiIcon("edit", 10);
         tBtn.addEventListener("mouseenter", () => { tBtn.style.opacity = "1"; });
         tBtn.addEventListener("mouseleave", () => { tBtn.style.opacity = "0.74"; });
         tBtn.addEventListener("click", (ev) => {
@@ -2001,12 +2012,12 @@ function rv5SyncLiveChatBubbles(doc, ctx) {
         ? `<div class="rx-cb-imgs">${previewImgs.map((im) => `<img class="rx-cb-img" src="${rv5EscapeHtml(im.previewDataUrl || im.dataUrl)}" alt=""/>`).join("")}</div>`
         : "";
       const fileChipsHtml = (fallbackImgChips.length > 0 || rawFiles.length > 0)
-        ? `<div class="rx-cb-files">${fallbackImgChips.map((im) => `<span class="rx-cb-file-chip">🖼 ${rv5EscapeHtml(im.name || "screenshot.png")}</span>`).join("")}${rawFiles.map((fl) => `<span class="rx-cb-file-chip">📎 ${rv5EscapeHtml(fl.name || "file")}</span>`).join("")}</div>`
+        ? `<div class="rx-cb-files">${fallbackImgChips.map((im) => `<span class="rx-cb-file-chip">${rv5UiIcon("image", 11)}<span>${rv5EscapeHtml(im.name || "screenshot.png")}</span></span>`).join("")}${rawFiles.map((fl) => `<span class="rx-cb-file-chip">${rv5UiIcon("file", 11)}<span>${rv5EscapeHtml(fl.name || "file")}</span></span>`).join("")}</div>`
         : "";
       const metaHtml = !isDone
         ? `<div class="rx-cb-meta"><span class="rx-cb-dot"></span><span>${isRu ? "Дополнение · в очереди" : "Live edit · queued"}</span><button type="button" class="rx-cb-act" data-rx-cb-act="cancel" data-id="${rv5EscapeHtml(it.id)}">${isRu ? "Отменить" : "Cancel"}</button></div>`
         : (showDeliveredBadge
-            ? `<div class="rx-cb-meta"><span class="rx-cb-done">✓ ${isRu ? "Учтено агентом" : "Applied by agent"}</span></div>`
+            ? `<div class="rx-cb-meta"><span class="rx-cb-done">${rv5UiIcon("check", 11)}<span>${isRu ? "Учтено агентом" : "Applied by agent"}</span></span></div>`
             : "");
       return `
         <div class="rx-cb-item" data-live-id="${rv5EscapeHtml(it.id)}">
@@ -2144,9 +2155,9 @@ function rv5RenderInputHistoryHtml(ctx) {
                     ${timeLabel ? `<span>· ${rv5EscapeHtml(timeLabel)}</span>` : ""}
                   </div>
                   <div class="rx-hist-actions">
-                    ${hasText ? `<button type="button" class="btn btn-sm" data-action="copy-history-text" data-id="${rv5EscapeHtml(it.id)}">📋 ${isRu ? "Текст" : "Copy"}</button>` : ""}
+                    ${hasText ? `<button type="button" class="btn btn-sm" data-action="copy-history-text" data-id="${rv5EscapeHtml(it.id)}">${rv5UiIcon("copy", 12)}<span>${isRu ? "Текст" : "Copy"}</span></button>` : ""}
                     <button type="button" class="btn btn-sm btn-ghost" data-action="insert-history-item" data-id="${rv5EscapeHtml(it.id)}" title="${isRu ? "Вставить текст и файлы в поле ввода" : "Insert text & files into composer"}">↩ ${isRu ? "В чат" : "Insert"}</button>
-                    <button type="button" class="icon-btn" data-action="delete-history-item" data-id="${rv5EscapeHtml(it.id)}" title="${isRu ? "Удалить" : "Delete"}">✕</button>
+                    <button type="button" class="icon-btn" data-action="delete-history-item" data-id="${rv5EscapeHtml(it.id)}" title="${isRu ? "Удалить" : "Delete"}">${rv5UiIcon("close", 12)}</button>
                   </div>
                 </div>
                 ${hasText ? `<pre class="rx-hist-text">${rv5EscapeHtml(it.text)}</pre>` : ""}
@@ -2156,14 +2167,14 @@ function rv5RenderInputHistoryHtml(ctx) {
                       <div class="rx-hist-att">
                         ${att.previewDataUrl
                           ? `<img class="rx-hist-thumb" src="${rv5EscapeHtml(att.previewDataUrl)}" alt=""/>`
-                          : `<span class="rx-hist-file-ico">${att.isImage ? "🖼" : "📎"}</span>`}
+                          : `<span class="rx-hist-file-ico">${rv5UiIcon(att.isImage ? "image" : "file", 15)}</span>`}
                         <div class="rx-hist-att-info">
                           <span class="rx-hist-att-name" title="${rv5EscapeHtml(att.name)}">${rv5EscapeHtml(att.name)}</span>
                           <span class="rx-hist-att-size">${rv5EscapeHtml(rv5FormatBytesShort(att.sizeBytes))}</span>
                         </div>
                         ${att.exists !== false ? `
-                          <button type="button" class="btn btn-sm" data-action="copy-history-file" data-file="${rv5EscapeHtml(att.fileName)}" data-name="${rv5EscapeHtml(att.name)}" data-mime="${rv5EscapeHtml(att.mime)}" data-is-img="${att.isImage ? "1" : "0"}" title="${isRu ? "Скопировать в буфер обмена (Ctrl+V)" : "Copy to clipboard (Ctrl+V)"}">📋 ${isRu ? "Копир." : "Copy"}</button>
-                          <button type="button" class="icon-btn" data-action="reveal-history-file" data-file="${rv5EscapeHtml(att.fileName)}" title="${isRu ? "Показать в папке" : "Reveal in folder"}">📁</button>
+                          <button type="button" class="btn btn-sm" data-action="copy-history-file" data-file="${rv5EscapeHtml(att.fileName)}" data-name="${rv5EscapeHtml(att.name)}" data-mime="${rv5EscapeHtml(att.mime)}" data-is-img="${att.isImage ? "1" : "0"}" title="${isRu ? "Скопировать в буфер обмена (Ctrl+V)" : "Copy to clipboard (Ctrl+V)"}">${rv5UiIcon("copy", 12)}<span>${isRu ? "Копир." : "Copy"}</span></button>
+                          <button type="button" class="icon-btn" data-action="reveal-history-file" data-file="${rv5EscapeHtml(att.fileName)}" title="${isRu ? "Показать в папке" : "Reveal in folder"}">${rv5UiIcon("folder", 12)}</button>
                         ` : `<span class="rx-hist-att-size">${isRu ? "удалён" : "missing"}</span>`}
                       </div>
                     `).join("")}

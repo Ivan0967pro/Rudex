@@ -46,47 +46,83 @@ function patchMainJs(src, stampVersion, warnings) {
         const _os = require("os");
         const { app: _app } = require("electron");
         const _resDir = process.resourcesPath || _path.resolve(__dirname, "..", "..");
-        const _verPath = _path.join(_resDir, "..", "version");
+        const _verCandidates = [_path.join(_resDir, "..", "version"), _path.join(_resDir, "version")];
+        let _cur = "";
+        for (let _vi = 0; _vi < _verCandidates.length; _vi += 1) {
+            try {
+                if (_fs.existsSync(_verCandidates[_vi])) {
+                    _cur = _fs.readFileSync(_verCandidates[_vi], "utf8").trim().split(/\\s+/)[0];
+                    if (_cur) break;
+                }
+            } catch {}
+        }
+        if (!_cur && process.platform === "darwin") {
+            try {
+                const _plist = _path.join(_resDir, "..", "Info.plist");
+                if (_fs.existsSync(_plist)) {
+                    const _pt = _fs.readFileSync(_plist, "utf8");
+                    const _pm = /<key>CFBundleShortVersionString<\\/key>\\s*<string>([^<]+)<\\/string>/i.exec(_pt);
+                    if (_pm && _pm[1]) _cur = _pm[1].trim();
+                }
+            } catch {}
+        }
         const _appDir = _path.join(_resDir, "app");
+        const _asarPath = _path.join(_resDir, "app.asar");
+        const _metaPath = _path.join(_appDir, "rudex-patch-meta.json");
+        let _meta = null;
+        if (_fs.existsSync(_metaPath)) {
+            try { _meta = JSON.parse(_fs.readFileSync(_metaPath, "utf8")); } catch {}
+        }
         const _STAMP = ${safeStamp};
-        if (_fs.existsSync(_verPath) && _fs.existsSync(_appDir) && _fs.existsSync(_path.join(_resDir, "app.asar"))) {
-            const _cur = _fs.readFileSync(_verPath, "utf8").trim();
+        let _needsRepatch = false;
+        if (_fs.existsSync(_appDir) && _fs.existsSync(_asarPath)) {
             if (_cur && _cur !== _STAMP) {
-                const _homeDir = _os.homedir();
-                const _installJs = _path.join(_homeDir, ".gemini", "config", "plugins", "rudex", "skills", "rudex", "scripts", "install.js");
-                let _repatched = false;
-                if (_fs.existsSync(_installJs)) {
-                    try {
-                        const _r = require("child_process").spawnSync(process.execPath, [_installJs, "--no-sync-plugin"], {
-                            env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1" }),
-                            timeout: 30000,
-                            windowsHide: true,
-                        });
-                        if (_r && _r.status === 0) _repatched = true;
-                    } catch {}
-                }
-                if (_repatched) {
-                    _app.relaunch();
-                    _app.exit(0);
-                    return;
-                }
+                _needsRepatch = true;
+            } else if (_meta) {
                 try {
-                    _fs.renameSync(_appDir, _appDir + ".rudex-outdated-" + _STAMP);
-                    _app.relaunch();
-                    _app.exit(0);
-                    return;
+                    const _st = _fs.statSync(_asarPath);
+                    const _curSize = _st.size || 0;
+                    const _curM = Math.floor((_st.mtimeMs || 0) / 1000);
+                    if (_meta.sourceAsarSize && _curSize !== _meta.sourceAsarSize) {
+                        _needsRepatch = true;
+                    } else if (_meta.sourceAsarMtimeSec && Math.abs(_curM - _meta.sourceAsarMtimeSec) > 1) {
+                        _needsRepatch = true;
+                    } else if (_meta.sourceAsarHash && _curSize > 0 && _curSize <= 32 * 1024 * 1024) {
+                        const _h = require("crypto").createHash("sha256").update(_fs.readFileSync(_asarPath)).digest("hex");
+                        if (_h && _h !== _meta.sourceAsarHash) _needsRepatch = true;
+                    }
                 } catch {}
             }
         }
-
-        const _metaPath = _path.join(_appDir, "rudex-patch-meta.json");
-        let _managed = true;
-        if (_fs.existsSync(_metaPath)) {
+        if (_needsRepatch) {
+            const _homeDir = _os.homedir();
+            const _installJs = _path.join(_homeDir, ".gemini", "config", "plugins", "rudex", "skills", "rudex", "scripts", "install.js");
+            let _repatched = false;
+            if (_fs.existsSync(_installJs)) {
+                try {
+                    const _r = require("child_process").spawnSync(process.execPath, [_installJs, "--no-sync-plugin"], {
+                        env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1", ANTIGRAVITY_RESOURCES_DIR: _resDir }),
+                        timeout: 30000,
+                        windowsHide: true,
+                    });
+                    if (_r && _r.status === 0) _repatched = true;
+                } catch {}
+            }
+            if (_repatched) {
+                _app.relaunch();
+                _app.exit(0);
+                return;
+            }
             try {
-                const _meta = JSON.parse(_fs.readFileSync(_metaPath, "utf8"));
-                if (_meta && _meta.managedByPlugin === false) _managed = false;
+                _fs.renameSync(_appDir, _appDir + ".rudex-outdated-" + _STAMP);
+                _app.relaunch();
+                _app.exit(0);
+                return;
             } catch {}
         }
+
+        let _managed = true;
+        if (_meta && _meta.managedByPlugin === false) _managed = false;
         if (_managed) {
             const _homeDir = _os.homedir();
             const _rudexDir = _path.join(_homeDir, ".gemini", "config", "plugins", "rudex");
@@ -97,7 +133,12 @@ function patchMainJs(src, stampVersion, warnings) {
                 const _staleFlags = [
                     _userDataDir ? _path.join(_userDataDir, "agy_studio_persona_active.flag") : "",
                     _userDataDir ? _path.join(_userDataDir, "agy_studio_thinking_ru.flag") : "",
+                    _userDataDir ? _path.join(_userDataDir, "agy_studio_agent_profile.flag") : "",
+                    _userDataDir ? _path.join(_userDataDir, "agy_studio_tool_policy.flag") : "",
                     _userDataDir ? _path.join(_userDataDir, "studio_live_edits", "pending.flag") : "",
+                    _userDataDir ? _path.join(_userDataDir, "rudex-quota-notify.js") : "",
+                    _userDataDir ? _path.join(_userDataDir, "rudex-quota-notify-payload.json") : "",
+                    _userDataDir ? _path.join(_userDataDir, "rudex-quota-notify.sh") : "",
                     _path.join(_homeDir, ".gemini", "config", "rules", "antigravity-ru-persona.md"),
                 ];
                 for (let _fi = 0; _fi < _staleFlags.length; _fi += 1) {

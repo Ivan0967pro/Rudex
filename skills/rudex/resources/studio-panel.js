@@ -151,6 +151,9 @@ const ICON_PATHS = {
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
   redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
   search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  crosshair: '<circle cx="12" cy="12" r="7"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
+  mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
 };
 
 const TEXT = {
@@ -380,7 +383,7 @@ const TEXT = {
     personaStrictLabel: "100% удержание характера (PreInvocation + анти-дрифт)",
     personaStrictDesc: "Якорь на старте, освежение на длинных цепочках шагов и изоляция соседних чатов",
     personaHookBadge: "Hook + AGENTS.md",
-    quotaSectionTitle: "Лимиты моделей (5ч / Неделя)",
+    quotaSectionTitle: "Лимиты моделей (Неделя / 5ч)",
     quotaGeminiLabel: "Модели Gemini",
     quotaClaudeLabel: "Модели Claude и GPT",
     quotaCalibratedBadge: "Откалибровано",
@@ -388,7 +391,7 @@ const TEXT = {
     quotaCalibrateTip: "Откройте «Посмотреть использование» или Настройки → Модели и использование в Antigravity для точной калибровки %.",
     quotaRemShort: "Осталось:",
     quotaOpenLimitsLink: "Детали лимитов →",
-    quotaTableTitle: "Расход по чатам (5ч / Неделя)",
+    quotaTableTitle: "Расход по чатам (Неделя / 5ч)",
     quotaColChat: "Чат",
     quotaColModel: "Модель",
     quotaCol5h: "5ч",
@@ -458,7 +461,7 @@ const TEXT = {
     fieldResp: "Токены ответа",
     fieldChat: "Контекст чата",
     fieldModel: "Название модели",
-    fieldQuota: "Лимиты (5ч / Нед.)",
+    fieldQuota: "Лимиты (Нед. / 5ч)",
     dockTitle: "Позиция на экране",
     pinLockLabel: "Закрепить виджет",
     pinLockDesc: "Фиксирует позицию; в закреплённом виде долго удерживайте (~0.5 с) и потяните, чтобы изменить масштаб (клик открывает Rudex)",
@@ -794,7 +797,7 @@ const TEXT = {
     quotaCalibrateTip: "Open View Usage or Settings → Models & Usage in Antigravity to calibrate exact %.",
     quotaRemShort: "Remaining:",
     quotaOpenLimitsLink: "Quota details →",
-    quotaTableTitle: "Per-Chat Quota Breakdown (5h / Weekly)",
+    quotaTableTitle: "Per-Chat Quota Breakdown (Weekly / 5h)",
     quotaColChat: "Chat",
     quotaColModel: "Model",
     quotaCol5h: "5h",
@@ -864,7 +867,7 @@ const TEXT = {
     fieldResp: "Reply tokens",
     fieldChat: "Chat context",
     fieldModel: "Model name",
-    fieldQuota: "Quota (5h / Wk)",
+    fieldQuota: "Quota (Wk / 5h)",
     dockTitle: "Position",
     pinLockLabel: "Lock widget in place",
     pinLockDesc: "Locks position; when pinned, hold and drag the widget to scale it (click opens Rudex)",
@@ -1685,7 +1688,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "5.0.2", dictEntries: 4065, dynamicRulesCount: 479 };
+    : { version: "5.0.3", dictEntries: 4065, dynamicRulesCount: 479 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1991,6 +1994,10 @@ function createStudioPanel(options) {
   let userTypedAfterLiveEdit = false;
   let lastLiveEditSendAt = 0;
   let lastLiveEditSendText = "";
+  let liveEditSentAtMs = 0;
+  let normalSubmitClearToken = 0;
+  let userTypedAfterNormalSubmit = false;
+  let normalSubmitAtMs = 0;
   let limitsDragState = null;
   let limitsResizeState = null;
   let limitsSaveTimer = null;
@@ -2339,10 +2346,10 @@ function createStudioPanel(options) {
       // Sync selected UI & Mono fonts (including custom system fonts and Claude Code fonts) into Rudex Studio & widget
       const ty = activeApp.typography || {};
       const uiStack = typeof teResolveFontStack === "function"
-        ? teResolveFontStack(ty.uiFont, ty.uiFontCustom, "ui")
+        ? teResolveFontStack("ui", ty.uiFont, ty.uiFontCustom)
         : ((spFindFont("ui", ty.uiFont) || {}).stack || "");
       const monoStack = typeof teResolveFontStack === "function"
-        ? teResolveFontStack(ty.monoFont, ty.monoFontCustom, "mono")
+        ? teResolveFontStack("mono", ty.monoFont, ty.monoFontCustom)
         : ((spFindFont("mono", ty.monoFont) || {}).stack || "");
       if (uiStack) {
         rootEl.style.setProperty("--rx-font-ui", uiStack);
@@ -2551,6 +2558,18 @@ function createStudioPanel(options) {
     }
   }
 
+  function isInspectorControlActive() {
+    if (isControlActivelyFocused("data-insp-range") || isControlActivelyFocused("data-insp-num") || isControlActivelyFocused("data-insp-style")) {
+      return true;
+    }
+    try {
+      const ae = (shadowRoot && shadowRoot.activeElement) || (doc && doc.activeElement) || null;
+      return Boolean(ae && pickerMountEl && typeof pickerMountEl.contains === "function" && pickerMountEl.contains(ae));
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function applyRemoteState(remote, forceRender) {
     if (!remote || typeof remote !== "object") return;
     const sig = computeSettingsStateSig(remote);
@@ -2560,6 +2579,7 @@ function createStudioPanel(options) {
     const editingLimits = !forceRender && isLimitsLiveEditingNow();
     const editingStudioUi = !forceRender && isStudioUiLiveEditingNow();
     const editingQuotaAuto = !forceRender && isQuotaAutoLiveEditingNow();
+    const editingInspector = !forceRender && isInspectorControlActive();
     const prevThinkRu = Boolean(state.settings.thinkingInRussian);
     if (typeof remote.appZoomSupported === "boolean") {
       state.appZoomSupported = remote.appZoomSupported;
@@ -2599,7 +2619,7 @@ function createStudioPanel(options) {
       }
       if (rawSettings.appearance && typeof rawSettings.appearance === "object") {
         state.settings.appearance = spCloneAppearance(rawSettings.appearance);
-        if (!state.appearanceDirty) {
+        if (!state.appearanceDirty && !editingInspector) {
           state.appearanceDraft = spCloneAppearance(state.settings.appearance);
         }
         if (!state.appearanceLivePreview) {
@@ -2672,7 +2692,7 @@ function createStudioPanel(options) {
       state.quotaSummary = remote.quotaSummary;
     }
     if (typeof remote.personaFilePath === "string" && remote.personaFilePath) state.personaFilePath = remote.personaFilePath;
-    if (editingLimits || editingStudioUi || editingQuotaAuto) {
+    if (editingLimits || editingStudioUi || editingQuotaAuto || editingInspector) {
       syncTheme();
       if (!editingLimits) renderLimitsWidgetMount();
     } else {
@@ -3700,7 +3720,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "5.0.2";
+    const instVer = (inst && inst.version) || pluginMeta.version || "5.0.3";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -3746,9 +3766,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "5.0.2" },
+          installed: realU.installed || { version: pluginMeta.version || "5.0.3" },
           remote: {
-            version: pluginMeta.version || "5.0.2",
+            version: pluginMeta.version || "5.0.3",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -3861,7 +3881,7 @@ function createStudioPanel(options) {
       (state.settings.limitsWidget && state.settings.limitsWidget.enabled) ||
       state.settings.viewMode === "medium" ||
       (state.settings.miniFields && state.settings.miniFields.quota) ||
-      (state.isOpen && state.activeTab === "settings" && (state.settingsSubTab === "export" || (state.settingsSubTab === "widget" && state.widgetSubSection === "limits")))
+      (state.isOpen && (state.activeTab === "widgets" || (state.activeTab === "settings" && (state.settingsSubTab === "export" || (state.settingsSubTab === "widget" && state.widgetSubSection === "limits")))))
     );
     const intervalMs = state.telemetry.isGenerating
       ? 10000
@@ -4075,7 +4095,7 @@ function createStudioPanel(options) {
       const parsed = parseQuotaFromDocumentText(txt, state.telemetry.modelName);
       if (!parsed) return;
       const sig = JSON.stringify(parsed);
-      if (sig === state.lastQuotaScrapeSig && now - state.lastQuotaSyncAt < 30000) return;
+      if (sig === state.lastQuotaScrapeSig && now - state.lastQuotaSyncAt < 10000) return;
       state.lastQuotaScrapeSig = sig;
       state.lastQuotaSyncAt = now;
       invokeIpc("agy-studio:sync-quota-snapshot", {
@@ -4132,15 +4152,15 @@ function createStudioPanel(options) {
       const fiveHour = fmtFam(fam.fiveHourRem, fam.fiveHourEstimated);
       const week = fmtFam(fam.weeklyRem, fam.weeklyEstimated);
       const parts = [];
-      if (hasReal5) parts.push(`${tr.quota5hShort} ${fiveHour}`);
       if (hasRealW) parts.push(`${tr.quotaWeekShort} ${week}`);
+      if (hasReal5) parts.push(`${tr.quota5hShort} ${fiveHour}`);
       return { fiveHour, week, miniText: parts.join(" · "), activeChat: ac, family: fam };
     }
     const fiveHour = ac ? formatQuotaPct(ac.fiveHourWindowPct || ac.fiveHourPct) : "—";
     const week = ac ? formatQuotaPct(ac.weeklyPct) : "—";
     const miniText = ac && ((ac.fiveHourWindowPct || ac.fiveHourPct) > 0 || ac.weeklyPct > 0)
-      ? `${tr.quota5hShort} -${fiveHour} · ${tr.quotaWeekShort} -${week}`
-      : `${tr.quota5hShort} — · ${tr.quotaWeekShort} —`;
+      ? `${tr.quotaWeekShort} -${week} · ${tr.quota5hShort} -${fiveHour}`
+      : `${tr.quotaWeekShort} — · ${tr.quota5hShort} —`;
     return { fiveHour, week, miniText, activeChat: ac, family: fam };
   }
 
@@ -4471,14 +4491,29 @@ function createStudioPanel(options) {
     return isAuth;
   }
 
-  function isVoiceDictationActive() {
-    if (!doc || typeof doc.querySelector !== "function") return false;
+  function findActiveVoiceDictationButton() {
+    if (!doc || typeof doc.querySelector !== "function") return null;
     try {
-      if (doc.querySelector('[data-rudex-comp-mic-active="1"]')) return true;
-      const actMic = doc.querySelector('button[aria-pressed="true"][aria-label*="dictat" i], button[aria-pressed="true"][aria-label*="record" i], button[aria-pressed="true"][aria-label*="запис" i], button[aria-label*="stop dictat" i], button[aria-label*="stop record" i], button[aria-label*="останов" i][aria-label*="запис" i]');
-      if (actMic && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(actMic))) return true;
+      const marked = doc.querySelector('[data-rudex-comp-mic-active="1"]');
+      if (marked && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(marked))) return marked;
+      const actMic = doc.querySelector(
+        'button[aria-pressed="true"][aria-label*="dictat" i], ' +
+        'button[aria-pressed="true"][aria-label*="record" i], ' +
+        'button[aria-pressed="true"][aria-label*="запис" i], ' +
+        'button[aria-pressed="true"][aria-label*="voice" i], ' +
+        'button[aria-label*="stop dictat" i], ' +
+        'button[aria-label*="stop record" i], ' +
+        'button[aria-label*="cancel record" i], ' +
+        'button[aria-label*="останов" i][aria-label*="запис" i], ' +
+        'button[aria-label*="отмен" i][aria-label*="запис" i]'
+      );
+      if (actMic && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(actMic))) return actMic;
     } catch (_e) {}
-    return false;
+    return null;
+  }
+
+  function isVoiceDictationActive() {
+    return Boolean(findActiveVoiceDictationButton());
   }
 
   function pollStream() {
@@ -4919,22 +4954,9 @@ function createStudioPanel(options) {
     const isRu = state.locale !== "en";
     const sub = state.appearanceSubTab || "theme";
     const draft = spNormalizeAppearance(state.appearanceDraft);
-    const gd = spNormalizeGreeting(state.greetingDraft);
     const presetObj = spFindThemePreset(draft.presetId);
     const wp = draft.wallpaper;
     const grads = spGetGradientPresets();
-    const cRadii = typeof teResolveCornerRadii === "function" ? teResolveCornerRadii(draft) : draft.corners;
-
-    const subTabs = [
-      { id: "theme", label: tr.appSubTheme },
-      { id: "uistyle", label: isRu ? "Стиль UI" : "UI Style" },
-      { id: "elements", label: isRu ? "🎯 Элементы" : "🎯 Elements" },
-      { id: "text", label: tr.appSubText },
-      { id: "surface", label: tr.appSubSurface },
-      { id: "wallpaper", label: tr.appSubWallpaper },
-      { id: "corners", label: tr.appSubCorners },
-      { id: "greeting", label: tr.appSubGreeting },
-    ];
 
     const themeLabel = presetObj ? (isRu ? presetObj.nameRu : presetObj.nameEn) : draft.presetId;
     const usObj = draft.uiStyle || spDefaultUiStyle();
@@ -4952,13 +4974,6 @@ function createStudioPanel(options) {
     } else if ((wp.type === "image" || wp.type === "video") && wp.tintEnabled) {
       wpLabel += ` + ${tr.appWpGradient}`;
     }
-    const cornersLabel = draft.corners.mode === "custom" ? tr.cornersModeCustom.split(" ")[0] : `${cRadii.base}px`;
-    const styleLabelMap = { glass: tr.appMsgStyleGlass, solid: tr.appMsgStyleSolid, minimal: tr.appMsgStyleMinimal };
-    const surfaceLabel = `${styleLabelMap[draft.messageStyle] || tr.appMsgStyleGlass} · ${draft.glassOpacity}%`;
-
-    const fonts = spGetFontPresets();
-    const uiFontObj = (fonts.ui || []).find((f) => f.id === (draft.typography && draft.typography.uiFont)) || (fonts.ui && fonts.ui[0]);
-    const fontShortLabel = uiFontObj ? (uiFontObj.id === "system" ? (isRu ? "Системный" : "System") : (isRu ? uiFontObj.label : (uiFontObj.labelEn || uiFontObj.label)).split(" (")[0]) : "System";
 
     let inner = "";
     if (sub === "theme") inner = renderAppearanceThemeSub(tr, isRu);
@@ -4998,7 +5013,7 @@ function createStudioPanel(options) {
           </button>
         ` : ""}
         <button type="button" class="layer-pill" style="margin-left:auto" data-action="start-element-picker" title="${escAttr(isRu ? "Ткнуть в элемент Antigravity" : "Pick any Antigravity element")}">
-          <span>🎯 ${escHtml(isRu ? "Прицел" : "Picker")}</span>
+          ${iconSvg("crosshair", 12)}<span>${escHtml(isRu ? "Прицел" : "Picker")}</span>
         </button>
       </div>
       ${inner}
@@ -5157,7 +5172,7 @@ function createStudioPanel(options) {
     const isCC = us.composer === "claude-code";
     const toolbarInnerHtml = isCC
       ? `
-        <span class="uistyle-live-tools-l"><span>+</span><span>🎤</span></span>
+        <span class="uistyle-live-tools-l"><span>+</span>${iconSvg("mic", 11)}</span>
         <span class="uistyle-live-tools-r">
           <span class="uistyle-live-model" data-live="uiStyleModel" style="${escAttr(st.modelStyle)}">${escHtml(modelSample)}</span>
           <span class="uistyle-live-mode">${isRu ? "Турбо" : "Turbo"}</span>
@@ -5359,6 +5374,7 @@ function createStudioPanel(options) {
     const us = draft.uiStyle || spDefaultUiStyle();
     const isClaudeDarkActive = draft.presetId === "claude-code-dark" && us.preset === "claude-code";
     const isClaudeLightActive = draft.presetId === "claude-code-light" && us.preset === "claude-code";
+    const isNativeSuiteActive = draft.presetId === "native" && us.preset === "antigravity" && !draft.customAccent;
     const isCodexSuiteActive = us.preset === "codex";
     const isOpenCodeSuiteActive = us.preset === "opencode";
     const modeFilter = state.themeModeFilter === "dark" || state.themeModeFilter === "light" ? state.themeModeFilter : "all";
@@ -5372,6 +5388,10 @@ function createStudioPanel(options) {
       <div class="section-group">
         <span class="section-label">${escHtml(isRu ? "Готовые образы в 1 клик (тема + стиль интерфейса + шрифты)" : "1-Click Complete Suites (Theme + UI Style + Fonts)")}</span>
         <div class="suite-quick-grid claude-spotlight">
+          <button type="button" class="claude-preset-btn${isNativeSuiteActive ? " is-active" : ""}" data-action="apply-platform-suite" data-val="antigravity">
+            <span class="claude-chip-swatch" style="background:linear-gradient(135deg,#18191e 55%,#7c9bff 55%)"></span>
+            <span>Antigravity</span>
+          </button>
           <button type="button" class="claude-preset-btn${isClaudeDarkActive ? " is-active" : ""}" data-action="apply-claude-suite" data-val="dark">
             <span class="claude-chip-swatch" style="background:linear-gradient(135deg,#1f1e1d 55%,#d97757 55%)"></span>
             <span>Claude Dark</span>
@@ -5887,9 +5907,6 @@ function createStudioPanel(options) {
           <div class="slider-head"><span>${escHtml(tr.cornersAllLabel)}</span><b class="num" data-live-app-val="corners.all">${c.all}px</b></div>
           <input type="range" class="range-input" min="0" max="28" step="1" data-app-field="corners.all" value="${c.all}"/>
         </div>
-        <div style="display:flex;justify-content:flex-end">
-          <button type="button" class="btn btn-sm" data-action="set-corners-mode" data-val="custom">${escHtml(tr.cornersSwitchCustomBtn)}</button>
-        </div>
       ` : `
         <div class="control-grid-2">
           ${categories.map((cat) => `
@@ -6054,8 +6071,8 @@ function createStudioPanel(options) {
   function renderAppearanceTextSub(tr, isRu) {
     const draft = spNormalizeAppearance(state.appearanceDraft);
     const ty = draft.typography;
-    const uiStack = (typeof teResolveFontStack === "function" ? teResolveFontStack(ty.uiFont, ty.uiFontCustom, "ui") : "") || "var(--rx-font-ui)";
-    const monoStack = (typeof teResolveFontStack === "function" ? teResolveFontStack(ty.monoFont, ty.monoFontCustom, "mono") : "") || "var(--rx-font-mono)";
+    const uiStack = (typeof teResolveFontStack === "function" ? teResolveFontStack("ui", ty.uiFont, ty.uiFontCustom) : "") || "var(--rx-font-ui)";
+    const monoStack = (typeof teResolveFontStack === "function" ? teResolveFontStack("mono", ty.monoFont, ty.monoFontCustom) : "") || "var(--rx-font-mono)";
     const densities = [
       { id: "compact", label: tr.appDensityCompact },
       { id: "comfortable", label: tr.appDensityComfort },
@@ -6635,17 +6652,17 @@ function createStudioPanel(options) {
           </div>
           <div class="quota-bar-row">
             <div class="quota-bar-labels">
-              <span>${escHtml(tr.quota5hShort)} ${escHtml(tr.quotaRemShort)} ${famData.fiveHourReset ? "(" + escHtml(famData.fiveHourReset) + ")" : ""}</span>
-              <b class="num">${rem5 !== null ? rem5 + "%" : escHtml(missing5hLabel)}</b>
-            </div>
-            <div class="quota-bar-track"><div class="quota-bar-fill" style="width:${rem5 !== null ? rem5 : 0}%"></div></div>
-          </div>
-          <div class="quota-bar-row">
-            <div class="quota-bar-labels">
               <span>${escHtml(tr.quotaWeekShort)} ${escHtml(tr.quotaRemShort)} ${famData.weeklyReset ? "(" + escHtml(famData.weeklyReset) + ")" : ""}</span>
               <b class="num">${remW !== null ? remW + "%" : escHtml(missingWkLabel)}</b>
             </div>
             <div class="quota-bar-track"><div class="quota-bar-fill" style="width:${remW !== null ? remW : 0}%;background:var(--rx-success)"></div></div>
+          </div>
+          <div class="quota-bar-row">
+            <div class="quota-bar-labels">
+              <span>${escHtml(tr.quota5hShort)} ${escHtml(tr.quotaRemShort)} ${famData.fiveHourReset ? "(" + escHtml(famData.fiveHourReset) + ")" : ""}</span>
+              <b class="num">${rem5 !== null ? rem5 + "%" : escHtml(missing5hLabel)}</b>
+            </div>
+            <div class="quota-bar-track"><div class="quota-bar-fill" style="width:${rem5 !== null ? rem5 : 0}%"></div></div>
           </div>
         </div>
       `;
@@ -6708,16 +6725,16 @@ function createStudioPanel(options) {
             <div class="quota-table-row is-head">
               <span>${escHtml(tr.quotaColChat)}</span>
               <span>${escHtml(tr.quotaColModel)}</span>
-              <span>${escHtml(tr.quotaCol5h)}</span>
               <span>${escHtml(tr.quotaColWeek)}</span>
+              <span>${escHtml(tr.quotaCol5h)}</span>
               <span>${escHtml(tr.quotaColTurns)}</span>
             </div>
             ${rows.map((r) => `
               <div class="quota-table-row${r.chatKey === state.activeChatKey ? " is-active" : ""}">
                 <span class="quota-chat-name" title="${escAttr(r.title)}">${escHtml(r.title)}</span>
                 <span class="quota-chat-name" style="font-weight:400;color:var(--rx-muted)" title="${escAttr(r.modelName)}">${escHtml(r.modelName || r.primaryFamily)}</span>
-                <span class="num">${escHtml(formatQuotaPct(r.fiveHourWindowPct))} / ${escHtml(formatQuotaPct(r.fiveHourPct))}</span>
                 <span class="num">${escHtml(formatQuotaPct(r.weeklyPct))}</span>
+                <span class="num">${escHtml(formatQuotaPct(r.fiveHourWindowPct))} / ${escHtml(formatQuotaPct(r.fiveHourPct))}</span>
                 <span class="num">${r.turns || 0}</span>
               </div>
             `).join("")}
@@ -6736,7 +6753,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "5.0.2";
+    const ver = inst.version || pluginMeta.version || "5.0.3";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4048;
     const dynCount = pluginMeta.dynamicRulesCount || 474;
@@ -6851,7 +6868,7 @@ function createStudioPanel(options) {
       { k: "шрифт font типографика размер текст код ввод агент", label: isRu ? "Шрифты (4 слота) и типографика" : "Fonts (4 slots) & Typography", tab: "appearance", appSub: "text" },
       { k: "угл радиус скруглен corner radius", label: isRu ? "Скругление углов" : "Corner Radii", tab: "appearance", appSub: "corners" },
       { k: "приветств экран шаблон greeting welcome placeholder", label: isRu ? "Приветствие на новом чате" : "New Chat Greeting", tab: "appearance", appSub: "greeting" },
-      { k: "прицел элемент цвет размер переимен скрыть picker inspector rename override", label: isRu ? "🎯 Прицел и правка элементов" : "🎯 Element Picker & Rename", tab: "appearance", appSub: "elements" },
+      { k: "прицел элемент цвет размер переимен скрыть picker inspector rename override", label: isRu ? "Прицел и правка элементов" : "Element Picker & Rename", tab: "appearance", appSub: "elements" },
       { k: "лимит квот экран 5ч недел уведомлен восстановлен закрыт автопродолжен продолж quota limit bar notify alert reset auto continue resume", label: isRu ? "Лимиты, уведомления о сбросе и автопродолжение" : "Limits, Reset Notifications & Auto-Continue", tab: "widgets", widgetSub: "limits" },
       { k: "мини окно виджет капсул tps плавающ закреп контекст модел заполнен инструмент скрыть кнопк mini widget capsule dock context window meter hide tools", label: isRu ? "Мини-окно, кнопка «Инструменты» и контекст модели" : "Mini Widget, Tools Button & Context Window Meter", tab: "widgets", widgetSub: "mini" },
       { k: "монитор tps график экспорт zip архив чат квот monitor export archive", label: isRu ? "Монитор TPS и экспорт чата в ZIP" : "TPS Monitor & Chat ZIP Export", tab: "widgets", widgetSub: "monitor" },
@@ -6959,11 +6976,11 @@ function createStudioPanel(options) {
         { id: "theme", label: tr.appSubTheme },
         { id: "uistyle", label: isRu ? "Стиль UI" : "UI Style" },
         { id: "wallpaper", label: tr.appSubWallpaper },
-        { id: "surface", label: isRu ? "Стекло и рамки" : "Glass & Borders" },
+        { id: "surface", label: isRu ? "Стекло" : "Glass" },
         { id: "text", label: isRu ? "Шрифты" : "Fonts" },
         { id: "corners", label: tr.appSubCorners },
         { id: "greeting", label: tr.appSubGreeting },
-        { id: "elements", label: isRu ? "🎯 Элементы" : "🎯 Elements" },
+        { id: "elements", label: isRu ? "Элементы" : "Elements" },
       ];
       stickySubTabsHtml = `
         <div class="modal-sticky-subtabs">
@@ -7053,7 +7070,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.0.2")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.0.3")}</span>
               </div>
               <div class="rx-search-wrap">
                 <div class="rx-search-box">
@@ -7529,7 +7546,7 @@ function createStudioPanel(options) {
     renderLimitsWidgetMount();
     renderChatDockMount();
     renderModelUsagePopover();
-    renderPickerMount();
+    if (!isInspectorControlActive()) renderPickerMount();
   }
 
   // === RUDEX 5.0 LIVE CONTROLLERS ===
@@ -8229,7 +8246,7 @@ function createStudioPanel(options) {
       <div class="rx-usage-pop" role="dialog" aria-label="${escAttr(isRu ? "Использование моделей" : "Model Usage")}">
         <div class="rx-usage-head">
           <span class="rx-usage-title">${escHtml(isRu ? "Использование" : "Usage")}</span>
-          <button type="button" class="rx-lim-btn" data-action="close-model-usage-pop" title="${escAttr(isRu ? "Закрыть" : "Close")}">✕</button>
+          <button type="button" class="rx-lim-btn" data-action="close-model-usage-pop" title="${escAttr(isRu ? "Закрыть" : "Close")}">${iconSvg("close", 12)}</button>
         </div>
         ${lockNoteHtml}
         ${renderFamSec(isRu ? "Модели Gemini" : "Gemini Models", gem)}
@@ -8457,6 +8474,105 @@ function createStudioPanel(options) {
     }
   }
 
+  function normalizeSpeechText(s) {
+    return String(s || "")
+      .toLowerCase()
+      .replace(/[\s\u00A0]+/g, " ")
+      .replace(/[.,!?;:…—–\-«»"'()[\]{}]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function isResidualOfSentText(curNow, sentText, userTyped) {
+    const nc = normalizeSpeechText(curNow);
+    if (!nc) return false;
+    const normSent = normalizeSpeechText(sentText);
+    if (!normSent) return !userTyped;
+    if (nc === normSent || nc.startsWith(normSent) || normSent.startsWith(nc)) return true;
+    const probeSent = normSent.slice(0, Math.min(24, normSent.length));
+    const probeCur = nc.slice(0, Math.min(24, nc.length));
+    if (probeSent.length >= 4 && nc.includes(probeSent)) return true;
+    if (probeCur.length >= 4 && normSent.includes(probeCur)) return true;
+    const curWords = nc.split(" ").filter(Boolean);
+    const sentWords = normSent.split(" ").filter(Boolean);
+    if (curWords.length > 0 && sentWords.length > 0) {
+      const sentSet = new Set(sentWords);
+      let overlap = 0;
+      for (let i = 0; i < curWords.length; i += 1) {
+        if (sentSet.has(curWords[i])) overlap += 1;
+      }
+      if (overlap / curWords.length >= 0.6) return true;
+      const tailSent = sentWords.slice(-3).join(" ");
+      if (tailSent.length >= 4 && (nc.includes(tailSent) || tailSent.includes(nc))) return true;
+    }
+    return false;
+  }
+
+  function stopActiveVoiceDictationIfAny() {
+    const activeMic = findActiveVoiceDictationButton();
+    if (activeMic && typeof activeMic.click === "function") {
+      try { activeMic.click(); } catch (_e) {}
+      return true;
+    }
+    return false;
+  }
+
+  function countHostUserMessages() {
+    let cnt = 0;
+    let lastText = "";
+    try {
+      const uNodes = doc && typeof doc.querySelectorAll === "function"
+        ? doc.querySelectorAll('[data-testid="user-message-content"]')
+        : [];
+      for (let i = 0; uNodes && i < uNodes.length; i += 1) {
+        const u = uNodes[i];
+        if (!u || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(u))) continue;
+        cnt += 1;
+        lastText = String(u.textContent || "");
+      }
+    } catch (_e) {}
+    return { count: cnt, lastText };
+  }
+
+  function clearEditableRobust(editable, sentText, opts) {
+    const o = opts && typeof opts === "object" ? opts : {};
+    const allowRaw = o.allowRaw;
+    const forceKeystroke = Boolean(o.forceKeystroke);
+    const resetComposition = Boolean(o.resetComposition);
+    const isCancelled = typeof o.isCancelled === "function" ? o.isCancelled : () => false;
+    if (state.destroyed || !editable || isCancelled()) return;
+    const curNow = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+    if (!curNow) return;
+    if (allowRaw !== "initial" && !isResidualOfSentText(curNow, sentText, false)) return;
+
+    const isContentEditableLexical = editable.tagName !== "TEXTAREA" && editable.tagName !== "INPUT";
+    if (resetComposition && isContentEditableLexical) {
+      try {
+        if (typeof editable.blur === "function") editable.blur();
+        if (typeof editable.focus === "function") editable.focus();
+      } catch (_e) {}
+    }
+
+    if (typeof rv5ClearEditableText === "function") {
+      rv5ClearEditableText(editable, win, { skipRawTextFallback: isContentEditableLexical && allowRaw !== true });
+    }
+    if (isContentEditableLexical) {
+      try { if (typeof editable.focus === "function") editable.focus(); } catch (_e) {}
+      const ae = doc && doc.activeElement;
+      const focused = Boolean(ae && (ae === editable || (typeof editable.contains === "function" && editable.contains(ae))));
+      const stillHasText = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+      if ((stillHasText || allowRaw === "initial") && focused) {
+        invokeIpc("agy-studio:clear-focused-input", forceKeystroke ? { forceKeystroke: true } : undefined).then(() => {
+          if (state.destroyed || isCancelled()) return;
+          const after = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+          if (after && isResidualOfSentText(after, sentText, false) && typeof rv5ClearEditableText === "function") {
+            rv5ClearEditableText(editable, win, { skipRawTextFallback: allowRaw !== true });
+          }
+        });
+      }
+    }
+  }
+
   async function sendInlineLiveEditFromComposer() {
     if (!doc || typeof rv5FindNativeComposer !== "function" || liveEditSendInFlight) return false;
     liveEditSendInFlight = true;
@@ -8543,12 +8659,17 @@ function createStudioPanel(options) {
 
       if (!text && images.length === 0 && files.length === 0) return false;
       const sendNowMs = Date.now();
-      if (text && text === lastLiveEditSendText && sendNowMs - lastLiveEditSendAt < 320 && images.length === 0 && files.length === 0) {
+      if (text && text === lastLiveEditSendText && sendNowMs - lastLiveEditSendAt < 2000 && images.length === 0 && files.length === 0) {
         return false;
+      }
+      const wasVoiceActive = isVoiceDictationActive();
+      if (wasVoiceActive) {
+        stopActiveVoiceDictationIfAny();
       }
       lastLiveEditSendAt = sendNowMs;
       lastLiveEditSendText = text;
-      draftJustSubmittedUntil = sendNowMs + 2000;
+      liveEditSentAtMs = sendNowMs;
+      draftJustSubmittedUntil = sendNowMs + (wasVoiceActive ? 3200 : 2200);
       if (draftSaveTimer && win && typeof win.clearTimeout === "function") {
         win.clearTimeout(draftSaveTimer);
         draftSaveTimer = null;
@@ -8579,59 +8700,20 @@ function createStudioPanel(options) {
       }
       const clearToken = ++liveEditClearToken;
       userTypedAfterLiveEdit = false;
-      const isContentEditableLexical = editable.tagName !== "TEXTAREA" && editable.tagName !== "INPUT";
-      const normResidual = (s) => String(s || "").toLowerCase().replace(/[\s\u00A0]+/g, " ").replace(/[.,!?;:…]+$/g, "").trim();
-      const normSent = normResidual(text);
-      const isResidualOfSent = (curNow) => {
-        const nc = normResidual(curNow);
-        if (!nc) return false;
-        if (!normSent) return !userTypedAfterLiveEdit;
-        if (nc === normSent || nc.startsWith(normSent) || normSent.startsWith(nc)) return true;
-        const probeSent = normSent.slice(0, Math.min(24, normSent.length));
-        const probeCur = nc.slice(0, Math.min(24, nc.length));
-        if (probeSent.length >= 4 && nc.includes(probeSent)) return true;
-        if (probeCur.length >= 4 && normSent.includes(probeCur)) return true;
-        return false;
-      };
-      const isEditableFocusedNow = () => {
-        try {
-          const ae = doc && doc.activeElement;
-          return Boolean(ae && (ae === editable || (typeof editable.contains === "function" && editable.contains(ae))));
-        } catch (_e) {
-          return false;
-        }
-      };
-      const performClearPass = (allowRawFallback) => {
-        if (state.destroyed || !editable || clearToken !== liveEditClearToken || userTypedAfterLiveEdit) return;
-        const curNow = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
-        if (!curNow) return;
-        if (allowRawFallback !== "initial" && !isResidualOfSent(curNow)) return;
-        if (typeof rv5ClearEditableText === "function") {
-          rv5ClearEditableText(editable, win, { skipRawTextFallback: isContentEditableLexical && allowRawFallback !== true });
-        }
-        if (isContentEditableLexical) {
-          try {
-            if (typeof editable.focus === "function") editable.focus();
-          } catch (_e) {}
-          const stillHasText = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
-          if ((stillHasText || allowRawFallback === "initial") && isEditableFocusedNow()) {
-            invokeIpc("agy-studio:clear-focused-input").then(() => {
-              if (state.destroyed || clearToken !== liveEditClearToken || userTypedAfterLiveEdit) return;
-              const after = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
-              if (after && isResidualOfSent(after) && typeof rv5ClearEditableText === "function") {
-                rv5ClearEditableText(editable, win, { skipRawTextFallback: allowRawFallback !== true });
-              }
-            });
-          }
-        }
-      };
+      const isLiveCancelled = () => clearToken !== liveEditClearToken || userTypedAfterLiveEdit;
       // Pass 0: Clear Lexical cleanly via native selection/delete without desyncing EditorState
-      performClearPass("initial");
-      // Follow-up passes catch speech-to-text / voice-typing converters that flush trailing text 40–320ms after Enter/Send
+      clearEditableRobust(editable, text, { allowRaw: "initial", forceKeystroke: false, resetComposition: wasVoiceActive, isCancelled: isLiveCancelled });
+      // Follow-up passes catch speech-to-text / voice-typing converters that flush trailing text up to 2s after Enter/Send
       if (win && typeof win.setTimeout === "function") {
-        win.setTimeout(() => performClearPass(false), 35);
-        win.setTimeout(() => performClearPass(false), 140);
-        win.setTimeout(() => performClearPass(true), 320);
+        win.setTimeout(() => clearEditableRobust(editable, text, { allowRaw: false, forceKeystroke: false, isCancelled: isLiveCancelled }), 35);
+        win.setTimeout(() => clearEditableRobust(editable, text, { allowRaw: false, forceKeystroke: false, isCancelled: isLiveCancelled }), 120);
+        win.setTimeout(() => clearEditableRobust(editable, text, { allowRaw: true, forceKeystroke: false, isCancelled: isLiveCancelled }), 260);
+        win.setTimeout(() => clearEditableRobust(editable, text, { allowRaw: true, forceKeystroke: true, resetComposition: wasVoiceActive, isCancelled: isLiveCancelled }), 500);
+        win.setTimeout(() => clearEditableRobust(editable, text, { allowRaw: true, forceKeystroke: true, resetComposition: wasVoiceActive, isCancelled: isLiveCancelled }), 900);
+        win.setTimeout(() => clearEditableRobust(editable, text, { allowRaw: true, forceKeystroke: true, resetComposition: wasVoiceActive, isCancelled: isLiveCancelled }), 1400);
+        if (wasVoiceActive) {
+          win.setTimeout(() => clearEditableRobust(editable, text, { allowRaw: true, forceKeystroke: true, resetComposition: true, isCancelled: isLiveCancelled }), 2000);
+        }
       }
       const clickedSet = new Set();
       for (let i = 0; i < removeBtns.length; i += 1) {
@@ -9130,7 +9212,14 @@ function createStudioPanel(options) {
     const snap = collectComposerSnapshotSync(container, editable);
     if (!snap.text.trim() && snap.items.length === 0) return;
 
-    draftJustSubmittedUntil = Date.now() + 2000;
+    const wasVoiceActive = isVoiceDictationActive();
+    const sentText = snap.text;
+    const prevMsgSnap = countHostUserMessages();
+    const submitToken = ++normalSubmitClearToken;
+    userTypedAfterNormalSubmit = false;
+    normalSubmitAtMs = Date.now();
+
+    draftJustSubmittedUntil = normalSubmitAtMs + (wasVoiceActive ? 3200 : 2200);
     draftSaveSeq += 1;
     if (draftSaveTimer && win && typeof win.clearTimeout === "function") {
       win.clearTimeout(draftSaveTimer);
@@ -9140,6 +9229,42 @@ function createStudioPanel(options) {
     lastKnownComposerSnapByChat.delete(chatKey);
     draftDataUrlToFileName.clear();
     invokeIpc("agy-studio:clear-composer-draft", { chatKey });
+
+    // Schedule delayed post-send sweep ONLY after confirming Antigravity accepted the message
+    // (never clear synchronously at t=0 so native Enter/Send sees the prompt text!)
+    if (sentText.trim() && win && typeof win.setTimeout === "function") {
+      if (wasVoiceActive) {
+        win.setTimeout(() => {
+          if (!state.destroyed && submitToken === normalSubmitClearToken) stopActiveVoiceDictationIfAny();
+        }, 50);
+      }
+      const normSentFull = normalizeSpeechText(sentText);
+      const isSubmitConfirmed = () => {
+        const curMsgs = countHostUserMessages();
+        if (curMsgs.count > prevMsgSnap.count) return true;
+        if (normSentFull && normalizeSpeechText(curMsgs.lastText) === normSentFull) return true;
+        if (isAgentRunningNow()) return true;
+        return false;
+      };
+      const isNormalCancelled = () => submitToken !== normalSubmitClearToken || userTypedAfterNormalSubmit;
+      const runConfirmedSweep = (passIdx) => {
+        if (state.destroyed || isNormalCancelled()) return;
+        if (!isSubmitConfirmed()) return;
+        const curText = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
+        if (!curText || !isResidualOfSentText(curText, sentText, false)) return;
+        if (wasVoiceActive) stopActiveVoiceDictationIfAny();
+        clearEditableRobust(editable, sentText, {
+          allowRaw: passIdx >= 2,
+          forceKeystroke: passIdx >= 1,
+          resetComposition: wasVoiceActive,
+          isCancelled: isNormalCancelled,
+        });
+      };
+      const delays = wasVoiceActive ? [180, 420, 800, 1350, 2000] : [220, 550, 1100];
+      for (let di = 0; di < delays.length; di += 1) {
+        win.setTimeout(() => runConfirmedSweep(di), delays[di]);
+      }
+    }
 
     if (state.settings.inputHistoryEnabled === false) return;
     (async () => {
@@ -9234,7 +9359,7 @@ function createStudioPanel(options) {
     if (state.pickerActive) {
       parts.push(`
         <div class="rx-picker-banner">
-          <span>🎯 ${isRu ? "Прицел активен — кликните по любому элементу Antigravity (Esc — выход)" : "Picker active — click any Antigravity element (Esc to exit)"}</span>
+          ${iconSvg("crosshair", 13)}<span>${isRu ? "Прицел активен — кликните по любому элементу Antigravity (Esc — выход)" : "Picker active — click any Antigravity element (Esc to exit)"}</span>
           <button type="button" class="btn btn-sm" data-action="stop-element-picker">${isRu ? "Готово" : "Done"}</button>
         </div>
       `);
@@ -9352,10 +9477,27 @@ function createStudioPanel(options) {
     };
     if (!el || !win || typeof win.getComputedStyle !== "function") return defaults;
     try {
-      const cs = win.getComputedStyle(el);
+      let cs = win.getComputedStyle(el);
       const rect = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+      let bg = parseCssColorToHex(cs.backgroundColor, defaults.bgColor);
+      let surfaceEl = el;
+      if (
+        typeof el.getAttribute === "function" &&
+        el.getAttribute("data-rudex-theme-composer") === "1" &&
+        bg.alphaPct === 0 &&
+        typeof el.querySelector === "function"
+      ) {
+        const innerRow = el.querySelector('[data-rudex-comp-input-row="1"]');
+        if (innerRow) {
+          surfaceEl = innerRow;
+          cs = win.getComputedStyle(innerRow);
+          bg = parseCssColorToHex(cs.backgroundColor, defaults.bgColor);
+        }
+      }
+      const surfaceRect = surfaceEl === el
+        ? rect
+        : (typeof surfaceEl.getBoundingClientRect === "function" ? surfaceEl.getBoundingClientRect() : rect);
       const col = parseCssColorToHex(cs.color, defaults.color);
-      const bg = parseCssColorToHex(cs.backgroundColor, defaults.bgColor);
       const brd = parseCssColorToHex(cs.borderTopColor, defaults.borderColor);
       const fs = Math.round(parseFloat(cs.fontSize));
       const rad = Math.round(parseFloat(cs.borderTopLeftRadius));
@@ -9363,14 +9505,15 @@ function createStudioPanel(options) {
       const padL = parseFloat(cs.paddingLeft) || 0;
       const pad = Math.round(Math.max(padT, padL) > 0 ? (padT > 0 && padL > 0 ? (padT + padL) / 2 : Math.max(padT, padL)) : 0);
       const bw = Math.round(parseFloat(cs.borderTopWidth) || 0);
-      const op = cs.opacity !== "" && Number.isFinite(parseFloat(cs.opacity)) ? Math.round(parseFloat(cs.opacity) * 100) : 100;
+      const outerCs = surfaceEl === el ? cs : win.getComputedStyle(el);
+      const op = outerCs.opacity !== "" && Number.isFinite(parseFloat(outerCs.opacity)) ? Math.round(parseFloat(outerCs.opacity) * 100) : 100;
       return {
         fontSize: Number.isFinite(fs) && fs > 0 ? Math.max(8, Math.min(64, fs)) : defaults.fontSize,
         borderRadius: Number.isFinite(rad) && rad >= 0 ? Math.max(0, Math.min(64, rad)) : defaults.borderRadius,
         padding: Number.isFinite(pad) && pad >= 0 ? Math.max(0, Math.min(64, pad)) : defaults.padding,
         borderWidth: Number.isFinite(bw) && bw >= 0 ? Math.max(0, Math.min(8, bw)) : defaults.borderWidth,
         width: rect && rect.width > 0 ? Math.max(24, Math.min(1800, Math.round(rect.width))) : defaults.width,
-        minHeight: rect && rect.height > 0 ? Math.max(16, Math.min(800, Math.round(rect.height))) : defaults.minHeight,
+        minHeight: surfaceRect && surfaceRect.height > 0 ? Math.max(16, Math.min(800, Math.round(surfaceRect.height))) : defaults.minHeight,
         opacity: Math.max(5, Math.min(100, op)),
         bgOpacity: bg.alphaPct > 0 ? bg.alphaPct : 100,
         color: col.hex,
@@ -9383,16 +9526,22 @@ function createStudioPanel(options) {
   }
 
   let inspSaveTimer = null;
+  function commitInspectorAppearanceQuietly() {
+    const nextApp = spCloneAppearance(state.appearanceDraft);
+    state.settings.appearance = spCloneAppearance(nextApp);
+    state.appearanceDirty = false;
+    invokeIpc("agy-studio:save-settings", { appearance: nextApp });
+  }
   function scheduleInspectorPersist() {
     if (!win || typeof win.setTimeout !== "function") {
-      saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+      commitInspectorAppearanceQuietly();
       return;
     }
     if (inspSaveTimer && typeof win.clearTimeout === "function") win.clearTimeout(inspSaveTimer);
     inspSaveTimer = win.setTimeout(() => {
       inspSaveTimer = null;
       if (!state.destroyed) {
-        saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+        commitInspectorAppearanceQuietly();
       }
     }, 180);
   }
@@ -9456,18 +9605,26 @@ function createStudioPanel(options) {
       const simSel = typeof rv5BuildSmartSelector === "function" ? rv5BuildSmartSelector(el, "similar") : exactSel;
       const friendly = typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(el, isRu, origTxt) : exactSel;
       const renameable = typeof rv5IsRenameSafeElement === "function" ? rv5IsRenameSafeElement(el) : false;
+      const isComposerSel = exactSel === '[data-rudex-theme-composer="1"]';
+      const existingPickedOv = (state.appearanceDraft.elementOverrides || []).find(
+        (o) => (isComposerSel && o.zone === "composer") || o.selector === exactSel
+      );
+      const resolvedEl = isComposerSel && doc && typeof doc.querySelector === "function"
+        ? (doc.querySelector('[data-rudex-theme-composer="1"]') || el)
+        : el;
       state.pickerSelected = {
+        overrideId: existingPickedOv ? existingPickedOv.id : (isComposerSel ? "zone-composer" : undefined),
         name: friendly,
         selector: exactSel,
         exactSelector: exactSel,
         similarSelector: simSel,
-        scope: "exact",
-        canToggleScope: exactSel !== simSel,
+        scope: isComposerSel ? "similar" : "exact",
+        canToggleScope: !isComposerSel && exactSel !== simSel,
         renameable,
         origText: origTxt || curTxt,
         currentText: curTxt,
-        zone: "",
-        computed: readElementComputedMetrics(el),
+        zone: isComposerSel ? "composer" : "",
+        computed: readElementComputedMetrics(resolvedEl),
       };
       stopElementPicker();
       renderPickerMount();
@@ -10106,7 +10263,7 @@ function createStudioPanel(options) {
       const next = (state.settings.customAgentPresets || []).concat([{
         id,
         name,
-        icon: "⚡",
+        icon: "",
         profile: Object.assign({}, state.chatAgentProfile, { presetId: id, presetLabel: name, enabled: true }),
       }]).slice(-20);
       state.newAgentPresetName = "";
@@ -11238,33 +11395,62 @@ function createStudioPanel(options) {
     }
     if (action === "apply-platform-suite") {
       const suite = actionEl.getAttribute("data-val") || "codex";
+      if (suite === "antigravity") {
+        const prNative = spFindThemePreset("native");
+        const swNative = prNative && prNative.vars ? prNative.vars : null;
+        pushAppearanceUndo();
+        state.appearanceDraft.presetId = "native";
+        state.appearanceDraft.customAccent = false;
+        state.appearanceDraft.accentColor = swNative && swNative.accentColor ? swNative.accentColor : "#7c9bff";
+        if (swNative) {
+          state.appearanceDraft.canvasBg = swNative.canvasBg;
+          state.appearanceDraft.cardBg = swNative.cardBg;
+        }
+        state.appearanceDraft.radius = 12;
+        if (state.appearanceDraft.corners) {
+          state.appearanceDraft.corners.mode = "linked";
+          state.appearanceDraft.corners.all = 12;
+        }
+        if (!state.appearanceDraft.typography) state.appearanceDraft.typography = spDefaultAppearance().typography;
+        state.appearanceDraft.typography.uiFont = "system";
+        state.appearanceDraft.typography.monoFont = "system";
+        state.appearanceDraft.uiStyle = spDefaultUiStyle();
+        const suiPatchNative = { windowTheme: "graphite", widgetTheme: "glass" };
+        state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, suiPatchNative));
+        invokeIpc("agy-studio:save-settings", { studioUi: suiPatchNative });
+        markAppearanceDirty();
+        applyThemeToHost(state.appearanceDraft);
+        setToast(state.locale !== "en" ? "Применён стандартный образ Antigravity (нажмите «Применить»)" : "Previewing default Antigravity suite (click Apply)", false);
+        renderStructure();
+        return;
+      }
       const isCodex = suite === "codex";
-      const presetId = isCodex ? "oled-midnight" : "claude-terminal";
+      const presetId = isCodex ? "obsidian-glass" : "claude-terminal";
       const pr = spFindThemePreset(presetId);
       const sw = pr && pr.vars ? pr.vars : null;
       pushAppearanceUndo();
       state.appearanceDraft.presetId = presetId;
-      state.appearanceDraft.customAccent = !isCodex;
+      state.appearanceDraft.customAccent = true;
+      state.appearanceDraft.accentColor = isCodex ? "#e4e4e7" : "#38bdf8";
       if (sw) {
-        state.appearanceDraft.accentColor = isCodex ? sw.accentColor : "#38bdf8";
         state.appearanceDraft.canvasBg = sw.canvasBg;
         state.appearanceDraft.cardBg = sw.cardBg;
-        state.appearanceDraft.radius = isCodex ? 14 : 6;
-        if (state.appearanceDraft.corners) {
-          state.appearanceDraft.corners.mode = "linked";
-          state.appearanceDraft.corners.all = isCodex ? 14 : 6;
-        }
+      }
+      state.appearanceDraft.radius = isCodex ? 14 : 6;
+      if (state.appearanceDraft.corners) {
+        state.appearanceDraft.corners.mode = "linked";
+        state.appearanceDraft.corners.all = isCodex ? 14 : 6;
       }
       if (!state.appearanceDraft.typography) state.appearanceDraft.typography = spDefaultAppearance().typography;
-      state.appearanceDraft.typography.uiFont = isCodex ? "inter" : "claude-mono";
-      state.appearanceDraft.typography.monoFont = "jetbrains";
+      state.appearanceDraft.typography.uiFont = isCodex ? "chatgpt-sans" : "opencode-mono";
+      state.appearanceDraft.typography.monoFont = isCodex ? "jetbrains" : "opencode-mono";
       if (!state.appearanceDraft.uiStyle) state.appearanceDraft.uiStyle = spDefaultUiStyle();
       const targetStyle = isCodex ? "codex" : "opencode";
       state.appearanceDraft.uiStyle.preset = targetStyle;
       state.appearanceDraft.uiStyle.composer = targetStyle;
       state.appearanceDraft.uiStyle.chat = targetStyle;
       state.appearanceDraft.uiStyle.modelSelector = targetStyle;
-      const suiPatch = { windowTheme: isCodex ? "obsidian" : "midnight", widgetTheme: isCodex ? "island" : "solid" };
+      const suiPatch = { windowTheme: isCodex ? "obsidian" : "minimal-mono", widgetTheme: isCodex ? "island" : "solid" };
       state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, suiPatch));
       invokeIpc("agy-studio:save-settings", { studioUi: suiPatch });
       markAppearanceDirty();
@@ -11277,11 +11463,11 @@ function createStudioPanel(options) {
       const pid = actionEl.getAttribute("data-id") || "";
       const found = FONT_PAIR_PRESETS.find((x) => x.id === pid);
       if (found) {
+        pushAppearanceUndo();
         if (!state.appearanceDraft.typography) state.appearanceDraft.typography = spDefaultAppearance().typography;
         state.appearanceDraft.typography.uiFont = found.uiFont;
         state.appearanceDraft.typography.monoFont = found.monoFont;
-        state.appearanceDirty = true;
-        state.appearanceLivePreview = true;
+        markAppearanceDirty();
         applyThemeToHost(state.appearanceDraft);
         renderStructure();
       }
@@ -11356,6 +11542,7 @@ function createStudioPanel(options) {
     if (action === "select-theme-preset") {
       const pid = actionEl.getAttribute("data-id") || "native";
       const pr = spFindThemePreset(pid);
+      pushAppearanceUndo();
       state.appearanceDraft.presetId = pr.id;
       if (pr.id !== "custom" && pr.vars) {
         if (!state.appearanceDraft.customAccent) {
@@ -11370,6 +11557,7 @@ function createStudioPanel(options) {
     }
     if (action === "pick-accent-dot") {
       const hex = actionEl.getAttribute("data-val") || "#3b82f6";
+      pushAppearanceUndo();
       state.appearanceDraft.accentColor = hex.toLowerCase();
       state.appearanceDraft.customAccent = true;
       markAppearanceDirty();
@@ -11378,6 +11566,7 @@ function createStudioPanel(options) {
     }
     if (action === "reset-custom-accent") {
       const pr = spFindThemePreset(state.appearanceDraft.presetId || "native");
+      pushAppearanceUndo();
       state.appearanceDraft.customAccent = false;
       state.appearanceDraft.accentColor = (pr && pr.vars && pr.vars.accentColor) || "#3b82f6";
       markAppearanceDirty();
@@ -11386,6 +11575,7 @@ function createStudioPanel(options) {
     }
     if (action === "set-message-style") {
       const val = actionEl.getAttribute("data-val");
+      pushAppearanceUndo();
       state.appearanceDraft.messageStyle = val === "solid" || val === "minimal" ? val : "glass";
       markAppearanceDirty();
       renderStructure();
@@ -11520,6 +11710,7 @@ function createStudioPanel(options) {
     }
     if (action === "set-corners-mode") {
       const mode = actionEl.getAttribute("data-val") === "custom" ? "custom" : "linked";
+      pushAppearanceUndo();
       const c = state.appearanceDraft.corners;
       if (mode === "custom" && c.mode === "linked") {
         const v = c.all;
@@ -11541,6 +11732,7 @@ function createStudioPanel(options) {
       const pid = actionEl.getAttribute("data-id");
       const pr = spGetCornerPresets().find((x) => x.id === pid);
       if (pr) {
+        pushAppearanceUndo();
         const c = state.appearanceDraft.corners;
         c.mode = pr.mode === "custom" ? "custom" : "linked";
         c.all = pr.all;
@@ -11985,10 +12177,13 @@ function createStudioPanel(options) {
     ) {
       const sub = field.split(".")[1];
       const n = Math.round(Number(rawVal) || 0);
-      draft.typography[sub] = n > 0 ? n : 0;
-      markAppearanceDirty();
-      renderStructure();
-      return true;
+      const isUiOrCode = sub === "uiFontSize" || sub === "codeFontSize";
+      const minActive = isUiOrCode ? 11 : 12;
+      draft.typography[sub] = n >= minActive ? n : 0;
+      const isRu = state.locale !== "en";
+      labelText = draft.typography[sub] > 0
+        ? `${draft.typography[sub]}px`
+        : (isUiOrCode ? (isRu ? "Авто" : "Auto") : (isRu ? "Как чат" : "Default"));
     } else if (field === "typography.fontSize") {
       const n = Math.round(Number(rawVal) || 14);
       draft.typography.fontSize = n;
@@ -12601,11 +12796,13 @@ function createStudioPanel(options) {
         if (rawStr === "") return; // Wait until user finishes typing or clears on blur/change
         const val = Math.round(Number(rawStr));
         if (Number.isFinite(val)) {
-          const minAttr = Number(target.getAttribute("min"));
-          const maxAttr = Number(target.getAttribute("max"));
+          const rawMin = target.getAttribute("min");
+          const rawMax = target.getAttribute("max");
+          const minAttr = rawMin !== null && rawMin !== "" ? Number(rawMin) : NaN;
+          const maxAttr = rawMax !== null && rawMax !== "" ? Number(rawMax) : NaN;
           if (pickerMountEl) {
             const pairRange = pickerMountEl.querySelector(`[data-insp-range="${inspNumProp}"]`);
-            if (pairRange) pairRange.value = String(Math.max(minAttr || 0, Math.min(maxAttr || 1600, val)));
+            if (pairRange) pairRange.value = String(Math.max(Number.isFinite(minAttr) ? minAttr : 0, Math.min(Number.isFinite(maxAttr) ? maxAttr : 1600, val)));
             const wrap = pickerMountEl.querySelector(`[data-insp-wrap="${inspNumProp}"]`);
             if (wrap) wrap.classList.add("is-custom");
             const badge = pickerMountEl.querySelector(`[data-insp-badge="${inspNumProp}"]`);
@@ -12839,8 +13036,10 @@ function createStudioPanel(options) {
         if (rawStr === "") {
           upsertSelectedElementStyle(prop, negOneProps.has(prop) ? -1 : 0);
         } else {
-          const minAttr = Number(target.getAttribute("min"));
-          const maxAttr = Number(target.getAttribute("max"));
+          const rawMin = target.getAttribute("min");
+          const rawMax = target.getAttribute("max");
+          const minAttr = rawMin !== null && rawMin !== "" ? Number(rawMin) : NaN;
+          const maxAttr = rawMax !== null && rawMax !== "" ? Number(rawMax) : NaN;
           let val = Math.round(Number(rawStr));
           if (Number.isFinite(val)) {
             if (Number.isFinite(minAttr)) val = Math.max(minAttr, val);
@@ -13019,12 +13218,19 @@ function createStudioPanel(options) {
           }
           return;
         }
-        // 2.4 Abort any pending post-live-edit residual clear immediately if the user manually starts typing a new message
-        if (!userTypedAfterLiveEdit && e.isTrusted !== false && e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-          if (typeof rv5FindNativeComposer === "function") {
+        // 2.4 Abort any pending post-submit residual clear immediately if the user manually starts typing a new message
+        if (e.isTrusted !== false && e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          const isPunctOrSpace = /^[\s.,!?;:…\-]$/.test(e.key);
+          if (!isPunctOrSpace && !isVoiceDictationActive() && typeof rv5FindNativeComposer === "function") {
             const { editable: edCheck } = rv5FindNativeComposer(doc);
             if (edCheck && (e.target === edCheck || (typeof edCheck.contains === "function" && edCheck.contains(e.target)))) {
-              userTypedAfterLiveEdit = true;
+              const nowKeyMs = Date.now();
+              if (!userTypedAfterLiveEdit && nowKeyMs - liveEditSentAtMs > 220) {
+                userTypedAfterLiveEdit = true;
+              }
+              if (!userTypedAfterNormalSubmit && nowKeyMs - normalSubmitAtMs > 250) {
+                userTypedAfterNormalSubmit = true;
+              }
             }
           }
         }
@@ -13089,8 +13295,12 @@ function createStudioPanel(options) {
         const tid = String(btn.getAttribute("data-testid") || "").toLowerCase();
         const lbl = String(btn.getAttribute("aria-label") || btn.getAttribute("title") || "").toLowerCase();
         const typeAttr = String(btn.getAttribute("type") || "").toLowerCase();
-        if (/cancel|stop|abort|останов|отмен|model|mode|mic|voice|attach|upload|plus|add|remove|delete|close|удал|закры/.test(tid + " " + lbl)) return;
-        const looksSend = typeAttr === "submit" || btn.getAttribute("data-rudex-comp-send") === "1" || /send|submit|queue|отправ|очеред/.test(tid + " " + lbl);
+        const meta = tid + " " + lbl;
+        const hasSendAttr = btn.getAttribute("data-rudex-comp-send") === "1";
+        const hasSendWord = /send|submit|queue|отправ|очеред/.test(meta);
+        if (!hasSendAttr && /cancel|abort|отмен|model|mode|attach|upload|plus|add|remove|delete|close|удал|закры/.test(meta)) return;
+        if (!hasSendAttr && !hasSendWord && /mic|voice|dictat|record|stop|останов/.test(meta)) return;
+        const looksSend = hasSendAttr || typeAttr === "submit" || hasSendWord;
         if (!looksSend) return;
         const txt = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
         const hasAtt = hasComposerAttachments(container, editable);
@@ -13975,7 +14185,7 @@ function createStudioPanel(options) {
         sent = submitTextToNativeComposer(promptText);
       }
       if (sent) {
-        setToast(state.locale !== "en" ? "⚡ Лимиты восстановились — чат продолжен автоматически" : "⚡ Limits restored — chat resumed automatically", false);
+        setToast(state.locale !== "en" ? "Лимиты восстановились — чат продолжен автоматически" : "Limits restored — chat resumed automatically", false);
       }
       renderChatDockMount();
       if (state.isOpen) renderStructure();

@@ -83,11 +83,12 @@ function runUninstall(options = {}) {
     path.join(userDataDir, "studio_live_edits", "pending.flag"),
     path.join(userDataDir, "rudex-quota-notify.js"),
     path.join(userDataDir, "rudex-quota-notify-payload.json"),
+    path.join(userDataDir, "rudex-quota-notify.sh"),
   ];
   for (const f of runtimeFlags) {
     if (safeRemove(f)) console.log(`Removed runtime flag: ${f}`);
   }
-  // Remove Windows offline quota-reset scheduled task silently if registered
+  // Remove offline quota-reset scheduled task/unit silently across Windows, macOS, Linux
   if (process.platform === "win32") {
     try {
       const uc = require("./updater-core.js");
@@ -103,6 +104,20 @@ function runUninstall(options = {}) {
         fs.writeFileSync(delScript, js, "ascii");
         uc.spawnSilentWindowsWsh(delScript);
       }
+    } catch (_e) {}
+  } else if (process.platform === "darwin") {
+    try {
+      const { spawnSync } = require("child_process");
+      const plistPath = path.join(os.homedir(), "Library", "LaunchAgents", "com.rudex.quota-notify.plist");
+      if (fs.existsSync(plistPath)) {
+        try { spawnSync("launchctl", ["unload", plistPath], { stdio: "ignore" }); } catch (_e) {}
+        safeRemove(plistPath);
+      }
+    } catch (_e) {}
+  } else {
+    try {
+      const { spawnSync } = require("child_process");
+      spawnSync("systemctl", ["--user", "stop", "rudex-quota-notify.timer", "rudex-quota-notify.service"], { stdio: "ignore" });
     } catch (_e) {}
   }
 

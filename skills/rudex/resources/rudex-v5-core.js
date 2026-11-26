@@ -10,10 +10,47 @@
  * - Extra Shadow DOM CSS strictly aligned with studio-styles.js editorial design tokens
  */
 
+const RV5_ICON_PATHS = {
+  crosshair: '<circle cx="12" cy="12" r="7"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.77 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  starFilled: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor"/>',
+  sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+  bolt: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+  auto: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+  pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+  mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/>',
+  arrowUpRight: '<line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>',
+  refresh: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>',
+};
+
+function rv5IconSvg(name, size) {
+  const s = size || 13;
+  const p = RV5_ICON_PATHS[name] || RV5_ICON_PATHS.gear;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+}
+
 const RUDEX_AGENT_PRESETS = [
   {
     id: "default",
-    icon: "◎",
+    iconKey: "auto",
+    icon: "",
     nameRu: "Авто (по умолчанию)",
     nameEn: "Auto (default)",
     descRu: "Все тумблеры в Авто — агент сам выбирает инструменты по задаче",
@@ -34,7 +71,8 @@ const RUDEX_AGENT_PRESETS = [
   },
   {
     id: "all-tools",
-    icon: "✦",
+    iconKey: "sparkles",
+    icon: "",
     nameRu: "Все инструменты",
     nameEn: "All Tools",
     descRu: "Субагенты параллельно, веб-поиск, план, автопроверка и режим «До конца»",
@@ -55,7 +93,8 @@ const RUDEX_AGENT_PRESETS = [
   },
   {
     id: "fast-fix",
-    icon: "⚡",
+    iconKey: "bolt",
+    icon: "",
     nameRu: "Быстрый ответ",
     nameEn: "Quick Answer",
     descRu: "Без субагентов и длинных планов — точечное действие и краткий ответ",
@@ -76,7 +115,8 @@ const RUDEX_AGENT_PRESETS = [
   },
   {
     id: "architect-ro",
-    icon: "🔒",
+    iconKey: "lock",
+    icon: "",
     nameRu: "Только чтение",
     nameEn: "Read-Only",
     descRu: "Без изменения файлов и команд — только разбор кода, план и советы",
@@ -97,7 +137,8 @@ const RUDEX_AGENT_PRESETS = [
   },
   {
     id: "frontend-ui",
-    icon: "🖥",
+    iconKey: "monitor",
+    icon: "",
     nameRu: "Проверка UI",
     nameEn: "UI Check",
     descRu: "Браузерный агент и визуальная проверка вёрстки после правок",
@@ -519,12 +560,17 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
 
   const label5h = isRu ? "5ч" : "5h";
   const labelWk = isRu ? "Нед" : "Wk";
+  const estHint = rv5EscapeHtml(isRu
+    ? "Оценка расхода с последнего снимка. Откройте «Модели и использование» в Antigravity для точной синхронизации."
+    : "Estimated since last official snapshot. Open Models & Usage in Antigravity to sync exact %.");
   const hasAnyValues = rows.some((r) => typeof r.data.fiveHourRem === "number" || typeof r.data.weeklyRem === "number");
   const titleHint = isRu ? "Лимиты Antigravity" : "Antigravity Limits";
   const pinTitle = isDockedUi
     ? (isRu ? "Открепить (плавающее окно)" : "Undock (floating window)")
     : (isRu ? "Закрепить как часть интерфейса" : "Dock into UI");
-  const pinIconSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>';
+  const pinIconSvg = rv5IconSvg("pin", 11);
+  const gearIconSvg = rv5IconSvg("gear", 11);
+  const clockIconSvg = rv5IconSvg("clock", 10);
   const resizeGripHtml = isPreview
     ? ""
     : `<span class="rx-lim-resize-grip" data-limits-resize="1" title="${rv5EscapeHtml(isRu ? "Потяните, чтобы изменить размер (двойной клик — сброс)" : "Drag to resize (double-click to reset)")}"></span>`;
@@ -533,13 +579,13 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
     const effLay = cfg.position === "inline-header" ? "inline-header" : cfg.layout;
     const chunks = rows.map((r) => {
       const parts = [];
-      if (cfg.show5h) {
-        const c = barCol(r.data.fiveHourRem);
-        parts.push(`<span class="rx-lim-kv"><i class="rx-lim-dot" style="background:${c}"></i>${label5h} <b>${fmtVal(r.data.fiveHourRem, r.data.fiveHourEstimated)}</b></span>`);
-      }
       if (cfg.showWeekly) {
         const c = barCol(r.data.weeklyRem);
-        parts.push(`<span class="rx-lim-kv"><i class="rx-lim-dot" style="background:${c}"></i>${labelWk} <b>${fmtVal(r.data.weeklyRem, r.data.weeklyEstimated)}</b></span>`);
+        parts.push(`<span class="rx-lim-kv"${r.data.weeklyEstimated ? ` title="${estHint}"` : ""}><i class="rx-lim-dot" style="background:${c}"></i>${labelWk} <b>${fmtVal(r.data.weeklyRem, r.data.weeklyEstimated)}</b></span>`);
+      }
+      if (cfg.show5h) {
+        const c = barCol(r.data.fiveHourRem);
+        parts.push(`<span class="rx-lim-kv"${r.data.fiveHourEstimated ? ` title="${estHint}"` : ""}><i class="rx-lim-dot" style="background:${c}"></i>${label5h} <b>${fmtVal(r.data.fiveHourRem, r.data.fiveHourEstimated)}</b></span>`);
       }
       return `<span class="rx-lim-fam"><strong>${rv5EscapeHtml(r.label)}</strong> ${parts.join(" · ")}</span>`;
     }).join('<span class="rx-lim-sep">|</span>');
@@ -549,7 +595,7 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
         ${chunks}
         ${isPreview ? "" : `
           <button type="button" class="rx-lim-btn${isDockedUi ? " is-pinned" : ""}" data-action="toggle-limits-pin" title="${rv5EscapeHtml(pinTitle)}">${pinIconSvg}</button>
-          <button type="button" class="rx-lim-btn" data-action="open-limits-settings" title="${isRu ? "Настроить окно лимитов" : "Configure limits widget"}">⚙</button>
+          <button type="button" class="rx-lim-btn" data-action="open-limits-settings" title="${isRu ? "Настроить окно лимитов" : "Configure limits widget"}">${gearIconSvg}</button>
         `}
         ${effLay !== "inline-header" ? resizeGripHtml : ""}
       </div>
@@ -563,7 +609,7 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
         ${isPreview ? "" : `
           <div class="rx-lim-acts">
             <button type="button" class="rx-lim-btn${isDockedUi ? " is-pinned" : ""}" data-action="toggle-limits-pin" title="${rv5EscapeHtml(pinTitle)}">${pinIconSvg}</button>
-            <button type="button" class="rx-lim-btn" data-action="open-limits-settings" title="${isRu ? "Настройки окна лимитов" : "Limits settings"}">⚙</button>
+            <button type="button" class="rx-lim-btn" data-action="open-limits-settings" title="${isRu ? "Настройки окна лимитов" : "Limits settings"}">${gearIconSvg}</button>
           </div>
         `}
       </div>
@@ -574,27 +620,27 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
           const resetW = cfg.showResetTimer && d.weeklyReset ? d.weeklyReset : "";
           const has5 = typeof d.fiveHourRem === "number" && Number.isFinite(d.fiveHourRem);
           const hasW = typeof d.weeklyRem === "number" && Number.isFinite(d.weeklyRem);
-          const show5Row = cfg.show5h && (has5 || !hasW);
           const showWRow = cfg.showWeekly && (hasW || !has5);
-          const headReset = reset5 && !resetW ? `${label5h} ⏱ ${reset5}` : (!reset5 && resetW ? `${labelWk} ⏱ ${resetW}` : (reset5 && resetW ? `⏱ ${reset5} · ${resetW}` : ""));
+          const show5Row = cfg.show5h && (has5 || !hasW);
+          const headResetText = resetW && !reset5 ? `${labelWk} ${resetW}` : (!resetW && reset5 ? `${label5h} ${reset5}` : (resetW && reset5 ? `${resetW} · ${reset5}` : ""));
           return `
             <div class="rx-lim-row">
               <div class="rx-lim-row-top">
                 <span class="rx-lim-name">${rv5EscapeHtml(r.label)}</span>
-                ${headReset ? `<span class="rx-lim-reset">${rv5EscapeHtml(headReset)}</span>` : ""}
+                ${headResetText ? `<span class="rx-lim-reset">${clockIconSvg}<span>${rv5EscapeHtml(headResetText)}</span></span>` : ""}
               </div>
-              ${show5Row ? `
-                <div class="rx-lim-bar-line">
-                  <span class="rx-lim-lbl">${label5h}</span>
-                  <div class="rx-lim-track"><div class="rx-lim-fill" style="width:${barPct(d.fiveHourRem)}%;background:${barCol(d.fiveHourRem)}"></div></div>
-                  <span class="rx-lim-pct">${fmtVal(d.fiveHourRem, d.fiveHourEstimated)}</span>
-                </div>
-              ` : ""}
               ${showWRow ? `
                 <div class="rx-lim-bar-line">
                   <span class="rx-lim-lbl">${labelWk}</span>
                   <div class="rx-lim-track"><div class="rx-lim-fill" style="width:${barPct(d.weeklyRem)}%;background:${barCol(d.weeklyRem)}"></div></div>
-                  <span class="rx-lim-pct">${fmtVal(d.weeklyRem, d.weeklyEstimated)}</span>
+                  <span class="rx-lim-pct"${d.weeklyEstimated ? ` title="${estHint}"` : ""}>${fmtVal(d.weeklyRem, d.weeklyEstimated)}</span>
+                </div>
+              ` : ""}
+              ${show5Row ? `
+                <div class="rx-lim-bar-line">
+                  <span class="rx-lim-lbl">${label5h}</span>
+                  <div class="rx-lim-track"><div class="rx-lim-fill" style="width:${barPct(d.fiveHourRem)}%;background:${barCol(d.fiveHourRem)}"></div></div>
+                  <span class="rx-lim-pct"${d.fiveHourEstimated ? ` title="${estHint}"` : ""}>${fmtVal(d.fiveHourRem, d.fiveHourEstimated)}</span>
                 </div>
               ` : ""}
             </div>
@@ -621,7 +667,14 @@ function rv5BuildSmartSelector(el, scope) {
   if (zone) {
     return `[data-rudex-zone="${zone}"]`;
   }
-  if (typeof el.getAttribute === "function" && el.getAttribute("data-rudex-theme-composer") === "1") {
+  const tag = (el.tagName || "div").toLowerCase();
+  if (
+    el.getAttribute("data-rudex-theme-composer") === "1" ||
+    el.getAttribute("data-rudex-comp-input-row") === "1" ||
+    el.getAttribute("data-rudex-comp-editor") === "1" ||
+    el.getAttribute("data-rudex-comp-editor-wrap") === "1" ||
+    (typeof el.closest === "function" && el.closest('[data-rudex-theme-composer="1"]') && (tag === "textarea" || el.getAttribute("contenteditable") === "true" || el.getAttribute("role") === "textbox"))
+  ) {
     return '[data-rudex-theme-composer="1"]';
   }
   if (typeof el.getAttribute === "function" && el.getAttribute("data-rudex-bg-sidebar") === "1") {
@@ -630,7 +683,6 @@ function rv5BuildSmartSelector(el, scope) {
   if (typeof el.getAttribute === "function" && el.getAttribute("data-rudex-bg-header") === "1") {
     return '[data-rudex-bg-header="1"]';
   }
-  const tag = (el.tagName || "div").toLowerCase();
   const aria = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("aria-label")) : "";
   // Avoid translated Cyrillic aria-labels so selectors survive RU <-> EN switching cleanly
   if (scope !== "similar" && aria && aria.length <= 64 && /^[\x20-\x7E]+$/.test(aria)) {
@@ -682,7 +734,13 @@ function rv5DescribeElementFriendly(el, isRu, origText) {
   if (tid === "agent-response") return isRu ? "Ответ агента" : "Agent Response";
   if (tid === "sidebar" || tag === "aside" || el.getAttribute("data-rudex-bg-sidebar") === "1") return isRu ? "Боковая панель" : "Sidebar";
   if (tag === "header" || el.getAttribute("data-rudex-bg-header") === "1") return isRu ? "Верхняя шапка" : "Top Header";
-  if (el.getAttribute("data-rudex-theme-composer") === "1" || tid === "composer") return isRu ? "Поле ввода (Композер)" : "Input Composer";
+  if (
+    el.getAttribute("data-rudex-theme-composer") === "1" ||
+    el.getAttribute("data-rudex-comp-input-row") === "1" ||
+    el.getAttribute("data-rudex-comp-editor") === "1" ||
+    el.getAttribute("data-rudex-comp-editor-wrap") === "1" ||
+    tid === "composer"
+  ) return isRu ? "Поле ввода (Композер)" : "Input Composer";
   if (tid.includes("thought") || tid.includes("thinking")) return isRu ? "Блок мыслей агента" : "Agent Thinking Block";
   if (tag === "pre" || tag === "code") return isRu ? "Блок кода" : "Code Block";
   const txt = String(origText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 28);
@@ -802,7 +860,11 @@ function rv5ClearEditableText(editable, win, opts) {
       } catch (_ex) {}
       if (!clearedViaExec && (!skipRawFallback || !hasExecCmd)) {
         editable.textContent = "";
-        editable.dispatchEvent(new ((win && win.Event) || Event)("input", { bubbles: true }));
+        const InpEvt2 = (win && win.InputEvent) || (typeof InputEvent !== "undefined" ? InputEvent : null);
+        if (InpEvt2) {
+          try { editable.dispatchEvent(new InpEvt2("input", { inputType: "deleteContentBackward", bubbles: true })); } catch (_e) {}
+        }
+        try { editable.dispatchEvent(new ((win && win.Event) || Event)("input", { bubbles: true })); } catch (_e) {}
       }
     }
   } catch (_e) {}
@@ -929,7 +991,7 @@ function rv5BuildExtraShadowCss() {
 .rx-lim-row { display: flex; flex-direction: column; gap: 3px; }
 .rx-lim-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .rx-lim-name { font-weight: 600; font-size: 0.92em; }
-.rx-lim-reset { font-size: 0.82em; opacity: 0.65; }
+.rx-lim-reset { display: inline-flex; align-items: center; gap: 3px; font-size: 0.82em; opacity: 0.65; }
 .rx-lim-bar-line { display: grid; grid-template-columns: 32px minmax(64px, 1fr) 44px; align-items: center; gap: 6px; }
 .rx-lim-lbl { font-size: 0.84em; opacity: 0.68; }
 .rx-lim-track { height: 5px; border-radius: 999px; background: var(--rx-border-strong); overflow: hidden; }
@@ -999,12 +1061,8 @@ function rv5BuildExtraShadowCss() {
   color: var(--rx-theme-fg-strong, var(--rx-fg-strong));
   border-color: color-mix(in srgb, var(--rx-accent) 48%, var(--rx-comp-border, var(--rx-theme-border-strong, var(--rx-border-strong))));
 }
-.rx-agent-chip.is-active {
-  opacity: 1;
-  color: var(--rx-theme-fg-strong, var(--rx-fg-strong));
-  border-color: var(--rx-accent-border);
-  background: color-mix(in srgb, var(--rx-accent) 16%, var(--rx-theme-surface, var(--rx-surface)));
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.42), 0 0 0 1px color-mix(in srgb, var(--rx-accent) 22%, transparent);
+.studio-root[data-app-theme="light"] .rx-agent-chip.is-active {
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.12), 0 0 0 1px color-mix(in srgb, var(--rx-accent) 26%, transparent);
 }
 .rx-agent-dot {
   width: 6px;
@@ -1069,7 +1127,7 @@ function rv5BuildExtraShadowCss() {
   width: 300px;
   max-width: 92vw;
   padding: 11px 12px;
-  border-radius: 11px;
+  border-radius: var(--rx-r-lg, 12px);
   background: color-mix(in srgb, var(--rx-theme-surface, var(--rx-surface)) 97%, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 3%);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -1101,7 +1159,7 @@ function rv5BuildExtraShadowCss() {
   flex-direction: column;
   gap: 4px;
   padding: 6px 8px;
-  border-radius: 7px;
+  border-radius: var(--rx-r-sm, 6px);
   background: color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg-strong)) 4%, transparent);
   border: 1px solid var(--rx-theme-border, var(--rx-border));
 }
@@ -1121,7 +1179,7 @@ function rv5BuildExtraShadowCss() {
   gap: 6px;
   height: 26px;
   padding: 0 8px 0 9px;
-  border-radius: 7px;
+  border-radius: var(--rx-r-sm, 6px);
   font-size: 11px;
   font-weight: 550;
   font-family: var(--rx-font-ui);
@@ -1132,6 +1190,9 @@ function rv5BuildExtraShadowCss() {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
+.studio-root[data-app-theme="light"] .rx-ac-pill {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
 .rx-ac-cancel {
   border: none;
   background: transparent;
@@ -1141,6 +1202,8 @@ function rv5BuildExtraShadowCss() {
   padding: 0 2px;
   font-size: 11px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 .rx-ac-cancel:hover { opacity: 1; color: var(--rx-danger, #ef4444); }
 .rx-ac-chat-list {
@@ -1157,7 +1220,7 @@ function rv5BuildExtraShadowCss() {
   justify-content: space-between;
   gap: 8px;
   padding: 6px 9px;
-  border-radius: 7px;
+  border-radius: var(--rx-r-sm, 6px);
   border: 1px solid var(--rx-border);
   background: var(--rx-surface);
   font-size: 11.5px;
@@ -1186,7 +1249,7 @@ function rv5BuildExtraShadowCss() {
   flex-direction: column;
   gap: 4px;
   padding: 5px 9px;
-  border-radius: 8px;
+  border-radius: var(--rx-r-md, 9px);
   background: color-mix(in srgb, var(--rx-theme-surface, var(--rx-surface)) 96%, transparent);
   border: 1px solid var(--rx-theme-border-strong, var(--rx-border-strong));
   box-shadow: var(--rx-widget-shadow);
@@ -1211,7 +1274,7 @@ function rv5BuildExtraShadowCss() {
   font-size: 10px;
   font-weight: 600;
   padding: 1.5px 6px;
-  border-radius: 4px;
+  border-radius: var(--rx-r-xs, 4px);
   background: var(--rx-accent-soft);
   color: var(--rx-accent);
   flex-shrink: 0;
@@ -1227,7 +1290,7 @@ function rv5BuildExtraShadowCss() {
   max-height: var(--rx-pop-max-h, min(62vh, 380px));
   overflow-y: auto;
   padding: 12px;
-  border-radius: 11px;
+  border-radius: var(--rx-r-lg, 12px);
   background: color-mix(in srgb, var(--rx-theme-surface, var(--rx-surface)) 97%, transparent);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -1242,7 +1305,7 @@ function rv5BuildExtraShadowCss() {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--rx-theme-border, var(--rx-border));
-  border-radius: 8px;
+  border-radius: var(--rx-r-md, 9px);
   background: var(--rx-theme-bg, var(--rx-surface));
   overflow: hidden;
 }
@@ -1260,7 +1323,7 @@ function rv5BuildExtraShadowCss() {
 }
 .rx-pop-pill {
   padding: 2.5px 8px;
-  border-radius: 5px;
+  border-radius: var(--rx-r-xs, 4px);
   border: 1px solid var(--rx-theme-border-strong, var(--rx-border-strong));
   background: var(--rx-theme-surface, var(--rx-bg));
   color: var(--rx-theme-muted, var(--rx-muted));
@@ -1303,7 +1366,7 @@ function rv5BuildExtraShadowCss() {
   width: 316px;
   max-width: calc(100vw - 24px);
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: var(--rx-r-lg, 12px);
   background: var(--rx-theme-surface, var(--rx-surface));
   color: var(--rx-theme-fg-strong, var(--rx-fg-strong));
   border: 1px solid var(--rx-theme-border-strong, var(--rx-border-strong));
@@ -1428,7 +1491,7 @@ function rv5BuildExtraShadowCss() {
   align-items: center;
   gap: 10px;
   padding: 7px 13px;
-  border-radius: 9px;
+  border-radius: var(--rx-r-md, 9px);
   background: var(--rx-glass-strong);
   backdrop-filter: blur(16px);
   color: var(--rx-fg-strong);
@@ -1443,7 +1506,7 @@ function rv5BuildExtraShadowCss() {
   pointer-events: none;
   border: 2px solid var(--rx-accent);
   background: var(--rx-accent-soft);
-  border-radius: 5px;
+  border-radius: var(--rx-r-sm, 5px);
   transition: all 0.06s ease-out;
 }
 .rx-picker-tag {
@@ -1451,7 +1514,7 @@ function rv5BuildExtraShadowCss() {
   top: -23px;
   left: 0;
   padding: 2px 7px;
-  border-radius: 5px;
+  border-radius: var(--rx-r-xs, 4px);
   background: var(--rx-accent);
   color: var(--rx-accent-fg);
   font-size: 11px;
@@ -1471,7 +1534,7 @@ function rv5BuildExtraShadowCss() {
   overflow-y: auto;
   z-index: 2147483642;
   padding: 12px 13px;
-  border-radius: 12px;
+  border-radius: var(--rx-r-lg, 12px);
   background: var(--rx-glass-strong);
   backdrop-filter: blur(18px);
   color: var(--rx-fg);
@@ -1481,6 +1544,14 @@ function rv5BuildExtraShadowCss() {
   flex-direction: column;
   gap: 7px;
   pointer-events: auto;
+}
+.rx-insp-sec-title {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rx-muted);
+  margin-top: 2px;
 }
 .rx-insp-slider-grid {
   display: grid;
@@ -1492,7 +1563,7 @@ function rv5BuildExtraShadowCss() {
   flex-direction: column;
   gap: 4px;
   padding: 6px 8px;
-  border-radius: 9px;
+  border-radius: var(--rx-r-md, 9px);
   border: 1px solid var(--rx-border);
   background: var(--rx-surface);
   min-width: 0;
@@ -1565,7 +1636,7 @@ function rv5BuildExtraShadowCss() {
   width: 100%;
   box-sizing: border-box;
   padding: 6px 9px;
-  border-radius: 7px;
+  border-radius: var(--rx-r-sm, 6px);
   border: 1px solid var(--rx-border);
   background: var(--rx-bg);
   color: var(--rx-fg-strong);
@@ -1589,7 +1660,7 @@ function rv5BuildExtraShadowCss() {
 .rx-zone-btn {
   text-align: left;
   padding: 7.5px 10px;
-  border-radius: 7px;
+  border-radius: var(--rx-r-sm, 6px);
   border: 1px solid var(--rx-border);
   background: var(--rx-surface);
   color: var(--rx-fg-strong);
@@ -1611,7 +1682,7 @@ function rv5BuildExtraShadowCss() {
 .rx-kb-btn {
   min-width: 118px;
   padding: 4px 9px;
-  border-radius: 6px;
+  border-radius: var(--rx-r-sm, 6px);
   border: 1px solid var(--rx-border-strong);
   background: var(--rx-bg);
   color: var(--rx-fg-strong);
@@ -1637,7 +1708,7 @@ function rv5BuildExtraShadowCss() {
   align-items: center;
   gap: 6px;
   padding: 5.5px 10px;
-  border-radius: 7px;
+  border-radius: var(--rx-r-sm, 6px);
   border: 1px solid var(--rx-border);
   background: var(--rx-surface);
   color: var(--rx-fg-strong);
@@ -1654,7 +1725,7 @@ function rv5BuildExtraShadowCss() {
 }
 .rx-ws-card {
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--rx-r-md, 9px);
   border: 1px solid var(--rx-border);
   background: var(--rx-surface);
   display: flex;
@@ -1686,10 +1757,14 @@ function rv5BuildExtraShadowCss() {
   justify-content: center;
   padding: 16px;
 }
+.studio-root[data-theme="light"] .rx-annotator-backdrop,
+.studio-root[data-studio-theme="claude-light"] .rx-annotator-backdrop {
+  background: rgba(15, 23, 42, 0.42);
+}
 .rx-annotator-shell {
   width: min(94vw, 1560px);
   height: min(92vh, 980px);
-  border-radius: 14px;
+  border-radius: var(--rx-r-lg, 14px);
   background: var(--rx-shell-bg);
   border: 1px solid var(--rx-border-strong);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
@@ -1697,6 +1772,10 @@ function rv5BuildExtraShadowCss() {
   flex-direction: column;
   overflow: hidden;
   color: var(--rx-fg-strong);
+}
+.studio-root[data-theme="light"] .rx-annotator-shell,
+.studio-root[data-studio-theme="claude-light"] .rx-annotator-shell {
+  box-shadow: 0 22px 64px rgba(15, 23, 42, 0.24);
 }
 .rx-ann-toolbar {
   display: flex;
@@ -1794,9 +1873,14 @@ function rv5BuildExtraShadowCss() {
   margin: auto;
   box-shadow: 0 18px 54px rgba(0, 0, 0, 0.55);
   border: 1px solid var(--rx-border-strong);
-  border-radius: 8px;
+  border-radius: var(--rx-r-md, 9px);
   overflow: hidden;
   background: #0d0d0f;
+}
+.studio-root[data-theme="light"] .rx-ann-canvas-wrap,
+.studio-root[data-studio-theme="claude-light"] .rx-ann-canvas-wrap {
+  background: var(--rx-surface);
+  box-shadow: 0 14px 42px rgba(15, 23, 42, 0.18);
 }
 .rx-ann-canvas {
   display: block;
@@ -1855,7 +1939,7 @@ function rv5BuildExtraShadowCss() {
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--rx-r-md, 9px);
   border: 1px solid var(--rx-border);
   background: var(--rx-surface);
 }
@@ -1902,7 +1986,7 @@ function rv5BuildExtraShadowCss() {
 .rx-hist-text {
   margin: 0;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--rx-r-sm, 6px);
   border: 1px solid var(--rx-border);
   background: var(--rx-bg);
   color: var(--rx-fg-strong);
@@ -1924,7 +2008,7 @@ function rv5BuildExtraShadowCss() {
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  border-radius: 8px;
+  border-radius: var(--rx-r-sm, 6px);
   border: 1px solid var(--rx-border);
   background: var(--rx-bg);
   max-width: 100%;
@@ -1932,7 +2016,7 @@ function rv5BuildExtraShadowCss() {
 .rx-hist-thumb {
   width: 40px;
   height: 40px;
-  border-radius: 6px;
+  border-radius: var(--rx-r-sm, 6px);
   object-fit: cover;
   border: 1px solid var(--rx-border);
   flex-shrink: 0;
@@ -1940,15 +2024,27 @@ function rv5BuildExtraShadowCss() {
 .rx-hist-file-ico {
   width: 34px;
   height: 34px;
-  border-radius: 6px;
+  border-radius: var(--rx-r-sm, 6px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: var(--rx-surface-2);
   border: 1px solid var(--rx-border);
-  font-size: 15px;
+  color: var(--rx-muted);
   flex-shrink: 0;
 }
+.rx-inspector-card::-webkit-scrollbar,
+.rx-agent-popover::-webkit-scrollbar,
+.rx-hist-text::-webkit-scrollbar,
+.rx-ac-chat-list::-webkit-scrollbar { width: 5px; height: 5px; }
+.rx-inspector-card::-webkit-scrollbar-track,
+.rx-agent-popover::-webkit-scrollbar-track,
+.rx-hist-text::-webkit-scrollbar-track,
+.rx-ac-chat-list::-webkit-scrollbar-track { background: transparent; }
+.rx-inspector-card::-webkit-scrollbar-thumb,
+.rx-agent-popover::-webkit-scrollbar-thumb,
+.rx-hist-text::-webkit-scrollbar-thumb,
+.rx-ac-chat-list::-webkit-scrollbar-thumb { background: var(--rx-border-strong); border-radius: 999px; }
 .rx-hist-att-info {
   display: flex;
   flex-direction: column;
@@ -1974,6 +2070,7 @@ function rv5BuildExtraShadowCss() {
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    rv5IconSvg,
     RUDEX_AGENT_PRESETS,
     RUDEX_UI_ZONES,
     RUDEX_KEYBINDING_DEFS,

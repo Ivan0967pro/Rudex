@@ -22,13 +22,34 @@ $RepoName = "Rudex"
 $Branch = if ($env:RUDEX_BRANCH) { $env:RUDEX_BRANCH } else { "main" }
 
 function Find-AntigravityExe {
-  $candidates = @(
-    (Join-Path $env:LOCALAPPDATA "Programs\antigravity\Antigravity.exe"),
-    (Join-Path $env:LOCALAPPDATA "Antigravity\Antigravity.exe"),
-    (Join-Path $env:ProgramFiles "antigravity\Antigravity.exe"),
-    (Join-Path $env:ProgramFiles "Antigravity\Antigravity.exe"),
-    (Join-Path ${env:ProgramFiles(x86)} "Antigravity\Antigravity.exe")
-  )
+  $candidates = @()
+  if ($IsMacOS) {
+    $homeDir = if ($env:HOME) { $env:HOME } else { $env:USERPROFILE }
+    $candidates += "/Applications/Antigravity.app/Contents/MacOS/Antigravity"
+    if ($homeDir) {
+      $candidates += (Join-Path $homeDir "Applications/Antigravity.app/Contents/MacOS/Antigravity")
+      $candidates += (Join-Path $homeDir "Applications/Google Antigravity.app/Contents/MacOS/Google Antigravity")
+    }
+    $candidates += "/Applications/Google Antigravity.app/Contents/MacOS/Google Antigravity"
+  } elseif ($IsLinux) {
+    $homeDir = if ($env:HOME) { $env:HOME } else { $env:USERPROFILE }
+    $candidates += "/usr/bin/antigravity"
+    $candidates += "/usr/bin/Antigravity"
+    $candidates += "/usr/local/bin/antigravity"
+    $candidates += "/opt/antigravity/antigravity"
+    $candidates += "/opt/Antigravity/Antigravity"
+    if ($homeDir) {
+      $candidates += (Join-Path $homeDir ".local/share/antigravity/antigravity")
+    }
+  } else {
+    $candidates += @(
+      (Join-Path $env:LOCALAPPDATA "Programs\antigravity\Antigravity.exe"),
+      (Join-Path $env:LOCALAPPDATA "Antigravity\Antigravity.exe"),
+      (Join-Path $env:ProgramFiles "antigravity\Antigravity.exe"),
+      (Join-Path $env:ProgramFiles "Antigravity\Antigravity.exe"),
+      (Join-Path ${env:ProgramFiles(x86)} "Antigravity\Antigravity.exe")
+    )
+  }
   foreach ($c in $candidates) {
     if ($c -and (Test-Path $c)) { return $c }
   }
@@ -65,7 +86,8 @@ function Invoke-RudexNode([string]$TargetScript, [string[]]$ScriptArgs) {
     throw "Neither Node.js nor Antigravity.exe was found. Install Antigravity first and retry."
   }
 
-  $logDir = Join-Path $env:TEMP ("rudex-log-" + [Guid]::NewGuid().ToString("N"))
+  $tempBase = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+  $logDir = Join-Path $tempBase ("rudex-log-" + [Guid]::NewGuid().ToString("N"))
   New-Item -ItemType Directory -Path $logDir -Force | Out-Null
   $logOut = Join-Path $logDir "stdout.log"
   $logErr = Join-Path $logDir "stderr.log"
@@ -120,18 +142,35 @@ function Invoke-RudexNode([string]$TargetScript, [string[]]$ScriptArgs) {
 function Wait-AntigravityExit([int]$TimeoutMs = 8000) {
   $deadline = (Get-Date).AddMilliseconds($TimeoutMs)
   while ((Get-Date) -lt $deadline) {
-    $running = Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue
+    $running = Get-Process -Name "Antigravity", "antigravity" -ErrorAction SilentlyContinue
     if (-not $running) { return $true }
     Start-Sleep -Milliseconds 400
   }
-  return -not [bool](Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue)
+  return -not [bool](Get-Process -Name "Antigravity", "antigravity" -ErrorAction SilentlyContinue)
 }
 
 function Restart-AntigravityDetached([string]$ExePath) {
   if (-not $ExePath -or -not (Test-Path $ExePath)) { return }
-  $running = Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue
+  $running = Get-Process -Name "Antigravity", "antigravity" -ErrorAction SilentlyContinue
   if ($running) {
     Write-Host "[Rudex] Restarting Antigravity to load updated skill and UI..." -ForegroundColor Green
+    if ($IsMacOS) {
+      Stop-Process -Name "Antigravity", "antigravity" -Force -ErrorAction SilentlyContinue
+      [void](Wait-AntigravityExit)
+      $bundleDir = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $ExePath))
+      if ($bundleDir -and $bundleDir.EndsWith(".app") -and (Test-Path $bundleDir)) {
+        Start-Process "open" -ArgumentList @("-a", $bundleDir)
+      } else {
+        Start-Process "open" -ArgumentList @("-a", "Antigravity")
+      }
+      return
+    }
+    if ($IsLinux) {
+      Stop-Process -Name "Antigravity", "antigravity" -Force -ErrorAction SilentlyContinue
+      [void](Wait-AntigravityExit)
+      Start-Process -FilePath $ExePath
+      return
+    }
     $wscriptExe = Join-Path $env:SystemRoot "System32\wscript.exe"
     if (Test-Path $wscriptExe) {
       $escapedExe = [regex]::Replace(($ExePath -replace '\\', '\\' -replace '"', '\"'), '[^\x20-\x7E]', { param($m) '\u' + ([int][char]$m.Value).ToString('x4') })
@@ -196,7 +235,7 @@ function Test-InsideAntigravityProcess {
   return $false
 }
 
-Write-Host "Rudex v5.0.2 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
+Write-Host "Rudex v5.0.3 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
 
 if ($IsLocalRepo) {
   $InstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"
@@ -218,12 +257,12 @@ if ($IsLocalRepo) {
     exit 0
   }
 
-  $wasRunning = [bool](Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue)
+  $wasRunning = [bool](Get-Process -Name "Antigravity", "antigravity" -ErrorAction SilentlyContinue)
   $agyExe = Find-AntigravityExe
 
   if ($Uninstall) {
     if ($wasRunning -and $RestartApp) {
-      Stop-Process -Name "Antigravity" -Force -ErrorAction SilentlyContinue
+      Stop-Process -Name "Antigravity", "antigravity" -Force -ErrorAction SilentlyContinue
       [void](Wait-AntigravityExit)
     }
     $uArgs = @()
@@ -237,7 +276,7 @@ if ($IsLocalRepo) {
 
   if ($wasRunning -and $RestartApp) {
     Write-Host "[Rudex] Closing Antigravity briefly..." -ForegroundColor Yellow
-    Stop-Process -Name "Antigravity" -Force -ErrorAction SilentlyContinue
+    Stop-Process -Name "Antigravity", "antigravity" -Force -ErrorAction SilentlyContinue
     [void](Wait-AntigravityExit)
   }
 
@@ -276,7 +315,8 @@ $NoRestart = ($env:RUDEX_NO_RESTART -eq "1")
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-$tempRoot = Join-Path $env:TEMP ("rudex-install-" + [Guid]::NewGuid().ToString("N"))
+$tempBaseRemote = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+$tempRoot = Join-Path $tempBaseRemote ("rudex-install-" + [Guid]::NewGuid().ToString("N"))
 $zipPath = Join-Path $tempRoot "rudex.zip"
 $extractDir = Join-Path $tempRoot "extracted"
 $zipUrl = "https://github.com/$RepoOwner/$RepoName/archive/refs/heads/$Branch.zip"
@@ -306,10 +346,10 @@ try {
 
   # Close running Antigravity before syncing plugin & app files when invoked from an external PowerShell
   # (prevents Windows 10 NTFS DELETE_PENDING / EPERM directory watcher locks on plugins\rudex & app.asar)
-  $wasRunningRemote = [bool](Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue)
+  $wasRunningRemote = [bool](Get-Process -Name "Antigravity", "antigravity" -ErrorAction SilentlyContinue)
   if ((-not $NoRestart) -and $wasRunningRemote -and (-not (Test-InsideAntigravityProcess))) {
     Write-Host "[Rudex] Closing Antigravity briefly so Windows releases file locks..." -ForegroundColor Yellow
-    Stop-Process -Name "Antigravity" -Force -ErrorAction SilentlyContinue
+    Stop-Process -Name "Antigravity", "antigravity" -Force -ErrorAction SilentlyContinue
     [void](Wait-AntigravityExit)
     Start-Sleep -Milliseconds 500
   }
@@ -339,7 +379,8 @@ try {
     Restart-AntigravityDetached $exeToUse
   }
 
-  $pluginTarget = Join-Path $env:USERPROFILE ".gemini\config\plugins\rudex"
+  $homeTarget = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
+  $pluginTarget = Join-Path $homeTarget ".gemini\config\plugins\rudex"
   Write-Host "[Rudex] Done! Rudex skill is installed in: $pluginTarget" -ForegroundColor Green
 } finally {
   Remove-Item Env:RUDEX_ZIP_PATH -ErrorAction SilentlyContinue

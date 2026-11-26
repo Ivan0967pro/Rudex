@@ -647,14 +647,26 @@ function extractZipArchive(zipPath, destDir) {
       encoding: "utf8",
       timeout: 60000,
     });
+    if ((res.error || res.status !== 0) && process.platform === "darwin") {
+      res = spawnSync("ditto", ["-xk", resolvedZip, resolvedDest], {
+        encoding: "utf8",
+        timeout: 60000,
+      });
+    }
+    if (res.error || res.status !== 0) {
+      res = spawnSync("python3", ["-m", "zipfile", "-e", resolvedZip, resolvedDest], {
+        encoding: "utf8",
+        timeout: 60000,
+      });
+    }
     if (res.error || res.status !== 0) {
       res = spawnSync("tar", ["-xf", resolvedZip, "-C", resolvedDest], {
         encoding: "utf8",
         timeout: 60000,
       });
     }
-    if (res.status !== 0) {
-      const msg = (res.stderr || res.stdout || "").trim() || `Extractor exit ${res.status}`;
+    if (res.error || res.status !== 0) {
+      const msg = (res.stderr || res.stdout || (res.error && res.error.message) || "").trim() || `Extractor exit ${res.status}`;
       throw new Error(`Failed to extract update ZIP: ${msg}`);
     }
   }
@@ -710,6 +722,10 @@ function writeUpdaterRestartScript(exePath, opts = {}) {
   );
   fs.writeFileSync(outPath, lines.join("\r\n"), "utf8");
   return outPath;
+}
+
+function posixShellQuote(str) {
+  return "'" + String(str || "").replace(/'/g, "'\\''") + "'";
 }
 
 /**
@@ -948,6 +964,8 @@ async function installUpdateFromZip(opts = {}) {
     if (zipSha) childEnv.RUDEX_COMMIT_SHA = zipSha;
     if (remoteMeta.commitDate) childEnv.RUDEX_COMMIT_DATE = String(remoteMeta.commitDate);
     childEnv.RUDEX_ZIP_PATH = zipPath;
+    const resDir = opts.resourcesDir || process.resourcesPath || "";
+    if (resDir) childEnv.ANTIGRAVITY_RESOURCES_DIR = String(resDir);
 
     const runRes = spawnSync(runtimePath, [installJsPath, "--sync-plugin"], {
       env: childEnv,
@@ -1001,6 +1019,7 @@ module.exports = {
   extractZipArchive,
   writeUpdaterRestartScript,
   writeUpdaterRestartWsh,
+  posixShellQuote,
   wshEscapeJsString,
   resolveWscriptExe,
   spawnSilentWindowsWsh,

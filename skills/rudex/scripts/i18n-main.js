@@ -326,7 +326,7 @@ function sanitizeElementOverrides(raw) {
     const it = raw[i];
     if (!it || typeof it !== "object") continue;
     const selector = typeof it.selector === "string" ? it.selector.trim().slice(0, 260) : "";
-    if (!selector || /[{}<>\\]/.test(selector) || /url\s*\(|expression\s*\(|@import/i.test(selector)) continue;
+    if (!selector || /[{}<\\;]|\/\*/.test(selector) || /url\s*\(|expression\s*\(|@import/i.test(selector)) continue;
     const st = it.styles && typeof it.styles === "object" ? it.styles : {};
     out.push({
       id: typeof it.id === "string" && it.id ? it.id.slice(0, 64) : "ov-" + i,
@@ -1051,7 +1051,7 @@ function sanitizeCustomAgentPresets(raw) {
     out.push({
       id: typeof it.id === "string" && it.id ? it.id.slice(0, 48) : "ap-" + i,
       name,
-      icon: typeof it.icon === "string" ? it.icon.trim().slice(0, 8) : "⚡",
+      icon: typeof it.icon === "string" ? it.icon.trim().slice(0, 8) : "",
       profile: sanitizeAgentProfile(it.profile),
       personaText: typeof it.personaText === "string" ? truncateUtf8Bytes(it.personaText, MAX_PERSONA_BODY_BYTES) : "",
     });
@@ -1813,8 +1813,8 @@ function sanitizeQuotaFamilyState(famId, raw) {
     updatedAt: toNonNegInt(src.updatedAt),
     resetAt: toNonNegInt(src.resetAt),
     calibrated: Boolean(src.calibrated),
-    tokensPer1Pct5h: Number.isFinite(t5) && t5 >= 20000 && t5 <= 1500000 ? Math.round(t5) : def.tokensPer1Pct5h,
-    tokensPer1PctWeekly: Number.isFinite(tw) && tw >= 80000 && tw <= 6000000 ? Math.round(tw) : def.tokensPer1PctWeekly,
+    tokensPer1Pct5h: Number.isFinite(t5) && t5 >= 25000 && t5 <= 1500000 ? Math.round(t5) : def.tokensPer1Pct5h,
+    tokensPer1PctWeekly: Number.isFinite(tw) && tw >= 100000 && tw <= 6000000 ? Math.round(tw) : def.tokensPer1PctWeekly,
     pending5hByChat: sanitizePendingMap(src.pending5hByChat),
     pendingWeeklyByChat: sanitizePendingMap(src.pendingWeeklyByChat),
   };
@@ -1872,7 +1872,7 @@ function parseResetDurationMs(rawStr) {
   const s = String(rawStr || "").trim().toLowerCase();
   if (!s) return 0;
   let totalMs = 0;
-  const re = /(\d+(?:[.,]\d+)?)\s*(?:дн[а-яё]*|д\.?|days?|d\b|час[а-яё]*|ч\.?|hours?|hrs?|h\b|мин[а-яё]*|м\.?|minutes?|mins?|m\b|сек[а-яё]*|с\.?|seconds?|secs?|s\b)/gi;
+  const re = /(\d+(?:[.,]\d+)?)\s*(?:(?:дн|ден)[а-яё]*|д\.?|days?|d\b|час[а-яё]*|ч\.?|hours?|hrs?|h\b|мин[а-яё]*|м\.?|minutes?|mins?|m\b|сек[а-яё]*|с\.?|seconds?|secs?|s\b)/gi;
   let m;
   while ((m = re.exec(s)) !== null) {
     const val = parseFloat(m[1].replace(",", "."));
@@ -2057,7 +2057,8 @@ function readTranscriptStepsCached(lp, mtimeMs, size) {
       const outTok = typeof o.output_tokens === "number" && o.output_tokens > 0
         ? Math.round(o.output_tokens)
         : Math.max(20, Math.round((contentStr.length + thinkStr.length + toolsStr.length) / 3.5));
-      if (typeof o.model === "string" && o.model.trim()) lastModel = o.model.trim();
+      const stepModel = (typeof o.model === "string" && o.model.trim()) ? o.model.trim() : lastModel;
+      if (stepModel) lastModel = stepModel;
       const hasRealIn = typeof o.input_tokens === "number" && o.input_tokens > 0;
       const hasRealCache = typeof o.cache_read_tokens === "number" && o.cache_read_tokens > 0;
       let stepUnits;
@@ -2070,8 +2071,9 @@ function readTranscriptStepsCached(lp, mtimeMs, size) {
         const ctxTok = Math.min(120000, 10000 + runningCtxTok);
         stepUnits = Math.round(outTok + ctxTok * 0.04);
       }
-      const fam = classifyModelFamily(o.model || lastModel || "");
-      steps.push({ ts: Number.isFinite(ts) && ts > 0 ? ts : mtimeMs, units: Math.max(20, stepUnits), family: fam });
+      const stepWeight = Math.max(0.35, getModelQuotaWeight(stepModel || ""));
+      const fam = classifyModelFamily(stepModel || "");
+      steps.push({ ts: Number.isFinite(ts) && ts > 0 ? ts : mtimeMs, units: Math.max(20, stepUnits), weight: stepWeight, family: fam });
       runningCtxTok = Math.min(180000, runningCtxTok + Math.round((contentStr.length + toolsStr.length) / 3.5));
     }
   } catch {}
@@ -2249,32 +2251,34 @@ function buildQuotaSummary(activeChatKey, forceFresh, opts) {
         const fam = stp.family === "claudeGpt" ? "claudeGpt" : "gemini";
         const famBounds = bounds[fam];
         const snapCut = sinceSnapCutoff[fam];
+        const stpW = (typeof stp.weight === "number" && Number.isFinite(stp.weight) && stp.weight > 0) ? stp.weight : famWeight;
+        const stpUnits = Math.round(stp.units * stpW);
         if (stp.ts >= famBounds.weeklyStartMs) {
-          rawWByFam[fam] += stp.units;
+          rawWByFam[fam] += stpUnits;
           stepsWByFam[fam] += 1;
           if (stp.ts > lastStepTs) lastStepTs = stp.ts;
           if (snapCut.weekly > 0) {
-            if (stp.ts > snapCut.weekly) rawWSinceByFam[fam] += stp.units;
-            else rawWBeforeByFam[fam] += stp.units;
+            if (stp.ts > snapCut.weekly) rawWSinceByFam[fam] += stpUnits;
+            else rawWBeforeByFam[fam] += stpUnits;
           }
         }
         if (stp.ts >= famBounds.fiveHourStartMs) {
-          raw5ByFam[fam] += stp.units;
+          raw5ByFam[fam] += stpUnits;
           steps5ByFam[fam] += 1;
           if (stp.ts > lastStepTs) lastStepTs = stp.ts;
           if (snapCut.fiveHour > 0) {
-            if (stp.ts > snapCut.fiveHour) raw5SinceByFam[fam] += stp.units;
-            else raw5BeforeByFam[fam] += stp.units;
+            if (stp.ts > snapCut.fiveHour) raw5SinceByFam[fam] += stpUnits;
+            else raw5BeforeByFam[fam] += stpUnits;
           }
         }
       }
       for (const fam of ["gemini", "claudeGpt"]) {
-        unitsWeeklyByFam[fam] = Math.round(rawWByFam[fam] * famWeight);
-        units5hByFam[fam] = Math.round(raw5ByFam[fam] * famWeight);
-        familyTotals[fam].unitsWeeklyBeforeSnap += Math.round(rawWBeforeByFam[fam] * famWeight);
-        familyTotals[fam].units5hBeforeSnap += Math.round(raw5BeforeByFam[fam] * famWeight);
-        familyTotals[fam].unitsWeeklySinceSnap += Math.round(rawWSinceByFam[fam] * famWeight);
-        familyTotals[fam].units5hSinceSnap += Math.round(raw5SinceByFam[fam] * famWeight);
+        unitsWeeklyByFam[fam] = rawWByFam[fam];
+        units5hByFam[fam] = raw5ByFam[fam];
+        familyTotals[fam].unitsWeeklyBeforeSnap += rawWBeforeByFam[fam];
+        familyTotals[fam].units5hBeforeSnap += raw5BeforeByFam[fam];
+        familyTotals[fam].unitsWeeklySinceSnap += rawWSinceByFam[fam];
+        familyTotals[fam].units5hSinceSnap += raw5SinceByFam[fam];
         turnsByFam[fam] = Math.max(rec.quota[fam].turns || 0, stepsWByFam[fam], steps5ByFam[fam]);
       }
     } else {
@@ -2314,16 +2318,35 @@ function buildQuotaSummary(activeChatKey, forceFresh, opts) {
     const fam = store.families[famId];
     const totW = familyTotals[famId].unitsWeekly;
     const tot5 = familyTotals[famId].units5h;
-    const calW = familyTotals[famId].unitsWeeklyBeforeSnap > 0 ? familyTotals[famId].unitsWeeklyBeforeSnap : totW;
-    const cal5 = familyTotals[famId].units5hBeforeSnap > 0 ? familyTotals[famId].units5hBeforeSnap : tot5;
+    const calW = familyTotals[famId].unitsWeeklyBeforeSnap;
+    const cal5 = familyTotals[famId].units5hBeforeSnap;
     const usedW = fam.weeklyRem !== null ? Math.max(0, 100 - fam.weeklyRem) : null;
     const used5 = fam.fiveHourRem !== null ? Math.max(0, 100 - fam.fiveHourRem) : null;
-    const impliedW = usedW !== null && usedW >= 0.5 && calW > 0
-      ? Math.round(clampNum(calW / usedW, 80000, 6000000, fam.tokensPer1PctWeekly))
-      : fam.tokensPer1PctWeekly;
-    const implied5 = used5 !== null && used5 >= 0.5 && cal5 > 0
-      ? Math.round(clampNum(cal5 / used5, 20000, 1500000, fam.tokensPer1Pct5h))
-      : Math.max(25000, Math.round(impliedW * 0.24));
+    const def5 = famId === "claudeGpt" ? 45000 : 60000;
+    const defW = famId === "claudeGpt" ? 200000 : 260000;
+    const priorW = Math.round(clampNum(fam.tokensPer1PctWeekly, 100000, 6000000, defW));
+    const prior5 = Math.round(clampNum(fam.tokensPer1Pct5h, 25000, 1500000, def5));
+
+    let impliedW = priorW;
+    if (usedW !== null && usedW >= 1 && calW > 0) {
+      const rawW = calW / usedW;
+      if (rawW >= 90000) {
+        const confW = Math.min(1, usedW / 12);
+        impliedW = Math.round(clampNum(priorW * (1 - confW) + rawW * confW, 100000, 6000000, priorW));
+      }
+    }
+
+    let implied5 = fam.calibrated
+      ? prior5
+      : Math.round(clampNum(Math.max(35000, impliedW * 0.24), 25000, 1500000, prior5));
+    if (used5 !== null && used5 >= 1 && cal5 > 0) {
+      const raw5 = cal5 / used5;
+      if (raw5 >= 22000) {
+        const conf5 = Math.min(1, used5 / 12);
+        implied5 = Math.round(clampNum(prior5 * (1 - conf5) + raw5 * conf5, 25000, 1500000, prior5));
+      }
+    }
+
     rates[famId] = {
       usedWeeklyReal: usedW,
       used5hReal: used5,
@@ -2435,8 +2458,8 @@ function buildQuotaSummary(activeChatKey, forceFresh, opts) {
     const effPend5 = lr5.expired ? diskSince5 : (diskSince5 > 0 ? diskSince5 : pend5);
     const effPendW = lrW.expired ? diskSinceW : (diskSinceW > 0 ? diskSinceW : pendW);
 
-    const estDrop5 = base5 !== null && effPend5 > 0 ? effPend5 / Math.max(20000, r.unitsPer1Pct5h) : 0;
-    const estDropW = baseW !== null && effPendW > 0 ? effPendW / Math.max(80000, r.unitsPer1PctWeekly) : 0;
+    const estDrop5 = base5 !== null && effPend5 > 0 ? effPend5 / Math.max(25000, r.unitsPer1Pct5h) : 0;
+    const estDropW = baseW !== null && effPendW > 0 ? effPendW / Math.max(100000, r.unitsPer1PctWeekly) : 0;
     // Never falsely drop an *estimated* value all the way to 0% while the last official snapshot was > 0%
     const minEst5 = base5 !== null && base5 > 0 && estDrop5 > 0 ? 1 : 0;
     const minEstW = baseW !== null && baseW > 0 && estDropW > 0 ? 1 : 0;
@@ -2778,7 +2801,7 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "5.0.2");
+  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "5.0.3");
   const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
   const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
   const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
@@ -3104,8 +3127,78 @@ function writePostAppUpdateWatcherWsh(opts = {}) {
   }
 }
 
+function writePostAppUpdateWatcherPosix(opts = {}) {
+  const resDir = opts.resDir || process.resourcesPath || path.resolve(__dirname, "..", "..");
+  const exePath = opts.exePath || process.execPath || "";
+  const installJs = opts.installJs || path.join(getPluginsBaseDir(), "rudex", "skills", "rudex", "scripts", "install.js");
+  if (!resDir || !exePath || !installJs) return "";
+  let q = (s) => "'" + String(s || "").replace(/'/g, "'\\''") + "'";
+  try {
+    const uc = loadUpdaterCore();
+    if (uc && typeof uc.posixShellQuote === "function") q = uc.posixShellQuote;
+  } catch {}
+  const outPath = opts.outPath || path.join(os.tmpdir(), "rudex-post-app-update.sh");
+  const lockPath = opts.lockPath || path.join(os.tmpdir(), "rudex-post-app-update.lock");
+  const targetPid = Number(opts.pid) || process.pid;
+  const lines = [
+    "#!/bin/sh",
+    `TARGET_PID=${targetPid}`,
+    `RES_DIR=${q(resDir)}`,
+    `AGY_EXE=${q(exePath)}`,
+    `INSTALL_JS=${q(installJs)}`,
+    `LOCK_FILE=${q(lockPath)}`,
+    `SELF_PATH=${q(outPath)}`,
+    'ASAR_PATH="$RES_DIR/app.asar"',
+    "cleanup() {",
+    '  rm -f "$LOCK_FILE" "$SELF_PATH" 2>/dev/null || true',
+    "}",
+    "trap cleanup EXIT INT TERM",
+    "file_stamp() {",
+    '  [ ! -f "$1" ] && echo "" && return',
+    '  sz="$(wc -c < "$1" 2>/dev/null | tr -d " ")"',
+    '  mt="$(stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0)"',
+    '  echo "${sz}:${mt}"',
+    "}",
+    'while kill -0 "$TARGET_PID" 2>/dev/null; do sleep 1; done',
+    "stable=0",
+    'prev=""',
+    "i=0",
+    "while [ $i -lt 180 ]; do",
+    "  sleep 2",
+    '  cur="$(file_stamp "$ASAR_PATH")"',
+    '  if [ -z "$cur" ]; then',
+    "    stable=0",
+    '    prev=""',
+    "    i=$((i + 1))",
+    "    continue",
+    "  fi",
+    '  if [ "$cur" = "$prev" ]; then',
+    "    stable=$((stable + 1))",
+    '    [ "$stable" -ge 2 ] && break',
+    "  else",
+    '    prev="$cur"',
+    "    stable=0",
+    "  fi",
+    "  i=$((i + 1))",
+    "done",
+    'if [ "$stable" -ge 2 ] && [ -f "$ASAR_PATH" ] && [ -f "$INSTALL_JS" ]; then',
+    '  RUNNER="node"',
+    '  if [ -x "$AGY_EXE" ]; then RUNNER="$AGY_EXE"; fi',
+    '  ELECTRON_RUN_AS_NODE=1 ELECTRON_NO_ASAR=1 ANTIGRAVITY_RESOURCES_DIR="$RES_DIR" "$RUNNER" "$INSTALL_JS" --no-sync-plugin --on-exit-activate >/dev/null 2>&1 || true',
+    "fi",
+    "",
+  ];
+  try {
+    fs.writeFileSync(outPath, lines.join("\n"), "utf8");
+    try { fs.chmodSync(outPath, 0o755); } catch {}
+    return outPath;
+  } catch (_e) {
+    return "";
+  }
+}
+
 function schedulePostAppUpdateRepatch() {
-  if (postAppUpdateScheduled || process.platform !== "win32" || globalThis.__RUDEX_DISABLED__) return false;
+  if (postAppUpdateScheduled || globalThis.__RUDEX_DISABLED__) return false;
   const installJs = path.join(getPluginsBaseDir(), "rudex", "skills", "rudex", "scripts", "install.js");
   if (!fs.existsSync(installJs)) return false;
 
@@ -3119,6 +3212,21 @@ function schedulePostAppUpdateRepatch() {
       }
     }
   } catch {}
+
+  if (process.platform !== "win32") {
+    try {
+      fs.writeFileSync(lockPath, String(Date.now()), "utf8");
+      const shPath = writePostAppUpdateWatcherPosix({ installJs, lockPath });
+      if (!shPath || !fs.existsSync(shPath)) return false;
+      const child = spawn("sh", [shPath], { detached: true, stdio: "ignore" });
+      if (child && typeof child.unref === "function") child.unref();
+      postAppUpdateScheduled = true;
+      return true;
+    } catch (_e) {
+      postAppUpdateScheduled = false;
+      return false;
+    }
+  }
 
   let updaterCore = null;
   try { updaterCore = loadUpdaterCore(); } catch {}
@@ -3444,8 +3552,147 @@ function buildOfflineQuotaNotifierWsh(opts = {}) {
   ].join("\r\n");
 }
 
+function buildOfflineQuotaNotifierPosix(opts = {}) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const title = String(o.title || "Лимиты Antigravity восстановлены");
+  const body = String(o.body || "Квоты снова доступны на 100%.");
+  const alertsPath = String(o.alertsPath || "");
+  const cycleKey = String(o.cycleKey || "");
+  const silent = Boolean(o.silent);
+  const platform = o.platform || process.platform;
+  let q = (s) => "'" + String(s || "").replace(/'/g, "'\\''") + "'";
+  try {
+    const uc = loadUpdaterCore();
+    if (uc && typeof uc.posixShellQuote === "function") q = uc.posixShellQuote;
+  } catch {}
+  const lines = [
+    "#!/bin/sh",
+    `TITLE=${q(title)}`,
+    `BODY=${q(body)}`,
+    `ALERTS_PATH=${q(alertsPath)}`,
+    `CYCLE_KEY=${q(cycleKey)}`,
+    platform === "darwin"
+      ? 'if pgrep -x "Antigravity" >/dev/null 2>&1 || pgrep -x "Google Antigravity" >/dev/null 2>&1; then exit 0; fi'
+      : 'if pgrep -x "antigravity" >/dev/null 2>&1 || pgrep -x "Antigravity" >/dev/null 2>&1; then exit 0; fi',
+    'if [ -n "$ALERTS_PATH" ] && [ -n "$CYCLE_KEY" ] && [ -f "$ALERTS_PATH" ]; then',
+    '  if grep -Fq "\\"$CYCLE_KEY\\"" "$ALERTS_PATH" 2>/dev/null; then exit 0; fi',
+    "fi",
+  ];
+  if (platform === "darwin") {
+    const soundPart = silent ? "" : ' sound name "Glass"';
+    lines.push(
+      'osascript -e "on run argv" -e \'display notification (item 1 of argv) with title (item 2 of argv)' + soundPart + '\' -e "end run" "$BODY" "$TITLE" >/dev/null 2>&1 || true'
+    );
+  } else {
+    lines.push(
+      'if command -v notify-send >/dev/null 2>&1; then notify-send -a "Antigravity" "$TITLE" "$BODY" >/dev/null 2>&1 || true; fi'
+    );
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
 function syncWindowsOfflineQuotaTask(forceRemove = false) {
-  if (process.platform !== "win32" || globalThis.__RUDEX_DISABLED__) return false;
+  if (globalThis.__RUDEX_DISABLED__) return false;
+  if (process.platform !== "win32") {
+    const settings = loadStudioSettings();
+    const qa = sanitizeQuotaAutomation(settings.quotaAutomation);
+    const nextReset = (!forceRemove && qa.notifyOnReset && qa.notifyWhenClosed)
+      ? computeNextUpcomingQuotaReset(Date.now())
+      : null;
+    const sig = nextReset ? `${nextReset.cycleKey}:${qa.notifySound ? 1 : 0}:${getLocale()}` : "NONE";
+    if (sig === lastOfflineQuotaTaskSig && !forceRemove) return true;
+    lastOfflineQuotaTaskSig = sig;
+
+    const userDataDir = app.getPath("userData");
+    const notifyShPath = path.join(userDataDir, "rudex-quota-notify.sh");
+    if (process.platform === "darwin") {
+      const plistPath = path.join(os.homedir(), "Library", "LaunchAgents", "com.rudex.quota-notify.plist");
+      if (!nextReset) {
+        try { if (fs.existsSync(notifyShPath)) fs.unlinkSync(notifyShPath); } catch {}
+        try {
+          if (fs.existsSync(plistPath)) {
+            try { execFileSync("launchctl", ["unload", plistPath], { stdio: "ignore", timeout: 2000 }); } catch {}
+            fs.unlinkSync(plistPath);
+          }
+        } catch {}
+        return true;
+      }
+      const loc = getLocale();
+      const famLabel = formatFamilyDisplayName(nextReset.family, loc);
+      const winLabel = nextReset.window === "weekly" ? (loc === "en" ? "Weekly" : "Неделя") : (loc === "en" ? "5h" : "5ч");
+      const title = loc === "en" ? "Antigravity Limits Restored" : "Лимиты Antigravity восстановлены";
+      const body = loc === "en"
+        ? `${famLabel} (${winLabel}) limits are refreshed (100%).`
+        : `${famLabel} (${winLabel}) снова доступны (100%).`;
+      try {
+        fs.writeFileSync(notifyShPath, buildOfflineQuotaNotifierPosix({
+          title,
+          body,
+          alertsPath: getQuotaAlertsPath(),
+          cycleKey: nextReset.cycleKey,
+          silent: !qa.notifySound,
+          platform: "darwin",
+        }), "utf8");
+        try { fs.chmodSync(notifyShPath, 0o755); } catch {}
+        const dt = new Date(nextReset.resetAtMs + 5000);
+        const xmlEsc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const plistXml = [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+          '<plist version="1.0"><dict>',
+          "  <key>Label</key><string>com.rudex.quota-notify</string>",
+          `  <key>ProgramArguments</key><array><string>/bin/sh</string><string>${xmlEsc(notifyShPath)}</string></array>`,
+          "  <key>StartCalendarInterval</key><dict>",
+          `    <key>Month</key><integer>${dt.getMonth() + 1}</integer>`,
+          `    <key>Day</key><integer>${dt.getDate()}</integer>`,
+          `    <key>Hour</key><integer>${dt.getHours()}</integer>`,
+          `    <key>Minute</key><integer>${dt.getMinutes()}</integer>`,
+          "  </dict>",
+          "</dict></plist>",
+          "",
+        ].join("\n");
+        fs.mkdirSync(path.dirname(plistPath), { recursive: true });
+        try { execFileSync("launchctl", ["unload", plistPath], { stdio: "ignore", timeout: 2000 }); } catch {}
+        fs.writeFileSync(plistPath, plistXml, "utf8");
+        try { execFileSync("launchctl", ["load", plistPath], { stdio: "ignore", timeout: 2000 }); } catch {}
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    // Linux: schedule via systemd-run --user if available
+    if (!nextReset) {
+      try { if (fs.existsSync(notifyShPath)) fs.unlinkSync(notifyShPath); } catch {}
+      try { execFileSync("systemctl", ["--user", "stop", "rudex-quota-notify.timer", "rudex-quota-notify.service"], { stdio: "ignore", timeout: 2000 }); } catch {}
+      return true;
+    }
+    const loc = getLocale();
+    const famLabel = formatFamilyDisplayName(nextReset.family, loc);
+    const winLabel = nextReset.window === "weekly" ? (loc === "en" ? "Weekly" : "Неделя") : (loc === "en" ? "5h" : "5ч");
+    const title = loc === "en" ? "Antigravity Limits Restored" : "Лимиты Antigravity восстановлены";
+    const body = loc === "en"
+      ? `${famLabel} (${winLabel}) limits are refreshed (100%).`
+      : `${famLabel} (${winLabel}) снова доступны (100%).`;
+    try {
+      fs.writeFileSync(notifyShPath, buildOfflineQuotaNotifierPosix({
+        title,
+        body,
+        alertsPath: getQuotaAlertsPath(),
+        cycleKey: nextReset.cycleKey,
+        silent: !qa.notifySound,
+        platform: "linux",
+      }), "utf8");
+      try { fs.chmodSync(notifyShPath, 0o755); } catch {}
+      const delaySec = Math.max(10, Math.round((nextReset.resetAtMs + 5000 - Date.now()) / 1000));
+      try { execFileSync("systemctl", ["--user", "stop", "rudex-quota-notify.timer", "rudex-quota-notify.service"], { stdio: "ignore", timeout: 1500 }); } catch {}
+      try { execFileSync("systemd-run", ["--user", "--unit=rudex-quota-notify", `--on-active=${delaySec}s`, "/bin/sh", notifyShPath], { stdio: "ignore", timeout: 2500 }); } catch {}
+      return true;
+    } catch {
+      return false;
+    }
+  }
   let updaterCore = null;
   try { updaterCore = loadUpdaterCore(); } catch {}
   if (!updaterCore || typeof updaterCore.resolveWscriptExe !== "function" || !updaterCore.resolveWscriptExe()) return false;
@@ -4484,8 +4731,30 @@ function clearInputHistory() {
 
 function copyFileToWindowsClipboard(fullPath) {
   return new Promise((resolve) => {
+    if (process.platform === "darwin") {
+      try {
+        const { execFile } = require("child_process");
+        execFile(
+          "osascript",
+          ["-e", "on run argv\nset the clipboard to POSIX file (item 1 of argv)\nend run", fullPath],
+          { timeout: 3000 },
+          (err) => {
+            if (!err) {
+              resolve({ ok: true, fileDrop: true });
+              return;
+            }
+            try { if (clipboard && typeof clipboard.writeText === "function") clipboard.writeText(fullPath); } catch {}
+            resolve({ ok: true, fallbackPath: true });
+          }
+        );
+        return;
+      } catch {}
+    }
     if (process.platform !== "win32") {
       try {
+        if (clipboard && typeof clipboard.writeBuffer === "function") {
+          clipboard.writeBuffer("text/uri-list", Buffer.from("file://" + encodeURI(fullPath) + "\r\n", "utf8"));
+        }
         if (clipboard && typeof clipboard.writeText === "function") clipboard.writeText(fullPath);
       } catch {}
       resolve({ ok: true, fallbackPath: true });
@@ -5183,7 +5452,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "5.0.2",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "5.0.3",
         outPath,
       });
       return res;
@@ -5225,8 +5494,8 @@ function registerI18nIpc() {
 
     const store = loadQuotaStore();
     const famState = store.families[famId];
-    const inc5h = wt / Math.max(20000, famState.tokensPer1Pct5h);
-    const incWeek = wt / Math.max(80000, famState.tokensPer1PctWeekly);
+    const inc5h = wt / Math.max(25000, famState.tokensPer1Pct5h);
+    const incWeek = wt / Math.max(100000, famState.tokensPer1PctWeekly);
 
     const chats = loadStudioChats();
     const prev = chats[key] ? sanitizeChatRecord(chats[key]) : defaultChatRecord(titleStr);
@@ -5265,6 +5534,60 @@ function registerI18nIpc() {
     const chats = loadStudioChats();
     let chatsDirty = false;
     const now = Date.now();
+    const resetWm = Math.max(store.resetAt || 0, store.families.gemini.resetAt || 0, store.families.claudeGpt.resetAt || 0);
+
+    // Measure same-scale local transcript.jsonl weighted units for both families (never DOM pending turns)
+    const snapBounds = {};
+    let minCutoffMs = now;
+    let needDiskScan = false;
+    for (const famId of ["gemini", "claudeGpt"]) {
+      const snapFam = p[famId];
+      if (!snapFam || typeof snapFam !== "object") continue;
+      needDiskScan = true;
+      const famState = store.families[famId];
+      const baseBounds = getFamilyCycleBounds(famState, now);
+      let fiveHourStartMs = baseBounds.fiveHourStartMs;
+      let weeklyStartMs = baseBounds.weeklyStartMs;
+      if (typeof snapFam.fiveHourReset === "string" && snapFam.fiveHourReset.trim()) {
+        const rem5Ms = parseResetDurationMs(snapFam.fiveHourReset.trim());
+        fiveHourStartMs = rem5Ms > 0 && rem5Ms <= FIVE_HOUR_MS ? now - (FIVE_HOUR_MS - rem5Ms) : now - FIVE_HOUR_MS;
+      }
+      if (typeof snapFam.weeklyReset === "string" && snapFam.weeklyReset.trim()) {
+        const remWkMs = parseResetDurationMs(snapFam.weeklyReset.trim());
+        weeklyStartMs = remWkMs > 0 && remWkMs <= SEVEN_DAY_MS ? now - (SEVEN_DAY_MS - remWkMs) : now - SEVEN_DAY_MS;
+      }
+      snapBounds[famId] = { fiveHourStartMs, weeklyStartMs, prevUpdatedAt: famState.updatedAt || 0 };
+      if (weeklyStartMs < minCutoffMs) minCutoffMs = weeklyStartMs;
+      if (fiveHourStartMs < minCutoffMs) minCutoffMs = fiveHourStartMs;
+    }
+
+    const diskStats = {
+      gemini: { in5h: 0, sincePrev5h: 0, inWk: 0, sincePrevWk: 0 },
+      claudeGpt: { in5h: 0, sincePrev5h: 0, inWk: 0, sincePrevWk: 0 },
+    };
+    if (needDiskScan) {
+      const diskByChat = scanBrainTranscriptsQuota(minCutoffMs, resetWm);
+      for (const disk of diskByChat.values()) {
+        const chatFallbackW = Math.max(0.4, getModelQuotaWeight(disk.lastModel || ""));
+        for (let i = 0; i < disk.steps.length; i += 1) {
+          const stp = disk.steps[i];
+          if (stp.ts < resetWm || stp.ts > now) continue;
+          const fam = stp.family === "claudeGpt" ? "claudeGpt" : "gemini";
+          const fb = snapBounds[fam];
+          if (!fb) continue;
+          const stpW = (typeof stp.weight === "number" && Number.isFinite(stp.weight) && stp.weight > 0) ? stp.weight : chatFallbackW;
+          const u = Math.round(stp.units * stpW);
+          if (stp.ts >= fb.weeklyStartMs) {
+            diskStats[fam].inWk += u;
+            if (fb.prevUpdatedAt > 0 && stp.ts > fb.prevUpdatedAt) diskStats[fam].sincePrevWk += u;
+          }
+          if (stp.ts >= fb.fiveHourStartMs) {
+            diskStats[fam].in5h += u;
+            if (fb.prevUpdatedAt > 0 && stp.ts > fb.prevUpdatedAt) diskStats[fam].sincePrev5h += u;
+          }
+        }
+      }
+    }
 
     for (const famId of ["gemini", "claudeGpt"]) {
       const snapFam = p[famId];
@@ -5272,15 +5595,20 @@ function registerI18nIpc() {
       const famState = store.families[famId];
       const next5h = toNullableRemPct(snapFam.fiveHourRem);
       const nextWeek = toNullableRemPct(snapFam.weeklyRem);
+      const ds = diskStats[famId];
 
       if (next5h !== null) {
+        let deltaCal5 = false;
         if (famState.fiveHourRem !== null && next5h < famState.fiveHourRem) {
           const drop5h = Math.round((famState.fiveHourRem - next5h) * 100) / 100;
-          const res5h = applyQuotaDropForWindow(famId, drop5h, famState.pending5hByChat, chats, activeKey, false);
-          if (res5h.distributed && res5h.totalPending >= 15000 && drop5h >= 0.5) {
-            const observedRate = res5h.totalPending / Math.max(0.2, drop5h);
-            famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * 0.65 + observedRate * 0.35, 20000, 1500000, famState.tokensPer1Pct5h));
-            famState.calibrated = true;
+          applyQuotaDropForWindow(famId, drop5h, famState.pending5hByChat, chats, activeKey, false);
+          if (drop5h >= 2 && ds.sincePrev5h >= 15000) {
+            const obs5 = ds.sincePrev5h / drop5h;
+            if (obs5 >= 22000) {
+              famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * 0.5 + obs5 * 0.5, 25000, 1500000, famState.tokensPer1Pct5h));
+              famState.calibrated = true;
+              deltaCal5 = true;
+            }
           }
           famState.pending5hByChat = {};
           chatsDirty = true;
@@ -5295,6 +5623,14 @@ function registerI18nIpc() {
         } else {
           famState.pending5hByChat = {};
         }
+        if ((100 - next5h) >= 5 && ds.in5h >= 100000) {
+          const win5 = ds.in5h / (100 - next5h);
+          if (win5 >= 22000) {
+            const wOld = deltaCal5 ? 0.75 : 0.4;
+            famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * wOld + win5 * (1 - wOld), 25000, 1500000, famState.tokensPer1Pct5h));
+            famState.calibrated = true;
+          }
+        }
         famState.fiveHourRem = next5h;
       } else if (nextWeek !== null) {
         // Antigravity rendered this family in 1-bucket mode (weekly only, no active 5h bucket): clear stale 5h value so it never shows fake 100%
@@ -5304,13 +5640,17 @@ function registerI18nIpc() {
       }
 
       if (nextWeek !== null) {
+        let deltaCalW = false;
         if (famState.weeklyRem !== null && nextWeek < famState.weeklyRem) {
           const dropWeek = Math.round((famState.weeklyRem - nextWeek) * 100) / 100;
-          const resW = applyQuotaDropForWindow(famId, dropWeek, famState.pendingWeeklyByChat, chats, activeKey, true);
-          if (resW.distributed && resW.totalPending >= 25000 && dropWeek >= 0.5) {
-            const observedRateW = resW.totalPending / Math.max(0.2, dropWeek);
-            famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * 0.65 + observedRateW * 0.35, 80000, 6000000, famState.tokensPer1PctWeekly));
-            famState.calibrated = true;
+          applyQuotaDropForWindow(famId, dropWeek, famState.pendingWeeklyByChat, chats, activeKey, true);
+          if (dropWeek >= 2 && ds.sincePrevWk >= 30000) {
+            const obsW = ds.sincePrevWk / dropWeek;
+            if (obsW >= 90000) {
+              famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * 0.5 + obsW * 0.5, 100000, 6000000, famState.tokensPer1PctWeekly));
+              famState.calibrated = true;
+              deltaCalW = true;
+            }
           }
           famState.pendingWeeklyByChat = {};
           chatsDirty = true;
@@ -5324,6 +5664,14 @@ function registerI18nIpc() {
           }
         } else {
           famState.pendingWeeklyByChat = {};
+        }
+        if ((100 - nextWeek) >= 5 && ds.inWk >= 250000) {
+          const winW = ds.inWk / (100 - nextWeek);
+          if (winW >= 90000) {
+            const wOldW = deltaCalW ? 0.75 : 0.4;
+            famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * wOldW + winW * (1 - wOldW), 100000, 6000000, famState.tokensPer1PctWeekly));
+            famState.calibrated = true;
+          }
         }
         famState.weeklyRem = nextWeek;
       }
@@ -5607,6 +5955,7 @@ function registerI18nIpc() {
         const remote = updateStatusState.remote || (loadUpdateCache().lastKnownRemote) || null;
         const res = await updaterCore.installUpdateFromZip({
           remote,
+          resourcesDir: process.resourcesPath || path.resolve(__dirname, "..", ".."),
           onProgress: (stage) => {
             updateStatusState.status = stage;
             updateStatusState.error = "";
@@ -5946,12 +6295,19 @@ function registerI18nIpc() {
       return { ok: false, error: err && err.message ? err.message : "CLIPBOARD_WRITE_FAILED" };
     }
   });
-  ipcMain.handle("agy-studio:clear-focused-input", (event) => {
+  ipcMain.handle("agy-studio:clear-focused-input", (event, payload) => {
     try {
       const wc = event && event.sender;
       if (!wc || (typeof wc.isDestroyed === "function" && wc.isDestroyed())) return { ok: false };
       if (typeof wc.selectAll === "function") wc.selectAll();
       if (typeof wc.delete === "function") wc.delete();
+      if (payload && payload.forceKeystroke && typeof wc.sendInputEvent === "function") {
+        const mod = process.platform === "darwin" ? "meta" : "control";
+        wc.sendInputEvent({ type: "keyDown", keyCode: "a", modifiers: [mod] });
+        wc.sendInputEvent({ type: "keyUp", keyCode: "a", modifiers: [mod] });
+        wc.sendInputEvent({ type: "keyDown", keyCode: "Backspace" });
+        wc.sendInputEvent({ type: "keyUp", keyCode: "Backspace" });
+      }
       return { ok: true };
     } catch (_err) {
       return { ok: false };
@@ -6164,6 +6520,7 @@ exports.focusAntigravityWindow = focusAntigravityWindow;
 exports.showDesktopNotification = showDesktopNotification;
 exports.evaluateQuotaResetTransitions = evaluateQuotaResetTransitions;
 exports.buildOfflineQuotaNotifierWsh = buildOfflineQuotaNotifierWsh;
+exports.buildOfflineQuotaNotifierPosix = buildOfflineQuotaNotifierPosix;
 exports.syncWindowsOfflineQuotaTask = syncWindowsOfflineQuotaTask;
 exports.isRu = isRu;
 exports.tr = tr;
@@ -6175,6 +6532,7 @@ exports.handleStudioMediaProtocolRequest = handleStudioMediaProtocolRequest;
 exports.translateUiString = translateUiString;
 exports.schedulePostAppUpdateRepatch = schedulePostAppUpdateRepatch;
 exports.writePostAppUpdateWatcherScript = writePostAppUpdateWatcherScript;
+exports.writePostAppUpdateWatcherPosix = writePostAppUpdateWatcherPosix;
 exports.sanitizeStudioUi = sanitizeStudioUi;
 exports.sanitizeStudioSettings = sanitizeStudioSettings;
 exports.sanitizeAppearance = sanitizeAppearance;

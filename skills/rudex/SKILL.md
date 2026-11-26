@@ -1,41 +1,41 @@
 ---
 name: rudex
 description: >-
-  Устанавливает, обновляет, проверяет или удаляет Rudex 5.0 — студию кастомизации и апгрейд
-  Google Antigravity 2.0 (стили интерфейса Claude Code / Codex / OpenCode, обновлённая 6-раздельная
-  Studio с живым предпросмотром, темы, шрифты, обои, живые лимиты, TPS и индикатор контекста модели,
-  правки на лету с карандашом, черновики, Пульт агента, Мастерская AGY, а также полная русификация
-  и бесплатный перевод мыслей). Используйте, когда просят установить или обновить Rudex, перевести
-  Antigravity на русский, проверить статус или вернуть оригинал.
+  Устанавливает, обновляет, проверяет или удаляет Rudex 5.0 — студию кастомизации
+  и русификатор для Google Antigravity 2.0 на Windows, macOS и Linux (стили UI, темы,
+  живые лимиты, правки на лету, перевод интерфейса и мыслей). Используйте, когда просят
+  установить/обновить Rudex, перевести Antigravity на русский, проверить статус или вернуть оригинал.
 ---
 
-# Rudex 5.0 — студия кастомизации, стили UI, живые лимиты и русификация Antigravity 2.0
+# Rudex 5.0 — кастомизация, стили UI, живые лимиты и русификация Antigravity 2.0
 
-Ставит панель **Rudex Studio** и русификацию в **Google Antigravity 2.0** через [install.js](./scripts/install.js) и полностью удаляет её через [uninstall.js](./scripts/uninstall.js).
+Ставит панель **Rudex Studio** и русификацию в **Google Antigravity 2.0** (Windows 10/11, macOS, Linux) через [install.js](./scripts/install.js) и полностью удаляет её через [uninstall.js](./scripts/uninstall.js).
 
 ## Основные функции скилла
 
-- **4 стиля UI, темы, 4 слота шрифтов, обои и «Прицел»** — структурные стили платформ (**Antigravity**, **Claude Code**, **OpenAI Codex**, **OpenCode**) с Mix & Match и пресетами в 1 клик, 14+ светлых и тёмных тем, синхронизация кнопок окна Windows, 4 слота шрифтов (+ системные шрифты Windows), студия обоев (фото/видео/градиенты, пресет «Оригинал» с полным сбросом кадрирования) и «Прицел» (`Ctrl+Alt+E`) для настройки и переименования любых элементов.
-- **Динамические лимиты Antigravity, уведомления, автопродолжение и контекст модели** — встроенное или плавающее окно квот (`5ч / Неделя` + тикающий таймер сброса + автообновление по шагам чата), кликабельные уведомления о завершении задачи и восстановлении лимитов (работают даже при закрытом Antigravity, включены по умолчанию), опциональное автопродолжение прерванного лимитом чата (для всех / выбранных / текущего чата, выкл. по умолчанию), индикатор контекстного окна выбранной модели прямо в чате (выкл. по умолчанию) и экспорт в ZIP.
-- **Черновики, история 20 сообщений и правки на лету с карандашом** — автосохранение текста и прикреплённых файлов по чатам, история последних 20 сообщений с копированием текста и файлов, отправка правок агенту без остановки генерации и аннотатор скриншотов.
-- **Обновлённая Rudex Studio, «Пульт агента» и «Мастерская AGY»** — 6 логических разделов с неблокирующей живой боковой панелью, скрываемая контрастная кнопка «Инструменты» над полем ввода, пресеты возможностей, визуальный менеджер Rules / Skills / MCP / Hooks, 16 настраиваемых хоткеев, JSON-бекап профиля и пункт Rudex прямо в основных настройках Antigravity.
-- **Полный русский интерфейс и бесплатный перевод мыслей** — 4065+ записей словаря и 479 динамических правил, мгновенное переключение `RU ↔ EN` по `Ctrl+Alt+L` без перезапуска и бесплатный перевод размышлений агента без расхода токенов и лимитов моделей.
-- **Автообновления и тихое выживание после обновлений / патчеров** — находит новые версии на GitHub, полностью невидимо (через `wscript.exe`, без всплывающих окон PowerShell/консоли) сохраняет и перенакладывает Rudex после обновлений Antigravity и сторонних патчеров `app.asar`, а при удалении возвращает всё как было.
+- **Русификация и перевод мыслей** — 4065+ строк словаря, 479 динамических правил, мгновенное переключение `RU ↔ EN` (`Ctrl+Alt+L`) и бесплатный перевод мыслей агента без траты токенов.
+- **Стили UI и оформление** — стили **Antigravity**, **Claude Code**, **OpenAI Codex**, **OpenCode**, 14+ тем, 4 слота шрифтов, студия обоев и визуальный редактор «Прицел» (`Ctrl+Alt+E`).
+- **Живые лимиты и уведомления** — виджет квот (Неделя выше / 5ч ниже + таймер сброса), уведомления на рабочий стол о восстановлении квот (включая закрытое приложение) и опциональное автопродолжение.
+- **Правки на лету и черновики** — отправка дополнений без остановки ответа агента, аннотатор скриншотов, автосохранение черновиков и история 20 сообщений.
+- **Пульт агента, Мастерская AGY и защита патчей** — управление Rules / Skills / MCP / Hooks, 16 хоткеев, автовосстановление после обновлений Antigravity и сторонних патчеров `app.asar`.
 
 ## Critical Safety Rules
 
-1. **NEVER terminate or kill `Antigravity.exe` during an agent turn** — doing so kills the active conversation before you can reply.
-2. When running from a script that creates an activator (e.g. `Rudex-Apply-Restart.cmd`), present a clickable `file://` link so the user can double-click it after reading your reply.
+1. **NEVER terminate or kill Antigravity during an agent turn** — doing so kills the active conversation before you can reply.
+2. When running on Windows creates an activator (e.g. `Rudex-Apply-Restart.cmd`), present a clickable `file://` link so the user can double-click it after reading your reply.
 
 ## Choosing the JS Runtime
 
-Check if `node` is available on `PATH`. If Node.js is **not** installed, Antigravity's own binary supports `ELECTRON_RUN_AS_NODE=1`:
+Check if `node` is available on `PATH`. If Node.js is **not** installed, Antigravity's own binary supports `ELECTRON_RUN_AS_NODE=1` alongside `ELECTRON_NO_ASAR=1`:
 
-- **With Node.js:**
+- **With Node.js (Windows / macOS / Linux):**
   `node "<skill_dir>/scripts/install.js"`
 - **Without Node.js (Windows PowerShell / cmd):**
-  Always redirect output to a log file so `cmd` waits synchronously for the GUI binary:
-  `cmd /c "set ELECTRON_RUN_AS_NODE=1 && ""%LOCALAPPDATA%\Programs\antigravity\Antigravity.exe"" ""<skill_dir>/scripts/install.js"" > ""%TEMP%\rudex_op.log"" 2>&1" && type "%TEMP%\rudex_op.log"`
+  `cmd /c "set ELECTRON_RUN_AS_NODE=1 && set ELECTRON_NO_ASAR=1 && ""%LOCALAPPDATA%\Programs\antigravity\Antigravity.exe"" ""<skill_dir>/scripts/install.js"" > ""%TEMP%\rudex_op.log"" 2>&1" && type "%TEMP%\rudex_op.log"`
+- **Without Node.js (macOS / Linux):**
+  - macOS: `ELECTRON_RUN_AS_NODE=1 ELECTRON_NO_ASAR=1 "/Applications/Antigravity.app/Contents/MacOS/Antigravity" "<skill_dir>/scripts/install.js"`
+  - Linux: `ELECTRON_RUN_AS_NODE=1 ELECTRON_NO_ASAR=1 /usr/bin/antigravity "<skill_dir>/scripts/install.js"`
+- **One-line shell wrappers:** `install.ps1` (Windows) and `install.sh` / `uninstall.sh` (macOS & Linux, handles `sudo` cleanly while keeping plugin ownership under the user's `$HOME`).
 
 *(Use forward slashes for clickable links shown to the user, and quotes for paths with spaces.)*
 
