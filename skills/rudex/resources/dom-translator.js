@@ -829,6 +829,21 @@ function createDomTranslator(options) {
   let lastCheckedDocTitle = null;
   let observer = null;
 
+  function isInsideMarkdownProse(node) {
+    let cur = node && node.nodeType === 1 ? node : (node && (node.parentElement || node.parentNode));
+    let depth = 0;
+    while (cur && depth < 18) {
+      if (cur.nodeType === 1) {
+        const tag = cur.tagName ? cur.tagName.toUpperCase() : "";
+        if (tag === "BUTTON" || getAttrSafe(cur, "role") === "button") return false;
+        if (cur.hasAttribute && cur.hasAttribute("data-markdown-root")) return true;
+      }
+      cur = cur.parentElement || cur.parentNode;
+      depth += 1;
+    }
+    return false;
+  }
+
   function isInsideFastIgnoredSubtree(node) {
     let cur = node && node.nodeType === 1 ? node : (node && (node.parentElement || node.parentNode));
     let depth = 0;
@@ -896,7 +911,7 @@ function createDomTranslator(options) {
           const t = m.target;
           if (t && t.nodeType === 3) {
             if (textLastWritten.get(t) === t.nodeValue) continue;
-            if (isInsideFastIgnoredSubtree(t)) continue;
+            if (isInsideFastIgnoredSubtree(t) || isInsideMarkdownProse(t)) continue;
             pendingNodes.add(t);
           }
         } else if (m.type === "attributes") {
@@ -917,16 +932,26 @@ function createDomTranslator(options) {
             continue;
           }
           if (isInsideFastIgnoredSubtree(m.target)) continue;
+          const targetInMarkdown = isInsideMarkdownProse(m.target);
           let addedTextNode = false;
           if (m.addedNodes) {
             for (let j = 0; j < m.addedNodes.length; j++) {
               const an = m.addedNodes[j];
               if (!an) continue;
+              if (targetInMarkdown) {
+                if (an.nodeType === 3) continue;
+                if (an.nodeType === 1) {
+                  const aTag = an.tagName ? an.tagName.toUpperCase() : "";
+                  const isBtn = aTag === "BUTTON" || getAttrSafe(an, "role") === "button";
+                  const hasBtn = !isBtn && typeof an.querySelector === "function" && Boolean(an.querySelector('button, [role="button"]'));
+                  if (!isBtn && !hasBtn) continue;
+                }
+              }
               if (an.nodeType === 3) addedTextNode = true;
               pendingNodes.add(an);
             }
           }
-          if (addedTextNode && m.target && m.target.nodeType === 1 && m.target.childNodes && m.target.childNodes.length >= 2 && m.target.childNodes.length <= 6) {
+          if (addedTextNode && !targetInMarkdown && m.target && m.target.nodeType === 1 && m.target.childNodes && m.target.childNodes.length >= 2 && m.target.childNodes.length <= 6) {
             pendingNodes.add(m.target);
           }
         }

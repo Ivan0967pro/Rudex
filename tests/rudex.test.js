@@ -422,7 +422,7 @@ test("Manifest & hooks.json follow Rudex v5.0 safe hook architecture (no global 
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "5.5.3");
+  assert.equal(pkg.version, "5.5.4");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "agy-workshop.js")), "agy-workshop.js must exist");
@@ -3113,7 +3113,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v5.5.3"), "install.ps1 banner must show v5.5.3");
+  assert.ok(ps1Text.includes("Rudex v5.5.4"), "install.ps1 banner must show v5.5.4");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -11593,14 +11593,14 @@ test("Force-close composer drafts: Main-World detached file/drop capture, zero-w
   }
 });
 
-test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.3): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
+test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.4): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
   const fsLocal = require("fs");
   const osLocal = require("os");
   const Module = require("module");
 
   // 1) Version consistency check across plugin.json & installers
   const pkg = JSON.parse(fsLocal.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
-  assert.equal(pkg.version, "5.5.3", "plugin.json must be bumped to 5.5.3");
+  assert.equal(pkg.version, "5.5.4", "plugin.json must be bumped to 5.5.4");
 
   // 2) Full legacy v4.x + v5.0.x settings, quota, and drafts migration test
   const tmpDir = fsLocal.mkdtempSync(path.join(osLocal.tmpdir(), "rudex-upgrade-55-"));
@@ -12410,6 +12410,259 @@ test("v5.5.3 fixes: zero-race Antigravity auto-update survival (350ms post-updat
     const posixExitSrc = fs.readFileSync(posixExit, "utf8");
     assert.ok(posixExitSrc.includes("  sleep 1\n") && posixExitSrc.includes("    sleep 1\n"), "POSIX on-exit activator must use 1s poll & confirm");
   } finally {
+    Module._load = origLoad;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("v5.5.4 fixes: zero-reflow streaming, fast scanWallpaperShells, lightweight quota polling, markdown-root skip, and live zero-restart skill removal", () => {
+  const Module = require("module");
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const dt = require(path.join(RES_DIR, "dom-translator.js"));
+  const installer = require(path.join(SCRIPTS_DIR, "install.js"));
+
+  // 1) theme-engine: scanWallpaperShells avoids full-DOM 1200-node sweep & streaming chat mutations trigger 0 rescans
+  let rectCalls = 0;
+  let csCalls = 0;
+  let efpCalls = 0;
+  const mkNode = (tag, attrs = {}, rect = { left: 260, top: 120, width: 800, height: 40, right: 1060, bottom: 160 }, cs = { backgroundColor: "rgba(0,0,0,0)", backgroundImage: "none", position: "static" }) => {
+    const map = new Map(Object.entries(attrs));
+    const el = {
+      nodeType: 1, tagName: tag.toUpperCase(), id: attrs.id || "", className: attrs.class || "",
+      children: [], childNodes: [], parentElement: null, parentNode: null, style: {}, textContent: "",
+      getAttribute: (k) => (map.has(k) ? map.get(k) : null),
+      setAttribute: (k, v) => { map.set(k, String(v)); if (k === "id") el.id = String(v); if (k === "class") el.className = String(v); },
+      removeAttribute: (k) => map.delete(k),
+      hasAttribute: (k) => map.has(k),
+      appendChild(c) { c.parentElement = el; c.parentNode = el; el.children.push(c); el.childNodes.push(c); return c; },
+      removeChild(c) { el.children = el.children.filter((x) => x !== c); el.childNodes = el.childNodes.filter((x) => x !== c); return c; },
+      contains(n) { let cur = n; while (cur) { if (cur === el) return true; cur = cur.parentElement; } return false; },
+      matches(sel) {
+        return sel.split(",").some((s) => {
+          s = s.trim();
+          if (!s) return false;
+          if (s.startsWith("#")) return el.id === s.slice(1);
+          const am = /^\[([^\]=*^$]+)(?:([*^$]?)=["']?([^"'\]]*)["']?)?\]$/.exec(s);
+          if (am) {
+            const val = el.getAttribute(am[1]);
+            if (val === null) return false;
+            if (!am[2] && am[3] === undefined) return true;
+            if (am[2] === "*") return val.includes(am[3]);
+            return val === am[3];
+          }
+          return el.tagName.toLowerCase() === s.toLowerCase();
+        });
+      },
+      closest(sel) { let cur = el; while (cur && cur.nodeType === 1) { if (cur.matches(sel)) return cur; cur = cur.parentElement; } return null; },
+      querySelectorAll(sel) {
+        const res = [];
+        const walk = (n) => {
+          for (const c of n.children) {
+            if (c.matches(sel)) res.push(c);
+            walk(c);
+          }
+        };
+        walk(el);
+        return res;
+      },
+      querySelector(sel) { return el.querySelectorAll(sel)[0] || null; },
+      getBoundingClientRect() { rectCalls += 1; return rect; },
+      _cs: cs,
+    };
+    return el;
+  };
+  const head = mkNode("head");
+  const body = mkNode("body", {}, { left: 0, top: 0, width: 1440, height: 900, right: 1440, bottom: 900 });
+  const root = mkNode("div", { id: "root" }, { left: 0, top: 0, width: 1440, height: 900, right: 1440, bottom: 900 });
+  const aside = mkNode("aside", { "data-testid": "sidebar" }, { left: 0, top: 0, width: 240, height: 900, right: 240, bottom: 900 }, { backgroundColor: "rgb(17,17,16)", backgroundImage: "none", position: "relative" });
+  for (let i = 0; i < 60; i += 1) {
+    const sb = mkNode("button", {}, { left: 8, top: 60 + i * 28, width: 220, height: 24, right: 228, bottom: 84 + i * 28 });
+    sb.textContent = `Chat ${i}`;
+    aside.appendChild(sb);
+  }
+  const header = mkNode("header", {}, { left: 240, top: 0, width: 1200, height: 48, right: 1440, bottom: 48 }, { backgroundColor: "rgb(20,20,19)", backgroundImage: "none", position: "sticky" });
+  const hdrBtn = mkNode("button", {}, { left: 1390, top: 10, width: 28, height: 28, right: 1418, bottom: 38 }, { backgroundColor: "rgb(17,17,20)", backgroundImage: "none", position: "static" });
+  header.appendChild(hdrBtn);
+  const main = mkNode("main", { "data-testid": "conversation-view" }, { left: 240, top: 48, width: 1200, height: 852, right: 1440, bottom: 900 });
+  for (let i = 0; i < 40; i += 1) {
+    const row = mkNode("div", { "data-index": String(i) });
+    const resp = mkNode("div", { "data-testid": "agent-response" });
+    const md = mkNode("div", { "data-markdown-root": "true" });
+    for (let p = 0; p < 6; p += 1) {
+      const para = mkNode("p");
+      const sp = mkNode("span");
+      sp.textContent = `Paragraph ${p} of response ${i}`;
+      para.appendChild(sp);
+      md.appendChild(para);
+    }
+    resp.textContent = `Response ${i} body text`;
+    resp.appendChild(md);
+    row.appendChild(resp);
+    main.appendChild(row);
+  }
+  root.appendChild(aside);
+  root.appendChild(header);
+  root.appendChild(main);
+  body.appendChild(root);
+
+  let moCb = null;
+  let scheduledShellScans = 0;
+  const mockDoc = {
+    head, body, documentElement: mkNode("html"), hidden: false,
+    createElement: (t) => mkNode(t),
+    getElementById: (id) => head.querySelector("#" + id) || body.querySelector("#" + id),
+    querySelector: (s) => (s === "#root, #app" ? root : body.querySelector(s)),
+    querySelectorAll: (s) => body.querySelectorAll(s),
+    elementsFromPoint: (x, y) => { efpCalls += 1; return y < 60 ? [header, hdrBtn, root] : [main, root]; },
+    addEventListener() {}, removeEventListener() {},
+  };
+  const mockWin = {
+    innerWidth: 1440, innerHeight: 900,
+    getComputedStyle: (el) => { csCalls += 1; return el._cs || { backgroundColor: "rgba(0,0,0,0)", backgroundImage: "none", position: "static" }; },
+    MutationObserver: class { constructor(cb) { moCb = cb; } observe() {} disconnect() {} },
+    setTimeout: () => { scheduledShellScans += 1; return scheduledShellScans; },
+    clearTimeout() {},
+    addEventListener() {}, removeEventListener() {},
+  };
+  const teEng = te.createThemeEngine({ document: mockDoc, window: mockWin });
+  teEng.apply({ presetId: "claude-terminal", wallpaper: { type: "gradient", gradientPreset: "aurora" }, uiStyle: { preset: "claude-code", composer: "claude-code", chat: "claude-code", modelSelector: "claude-code" } });
+  assert.equal(hdrBtn.getAttribute("data-rudex-header-btn-fix"), "1", "Optimized Pass D1 must still clean dark header button");
+  rectCalls = 0;
+  csCalls = 0;
+  efpCalls = 0;
+  teEng.scanWallpaperShells();
+  assert.ok(rectCalls < 120, `scanWallpaperShells must avoid O(1200) DOM reflows (got ${rectCalls})`);
+  assert.ok(csCalls < 120, `scanWallpaperShells must keep getComputedStyle bounded (got ${csCalls})`);
+  assert.ok(efpCalls <= 26, `scanWallpaperShells must keep elementsFromPoint bounded (got ${efpCalls})`);
+
+  // Compact spacing check
+  const styleText = mockDoc.getElementById("rudex-studio-theme").textContent;
+  assert.ok(styleText.includes("line-height: 1.54;") && styleText.includes("padding-inline: 14px !important;"), "Claude Code & wallpaper message spacing must stay compact");
+
+  // Streaming chat mutations inside conversation-view & data-markdown-root must schedule 0 shell rescans
+  scheduledShellScans = 0;
+  const sRow = mkNode("div", { "data-index": "99" });
+  const sResp = mkNode("div", { "data-testid": "agent-response" });
+  const sMd = mkNode("div", { "data-markdown-root": "true" });
+  sResp.appendChild(sMd);
+  sRow.appendChild(sResp);
+  for (let k = 0; k < 50; k += 1) {
+    moCb([{ type: "childList", target: main, addedNodes: [sRow], removedNodes: [] }]);
+    moCb([{ type: "childList", target: sMd, addedNodes: [mkNode("p")], removedNodes: [] }]);
+  }
+  assert.equal(scheduledShellScans, 0, "Streaming chat rows & markdown paragraphs must trigger 0 shell rescans");
+  teEng.destroy();
+
+  // 2) dom-translator skips streaming characterData inside [data-markdown-root] while keeping buttons inside markdown translated
+  let dtMoCb = null;
+  const mdRoot = mkNode("div", { "data-markdown-root": "true" });
+  const mdP = mkNode("p");
+  const mdText = { nodeType: 3, nodeValue: "Settings", parentElement: mdP, parentNode: mdP };
+  mdP.childNodes.push(mdText);
+  mdRoot.appendChild(mdP);
+  const mdCopyBtn = mkNode("button");
+  const mdCopyText = { nodeType: 3, nodeValue: "Copy", parentElement: mdCopyBtn, parentNode: mdCopyBtn };
+  mdCopyBtn.childNodes.push(mdCopyText);
+  mdRoot.appendChild(mdCopyBtn);
+  const dtDoc = {
+    documentElement: mkNode("html"),
+    body: mdRoot,
+    title: "Antigravity",
+  };
+  const dtWin = { MutationObserver: class { constructor(cb) { dtMoCb = cb; } observe() {} disconnect() {} } };
+  const tr = dt.createDomTranslator({
+    document: dtDoc,
+    window: dtWin,
+    dictionary: { Settings: "Настройки", Copy: "Копировать" },
+    initialLocale: "ru",
+  });
+  tr.init();
+  assert.equal(mdText.nodeValue, "Settings", "Markdown prose must never be translated");
+  assert.equal(mdCopyText.nodeValue, "Копировать", "Buttons inside markdown (e.g. Copy) must still be translated");
+  mdCopyText.nodeValue = "Copy";
+  dtMoCb([
+    { type: "characterData", target: mdText },
+    { type: "characterData", target: mdCopyText },
+  ]);
+  tr.destroy();
+
+  // 3) i18n-main lightweight buildQuotaSummary + live zero-restart skill removal + preload teardown snippet
+  const preloadSnippet = installer.buildPreloadSnippet();
+  assert.ok(preloadSnippet.includes('agy-studio:plugin-removed'), "Preload bundle must listen for live agy-studio:plugin-removed teardown");
+  assert.ok(preloadSnippet.includes('_studioPanel.destroy') && preloadSnippet.includes('_translator.setLocale("en")') && preloadSnippet.includes('_translator.destroy'), "Preload live teardown must destroy Studio/Theme/Optimizer and revert translator to EN");
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-v554-live-"));
+  const resDir = path.join(tmpDir, "resources");
+  const userDataDir = path.join(tmpDir, "userData");
+  const pluginsBase = path.join(tmpDir, "plugins");
+  fs.mkdirSync(resDir, { recursive: true });
+  fs.mkdirSync(userDataDir, { recursive: true });
+  fs.mkdirSync(path.join(pluginsBase, "rudex", "skills", "rudex"), { recursive: true });
+  fs.writeFileSync(path.join(resDir, "app.asar.orig-2.36.0"), "STOCK_ASAR_BYTES", "utf8");
+  fs.writeFileSync(path.join(userDataDir, "agy_studio_perf_agent.flag"), "1\n", "utf8");
+  fs.writeFileSync(path.join(pluginsBase, "rudex", "plugin.json"), "{}", "utf8");
+
+  const sentEvents = [];
+  let zoomResetVal = 0;
+  let localeCbVal = "";
+  const origLoad = Module._load;
+  const origDisabled = globalThis.__RUDEX_DISABLED__;
+  const fakeWc = { isDestroyed: () => false, send: (ch, p) => sentEvents.push({ ch, p }), setZoomFactor: (z) => { zoomResetVal = z; } };
+  const fakeElectron = {
+    app: { getPath: () => userDataDir, getVersion: () => "2.36.0", isReady: () => true, whenReady: () => Promise.resolve(), on: () => {}, once: () => {} },
+    BrowserWindow: { getAllWindows: () => [{ isDestroyed: () => false, webContents: fakeWc, setBackgroundColor: () => {}, setTitleBarOverlay: () => {} }] },
+    webContents: { getAllWebContents: () => [fakeWc] },
+    ipcMain: { handle: () => {}, on: () => {} },
+    Menu: {}, dialog: {}, shell: {}, protocol: {}, clipboard: {}, nativeImage: {},
+  };
+
+  try {
+    globalThis.__RUDEX_DISABLED__ = false;
+    Module._load = function (req) {
+      return req === "electron" ? fakeElectron : origLoad.apply(this, arguments);
+    };
+    const mainPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainPath)];
+    const i18nMain = require(mainPath);
+
+    // 3a) lightweight buildQuotaSummary returns exact official quota with zero disk scan
+    const nowMs = Date.now();
+    i18nMain.saveQuotaStore({
+      version: 1,
+      families: {
+        gemini: { weeklyRem: 61, fiveHourRem: 44, weeklyReset: "3d 2h", fiveHourReset: "1h 50m", updatedAt: nowMs, lastRpcSyncAt: nowMs },
+        claudeGpt: { weeklyRem: 88, fiveHourRem: 100, weeklyReset: "4d", fiveHourReset: "", updatedAt: nowMs, lastRpcSyncAt: nowMs },
+      },
+    });
+    const lwSum = i18nMain.buildQuotaSummary("__new__", true, { lightweight: true, nowMs });
+    assert.equal(lwSum.lightweight, true, "Lightweight quota summary must flag lightweight=true");
+    assert.equal(lwSum.families.gemini.fiveHourRem, 44, "Lightweight summary must return exact official Gemini 5h %");
+    assert.equal(lwSum.families.gemini.weeklyRem, 61, "Lightweight summary must return exact official Gemini weekly %");
+    assert.equal(lwSum.families.claudeGpt.weeklyRem, 88, "Lightweight summary must return exact official Claude/GPT weekly %");
+
+    // 3b) hasRudexPluginFiles + handlePluginRemovedLive tears down UI live, cleans flags, restores app.asar
+    assert.equal(i18nMain.hasRudexPluginFiles(pluginsBase), true, "Installed plugin must be detected");
+    fs.rmSync(path.join(pluginsBase, "rudex"), { recursive: true, force: true });
+    assert.equal(i18nMain.hasRudexPluginFiles(pluginsBase), false, "Deleted plugin must be detected as absent");
+
+    i18nMain.onLocaleChange((loc) => { localeCbVal = loc; });
+    const liveRes = i18nMain.handlePluginRemovedLive({
+      resourcesDir: resDir,
+      userDataDir,
+      homeDir: tmpDir,
+      skipQuitHook: true,
+    });
+    assert.equal(liveRes.ok, true, "handlePluginRemovedLive must succeed");
+    assert.equal(liveRes.restoredAsar, true, "handlePluginRemovedLive must restore app.asar from app.asar.orig-*");
+    assert.equal(fs.readFileSync(path.join(resDir, "app.asar"), "utf8"), "STOCK_ASAR_BYTES", "Restored app.asar contents must match original backup");
+    assert.equal(fs.existsSync(path.join(userDataDir, "agy_studio_perf_agent.flag")), false, "Stale runtime flags must be deleted live");
+    assert.equal(globalThis.__RUDEX_DISABLED__, true, "globalThis.__RUDEX_DISABLED__ must flip true live");
+    assert.equal(i18nMain.getLocale(), "en", "getLocale() must immediately return en after live plugin removal");
+    assert.equal(localeCbVal, "en", "Native menu/tray locale listeners must immediately receive en");
+    assert.equal(zoomResetVal, 1, "Window zoom factor must reset to 1.0");
+    assert.ok(sentEvents.some((e) => e.ch === "agy-studio:plugin-removed"), "All live webContents must receive agy-studio:plugin-removed");
+  } finally {
+    globalThis.__RUDEX_DISABLED__ = origDisabled;
     Module._load = origLoad;
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

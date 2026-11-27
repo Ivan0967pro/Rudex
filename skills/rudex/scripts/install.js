@@ -510,7 +510,7 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "5.5.3",
+    version: pkg.version || "5.5.4",
     dictEntries,
     dynamicRulesCount,
     commitSha: commitMeta.commitSha,
@@ -585,6 +585,7 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     `_ipc.on("agy-studio:quota-restored", (_event, payload) => { try { if (typeof _studioPanel.handleQuotaRestored === "function") _studioPanel.handleQuotaRestored(payload); } catch (_e) {} });`,
     `_ipc.on("agy-studio:notification-clicked", (_event, payload) => { try { if (typeof _studioPanel.handleNotificationClicked === "function") _studioPanel.handleNotificationClicked(payload); } catch (_e) {} });`,
     `_ipc.on("agy-studio:update-status", (_event, payload) => { try { _studioPanel.applyUpdateStatus(payload); } catch (_e) {} });`,
+    `_ipc.on("agy-studio:plugin-removed", () => { try { if (typeof _studioPanel.destroy === "function") _studioPanel.destroy(); } catch (_e) {} try { if (typeof _translator.setCustomLabels === "function") _translator.setCustomLabels([]); if (typeof _translator.setGreetingConfig === "function") _translator.setGreetingConfig({ enabled: false }); if (typeof _translator.setLocale === "function") _translator.setLocale("en"); if (typeof _translator.destroy === "function") _translator.destroy(); } catch (_e) {} try { if (_webFrame && typeof _webFrame.setZoomFactor === "function") _webFrame.setZoomFactor(1); } catch (_e) {} try { if (_webFrame && typeof _webFrame.executeJavaScript === "function") _webFrame.executeJavaScript("try{if(window.__RUDEX_VOICE_PATCH__){window.__RUDEX_VOICE_PATCH__.enabled=false;window.__RUDEX_VOICE_PATCH__.disabled=true;}}catch(_e){}").catch(() => {}); } catch (_e) {} });`,
     `const _bootRudex = () => { try { if (_bootState && typeof _studioPanel.bootEarlyTheme === "function") _studioPanel.bootEarlyTheme(); } catch (_e) {} try { _translator.init(); _translator.translateDocument(); } catch (_e) {} try { _studioPanel.init(); } catch (_e) {} };`,
     `if (document.readyState === "loading") { if (document.documentElement) { try { _translator.init(); } catch (_e) {} } document.addEventListener("DOMContentLoaded", _bootRudex, { once: true }); } else { _bootRudex(); }`,
     `} catch (err) { console.error("[Rudex] Preload initialization failed:", err); }`,
@@ -874,7 +875,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "5.5.3";
+    let pkgVer = "5.5.4";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {

@@ -235,7 +235,7 @@ function Test-InsideAntigravityProcess {
   return $false
 }
 
-Write-Host "Rudex v5.5.3 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
+Write-Host "Rudex v5.5.4 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
 
 if ($IsLocalRepo) {
   $InstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"

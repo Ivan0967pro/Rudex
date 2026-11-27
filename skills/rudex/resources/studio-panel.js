@@ -1722,7 +1722,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "5.5.3", dictEntries: 4068, dynamicRulesCount: 485 };
+    : { version: "5.5.4", dictEntries: 4068, dynamicRulesCount: 485 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -4037,7 +4037,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.3";
+    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.4";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -4084,9 +4084,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "5.5.3" },
+          installed: realU.installed || { version: pluginMeta.version || "5.5.4" },
           remote: {
-            version: pluginMeta.version || "5.5.3",
+            version: pluginMeta.version || "5.5.4",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -4212,15 +4212,22 @@ function createStudioPanel(options) {
       (state.settings.miniFields && state.settings.miniFields.quota) ||
       (state.isOpen && (state.activeTab === "widgets" || (state.activeTab === "settings" && (state.settingsSubTab === "export" || (state.settingsSubTab === "widget" && state.widgetSubSection === "limits")))))
     );
+    const needsFullTable = Boolean(
+      state.isOpen && (
+        (state.activeTab === "widgets" && state.widgetSubSection === "monitor") ||
+        (state.activeTab === "settings" && state.settingsSubTab === "export")
+      )
+    );
     const intervalMs = state.telemetry.isGenerating
-      ? 4000
-      : (limUiVisible ? 9000 : 45000);
+      ? 12000
+      : (limUiVisible ? 20000 : 60000);
     if (now - (state.lastAutoQuotaPollAt || 0) < intervalMs) return;
     state.lastAutoQuotaPollAt = now;
     state.quotaPollInflight = true;
     invokeIpc("agy-studio:get-quota-summary", {
       chatKey: state.activeChatKey || "__new__",
       forceFresh: true,
+      lightweight: !needsFullTable,
     }).then((qs) => {
       state.quotaPollInflight = false;
       if (state.destroyed || !qs || typeof qs !== "object") return;
@@ -7622,7 +7629,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "verifying" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "5.5.3";
+    const ver = inst.version || pluginMeta.version || "5.5.4";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4068;
     const dynCount = pluginMeta.dynamicRulesCount || 485;
@@ -7984,7 +7991,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.3")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.4")}</span>
               </div>
               <div class="rx-search-wrap">
                 <div class="rx-search-box">
@@ -17421,7 +17428,7 @@ function createStudioPanel(options) {
     pollStream();
 
     if (win && typeof win.setInterval === "function") {
-      pollTimer = win.setInterval(() => pollStream(), 120);
+      pollTimer = win.setInterval(() => pollStream(), 250);
     }
     if (win && typeof win.setTimeout === "function") {
       titleBarBootTimer = win.setTimeout(() => {
@@ -17755,7 +17762,11 @@ function createStudioPanel(options) {
     }
     if (next && state.activeTab === "widgets") {
       loadSystemFontsOnce();
-      invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+      invokeIpc("agy-studio:get-quota-summary", {
+        chatKey: state.activeChatKey || "__new__",
+        forceFresh: true,
+        lightweight: state.widgetSubSection !== "monitor",
+      }).then((qs) => {
         if (!state.destroyed && qs) applyQuotaSummary(qs);
       });
     }
@@ -18196,7 +18207,7 @@ function createStudioPanel(options) {
     if (payload.waitingChats && typeof payload.waitingChats === "object") {
       state.quotaAlerts = { waitingChats: Object.assign({}, payload.waitingChats) };
     }
-    invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
+    invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true, lightweight: !state.isOpen }).then((qs) => {
       if (!state.destroyed && qs) applyQuotaSummary(qs);
     });
     const qa = typeof rv5NormalizeQuotaAutomation === "function"

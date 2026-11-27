@@ -33,6 +33,11 @@ let lastOfflineQuotaTaskSig = "";
 let updateCheckInflight = null;
 let updateInstallInflight = null;
 let postAppUpdateScheduled = false;
+let pluginDirWatcher = null;
+let pluginRemovalPollTimer = null;
+let pluginRemovalDebounceTimer = null;
+let pluginRemovedLive = false;
+let pluginRemovalQuitHooked = false;
 let updateStatusState = {
   status: "idle",
   available: false,
@@ -2475,17 +2480,12 @@ function buildQuotaSummary(activeChatKey, forceFresh, opts) {
   const normActive = normalizeChatKey(activeChatKey || lastActiveChatKey);
   const nowMs = opts && typeof opts.nowMs === "number" && Number.isFinite(opts.nowMs) ? opts.nowMs : Date.now();
   const locale = getLocale();
+  const isLightweight = Boolean(opts && opts.lightweight === true);
   if (!forceFresh && !opts && quotaSummaryCache.value && quotaSummaryCache.key === normActive && nowMs - quotaSummaryCache.at < 4000) {
     return quotaSummaryCache.value;
   }
 
   const store = loadQuotaStore();
-  const chats = loadStudioChats();
-  const resetWm = Math.max(store.resetAt || 0, store.families.gemini.resetAt || 0, store.families.claudeGpt.resetAt || 0);
-  const bounds = {
-    gemini: getFamilyCycleBounds(store.families.gemini, nowMs),
-    claudeGpt: getFamilyCycleBounds(store.families.claudeGpt, nowMs),
-  };
   const liveResetInfo = {
     gemini: {
       fiveHour: formatLiveResetRemaining(store.families.gemini.fiveHourReset, store.families.gemini.updatedAt, nowMs, locale),
@@ -2495,6 +2495,58 @@ function buildQuotaSummary(activeChatKey, forceFresh, opts) {
       fiveHour: formatLiveResetRemaining(store.families.claudeGpt.fiveHourReset, store.families.claudeGpt.updatedAt, nowMs, locale),
       weekly: formatLiveResetRemaining(store.families.claudeGpt.weeklyReset, store.families.claudeGpt.updatedAt, nowMs, locale),
     },
+  };
+
+  if (isLightweight) {
+    const buildFastFamily = (famId) => {
+      const fam = store.families[famId];
+      const lr5 = liveResetInfo[famId].fiveHour;
+      const lrW = liveResetInfo[famId].weekly;
+      const def5 = famId === "claudeGpt" ? 45000 : 60000;
+      const defW = famId === "claudeGpt" ? 200000 : 260000;
+      const live5 = fam.fiveHourRem !== null
+        ? Math.max(0, Math.min(100, Math.round(lr5.expired ? 100 : fam.fiveHourRem)))
+        : null;
+      const liveW = fam.weeklyRem !== null
+        ? Math.max(0, Math.min(100, Math.round(lrW.expired ? 100 : fam.weeklyRem)))
+        : null;
+      const rpcFresh = Boolean(fam.lastRpcSyncAt > 0 && nowMs - fam.lastRpcSyncAt < 30 * 60 * 1000);
+      return {
+        weeklyRem: liveW,
+        fiveHourRem: live5,
+        weeklyRawRem: fam.weeklyRem,
+        fiveHourRawRem: fam.fiveHourRem,
+        weeklyEstimated: false,
+        fiveHourEstimated: false,
+        liveRpcSynced: rpcFresh,
+        weeklyReset: lrW.text,
+        fiveHourReset: lr5.text,
+        fiveHourWindowResetDetected: Boolean(lr5.expired),
+        weeklyWindowResetDetected: Boolean(lrW.expired),
+        updatedAt: fam.updatedAt,
+        liveUpdatedAt: nowMs,
+        calibrated: Boolean(fam.calibrated),
+        tokensPer1Pct5h: Math.round(clampNum(fam.tokensPer1Pct5h, 25000, 1500000, def5)),
+        tokensPer1PctWeekly: Math.round(clampNum(fam.tokensPer1PctWeekly, 100000, 6000000, defW)),
+      };
+    };
+    const prevCached = quotaSummaryCache.value;
+    return {
+      families: {
+        gemini: buildFastFamily("gemini"),
+        claudeGpt: buildFastFamily("claudeGpt"),
+      },
+      activeChat: prevCached && prevCached.activeChat && prevCached.activeChat.chatKey === normActive ? prevCached.activeChat : null,
+      chats: prevCached && Array.isArray(prevCached.chats) ? prevCached.chats : [],
+      lightweight: true,
+    };
+  }
+
+  const chats = loadStudioChats();
+  const resetWm = Math.max(store.resetAt || 0, store.families.gemini.resetAt || 0, store.families.claudeGpt.resetAt || 0);
+  const bounds = {
+    gemini: getFamilyCycleBounds(store.families.gemini, nowMs),
+    claudeGpt: getFamilyCycleBounds(store.families.claudeGpt, nowMs),
   };
   const sinceSnapCutoff = {
     gemini: {
@@ -4232,6 +4284,7 @@ function startQuotaAutomationMonitor() {
 }
 
 function togglePanelFromHotkey(contents) {
+  if (globalThis.__RUDEX_DISABLED__) return;
   const now = Date.now();
   if (now - lastPanelHotkeyAt < 180) return;
   lastPanelHotkeyAt = now;
@@ -4243,6 +4296,7 @@ function togglePanelFromHotkey(contents) {
 }
 
 function toggleLiveEditFromHotkey(contents) {
+  if (globalThis.__RUDEX_DISABLED__) return;
   const now = Date.now();
   if (now - lastLiveEditHotkeyAt < 180) return;
   lastLiveEditHotkeyAt = now;
@@ -4310,7 +4364,7 @@ function matchInputToCombo(input, comboStr) {
 }
 
 function handleKeybindingEvent(contents, input) {
-  if (isRecordingKeybinding) return false;
+  if (globalThis.__RUDEX_DISABLED__ || isRecordingKeybinding) return false;
   if (!input || input.type !== "keyDown" || input.isAutoRepeat) return false;
   const settings = loadStudioSettings();
   const kb = settings && settings.keybindings ? settings.keybindings : DEFAULT_KEYBINDINGS;
@@ -5305,6 +5359,7 @@ function toggleLocale() {
 }
 
 function toggleLocaleFromHotkey() {
+  if (globalThis.__RUDEX_DISABLED__) return "en";
   const now = Date.now();
   if (now - lastHotkeyAt < 180) {
     return getLocale();
@@ -5341,6 +5396,243 @@ function onLocaleChange(cb) {
     return () => listeners.delete(cb);
   }
   return () => {};
+}
+
+function hasRudexPluginFiles(pluginsBaseDir) {
+  try {
+    const base = pluginsBaseDir || getPluginsBaseDir();
+    const rudexDir = path.join(base, "rudex");
+    return fs.existsSync(path.join(rudexDir, "plugin.json")) ||
+      fs.existsSync(path.join(rudexDir, "skills", "rudex", "SKILL.md"));
+  } catch {
+    return false;
+  }
+}
+
+function restoreStockAppAsarInBackground(resourcesDir) {
+  const resDir = resourcesDir || process.resourcesPath || path.resolve(__dirname, "..", "..");
+  if (!resDir || !fs.existsSync(resDir)) return { restored: false, asarValid: false, backupCount: 0 };
+  const asarPath = path.join(resDir, "app.asar");
+  const hasValidAsar = () => {
+    try { return fs.existsSync(asarPath) && fs.statSync(asarPath).size > 0; } catch { return false; }
+  };
+  const cmpVer = (a, b) => {
+    const p = (v) => String(v || "").trim().replace(/^v/i, "").split(/[-+]/)[0].split(".").map((n) => parseInt(n, 10) || 0);
+    const pa = p(a);
+    const pb = p(b);
+    const len = Math.max(pa.length, pb.length, 3);
+    for (let k = 0; k < len; k += 1) {
+      const d = (pa[k] || 0) - (pb[k] || 0);
+      if (d !== 0) return d;
+    }
+    return String(a || "").localeCompare(String(b || ""));
+  };
+  const backups = [];
+  try {
+    const entries = fs.readdirSync(resDir);
+    for (let i = 0; i < entries.length; i += 1) {
+      const m = /^app\.asar\.orig-(.+)$/.exec(entries[i]);
+      if (!m) continue;
+      const bp = path.join(resDir, entries[i]);
+      try {
+        const st = fs.statSync(bp);
+        if (st.isFile() && st.size > 0) backups.push({ version: m[1], path: bp });
+      } catch {}
+    }
+    backups.sort((x, y) => cmpVer(y.version, x.version));
+  } catch {}
+
+  let restored = false;
+  if (!hasValidAsar() && backups.length > 0) {
+    const tmpAsar = path.join(resDir, "app.asar.rudex-restore.tmp");
+    try {
+      fs.copyFileSync(backups[0].path, tmpAsar);
+      if (fs.statSync(tmpAsar).size > 0) {
+        fs.renameSync(tmpAsar, asarPath);
+        restored = true;
+      }
+    } catch {
+      try { if (fs.existsSync(tmpAsar)) fs.unlinkSync(tmpAsar); } catch {}
+    }
+  }
+  return { restored, asarValid: hasValidAsar(), backupCount: backups.length };
+}
+
+function scheduleRemovedAppCleanupOnQuit(resourcesDir) {
+  if (pluginRemovalQuitHooked || !app || typeof app.once !== "function") return;
+  pluginRemovalQuitHooked = true;
+  const resDir = resourcesDir || process.resourcesPath || path.resolve(__dirname, "..", "..");
+  app.once("will-quit", () => {
+    try {
+      const appDir = path.join(resDir, "app");
+      const asarPath = path.join(resDir, "app.asar");
+      if (!fs.existsSync(appDir) || !fs.existsSync(asarPath)) return;
+      const scriptPath = path.join(os.tmpdir(), "rudex-live-cleanup.js");
+      const scriptSrc = [
+        `"use strict";`,
+        `const fs = require("fs");`,
+        `const path = require("path");`,
+        `const resDir = ${JSON.stringify(resDir)};`,
+        `const appDir = path.join(resDir, "app");`,
+        `const asarPath = path.join(resDir, "app.asar");`,
+        `const parentPid = ${Number(process.pid) || 0};`,
+        `let tries = 0;`,
+        `const isAlive = (pid) => { if (!pid) return false; try { process.kill(pid, 0); return true; } catch { return false; } };`,
+        `const step = () => {`,
+        `  tries += 1;`,
+        `  if (isAlive(parentPid) && tries < 60) { setTimeout(step, 350); return; }`,
+        `  try {`,
+        `    if (fs.existsSync(asarPath) && fs.statSync(asarPath).size > 0 && fs.existsSync(appDir)) {`,
+        `      fs.rmSync(appDir, { recursive: true, force: true });`,
+        `      const entries = fs.readdirSync(resDir);`,
+        `      for (let i = 0; i < entries.length; i += 1) {`,
+        `        if (/^app\\.asar\\.orig-/.test(entries[i])) {`,
+        `          try { fs.unlinkSync(path.join(resDir, entries[i])); } catch {}`,
+        `        }`,
+        `      }`,
+        `    }`,
+        `  } catch { if (tries < 65) { setTimeout(step, 500); return; } }`,
+        `  try { fs.unlinkSync(__filename); } catch {}`,
+        `  process.exit(0);`,
+        `};`,
+        `setTimeout(step, 400);`,
+      ].join("\n");
+      fs.writeFileSync(scriptPath, scriptSrc, "utf8");
+      const child = spawn(process.execPath, [scriptPath], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+        env: Object.assign({}, process.env || {}, { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1" }),
+      });
+      if (child && typeof child.unref === "function") child.unref();
+    } catch {}
+  });
+}
+
+function handlePluginRemovedLive(opts = {}) {
+  if (pluginRemovedLive && !opts.force) {
+    return { ok: true, alreadyRemoved: true, restoredAsar: false, notifiedWebContents: 0 };
+  }
+  pluginRemovedLive = true;
+  globalThis.__RUDEX_DISABLED__ = true;
+  cachedLocale = "en";
+
+  // 1. Stop all Rudex background timers, watchers, and local voice server immediately
+  try { if (pluginDirWatcher && typeof pluginDirWatcher.close === "function") pluginDirWatcher.close(); } catch {}
+  pluginDirWatcher = null;
+  if (pluginRemovalPollTimer) { clearInterval(pluginRemovalPollTimer); pluginRemovalPollTimer = null; }
+  if (pluginRemovalDebounceTimer) { clearTimeout(pluginRemovalDebounceTimer); pluginRemovalDebounceTimer = null; }
+  if (updateBootTimer) { clearTimeout(updateBootTimer); updateBootTimer = null; }
+  if (updateIntervalTimer) { clearInterval(updateIntervalTimer); updateIntervalTimer = null; }
+  if (quotaMonitorTimer) { clearInterval(quotaMonitorTimer); quotaMonitorTimer = null; }
+  if (liveEditDebounceTimer) { clearTimeout(liveEditDebounceTimer); liveEditDebounceTimer = null; }
+  try { if (queueWatcher && typeof queueWatcher.close === "function") queueWatcher.close(); } catch {}
+  queueWatcher = null;
+  try { if (deliveredWatcher && typeof deliveredWatcher.close === "function") deliveredWatcher.close(); } catch {}
+  deliveredWatcher = null;
+  stopLocalVoiceServer();
+
+  // 2. Remove stale Rudex runtime flags & legacy persona rule file
+  try {
+    const userDataDir = opts.userDataDir || (() => { try { return app.getPath("userData"); } catch { return ""; } })();
+    const homeDir = opts.homeDir || os.homedir();
+    const staleFlags = [
+      userDataDir ? path.join(userDataDir, "agy_studio_persona_active.flag") : "",
+      userDataDir ? path.join(userDataDir, "agy_studio_thinking_ru.flag") : "",
+      userDataDir ? path.join(userDataDir, "agy_studio_agent_profile.flag") : "",
+      userDataDir ? path.join(userDataDir, "agy_studio_tool_policy.flag") : "",
+      userDataDir ? path.join(userDataDir, "agy_studio_perf_agent.flag") : "",
+      userDataDir ? path.join(userDataDir, "studio_live_edits", "pending.flag") : "",
+      userDataDir ? path.join(userDataDir, "rudex-quota-notify.js") : "",
+      userDataDir ? path.join(userDataDir, "rudex-quota-notify-payload.json") : "",
+      userDataDir ? path.join(userDataDir, "rudex-quota-notify.sh") : "",
+      homeDir ? path.join(homeDir, ".gemini", "config", "rules", "antigravity-ru-persona.md") : "",
+    ];
+    for (let i = 0; i < staleFlags.length; i += 1) {
+      const fp = staleFlags[i];
+      if (!fp) continue;
+      try { if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch {}
+    }
+  } catch {}
+
+  // 3. Reset window scale, native titlebar/curtain, native menus/tray, and broadcast live teardown to every renderer
+  try { applyAppScaleToWindows(100); } catch {}
+  try { applyThemeCurtainToWindows({ presetId: "native" }); } catch {}
+  for (const cb of listeners) {
+    try { cb("en"); } catch {}
+  }
+  let notifiedWebContents = 0;
+  try {
+    const all = webContents && typeof webContents.getAllWebContents === "function" ? webContents.getAllWebContents() : [];
+    for (let i = 0; i < all.length; i += 1) {
+      const wc = all[i];
+      if (wc && !(typeof wc.isDestroyed === "function" && wc.isDestroyed())) {
+        try {
+          wc.send("agy-studio:plugin-removed", { live: true });
+          notifiedWebContents += 1;
+        } catch {}
+      }
+    }
+  } catch {}
+
+  // 4. Restore stock app.asar in background and arm clean resources/app cleanup on eventual exit
+  let asarRes = { restored: false, asarValid: false, backupCount: 0 };
+  if (!opts.skipAsarRestore) {
+    asarRes = restoreStockAppAsarInBackground(opts.resourcesDir);
+  }
+  if (!opts.skipQuitHook && asarRes.asarValid) {
+    scheduleRemovedAppCleanupOnQuit(opts.resourcesDir);
+  }
+  console.log("[Rudex] Plugin removed live — restored stock Antigravity UI without restart.");
+  return {
+    ok: true,
+    alreadyRemoved: false,
+    restoredAsar: asarRes.restored,
+    asarValid: asarRes.asarValid,
+    notifiedWebContents,
+  };
+}
+
+function startPluginRemovalWatcher(opts = {}) {
+  if (pluginDirWatcher || pluginRemovalPollTimer || globalThis.__RUDEX_DISABLED__) return;
+  try {
+    const meta = getPatchMeta();
+    if (meta && meta.managedByPlugin === false) return;
+  } catch {}
+  const pluginsBase = opts.pluginsBaseDir || getPluginsBaseDir();
+  if (!hasRudexPluginFiles(pluginsBase)) return;
+
+  const checkDeleted = () => {
+    if (pluginRemovedLive || globalThis.__RUDEX_DISABLED__ || updateInstallInflight) return;
+    if (hasRudexPluginFiles(pluginsBase)) return;
+    if (pluginRemovalDebounceTimer) return;
+    // 900ms debounce so atomic in-place plugin updates never false-trigger
+    pluginRemovalDebounceTimer = setTimeout(() => {
+      pluginRemovalDebounceTimer = null;
+      if (pluginRemovedLive || globalThis.__RUDEX_DISABLED__ || updateInstallInflight) return;
+      if (!hasRudexPluginFiles(pluginsBase)) {
+        handlePluginRemovedLive(opts);
+      }
+    }, typeof opts.debounceMs === "number" ? opts.debounceMs : 900);
+    if (pluginRemovalDebounceTimer && typeof pluginRemovalDebounceTimer.unref === "function") {
+      pluginRemovalDebounceTimer.unref();
+    }
+  };
+
+  try {
+    if (fs.existsSync(pluginsBase)) {
+      pluginDirWatcher = fs.watch(pluginsBase, () => checkDeleted());
+      if (pluginDirWatcher && typeof pluginDirWatcher.unref === "function") pluginDirWatcher.unref();
+    }
+  } catch {
+    pluginDirWatcher = null;
+  }
+
+  // Ultra-lightweight safety poll (~0.02ms fs.existsSync) in case a subdir deletion doesn't emit a parent event
+  pluginRemovalPollTimer = setInterval(checkDeleted, typeof opts.pollMs === "number" ? opts.pollMs : 3500);
+  if (pluginRemovalPollTimer && typeof pluginRemovalPollTimer.unref === "function") {
+    pluginRemovalPollTimer.unref();
+  }
 }
 
 function registerI18nIpc() {
@@ -5430,9 +5722,10 @@ function registerI18nIpc() {
   if (bootLe.hasPending) ensureLiveEditWatcher();
   startPeriodicUpdateChecks();
   startQuotaAutomationMonitor();
+  startPluginRemovalWatcher();
 
   ipcMain.on("agy-i18n:get-locale-sync", (event) => {
-    event.returnValue = getLocale();
+    event.returnValue = globalThis.__RUDEX_DISABLED__ ? "__disabled__" : getLocale();
   });
   ipcMain.on("agy-studio:get-boot-state-sync", (event) => {
     try {
@@ -6203,7 +6496,11 @@ function registerI18nIpc() {
   });
   ipcMain.handle("agy-studio:get-quota-summary", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
-    return buildQuotaSummary(p.chatKey || lastActiveChatKey, Boolean(p.forceFresh));
+    return buildQuotaSummary(
+      p.chatKey || lastActiveChatKey,
+      Boolean(p.forceFresh),
+      p.lightweight ? { lightweight: true } : undefined
+    );
   });
   ipcMain.handle("agy-studio:reset-quota-stats", (_event, payload) => {
     const p = payload && typeof payload === "object" ? payload : {};
@@ -7135,3 +7432,7 @@ exports.recordInputHistoryItem = recordInputHistoryItem;
 exports.getInputHistoryForUi = getInputHistoryForUi;
 exports.deleteInputHistoryItem = deleteInputHistoryItem;
 exports.clearInputHistory = clearInputHistory;
+exports.hasRudexPluginFiles = hasRudexPluginFiles;
+exports.restoreStockAppAsarInBackground = restoreStockAppAsarInBackground;
+exports.handlePluginRemovedLive = handlePluginRemovedLive;
+exports.startPluginRemovalWatcher = startPluginRemovalWatcher;

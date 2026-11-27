@@ -2215,7 +2215,7 @@ ${hasWallpaper ? `[data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"],
     );
     if (!hasWallpaper) bubbleDecls.push(`background-color: ${bBg} !important;`);
     if (us.userBubbleMaxWidth <= 0) bubbleDecls.push(`max-width: min(100%, max(74%, 180px), 640px) !important;`, `width: fit-content !important;`);
-    agentDecls.push(`line-height: 1.62;`, `letter-spacing: -0.005em;`);
+    agentDecls.push(`line-height: 1.54;`, `letter-spacing: -0.005em;`);
     chatExtraCss = `
 main :where([data-testid*="thought"], [data-testid*="thinking"], [data-rudex-zone="thinking"]):not(#rudex-studio-host *) {
   background-color: transparent !important;
@@ -3923,7 +3923,7 @@ header:not(#rudex-studio-host *) {
   ${msgSheenCss}
   border: ${hasCardBorder ? `1px solid ${msgBorderCol}` : "none"} !important;
   border-radius: ${cRadii.messages}px !important;
-  ${msgAlpha > 0 ? "padding-inline: 18px !important;" : ""}
+  ${msgAlpha > 0 ? "padding-inline: 14px !important;" : ""}
   ${msgShadowCss}
   ${msgBlurCss}
   ${msgAlpha <= 0 && cfg.highContrastText !== false ? `text-shadow: ${isLight ? "0 1px 2px rgba(255,255,255,0.85)" : "0 1px 3px rgba(0,0,0,0.85)"};` : ""}
@@ -4257,24 +4257,24 @@ ${fsTargets.join(", ")} {
     if (msgAlpha > 0) {
       chunks.push(`
 [data-testid="agent-response"], [data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
-  padding-top: 12px !important;
-  padding-bottom: 12px !important;
-  margin-bottom: 8px !important;
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+  margin-bottom: 6px !important;
 }
 [data-testid="user-message-bubble"] {
-  margin-bottom: 8px !important;
+  margin-bottom: 6px !important;
 }
 `);
     } else {
       chunks.push(`
 [data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *) {
-  padding-top: 12px !important;
-  padding-bottom: 12px !important;
-  margin-bottom: 8px !important;
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+  margin-bottom: 6px !important;
 }
 [data-testid="user-message-bubble"],
 [data-testid="agent-response"] {
-  margin-bottom: 8px !important;
+  margin-bottom: 6px !important;
 }
 `);
     }
@@ -4514,7 +4514,7 @@ function createThemeEngine(options = {}) {
   const SHELL_SKIP_TAGS = new Set(["PRE", "CODE", "BUTTON", "INPUT", "TEXTAREA", "FORM", "SVG", "IMG", "VIDEO", "CANVAS", "SCRIPT", "STYLE"]);
   const SHELL_SKIP_ROLES = new Set(["dialog", "alertdialog", "menu", "listbox", "tooltip"]);
   const SHELL_SKIP_TESTIDS = new Set(["user-message-content", "agent-response"]);
-  const MUTATION_IGNORE_SELECTOR = '[data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"], [data-browser-hole], #rudex-studio-host, #rudex-bg';
+  const MUTATION_IGNORE_SELECTOR = '[data-markdown-root], [data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"], [data-testid*="thought"], [data-testid*="thinking"], [data-testid*="step-group"], [data-testid*="tool-call"], [data-browser-hole], #rudex-studio-host, #rudex-bg';
   const PROTECTED_OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper], [data-radix-focus-guard], [data-slot*="dialog"], [data-slot*="overlay"], [data-slot*="backdrop"], .agy-overlay, [data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"], [data-markdown-root], [data-browser-hole], #rudex-studio-host, #rudex-bg';
 
   let currentConfig = normalizeAppearance(DEFAULT_APPEARANCE);
@@ -4821,6 +4821,37 @@ function createThemeEngine(options = {}) {
     return true;
   }
 
+  function isSingleNodeVisibleInResp(node) {
+    if (!node || node.nodeType !== 1) return true;
+    const tag = String(node.tagName || "").toUpperCase();
+    if (tag === "SCRIPT" || tag === "STYLE" || tag === "TEMPLATE" || tag === "NOSCRIPT") return false;
+    if (typeof node.hasAttribute === "function" && node.hasAttribute("hidden")) return false;
+    if (typeof node.getAttribute === "function") {
+      if (node.getAttribute("aria-hidden") === "true") return false;
+      const tid = String(node.getAttribute("data-testid") || "").toLowerCase();
+      if (tid.indexOf("actions") >= 0 || tid.indexOf("toolbar") >= 0 || tid.indexOf("feedback") >= 0) return false;
+    }
+    const cls = typeof node.className === "string" ? node.className : "";
+    if (/\b(?:hidden|invisible|sr-only|opacity-0|pointer-events-none)\b/.test(cls)) return false;
+    const st = node.style;
+    if (st) {
+      if (st.display === "none" || st.visibility === "hidden" || st.opacity === "0") return false;
+    }
+    if (win && typeof win.getComputedStyle === "function") {
+      const cs = win.getComputedStyle(node);
+      if (cs) {
+        if (cs.display === "none" || cs.visibility === "hidden") return false;
+        const op = parseFloat(cs.opacity);
+        if (Number.isFinite(op) && op <= 0.02) return false;
+      }
+    }
+    if (typeof node.getBoundingClientRect === "function") {
+      const r = node.getBoundingClientRect();
+      if (r && r.width === 0 && r.height === 0) return false;
+    }
+    return true;
+  }
+
   function hasVisibleTextInsideResp(node, rootEl, depth) {
     if (!node || depth > 14) return false;
     if (node.nodeType === 3) {
@@ -4828,7 +4859,7 @@ function createThemeEngine(options = {}) {
       return s.length > 0;
     }
     if (node.nodeType === 1) {
-      if (node !== rootEl && !isNodeVisiblyShownInResp(node, rootEl)) return false;
+      if (node !== rootEl && !isSingleNodeVisibleInResp(node)) return false;
       const kids = node.childNodes;
       if (kids && typeof kids.length === "number" && kids.length > 0) {
         for (let i = 0; i < kids.length; i += 1) {
@@ -4845,6 +4876,14 @@ function createThemeEngine(options = {}) {
   function isAgentResponseVisuallyEmpty(el) {
     if (!el || el.nodeType !== 1) return false;
     const wasEmpty = typeof el.getAttribute === "function" && el.getAttribute("data-rudex-empty-response") === "1";
+    // Zero-reflow fast path for genuinely empty containers (no text and no media/button elements)
+    const rawTrimmed = String(el.textContent || "").replace(/[\s\u00A0\u200B-\u200D\uFEFF]+/g, "");
+    if (!rawTrimmed) {
+      const hasAnyVisual = typeof el.querySelector === "function" && Boolean(
+        el.querySelector('img, video, canvas, iframe, pre, table, hr, button, [role="button"], [role="progressbar"], [data-rudex-live-slot]')
+      );
+      if (!hasAnyVisual) return true;
+    }
     // Geometric safety net: if live rendered element has <= 4px of inner content height (pure padding pill!), treat as visually empty
     if (!wasEmpty && typeof el.getBoundingClientRect === "function" && win && typeof win.getComputedStyle === "function") {
       try {
@@ -4859,7 +4898,7 @@ function createThemeEngine(options = {}) {
         }
       } catch (_e) {}
     }
-    if (hasVisibleTextInsideResp(el, el, 0)) return false;
+    if (rawTrimmed && hasVisibleTextInsideResp(el, el, 0)) return false;
     if (typeof el.querySelectorAll === "function") {
       try {
         const visualNodes = el.querySelectorAll('img, video, canvas, iframe, pre, table, hr, [role="progressbar"], [data-rudex-live-slot]');
@@ -4887,12 +4926,15 @@ function createThemeEngine(options = {}) {
     if (!doc || typeof doc.querySelectorAll !== "function") return;
     try {
       const nodes = doc.querySelectorAll('[data-testid="agent-response"]');
-      for (let i = 0; nodes && i < nodes.length; i += 1) {
+      const len = nodes ? nodes.length : 0;
+      const tailStart = len > 6 ? len - 3 : 0;
+      for (let i = 0; i < len; i += 1) {
         const el = nodes[i];
         if (!el || el.nodeType !== 1) continue;
+        const wasEmpty = typeof el.getAttribute === "function" && el.getAttribute("data-rudex-empty-response") === "1";
+        if (i < tailStart && !wasEmpty) continue;
         if (typeof el.closest === "function" && el.closest("#rudex-studio-host")) continue;
         const empty = isAgentResponseVisuallyEmpty(el);
-        const wasEmpty = typeof el.getAttribute === "function" && el.getAttribute("data-rudex-empty-response") === "1";
         if (empty && !wasEmpty && typeof el.setAttribute === "function") {
           el.setAttribute("data-rudex-empty-response", "1");
         } else if (!empty && wasEmpty && typeof el.removeAttribute === "function") {
@@ -4966,10 +5008,12 @@ function createThemeEngine(options = {}) {
       if (tid && SHELL_SKIP_TESTIDS.has(tid)) return true;
       if (typeof el.hasAttribute === "function") {
         if (el.hasAttribute("data-markdown-root")) return true;
+        if (el.hasAttribute("data-index")) return true;
         if (el.hasAttribute("data-radix-popper-content-wrapper")) return true;
         if (el.hasAttribute("data-browser-hole")) return true;
       } else {
         if (el.getAttribute("data-markdown-root") !== null) return true;
+        if (el.getAttribute("data-index") !== null) return true;
         if (el.getAttribute("data-radix-popper-content-wrapper") !== null) return true;
         if (el.getAttribute("data-browser-hole") !== null) return true;
       }
@@ -5607,7 +5651,7 @@ function createThemeEngine(options = {}) {
     if (emptyRespWatchActive || wallpaperActive || themeScanActive) {
       syncEmptyAgentResponsesNow();
     }
-    if ((!wallpaperActive && !themeScanActive) || !doc || !win || typeof win.getComputedStyle !== "function") return;
+    if ((!wallpaperActive && !themeScanActive) || !doc || doc.hidden === true || !win || typeof win.getComputedStyle !== "function") return;
     const rootTarget = (typeof doc.querySelector === "function" && doc.querySelector("#root, #app")) || doc.body;
     if (!rootTarget) return;
     const vw = Number(win.innerWidth) || 0;
@@ -5981,34 +6025,48 @@ function createThemeEngine(options = {}) {
 
         // Targeted scan for gradient / fade / pointer-events-none overlays anywhere in the chat DOM (even in long chats > 360 divs)
         try {
-          const targetedFades = rootTarget.querySelectorAll('[class*="bg-gradient-"], [class*="bg-linear-"], [class*="pointer-events-none"], [class*="fade"]');
-          for (let ti = 0; targetedFades && ti < targetedFades.length && ti < 240; ti += 1) {
+          const targetedFades = rootTarget.querySelectorAll('[data-rudex-bg-fade="1"], [class*="bg-gradient-"], [class*="bg-linear-"], [class*="pointer-events-none"], [class*="fade"]');
+          for (let ti = 0; targetedFades && ti < targetedFades.length && ti < 160; ti += 1) {
             tryMarkFade(targetedFades[ti], false, true);
           }
         } catch (_e) {}
 
-        const fadeCands = rootTarget.querySelectorAll("div, section, footer");
-        for (let fi = 0; fadeCands && fi < fadeCands.length && fi < 360; fi += 1) {
-          tryMarkFade(fadeCands[fi], false, false);
-        }
+        // Shallow structural children of root/main/conversation-view only (avoids 360+ forced reflows on chat message divs!)
+        try {
+          const fadeParents = [rootTarget];
+          const mainContainers = rootTarget.querySelectorAll('main, [data-testid="conversation-view"], [data-testid="chat-container"]');
+          for (let mp = 0; mainContainers && mp < mainContainers.length && mp < 6; mp += 1) fadeParents.push(mainContainers[mp]);
+          for (let fp = 0; fp < fadeParents.length; fp += 1) {
+            const par = fadeParents[fp];
+            if (!par || !par.children) continue;
+            for (let fi = 0; fi < par.children.length && fi < 40; fi += 1) {
+              const ch = par.children[fi];
+              if (!ch || ch.nodeType !== 1) continue;
+              const chTid = typeof ch.getAttribute === "function" ? (ch.getAttribute("data-testid") || "") : "";
+              if (chTid === "agent-response" || chTid === "user-message-content" || chTid === "user-message-bubble") continue;
+              if (typeof ch.hasAttribute === "function" && (ch.hasAttribute("data-markdown-root") || ch.hasAttribute("data-index"))) continue;
+              tryMarkFade(ch, false, false);
+            }
+          }
+        } catch (_e) {}
 
         // Clear narrow vertical timeline/gutter rails inside conversation-view/main (e.g. 28px x 800px rail with navigation dots)
         // so wallpaper stays clean while child indicator dots keep 100% contrast!
         try {
           const railChecked = new Set();
           const railParents = rootTarget.querySelectorAll('[data-testid="conversation-view"], [data-testid="chat-container"], main');
-          for (let rpi = 0; railParents && rpi < railParents.length && rpi < 8; rpi += 1) {
+          for (let rpi = 0; rpi < railParents.length && rpi < 8; rpi += 1) {
             const rp = railParents[rpi];
             if (!rp || isProtectedForTheme(rp) || typeof rp.querySelectorAll !== "function") continue;
             const railCands = rp.querySelectorAll("div, aside, nav");
-            for (let rci = 0; railCands && rci < railCands.length && rci < 160; rci += 1) {
+            for (let rci = 0; railCands && rci < railCands.length && rci < 120; rci += 1) {
               const rc = railCands[rci];
               if (!rc || railChecked.has(rc) || isProtectedForTheme(rc) || isRelatedToComposer(rc)) continue;
               railChecked.add(rc);
+              if (typeof rc.closest === "function" && rc.closest('aside, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"], [data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root], [data-index]')) continue;
               if (typeof rc.getBoundingClientRect !== "function") continue;
               const rr = rc.getBoundingClientRect();
               if (!rr || rr.width < 8 || rr.width > 48 || rr.height < vh * 0.35) continue;
-              if (typeof rc.closest === "function" && rc.closest('aside, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"], [data-testid="agent-response"], [data-testid="user-message-content"]')) continue;
               const rcs = win.getComputedStyle(rc);
               if (!rcs) continue;
               const hasRailBg = hasComputedBgFill(rcs) || Boolean(rcs.backgroundImage && rcs.backgroundImage.indexOf("gradient(") >= 0);
@@ -6108,40 +6166,57 @@ function createThemeEngine(options = {}) {
           if (typeof el.hasAttribute === "function" && (el.hasAttribute("data-rudex-bg-header") || el.hasAttribute("data-rudex-bg-sidebar") || el.hasAttribute("data-rudex-bg-shell"))) return;
           topCandSet.add(el);
         };
-        const hdrSubNodes = rootTarget.querySelectorAll('header :where(button, [role="button"], a, div, span, nav), [data-rudex-bg-header="1"] :where(button, [role="button"], a, div, span, nav)');
-        for (let i = 0; hdrSubNodes && i < hdrSubNodes.length && i < 240; i += 1) pushTopCand(hdrSubNodes[i]);
+        const hdrRoots = rootTarget.querySelectorAll('header, [data-rudex-bg-header="1"]');
+        for (let hi = 0; hdrRoots && hi < hdrRoots.length && hi < 8; hi += 1) {
+          const hr = hdrRoots[hi];
+          if (!hr || typeof hr.querySelectorAll !== "function") continue;
+          const hNodes = hr.querySelectorAll('button, [role="button"], a, div, span, nav, h1, h2, p');
+          for (let j = 0; hNodes && j < hNodes.length && j < 120; j += 1) pushTopCand(hNodes[j]);
+        }
+        const prevHdrFixes = rootTarget.querySelectorAll('[data-rudex-header-btn-fix="1"], [data-rudex-header-surface="clean"]');
+        for (let i = 0; prevHdrFixes && i < prevHdrFixes.length && i < 60; i += 1) pushTopCand(prevHdrFixes[i]);
+        // Also scan children of header containers just detected in Pass A/B before Phase 2 stamps data-rudex-bg-header="1"
+        for (const hEl of headerElSet) {
+          if (!hEl || typeof hEl.querySelectorAll !== "function") continue;
+          const hDesc = hEl.querySelectorAll('button, [role="button"], a, div, span, nav, h1, h2, p');
+          for (let hi = 0; hDesc && hi < hDesc.length && hi < 120; hi += 1) pushTopCand(hDesc[hi]);
+        }
         if (typeof doc.elementsFromPoint === "function") {
-          const hdrYs = [16, 44, 52];
+          const hdrYs = [16, 44];
           const hdrXs = [
-            Math.min(180, Math.round(vw * 0.14)),
-            Math.min(310, Math.round(vw * 0.24)),
-            Math.min(460, Math.round(vw * 0.36)),
-            Math.round(vw * 0.52),
-            Math.max(320, vw - 170),
-            Math.max(320, vw - 96),
-            Math.max(320, vw - 54),
-            Math.max(320, vw - 20),
+            Math.min(200, Math.round(vw * 0.16)),
+            Math.min(360, Math.round(vw * 0.28)),
+            Math.round(vw * 0.50),
+            Math.max(320, vw - 160),
+            Math.max(320, vw - 72),
+            Math.max(320, vw - 22),
           ];
           for (let yi = 0; yi < hdrYs.length; yi += 1) {
             for (let xi = 0; xi < hdrXs.length; xi += 1) {
               try {
                 const hits = doc.elementsFromPoint(hdrXs[xi], hdrYs[yi]);
                 if (Array.isArray(hits)) {
-                  for (let hi = 0; hi < hits.length && hi < 14; hi += 1) pushTopCand(hits[hi]);
+                  for (let hi = 0; hi < hits.length && hi < 12; hi += 1) pushTopCand(hits[hi]);
                 }
               } catch (_e) {}
             }
           }
-        }
-        // Fallback sweep across top-band buttons & containers (up to 1200 nodes, skipping sidebar & chat messages)
-        const allTopBtns = rootTarget.querySelectorAll('button, [role="button"], [data-rudex-header-btn-fix="1"], [data-rudex-header-surface="clean"], div, span, a, h1, h2, p');
-        for (let i = 0; allTopBtns && i < allTopBtns.length && i < 1200; i += 1) {
-          const el = allTopBtns[i];
-          if (!el || topCandSet.has(el) || typeof el.getBoundingClientRect !== "function") continue;
-          const r = el.getBoundingClientRect();
-          if (!r || r.top < -2 || r.bottom > 86 || r.height < 14 || r.height > 56 || r.width < 14) continue;
-          if (typeof el.closest === "function" && el.closest('aside, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"], [data-testid="agent-response"], [data-testid="user-message-content"]')) continue;
-          pushTopCand(el);
+        } else {
+          // Lightweight shallow fallback when elementsFromPoint is unavailable (never scans chat messages or sidebars)
+          const walkShallowTop = (parent, depth) => {
+            if (!parent || !parent.children || depth > 2) return;
+            for (let ci = 0; ci < parent.children.length && ci < 48; ci += 1) {
+              const el = parent.children[ci];
+              if (!el || el.nodeType !== 1) continue;
+              const etag = String(el.tagName || "").toUpperCase();
+              const etid = typeof el.getAttribute === "function" ? (el.getAttribute("data-testid") || "") : "";
+              if (etag === "ASIDE" || etid === "sidebar" || etid === "conversation-view" || etid === "chat-container" || etid === "agent-response" || etid === "user-message-content") continue;
+              if (typeof el.hasAttribute === "function" && (el.hasAttribute("data-rudex-bg-sidebar") || el.hasAttribute("data-markdown-root") || el.hasAttribute("data-index"))) continue;
+              if (!topCandSet.has(el)) pushTopCand(el);
+              if (depth < 2) walkShallowTop(el, depth + 1);
+            }
+          };
+          walkShallowTop(rootTarget, 0);
         }
 
         for (const node of topCandSet) {
@@ -6473,24 +6548,25 @@ function createThemeEngine(options = {}) {
           checked.add(el);
           if (typeof el.getAttribute === "function" && el.getAttribute("data-rudex-bg-sidebar") === "1") continue;
           if (typeof el.getAttribute === "function" && el.getAttribute("data-rudex-theme-accent-dot") === "1") continue;
-          const rect = typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
-          if (rect && rect.width > 0 && rect.height > 0 && rect.width <= 18 && rect.height <= 18) continue;
 
           const tag = String(el.tagName || "").toUpperCase();
           const role = typeof el.getAttribute === "function" ? (el.getAttribute("role") || "") : "";
           const curCls = typeof el.className === "string" ? el.className.replace(/\s+/g, " ").trim() : "";
           const isInteractiveLeaf = tag === "A" || tag === "BUTTON" || role === "button" || role === "listitem" || role === "treeitem" || role === "option";
+          const hasConvAttr = typeof el.getAttribute === "function" && Boolean(
+            el.getAttribute("data-conversation-id") || el.getAttribute("data-cascade-id") || el.getAttribute("data-session-id") || el.getAttribute("data-chat-id")
+          );
+          const rawLeafTxt = !hasConvAttr ? String(el.textContent || "").replace(/\s+/g, " ").trim() : "";
+          // Avoid forced reflow getBoundingClientRect() on labeled sidebar chat rows — only measure empty/structural nodes!
+          const rect = (!isInteractiveLeaf || !rawLeafTxt) && typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null;
+          if (rect && rect.width > 0 && rect.height > 0 && rect.width <= 18 && rect.height <= 18) continue;
           const isAct = isExplicitSideActive(el);
           const prevSurf = typeof el.getAttribute === "function" ? (el.getAttribute("data-rudex-sidebar-surface") || "") : "";
           const prevMeta = sideSurfaceMeta ? sideSurfaceMeta.get(el) : null;
 
           // Collect candidate leaf chat rows per parent for sibling-based active detection (when no aria-current is set)
           // Strictly exclude action/navigation buttons like "+ Новый чат" / "New Chat" / "Settings" / accordions / dropdown triggers!
-          const hasConvAttr = typeof el.getAttribute === "function" && Boolean(
-            el.getAttribute("data-conversation-id") || el.getAttribute("data-cascade-id") || el.getAttribute("data-session-id") || el.getAttribute("data-chat-id")
-          );
           const isAccordionOrPopup = typeof el.hasAttribute === "function" && (el.hasAttribute("aria-expanded") || el.hasAttribute("aria-haspopup"));
-          const rawLeafTxt = !hasConvAttr ? String(el.textContent || "").replace(/\s+/g, " ").trim() : "";
           const isStaticNavActionBtn = !hasConvAttr && /^(?:\+\s*)?(?:новый чат|new chat|new conversation|автоматизац[а-яё]*|automations?|кастомизац[а-яё]*|customiz[a-z]*|настройки|settings|проекты|projects|чаты|chats|входящие|inbox|поиск|search|архив|archive|обновлен[а-яё]*|updates?|браузер|browser|навыки|skills|агенты|agents)$/i.test(rawLeafTxt);
           if ((isInteractiveLeaf || hasConvAttr) && !isAccordionOrPopup && !isStaticNavActionBtn && el.parentElement) {
             const p = el.parentElement;
@@ -6852,6 +6928,49 @@ function createThemeEngine(options = {}) {
                     }
                   }
                 } catch (_e) {}
+              }
+              if (m.type === "childList" && hasPaintedShellScan && m.target && typeof m.target.closest === "function") {
+                try {
+                  if (m.target.closest('main, [data-testid="conversation-view"], [data-testid="chat-container"]')) {
+                    let onlyChatContent = true;
+                    const checkList = [];
+                    if (m.addedNodes && m.addedNodes.length) {
+                      for (let ci = 0; ci < m.addedNodes.length; ci += 1) checkList.push(m.addedNodes[ci]);
+                    }
+                    if (m.removedNodes && m.removedNodes.length) {
+                      for (let ci = 0; ci < m.removedNodes.length; ci += 1) checkList.push(m.removedNodes[ci]);
+                    }
+                    for (let ci = 0; ci < checkList.length; ci += 1) {
+                      const cn = checkList[ci];
+                      if (!cn || cn.nodeType !== 1) continue;
+                      const cTag = String(cn.tagName || "").toUpperCase();
+                      if (cTag === "HEADER" || cTag === "ASIDE" || cTag === "NAV" || cTag === "FORM" || cTag === "TEXTAREA") {
+                        onlyChatContent = false;
+                        break;
+                      }
+                      const cTid = typeof cn.getAttribute === "function" ? (cn.getAttribute("data-testid") || "") : "";
+                      const isKnownChatItem =
+                        cTid === "agent-response" ||
+                        cTid === "user-message-bubble" ||
+                        cTid === "user-message-content" ||
+                        cTid.indexOf("thought") >= 0 ||
+                        cTid.indexOf("thinking") >= 0 ||
+                        cTid.indexOf("step-group") >= 0 ||
+                        cTid.indexOf("tool-call") >= 0 ||
+                        (typeof cn.hasAttribute === "function" && (cn.hasAttribute("data-markdown-root") || cn.hasAttribute("data-index")));
+                      if (isKnownChatItem) continue;
+                      if (typeof cn.querySelector === "function" && cn.querySelector('textarea, [contenteditable="true"], header, aside, [data-testid="sidebar"], [data-rudex-theme-composer="1"]')) {
+                        onlyChatContent = false;
+                        break;
+                      }
+                      if (!m.target.closest('[data-index], [data-testid="agent-response"], [data-markdown-root], [data-testid*="thought"], [data-testid*="step-group"]') && cTag !== "P" && cTag !== "SPAN" && cTag !== "LI" && cTag !== "PRE" && cTag !== "CODE" && cTag !== "STRONG" && cTag !== "EM") {
+                        onlyChatContent = false;
+                        break;
+                      }
+                    }
+                    if (onlyChatContent) continue;
+                  }
+                } catch (_ce) {}
               }
               if (m.type === "childList" && m.addedNodes && m.addedNodes.length > 0) {
                 sawChildListOutsideEditor = true;
