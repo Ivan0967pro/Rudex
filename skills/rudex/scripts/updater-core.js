@@ -546,6 +546,16 @@ async function checkRemoteRelease(opts = {}) {
             } catch (_sumErr) {}
           }
 
+          let releaseSummary = "";
+          if (typeof data.body === "string" && data.body.trim()) {
+            const bulletTitles = [];
+            for (const line of data.body.split(/\r?\n/)) {
+              const m = /^\s*[-*]\s+\*\*([^*]{2,64})\*\*/.exec(line);
+              if (m && m[1]) bulletTitles.push(m[1].trim());
+              if (bulletTitles.length >= 3) break;
+            }
+            if (bulletTitles.length > 0) releaseSummary = bulletTitles.join(" · ");
+          }
           return {
             ok: true,
             etag: (relRes.headers && relRes.headers.etag) || "",
@@ -555,7 +565,7 @@ async function checkRemoteRelease(opts = {}) {
               commitSha: "",
               commitShort: "",
               commitDate: String(data.published_at || data.created_at || ""),
-              commitMessage: String(data.name || tagName).slice(0, 120),
+              commitMessage: String(releaseSummary || data.name || tagName).slice(0, 140),
               htmlUrl: typeof data.html_url === "string" ? data.html_url : "",
               archiveUrl,
               sha256,

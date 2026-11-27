@@ -540,7 +540,7 @@ const TEXT = {
     updateBtnRetry: "Повторить",
     updateToastTitle: "Доступно обновление Rudex",
     updateToastBusyTitle: "Обновление Rudex",
-    updateToastDesc: "Нажмите «Обновить» — Antigravity перезапустится с новой версией скилла.",
+    updateToastDesc: "Нажмите «Обновить», чтобы установить новую версию и перезапустить Antigravity.",
     hotkeysTitle: "Горячие клавиши и управление",
     hkAppScale: "Масштаб интерфейса Antigravity",
     hkWidgetResize: "Масштаб виджета (закреплён)",
@@ -4105,9 +4105,20 @@ function createStudioPanel(options) {
 
     const verLabel = formatUpdateVersionBadge(u);
     const stageText = formatUpdateStatusLabel(u, tr);
-    const commitMsg = u.remote && u.remote.commitMessage ? u.remote.commitMessage : "";
+    const rawCommitMsg = u.remote && u.remote.commitMessage ? String(u.remote.commitMessage).trim() : "";
+    const cleanCommitMsg = rawCommitMsg
+      .replace(/^(?:docs|fix|feat|chore|refactor|style|test|perf|ci|build)(?:\([^)]*\))?:\s*/i, "")
+      .trim();
+    const isRedundantVer = !cleanCommitMsg || /^rudex\s+v?\d+\.\d+(?:\.\d+)?$/i.test(cleanCommitMsg);
     const title = isBusyStage ? tr.updateToastBusyTitle : tr.updateToastTitle;
-    const bodyMsg = isBusyStage ? stageText : (st === "error" ? stageText : (commitMsg ? `${commitMsg} — ${tr.updateToastDesc}` : tr.updateToastDesc));
+    let bodyHtml = "";
+    if (isBusyStage || st === "error") {
+      bodyHtml = `<div class="update-toast-msg">${escHtml(stageText)}</div>`;
+    } else if (!isRedundantVer) {
+      bodyHtml = `<div class="update-toast-msg"><div style="color:var(--rx-fg-strong);font-weight:500;margin-bottom:4px">${escHtml(cleanCommitMsg)}</div><div>${escHtml(tr.updateToastDesc)}</div></div>`;
+    } else {
+      bodyHtml = `<div class="update-toast-msg">${escHtml(tr.updateToastDesc)}</div>`;
+    }
 
     updateToastMountEl.innerHTML = `
       <div class="update-toast" role="status" aria-live="polite">
@@ -4118,7 +4129,7 @@ function createStudioPanel(options) {
           </div>
           ${isBusyStage ? "" : `<button type="button" class="icon-btn" data-action="dismiss-update" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 13)}</button>`}
         </div>
-        <div class="update-toast-msg">${escHtml(bodyMsg)}</div>
+        ${bodyHtml}
         ${isBusyStage ? `<div class="update-toast-progress"><div class="update-toast-bar"></div></div>` : ""}
         ${isBusyStage ? "" : `
           <div class="update-toast-actions">
