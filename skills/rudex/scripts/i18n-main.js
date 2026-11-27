@@ -3093,7 +3093,7 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(patchMeta.version || installMeta.version || pluginJson.version || "5.5.1");
+  const version = String(patchMeta.version || installMeta.version || pluginJson.version || "5.5.2");
   const patchMatchesInstall = !patchMeta.version || !installMeta.version || patchMeta.version === installMeta.version;
   const commitSha = String(
     patchMeta.commitSha || (patchMatchesInstall ? installMeta.commitSha : "") || ""
@@ -5838,7 +5838,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "5.5.1",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "5.5.2",
         outPath,
       });
       return res;

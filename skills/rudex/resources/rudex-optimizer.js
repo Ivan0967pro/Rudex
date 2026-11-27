@@ -518,9 +518,13 @@ function buildAnimationPolishCss(rawOpt) {
 
   if (opt.animContainChat) {
     lines.push(`
-[data-testid="agent-response"],
-[data-testid="user-message-bubble"] {
+body:not(:has(#rudex-bg)) [data-testid="agent-response"],
+body:not(:has(#rudex-bg)) [data-testid="user-message-bubble"] {
   contain: layout style;
+}
+body:has(#rudex-bg) [data-testid="agent-response"],
+body:has(#rudex-bg) [data-testid="user-message-bubble"] {
+  contain: style;
 }
 [data-testid="sidebar"] {
   contain: layout style;
@@ -647,6 +651,11 @@ function extractQuotaFromRpcPayload(rawObj, nowMs, locale) {
     if (typeof val === "string") {
       const trimmed = val.trim();
       if (!trimmed) return 0;
+      if (/^\d{10,13}$/.test(trimmed)) {
+        const num = Number(trimmed);
+        if (num > 1e12) return Math.max(0, Math.round(num - now));
+        if (num > 1e9) return Math.max(0, Math.round(num * 1000 - now));
+      }
       const isoMs = Date.parse(trimmed);
       if (Number.isFinite(isoMs) && isoMs > now - 60000) {
         return Math.max(0, Math.round(isoMs - now));
@@ -718,11 +727,21 @@ function extractQuotaFromRpcPayload(rawObj, nowMs, locale) {
     if (!dst) return;
     hits += 1;
     if (winKind === "fiveHour") {
-      if (dst.fiveHourRem === null || pct < dst.fiveHourRem) dst.fiveHourRem = pct;
-      if (resetStr && !dst.fiveHourReset) dst.fiveHourReset = resetStr;
+      const isTighter = dst.fiveHourRem === null || pct < dst.fiveHourRem;
+      if (isTighter) {
+        dst.fiveHourRem = pct;
+        if (resetStr) dst.fiveHourReset = resetStr;
+      } else if (resetStr && !dst.fiveHourReset) {
+        dst.fiveHourReset = resetStr;
+      }
     } else if (winKind === "weekly") {
-      if (dst.weeklyRem === null || pct < dst.weeklyRem) dst.weeklyRem = pct;
-      if (resetStr && !dst.weeklyReset) dst.weeklyReset = resetStr;
+      const isTighter = dst.weeklyRem === null || pct < dst.weeklyRem;
+      if (isTighter) {
+        dst.weeklyRem = pct;
+        if (resetStr) dst.weeklyReset = resetStr;
+      } else if (resetStr && !dst.weeklyReset) {
+        dst.weeklyReset = resetStr;
+      }
     }
   };
 
@@ -730,13 +749,13 @@ function extractQuotaFromRpcPayload(rawObj, nowMs, locale) {
   let nodesVisited = 0;
 
   const walk = (node, ctxFam, ctxWin, ctxHasQuota, depth) => {
-    if (!node || typeof node !== "object" || depth > 10 || nodesVisited > 320) return;
+    if (!node || typeof node !== "object" || depth > 16 || nodesVisited > 3000) return;
     if (visited.has(node)) return;
     visited.add(node);
     nodesVisited += 1;
 
     if (Array.isArray(node)) {
-      for (let i = 0; i < node.length && i < 64; i += 1) {
+      for (let i = 0; i < node.length && i < 128; i += 1) {
         walk(node[i], ctxFam, ctxWin, ctxHasQuota, depth + 1);
       }
       return;
@@ -793,7 +812,13 @@ function extractQuotaFromRpcPayload(rawObj, nowMs, locale) {
       : (node.reset_at !== undefined ? node.reset_at
       : (node.nextResetTime !== undefined ? node.nextResetTime
       : (node.next_reset_time !== undefined ? node.next_reset_time
-      : (node.resetsAt !== undefined ? node.resetsAt : node.refreshTime))))));
+      : (node.quotaResetTime !== undefined ? node.quotaResetTime
+      : (node.quota_reset_time !== undefined ? node.quota_reset_time
+      : (node.resetsAt !== undefined ? node.resetsAt
+      : (node.resets_at !== undefined ? node.resets_at
+      : (node.nextRefreshTime !== undefined ? node.nextRefreshTime
+      : (node.next_refresh_time !== undefined ? node.next_refresh_time
+      : (node.refreshTime !== undefined ? node.refreshTime : node.refresh_time))))))))))));
     const resetMs = parseResetMs(rawReset);
     const resetStr = fmtResetMs(resetMs);
     const rawDur = node.windowDuration || node.window_duration || node.windowDurationSeconds || node.window_duration_seconds || node.duration || node.period || node.windowSeconds || node.window_seconds || (node.windowHours ? Number(node.windowHours) * 3600 : null) || null;
@@ -870,7 +895,7 @@ function buildMainWorldVoicePatchScript(initialConfig) {
   let lastQuotaRpcSig = "";
   let lastQuotaRpcAt = 0;
   function looksLikeQuotaPayload(str) {
-    if (typeof str !== "string" || str.length < 20 || str.length > 900000) return false;
+    if (typeof str !== "string" || str.length < 20 || str.length > 2500000) return false;
     return (
       str.indexOf("remainingFraction") !== -1 ||
       str.indexOf("remaining_fraction") !== -1 ||
@@ -879,18 +904,35 @@ function buildMainWorldVoicePatchScript(initialConfig) {
       str.indexOf("remainingPercent") !== -1 ||
       str.indexOf("remaining_percent") !== -1 ||
       str.indexOf("percentRemaining") !== -1 ||
+      str.indexOf("percent_remaining") !== -1 ||
+      str.indexOf("remainingPct") !== -1 ||
+      str.indexOf("remaining_pct") !== -1 ||
       str.indexOf("usedPercentage") !== -1 ||
+      str.indexOf("used_percentage") !== -1 ||
+      str.indexOf("usedPercent") !== -1 ||
+      str.indexOf("used_percent") !== -1 ||
       str.indexOf("usedFraction") !== -1 ||
+      str.indexOf("used_fraction") !== -1 ||
       str.indexOf("quotaInfo") !== -1 ||
       str.indexOf("quota_info") !== -1 ||
       str.indexOf("quotaPools") !== -1 ||
       str.indexOf("quota_pools") !== -1 ||
       str.indexOf("quotaBuckets") !== -1 ||
       str.indexOf("quota_buckets") !== -1 ||
+      str.indexOf("quotaStatus") !== -1 ||
+      str.indexOf("quota_status") !== -1 ||
+      str.indexOf("quotaSummary") !== -1 ||
+      str.indexOf("quota_summary") !== -1 ||
+      str.indexOf("rateLimits") !== -1 ||
+      str.indexOf("rate_limits") !== -1 ||
       str.indexOf("modelQuotas") !== -1 ||
       str.indexOf("model_quotas") !== -1 ||
       str.indexOf("clientModelConfigs") !== -1 ||
       str.indexOf("client_model_configs") !== -1 ||
+      str.indexOf("cascadeModelConfigData") !== -1 ||
+      str.indexOf("cascade_model_config_data") !== -1 ||
+      str.indexOf("availableModels") !== -1 ||
+      str.indexOf("available_models") !== -1 ||
       str.indexOf("usageLimits") !== -1 ||
       str.indexOf("usage_limits") !== -1 ||
       str.indexOf("userStatus") !== -1 ||
@@ -907,29 +949,47 @@ function buildMainWorldVoicePatchScript(initialConfig) {
     lastQuotaRpcAt = now;
     postToPreload("quota-rpc", extracted);
   }
-  function observeQuotaJsonText(rawText) {
-    if (!looksLikeQuotaPayload(rawText)) return;
+  function parseOneQuotaJsonChunk(chunk) {
+    if (!looksLikeQuotaPayload(chunk)) return false;
     try {
-      let jsonStr = rawText;
+      let jsonStr = chunk.trim();
+      if (jsonStr.startsWith("data:")) jsonStr = jsonStr.slice(5).trim();
+      if (!jsonStr) return false;
       if (jsonStr[0] !== "{" && jsonStr[0] !== "[") {
         const firstBrace = jsonStr.indexOf("{");
-        if (firstBrace === -1 || firstBrace > 64) return;
+        if (firstBrace === -1 || firstBrace > 96) return false;
         jsonStr = jsonStr.slice(firstBrace);
       }
       emitExtractedQuota(JSON.parse(jsonStr));
-    } catch (_e) {}
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+  function observeQuotaJsonText(rawText) {
+    if (!looksLikeQuotaPayload(rawText)) return;
+    if (parseOneQuotaJsonChunk(rawText)) return;
+    if (rawText.indexOf("\\n") !== -1) {
+      const lines = rawText.split("\\n");
+      for (let i = 0; i < lines.length && i < 64; i += 1) {
+        const ln = lines[i];
+        if (ln && ln.length >= 20) parseOneQuotaJsonChunk(ln);
+      }
+    }
   }
   function observeQuotaBuffer(buf) {
     try {
-      const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-      if (!bytes || bytes.byteLength < 12 || bytes.byteLength > 900000) return;
+      const bytes = buf instanceof Uint8Array
+        ? buf
+        : (buf instanceof ArrayBuffer ? new Uint8Array(buf) : (ArrayBuffer.isView && ArrayBuffer.isView(buf) ? new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) : null));
+      if (!bytes || bytes.byteLength < 12 || bytes.byteLength > 2500000) return;
       const dec = new TextDecoder("utf-8");
       // Handle Connect / gRPC-Web 5-byte length-prefixed JSON envelopes ([flags, len32be, payload...])
       if (bytes.byteLength >= 7 && (bytes[0] === 0 || bytes[0] === 2)) {
         const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         let pos = 0;
         let frames = 0;
-        while (pos + 5 <= bytes.byteLength && frames < 16) {
+        while (pos + 5 <= bytes.byteLength && frames < 64) {
           const flags = bytes[pos];
           const len = dv.getUint32(pos + 1, false);
           if (len === 0 || pos + 5 + len > bytes.byteLength) break;
@@ -944,6 +1004,71 @@ function buildMainWorldVoicePatchScript(initialConfig) {
       }
       observeQuotaJsonText(dec.decode(bytes));
     } catch (_e) {}
+  }
+  function observeQuotaStreamResponse(cloned, ct) {
+    try {
+      const reader = cloned && cloned.body && typeof cloned.body.getReader === "function" ? cloned.body.getReader() : null;
+      if (!reader) return false;
+      const isFramed = ct.indexOf("connect+") !== -1 || ct.indexOf("grpc") !== -1;
+      const dec = new TextDecoder("utf-8");
+      let binBuf = new Uint8Array(0);
+      let txtBuf = "";
+      const pump = () => {
+        reader.read().then(({ done, value }) => {
+          try {
+            if (value && value.byteLength > 0) {
+              if (isFramed) {
+                if (binBuf.byteLength + value.byteLength <= 2500000) {
+                  const merged = new Uint8Array(binBuf.byteLength + value.byteLength);
+                  merged.set(binBuf, 0);
+                  merged.set(value, binBuf.byteLength);
+                  binBuf = merged;
+                  let offset = 0;
+                  let frames = 0;
+                  while (offset + 5 <= binBuf.byteLength && frames < 64) {
+                    const flags = binBuf[offset];
+                    if (flags !== 0 && flags !== 1 && flags !== 2 && flags !== 3) break;
+                    const len = new DataView(binBuf.buffer, binBuf.byteOffset + offset + 1, 4).getUint32(0, false);
+                    if (len === 0 || len > 2500000) break;
+                    if (offset + 5 + len > binBuf.byteLength) break;
+                    if ((flags & 1) === 0) {
+                      observeQuotaJsonText(dec.decode(binBuf.subarray(offset + 5, offset + 5 + len)));
+                    }
+                    offset += 5 + len;
+                    frames += 1;
+                  }
+                  if (offset > 0) binBuf = binBuf.subarray(offset);
+                } else {
+                  binBuf = new Uint8Array(0);
+                }
+              } else {
+                txtBuf += dec.decode(value, { stream: true });
+                if (txtBuf.length > 2500000) txtBuf = txtBuf.slice(-262144);
+                const nlIdx = txtBuf.lastIndexOf("\\n");
+                if (nlIdx !== -1) {
+                  const ready = txtBuf.slice(0, nlIdx);
+                  txtBuf = txtBuf.slice(nlIdx + 1);
+                  observeQuotaJsonText(ready);
+                }
+              }
+            }
+            if (done) {
+              if (isFramed && binBuf.byteLength >= 12) {
+                observeQuotaBuffer(binBuf);
+              } else if (!isFramed && txtBuf.trim()) {
+                observeQuotaJsonText(txtBuf);
+              }
+              return;
+            }
+            pump();
+          } catch (_e2) {}
+        }).catch(() => {});
+      };
+      pump();
+      return true;
+    } catch (_e) {
+      return false;
+    }
   }
 
   let cachedWorkletBlobUrl = "";
@@ -1206,13 +1331,32 @@ function buildMainWorldVoicePatchScript(initialConfig) {
         });
       };
 
+      const isLocalQuotaWs = (ws) => {
+        try {
+          if (isConnectWs(ws)) return true;
+          const u = ws && typeof ws.url === "string" ? ws.url.toLowerCase() : "";
+          if (!u) return false;
+          if (u.indexOf("/voice") !== -1 || u.indexOf("/audio") !== -1 || u.indexOf("/live") !== -1 || u.indexOf("/realtime") !== -1) return false;
+          return u.indexOf("127.0.0.1") !== -1 || u.indexOf("localhost") !== -1 || u.indexOf("[::1]") !== -1;
+        } catch (_e) { return false; }
+      };
       const origAddEvt = WS.prototype.addEventListener;
       const attachPassiveQuotaListener = (ws) => {
-        if (!ws || ws.__rudexQuotaListenerAttached || !isConnectWs(ws)) return;
+        if (!ws || ws.__rudexQuotaListenerAttached || !isLocalQuotaWs(ws)) return;
         ws.__rudexQuotaListenerAttached = true;
+        const allowBin = isConnectWs(ws);
         try {
           origAddEvt.call(ws, "message", (ev) => {
-            if (ev && typeof ev.data === "string") observeQuotaJsonText(ev.data);
+            if (!ev || ev.data === undefined || ev.data === null) return;
+            if (typeof ev.data === "string") {
+              observeQuotaJsonText(ev.data);
+            } else if (allowBin) {
+              if (ev.data instanceof ArrayBuffer || (ArrayBuffer.isView && ArrayBuffer.isView(ev.data))) {
+                observeQuotaBuffer(ev.data);
+              } else if (typeof Blob !== "undefined" && ev.data instanceof Blob && ev.data.size >= 12 && ev.data.size <= 2500000 && typeof ev.data.arrayBuffer === "function") {
+                ev.data.arrayBuffer().then(observeQuotaBuffer).catch(() => {});
+              }
+            }
           });
         } catch (_e) {}
       };
@@ -1413,14 +1557,18 @@ function buildMainWorldVoicePatchScript(initialConfig) {
         const resPromise = origFetch(input, init);
         try {
           const url = typeof input === "string" ? input : (input && input.url ? String(input.url) : "");
-          const isLocalOrigin = !url || url.startsWith("/") || url.indexOf("127.0.0.1") !== -1 || url.indexOf("localhost") !== -1;
+          const isLocalOrigin = !url || url.startsWith("/") || url.indexOf("127.0.0.1") !== -1 || url.indexOf("localhost") !== -1 || url.indexOf("[::1]") !== -1;
           if (isLocalOrigin && resPromise && typeof resPromise.then === "function") {
             resPromise.then((res) => {
               try {
                 if (!res || !res.ok || typeof res.clone !== "function") return;
                 const ct = res.headers && typeof res.headers.get === "function" ? String(res.headers.get("content-type") || "").toLowerCase() : "";
-                if (ct && ct.indexOf("json") === -1 && ct.indexOf("connect") === -1 && ct.indexOf("grpc") === -1 && ct.indexOf("text/") === -1) return;
+                if (ct && ct.indexOf("json") === -1 && ct.indexOf("connect") === -1 && ct.indexOf("grpc") === -1 && ct.indexOf("text/") === -1 && ct.indexOf("ndjson") === -1 && ct.indexOf("event-stream") === -1) return;
                 const cloned = res.clone();
+                const isStreamingCt = ct.indexOf("connect+") !== -1 || ct.indexOf("grpc") !== -1 || ct.indexOf("event-stream") !== -1 || ct.indexOf("ndjson") !== -1;
+                if (isStreamingCt && observeQuotaStreamResponse(cloned, ct)) {
+                  return;
+                }
                 if ((ct.indexOf("connect+") !== -1 || ct.indexOf("grpc") !== -1) && typeof cloned.arrayBuffer === "function") {
                   cloned.arrayBuffer().then(observeQuotaBuffer).catch(() => {});
                 } else {

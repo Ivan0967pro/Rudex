@@ -422,7 +422,7 @@ test("Manifest & hooks.json follow Rudex v5.0 safe hook architecture (no global 
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "5.5.1");
+  assert.equal(pkg.version, "5.5.2");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "agy-workshop.js")), "agy-workshop.js must exist");
@@ -3113,7 +3113,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v5.5.1"), "install.ps1 banner must show v5.5.1");
+  assert.ok(ps1Text.includes("Rudex v5.5.2"), "install.ps1 banner must show v5.5.2");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -11593,14 +11593,14 @@ test("Force-close composer drafts: Main-World detached file/drop capture, zero-w
   }
 });
 
-test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.1): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
+test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.2): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
   const fsLocal = require("fs");
   const osLocal = require("os");
   const Module = require("module");
 
   // 1) Version consistency check across plugin.json & installers
   const pkg = JSON.parse(fsLocal.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
-  assert.equal(pkg.version, "5.5.1", "plugin.json must be bumped to 5.5.1");
+  assert.equal(pkg.version, "5.5.2", "plugin.json must be bumped to 5.5.2");
 
   // 2) Full legacy v4.x + v5.0.x settings, quota, and drafts migration test
   const tmpDir = fsLocal.mkdtempSync(path.join(osLocal.tmpdir(), "rudex-upgrade-55-"));
@@ -12017,5 +12017,319 @@ test("v5.5.1 fixes: deferred startup wallpaper (no full-screen boot flash), zero
       panel.destroy();
       Object.assign(globalThis, prevV5);
     }
+  }
+});
+
+test("v5.5.2 fixes: short bubble width ('ку'), typing flicker/seam guard, hidden-toolbar empty response strip, immediate __new__ draft clear + zero duplication, and streaming/silent quota sync", async () => {
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const teMod = require(path.join(RES_DIR, "theme-engine.js"));
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const {
+    buildAnimationPolishCss,
+    extractQuotaFromRpcPayload,
+    buildMainWorldVoicePatchScript,
+  } = require(path.join(RES_DIR, "rudex-optimizer.js"));
+
+  // 1) Short user messages like "ку" must NEVER get crushed to 1 char/line under Claude Code, Codex, or custom userBubbleMaxWidth
+  {
+    const renderStyleCss = (uiStyle) => {
+      const { doc, win } = createMockDom();
+      const te = createThemeEngine({ document: doc, window: win });
+      try {
+        te.apply({ presetId: "claude-terminal", uiStyle });
+        return doc.getElementById("rudex-studio-theme").textContent;
+      } finally {
+        te.destroy();
+      }
+    };
+    const claudeCss = renderStyleCss({ preset: "claude-code", composer: "claude-code", chat: "claude-code", modelSelector: "claude-code" });
+    assert.ok(claudeCss.includes("max-width: min(100%, max(74%, 180px), 640px) !important"), "Claude Code user bubble must guard against shrink-to-fit parent % collapse");
+    assert.ok(claudeCss.includes("width: fit-content !important"), "Claude Code user bubble must use width: fit-content");
+    assert.ok(claudeCss.includes("word-break: normal !important"), "User message content must enforce word-break: normal");
+    assert.ok(claudeCss.includes(':has(> [data-testid="user-message-bubble"])'), "User bubble wrapper must expand to width: 100%");
+
+    const codexCss = renderStyleCss({ preset: "codex", composer: "codex", chat: "codex", modelSelector: "codex" });
+    assert.ok(codexCss.includes("max-width: min(100%, max(80%, 180px), 700px) !important"), "Codex user bubble must guard against shrink-to-fit parent % collapse");
+
+    const customCss = renderStyleCss({ preset: "antigravity", composer: "antigravity", chat: "antigravity", modelSelector: "antigravity", userBubbleMaxWidth: 68 });
+    assert.ok(customCss.includes("max-width: min(100%, max(68%, 180px)) !important"), "Custom userBubbleMaxWidth must use min(100%, max(N%, 180px))");
+  }
+
+  // 2) Typing flicker + horizontal seam fix: no contain: layout under #rudex-bg, mask-image cleared on fade wrappers, and GPU layer on #rudex-bg
+  {
+    const smoothCss = buildAnimationPolishCss({ animContainChat: true });
+    assert.ok(smoothCss.includes("body:not(:has(#rudex-bg))") && smoothCss.includes("contain: layout style"), "Without wallpaper, contain: layout style stays active");
+    assert.ok(smoothCss.includes("body:has(#rudex-bg)") && smoothCss.includes("contain: style;"), "With wallpaper (#rudex-bg), contain: layout must be dropped to avoid Chromium backdrop-filter tile seam flicker");
+
+    const { doc, win } = createMockDom();
+    const te = createThemeEngine({ document: doc, window: win });
+    try {
+      te.apply({
+        presetId: "claude-terminal",
+        messageStyle: "glass",
+        glassBlur: 12,
+        wallpaper: { type: "image", mediaUrl: "rudex-media://local/rem.png", dim: 40, opacity: 90 },
+      });
+      const css = doc.getElementById("rudex-studio-theme").textContent;
+      assert.ok(css.includes("transform: translate3d(0, 0, 0)"), "#rudex-bg should sit on its own stable GPU layer");
+      assert.ok(css.includes("mask-image: none !important") && css.includes("-webkit-mask-image: none !important"), "Fade wrappers must strip CSS mask-image seams above composer");
+    } finally {
+      te.destroy();
+    }
+  }
+
+  // 3) Empty agent-response strip with hidden opacity-0/sr-only/action-toolbar children must STILL be marked empty until real visible output arrives
+  {
+    const { doc, win } = createMockDom();
+    const resp = doc.createElement("div");
+    resp.setAttribute("data-testid", "agent-response");
+    const srOnly = doc.createElement("span");
+    srOnly.className = "sr-only";
+    srOnly.textContent = "Agent response";
+    const hiddenActions = doc.createElement("div");
+    hiddenActions.className = "opacity-0 pointer-events-none";
+    hiddenActions.setAttribute("data-testid", "response-actions");
+    const copyBtn = doc.createElement("button");
+    copyBtn.textContent = "Copy";
+    hiddenActions.appendChild(copyBtn);
+    const mdRoot = doc.createElement("div");
+    mdRoot.setAttribute("data-markdown-root", "");
+    mdRoot.textContent = "";
+    resp.appendChild(srOnly);
+    resp.appendChild(hiddenActions);
+    resp.appendChild(mdRoot);
+    doc.body.appendChild(resp);
+
+    const te = createThemeEngine({ document: doc, window: win });
+    try {
+      te.apply({
+        presetId: "claude-terminal",
+        wallpaper: { type: "image", mediaUrl: "rudex-media://local/rem.png", dim: 35, opacity: 90 },
+      });
+      assert.equal(resp.getAttribute("data-rudex-empty-response"), "1", "Pre-output agent-response containing only sr-only / opacity-0 action toolbar must stay hidden");
+
+      mdRoot.textContent = "Готово!";
+      te.syncEmptyAgentResponsesNow();
+      assert.equal(resp.getAttribute("data-rudex-empty-response"), null, "Visible text must immediately unhide agent-response card");
+    } finally {
+      te.destroy();
+    }
+  }
+
+  // 4) Drafts:
+  //    4a) Trusted user Backspace/input clearing a restored draft in __new__ immediately clears disk (0ms) and NEVER resurrects erased text
+  //    4b) Parallel Step 0 cached text + Step 1 IPC draft restore NEVER duplicates text 2x
+  {
+    const { doc, win } = createMockDom();
+    const docListeners = new Map();
+    const origDocAdd = doc.addEventListener.bind(doc);
+    doc.addEventListener = (type, fn, cap) => {
+      if (!docListeners.has(type)) docListeners.set(type, new Set());
+      docListeners.get(type).add(fn);
+      origDocAdd(type, fn, cap);
+    };
+    const emitDoc = (type, evt) => {
+      for (const fn of Array.from(docListeners.get(type) || [])) fn(evt);
+    };
+    const winListeners = new Map();
+    const origWinAdd = win.addEventListener.bind(win);
+    win.addEventListener = (type, fn, cap) => {
+      if (!winListeners.has(type)) winListeners.set(type, new Set());
+      winListeners.get(type).add(fn);
+      origWinAdd(type, fn, cap);
+    };
+    const emitWin = (type, evt) => {
+      for (const fn of Array.from(winListeners.get(type) || [])) fn(evt);
+    };
+
+    const prevV5 = {
+      rv5FindNativeComposer: globalThis.rv5FindNativeComposer,
+      rv5ReadEditableText: globalThis.rv5ReadEditableText,
+      rv5InsertTextIntoEditable: globalThis.rv5InsertTextIntoEditable,
+    };
+    globalThis.rv5FindNativeComposer = v5Core.rv5FindNativeComposer;
+    globalThis.rv5ReadEditableText = v5Core.rv5ReadEditableText;
+    globalThis.rv5InsertTextIntoEditable = v5Core.rv5InsertTextIntoEditable;
+
+    const form = doc.createElement("div");
+    form.setAttribute("data-testid", "composer");
+    const ed = doc.createElement("div");
+    ed.setAttribute("contenteditable", "true");
+    form.appendChild(ed);
+    doc.body.appendChild(form);
+
+    const clearedKeys = [];
+    const savedDrafts = {
+      __new__: { text: "Старый черновик нового чата", attachments: [] },
+      "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee": { text: "Ровно один раз", attachments: [] },
+    };
+
+    const panel = createStudioPanel({
+      document: doc,
+      window: win,
+      ipcRenderer: {
+        invoke: async (ch, payload) => {
+          if (ch === "agy-studio:get-composer-draft") {
+            await new Promise((r) => setTimeout(r, 15));
+            const d = savedDrafts[payload.chatKey];
+            return { ok: true, draft: d ? { text: d.text, attachments: d.attachments } : null };
+          }
+          if (ch === "agy-studio:clear-composer-draft") {
+            clearedKeys.push(payload.chatKey);
+            delete savedDrafts[payload.chatKey];
+            return { ok: true };
+          }
+          return { ok: true };
+        },
+        on: () => {},
+        removeListener: () => {},
+      },
+      telemetryEngine: createTelemetryEngine(),
+      translator: createDomTranslator({ document: doc, window: win }),
+      themeEngine: createThemeEngine({ document: doc, window: win }),
+      buildStyles: buildStudioStyles,
+      initialBoot: {
+        draftTexts: {
+          __new__: "Старый черновик нового чата",
+          "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee": "Ровно один раз",
+        },
+      },
+    });
+    try {
+      panel.init();
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(v5Core.rv5ReadEditableText(ed), "Старый черновик нового чата", "Initial __new__ draft must restore once (never 2x)");
+
+      // User erases all text via trusted Backspace + input -> must clear IMMEDIATELY without resurrection!
+      emitDoc("keydown", { type: "keydown", key: "Backspace", target: ed, isTrusted: true });
+      ed.textContent = "";
+      ed.innerText = "";
+      emitDoc("input", { type: "input", target: ed, isTrusted: true });
+      assert.ok(clearedKeys.includes("__new__"), "Erasing draft to empty must invoke clear-composer-draft immediately (0ms)");
+      await new Promise((r) => setTimeout(r, 120));
+      assert.equal(v5Core.rv5ReadEditableText(ed), "", "Stickiness must NEVER resurrect erased __new__ draft");
+
+      // Switch to UUID chat where both Step 0 boot cache and Step 1 IPC exist -> text must appear ONCE, never duplicated!
+      win.location = { protocol: "http:", href: "http://127.0.0.1:4242/chat/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", pathname: "/chat/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", search: "", hash: "" };
+      emitWin("message", { source: win, data: { __rudexVoice: "nav-change", payload: { url: "/chat/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" } } });
+      await new Promise((r) => setTimeout(r, 90));
+      assert.equal(v5Core.rv5ReadEditableText(ed), "Ровно один раз", "Step 0 + Step 1 draft restore must NEVER duplicate text 2x");
+    } finally {
+      panel.destroy();
+      Object.assign(globalThis, prevV5);
+    }
+  }
+
+  // 5) Quota accuracy & real-time sync:
+  //    5a) extractQuotaFromRpcPayload handles >400-node payloads & binds tighter pool's resetTime
+  //    5b) Streaming Connect-RPC fetch + binary Connect WebSocket emit quota-rpc immediately on chunk arrival (before EOF)
+  //    5c) Limits widget renders 1-click Refresh (sync-limits-now) button & freshness tooltip
+  //    5d) triggerQuotaSyncClick cloaks popover cleanly during sync and restores cleanly
+  {
+    const now = Date.now();
+    const bigPayload = {
+      padding: Array.from({ length: 420 }, (_, i) => ({ idx: i, meta: { flag: true } })),
+      clientModelConfigs: [
+        { label: "Gemini Flash", quotaInfo: { remainingFraction: 1.0, resetTime: new Date(now + 4.9 * 3600000).toISOString() } },
+        { label: "Gemini 4 Neon", quotaInfo: { remainingFraction: 0.33, resetTime: new Date(now + 2.5 * 3600000).toISOString() } },
+      ],
+    };
+    const ext = extractQuotaFromRpcPayload(bigPayload, now, "ru");
+    assert.ok(ext && ext.gemini && ext.gemini.fiveHourRem === 33, "Large >400-node RPC payload must NOT truncate before reaching quotaInfo");
+    assert.ok(ext.gemini.fiveHourReset.includes("2 ч"), `Tighter pool's resetTime must win over earlier 100% pool, got "${ext.gemini.fiveHourReset}"`);
+
+    // Streaming Connect-RPC fetch test in VM sandbox (chunk arrives BEFORE stream finishes!)
+    const vm = require("vm");
+    const posted = [];
+    const quotaJson = JSON.stringify({
+      userStatus: {
+        clientModelConfigs: [
+          { label: "Gemini 4 Neon", quotaInfo: { remainingFraction: 0.31, resetTime: new Date(now + 2 * 3600000).toISOString() } },
+        ],
+      },
+    });
+    const enc = new TextEncoder().encode(quotaJson);
+    const connectFrame = new Uint8Array(5 + enc.byteLength);
+    connectFrame[0] = 0;
+    new DataView(connectFrame.buffer).setUint32(1, enc.byteLength, false);
+    connectFrame.set(enc, 5);
+
+    let readStep = 0;
+    const fakeStreamResp = {
+      ok: true,
+      headers: { get: (k) => (String(k).toLowerCase() === "content-type" ? "application/connect+json" : "") },
+      clone() {
+        return {
+          body: {
+            getReader() {
+              return {
+                read() {
+                  readStep += 1;
+                  if (readStep === 1) return Promise.resolve({ done: false, value: connectFrame });
+                  // Stream intentionally stays OPEN forever (never resolves done:true!)
+                  return new Promise(() => {});
+                },
+              };
+            },
+          },
+        };
+      },
+    };
+    class FakeQuotaWS {
+      constructor(url) { this.url = url; this._l = {}; }
+      addEventListener(t, fn) { (this._l[t] = this._l[t] || []).push(fn); }
+      send() {}
+      emit(t, ev) { for (const fn of this._l[t] || []) fn(ev); }
+    }
+    const sandbox = {
+      WebSocket: FakeQuotaWS,
+      fetch: () => Promise.resolve(fakeStreamResp),
+      TextDecoder,
+      TextEncoder,
+      Uint8Array,
+      DataView,
+      ArrayBuffer,
+      addEventListener: () => {},
+      dispatchEvent: () => {},
+      postMessage: (d) => posted.push(d),
+      location: { pathname: "/", search: "", hash: "" },
+      navigator: {},
+    };
+    const ctx = vm.createContext(sandbox);
+    vm.runInContext("this.window = this;", ctx);
+    vm.runInContext(buildMainWorldVoicePatchScript({ voiceEnabled: false, locale: "ru" }), ctx);
+
+    await ctx.window.fetch("http://127.0.0.1:4242/exa.language_server_pb.LanguageServerService/StreamUserStatus");
+    await new Promise((r) => setTimeout(r, 25));
+    const streamEvt = posted.find((m) => m.__rudexVoice === "quota-rpc" && m.payload && m.payload.gemini && m.payload.gemini.fiveHourRem === 31);
+    assert.ok(streamEvt, "Streaming application/connect+json fetch must emit quota-rpc immediately on chunk arrival without waiting for EOF");
+
+    // Binary Connect frame over WebSocket must also emit quota-rpc
+    const ws = new ctx.WebSocket("ws://127.0.0.1:4242/connect-websocket");
+    ws.addEventListener("message", () => {});
+    const quotaJson2 = JSON.stringify({
+      clientModelConfigs: [
+        { label: "Gemini 4 Neon", quotaInfo: { remainingFraction: 0.29, resetTime: new Date(now + 1.8 * 3600000).toISOString() } },
+      ],
+    });
+    const enc2 = new TextEncoder().encode(quotaJson2);
+    const frame2 = new Uint8Array(5 + enc2.byteLength);
+    frame2[0] = 0;
+    new DataView(frame2.buffer).setUint32(1, enc2.byteLength, false);
+    frame2.set(enc2, 5);
+    ws.emit("message", { data: frame2.buffer });
+    const wsBinEvt = posted.find((m) => m.__rudexVoice === "quota-rpc" && m.payload && m.payload.gemini && m.payload.gemini.fiveHourRem === 29);
+    assert.ok(wsBinEvt, "Binary Connect WebSocket frame on connect-websocket must emit quota-rpc");
+
+    // Limits widget stays clean (no manual refresh button) while showing freshness in tooltip
+    const qsSample = { families: { gemini: { fiveHourRem: 33, weeklyRem: 58, fiveHourReset: "2 ч 58 мин", updatedAt: now - 120000 } } };
+    const cardHtml = v5Core.rv5BuildLimitsWidgetHtml({ enabled: true, layout: "card" }, qsSample, "Gemini 4 Neon", true, false);
+    const pillHtml = v5Core.rv5BuildLimitsWidgetHtml({ enabled: true, layout: "pill" }, qsSample, "Gemini 4 Neon", true, false);
+    assert.equal(cardHtml.includes('data-action="sync-limits-now"'), false, "Card limits widget must stay clean without manual refresh button (auto-syncs)");
+    assert.equal(pillHtml.includes('data-action="sync-limits-now"'), false, "Pill limits widget must stay clean without manual refresh button (auto-syncs)");
+    assert.ok(cardHtml.includes("обновлено 2 мин назад"), "Limits widget tooltip must show snapshot freshness");
   }
 });

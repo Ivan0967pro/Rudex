@@ -2214,7 +2214,7 @@ ${hasWallpaper ? `[data-rudex-theme-composer="1"] [data-rudex-comp-top-row="1"],
       `box-shadow: none !important;`
     );
     if (!hasWallpaper) bubbleDecls.push(`background-color: ${bBg} !important;`);
-    if (us.userBubbleMaxWidth <= 0) bubbleDecls.push(`max-width: min(74%, 640px) !important;`);
+    if (us.userBubbleMaxWidth <= 0) bubbleDecls.push(`max-width: min(100%, max(74%, 180px), 640px) !important;`, `width: fit-content !important;`);
     agentDecls.push(`line-height: 1.62;`, `letter-spacing: -0.005em;`);
     chatExtraCss = `
 main :where([data-testid*="thought"], [data-testid*="thinking"], [data-rudex-zone="thinking"]):not(#rudex-studio-host *) {
@@ -2241,7 +2241,7 @@ main :where([data-testid*="thought"], [data-testid*="thinking"], [data-rudex-zon
       isLight ? `box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05) !important;` : `box-shadow: 0 3px 12px rgba(0, 0, 0, 0.24) !important;`
     );
     if (!hasWallpaper) bubbleDecls.push(`background-color: ${bBg} !important;`);
-    if (us.userBubbleMaxWidth <= 0) bubbleDecls.push(`max-width: min(80%, 700px) !important;`);
+    if (us.userBubbleMaxWidth <= 0) bubbleDecls.push(`max-width: min(100%, max(80%, 180px), 700px) !important;`, `width: fit-content !important;`);
     agentDecls.push(`line-height: 1.56;`);
     chatExtraCss = `
 main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="step-group"], [data-testid*="tool-call"], [data-rudex-zone="steps"], [data-rudex-zone="thinking"]):not(#rudex-studio-host *) {
@@ -2286,18 +2286,18 @@ main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="
   }
 
   if (effAlign === "right") {
-    bubbleDecls.push(`margin-left: auto !important;`, `margin-right: 0 !important;`);
-    bubbleWrapDecls.push(`align-items: flex-end !important;`, `justify-content: flex-end !important;`);
+    bubbleDecls.push(`margin-left: auto !important;`, `margin-right: 0 !important;`, `box-sizing: border-box !important;`);
+    bubbleWrapDecls.push(`align-items: flex-end !important;`, `justify-content: flex-end !important;`, `width: 100% !important;`);
   } else if (effAlign === "left") {
-    bubbleDecls.push(`margin-left: 0 !important;`, `margin-right: auto !important;`);
-    bubbleWrapDecls.push(`align-items: flex-start !important;`, `justify-content: flex-start !important;`);
+    bubbleDecls.push(`margin-left: 0 !important;`, `margin-right: auto !important;`, `box-sizing: border-box !important;`);
+    bubbleWrapDecls.push(`align-items: flex-start !important;`, `justify-content: flex-start !important;`, `width: 100% !important;`);
   } else if (effAlign === "full") {
     bubbleDecls.push(`width: 100% !important;`, `max-width: 100% !important;`, `margin-left: 0 !important;`, `margin-right: 0 !important;`);
-    bubbleWrapDecls.push(`align-items: stretch !important;`, `justify-content: flex-start !important;`);
+    bubbleWrapDecls.push(`align-items: stretch !important;`, `justify-content: flex-start !important;`, `width: 100% !important;`);
   }
 
   if (us.userBubbleMaxWidth >= 45 && effAlign !== "full") {
-    bubbleDecls.push(`max-width: ${us.userBubbleMaxWidth}% !important;`);
+    bubbleDecls.push(`max-width: min(100%, max(${us.userBubbleMaxWidth}%, 180px)) !important;`, `width: fit-content !important;`);
   }
   if (us.chatGap >= 4) {
     bubbleDecls.push(`margin-bottom: ${us.chatGap}px !important;`);
@@ -2319,7 +2319,7 @@ main :where([data-testid*="thought"], [data-testid*="thinking"], [data-testid*="
   }
   if (bubbleDecls.length > 0) {
     rules.push(`${userBubbleSel} {\n  ${bubbleDecls.join("\n  ")}\n}`);
-    rules.push(`[data-testid="user-message-bubble"] [data-testid="user-message-content"] {\n  background: transparent !important;\n  border: none !important;\n  padding: 0 !important;\n  margin: 0 !important;\n  box-shadow: none !important;\n  max-width: 100% !important;\n}`);
+    rules.push(`[data-testid="user-message-bubble"] [data-testid="user-message-content"] {\n  background: transparent !important;\n  border: none !important;\n  padding: 0 !important;\n  margin: 0 !important;\n  box-shadow: none !important;\n  max-width: 100% !important;\n  word-break: normal !important;\n  overflow-wrap: break-word !important;\n}`);
   }
   if (agentDecls.length > 0) {
     rules.push(`[data-testid="agent-response"] {\n  ${agentDecls.join("\n  ")}\n}`);
@@ -3850,6 +3850,7 @@ body {
   z-index: -1;
   pointer-events: none;
   overflow: hidden;
+  transform: translate3d(0, 0, 0);
 }
 #rudex-bg[data-boot-hidden="1"] {
   opacity: 0 !important;
@@ -3872,6 +3873,8 @@ body {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border-color: transparent !important;
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
 }
 main:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not([role="tooltip"]),
 [data-testid="chat-container"]:not([role="dialog"]),
@@ -4413,6 +4416,7 @@ html:not(#rudex-studio-host):not(#rudex-bg):not(#rudex-studio-theme) [data-rudex
     // Never draw an empty horizontal glass/bordered pill before the agent streams its first text or step
     chunks.push(`
 html:not(#rudex-studio-host):not(#rudex-bg):not(#rudex-studio-theme) [data-testid="agent-response"]:empty,
+html:not(#rudex-studio-host):not(#rudex-bg):not(#rudex-studio-theme) [data-testid="agent-response"]:has(> :only-child:empty),
 html:not(#rudex-studio-host):not(#rudex-bg):not(#rudex-studio-theme) [data-testid="agent-response"][data-rudex-empty-response="1"] {
   background: transparent !important;
   background-color: transparent !important;
@@ -4784,33 +4788,90 @@ function createThemeEngine(options = {}) {
     } catch (_e) {}
   }
 
+  function isNodeVisiblyShownInResp(node, stopAt) {
+    let cur = node;
+    let depth = 0;
+    while (cur && cur !== stopAt && depth < 14) {
+      if (cur.nodeType === 1) {
+        const tag = String(cur.tagName || "").toUpperCase();
+        if (tag === "STYLE" || tag === "SCRIPT" || tag === "NOSCRIPT" || tag === "TEMPLATE") return false;
+        if (typeof cur.hasAttribute === "function") {
+          if (cur.hasAttribute("hidden") || cur.getAttribute("aria-hidden") === "true") return false;
+          const tid = String(cur.getAttribute("data-testid") || "").toLowerCase();
+          if (tid && (tid.includes("actions") || tid.includes("toolbar"))) return false;
+        }
+        const cls = typeof cur.className === "string" ? cur.className : "";
+        if (cls && /\b(?:sr-only|visually-hidden|hidden|invisible|opacity-0)\b/.test(cls)) return false;
+        if (win && typeof win.getComputedStyle === "function") {
+          const cs = win.getComputedStyle(cur);
+          if (cs) {
+            if (cs.display === "none" || cs.visibility === "hidden") return false;
+            const op = parseFloat(cs.opacity);
+            if (Number.isFinite(op) && op <= 0.02) return false;
+          }
+        }
+        if (typeof cur.getBoundingClientRect === "function") {
+          const r = cur.getBoundingClientRect();
+          if (r && r.width === 0 && r.height === 0) return false;
+        }
+      }
+      cur = cur.parentElement || cur.parentNode;
+      depth += 1;
+    }
+    return true;
+  }
+
+  function hasVisibleTextInsideResp(node, rootEl, depth) {
+    if (!node || depth > 14) return false;
+    if (node.nodeType === 3) {
+      const s = String(node.nodeValue || "").replace(/[\s\u00A0\u200B-\u200D\uFEFF]+/g, "");
+      return s.length > 0;
+    }
+    if (node.nodeType === 1) {
+      if (node !== rootEl && !isNodeVisiblyShownInResp(node, rootEl)) return false;
+      const kids = node.childNodes;
+      if (kids && typeof kids.length === "number" && kids.length > 0) {
+        for (let i = 0; i < kids.length; i += 1) {
+          if (hasVisibleTextInsideResp(kids[i], rootEl, depth + 1)) return true;
+        }
+        return false;
+      }
+      const raw = String(node.textContent || "").replace(/[\s\u00A0\u200B-\u200D\uFEFF]+/g, "");
+      return raw.length > 0;
+    }
+    return false;
+  }
+
   function isAgentResponseVisuallyEmpty(el) {
     if (!el || el.nodeType !== 1) return false;
-    const rawTxt = String(el.textContent || "").replace(/[\s\u00A0\u200B-\u200D\uFEFF]+/g, "");
-    if (rawTxt.length > 0) return false;
+    const wasEmpty = typeof el.getAttribute === "function" && el.getAttribute("data-rudex-empty-response") === "1";
+    // Geometric safety net: if live rendered element has <= 4px of inner content height (pure padding pill!), treat as visually empty
+    if (!wasEmpty && typeof el.getBoundingClientRect === "function" && win && typeof win.getComputedStyle === "function") {
+      try {
+        const er = el.getBoundingClientRect();
+        if (er && er.width > 60 && er.height > 0 && er.height <= 42) {
+          const ecs = win.getComputedStyle(el);
+          if (ecs) {
+            const padV = (parseFloat(ecs.paddingTop) || 0) + (parseFloat(ecs.paddingBottom) || 0);
+            const brdV = (parseFloat(ecs.borderTopWidth) || 0) + (parseFloat(ecs.borderBottomWidth) || 0);
+            if (er.height - padV - brdV <= 4) return true;
+          }
+        }
+      } catch (_e) {}
+    }
+    if (hasVisibleTextInsideResp(el, el, 0)) return false;
     if (typeof el.querySelectorAll === "function") {
       try {
         const visualNodes = el.querySelectorAll('img, video, canvas, iframe, pre, table, hr, [role="progressbar"], [data-rudex-live-slot]');
         for (let i = 0; visualNodes && i < visualNodes.length; i += 1) {
           const vn = visualNodes[i];
-          if (!vn) continue;
-          if (typeof vn.hasAttribute === "function" && (vn.hasAttribute("hidden") || vn.getAttribute("aria-hidden") === "true")) continue;
-          if (typeof vn.getBoundingClientRect === "function") {
-            const r = vn.getBoundingClientRect();
-            if (r && r.width === 0 && r.height === 0) continue;
-          }
+          if (!vn || !isNodeVisiblyShownInResp(vn, el)) continue;
           return false;
         }
         const btns = el.querySelectorAll('button, [role="button"]');
         for (let i = 0; btns && i < btns.length; i += 1) {
           const b = btns[i];
-          if (!b) continue;
-          if (typeof b.hasAttribute === "function" && (b.hasAttribute("hidden") || b.getAttribute("aria-hidden") === "true")) continue;
-          if (typeof b.closest === "function" && b.closest('[data-testid*="actions"], [data-testid*="toolbar"]')) continue;
-          if (win && typeof win.getComputedStyle === "function") {
-            const bcs = win.getComputedStyle(b);
-            if (bcs && (bcs.display === "none" || bcs.visibility === "hidden" || parseFloat(bcs.opacity) === 0)) continue;
-          }
+          if (!b || !isNodeVisiblyShownInResp(b, el)) continue;
           if (typeof b.getBoundingClientRect === "function") {
             const br = b.getBoundingClientRect();
             if (br && (br.width < 4 || br.height < 4)) continue;
@@ -5829,12 +5890,13 @@ function createThemeEngine(options = {}) {
           const fr = node.getBoundingClientRect();
           if (!fr || fr.height < 6) return;
           if (fr.left <= 20 && fr.width <= 400 && fr.height >= vh * 0.50) return;
-          const maxFadeH = allowWrappingComposer ? Math.min(260, Math.round(vh * 0.36)) : 145;
+          const maxFadeH = allowWrappingComposer ? Math.min(440, Math.round(vh * 0.54)) : 180;
           if (fr.top < 58 || fr.height > maxFadeH) return;
           const fcs = win.getComputedStyle(node);
           if (!fcs) return;
           const alreadyFade = typeof node.hasAttribute === "function" && node.hasAttribute("data-rudex-bg-fade");
           let hasGradient = Boolean(fcs.backgroundImage && fcs.backgroundImage.indexOf("gradient(") >= 0);
+          const hasMask = Boolean((fcs.maskImage && fcs.maskImage !== "none") || (fcs.webkitMaskImage && fcs.webkitMaskImage !== "none"));
           if (!hasGradient && (allowWrappingComposer || allowNarrowFade)) {
             try {
               const bcs = win.getComputedStyle(node, "::before");
@@ -5845,13 +5907,13 @@ function createThemeEngine(options = {}) {
             } catch (_e) {}
           }
           const isEmptyPointerNone = fcs.pointerEvents === "none" && (!node.children || node.children.length === 0) && !String(node.textContent || "").trim();
-          const minW = (allowNarrowFade && isEmptyPointerNone && hasGradient && fr.top >= vh * 0.45) ? 4 : vw * 0.28;
+          const minW = (allowNarrowFade && isEmptyPointerNone && (hasGradient || hasMask) && fr.top >= vh * 0.45) ? 4 : vw * 0.28;
           if (fr.width < minW) return;
           const hasShadow = Boolean(fcs.boxShadow && fcs.boxShadow !== "none");
           const hasBackdrop = Boolean((fcs.backdropFilter && fcs.backdropFilter !== "none") || (fcs.webkitBackdropFilter && fcs.webkitBackdropFilter !== "none"));
           const isPointerNoneOverlay = (wallpaperActive || themeScanActive) && fcs.pointerEvents === "none" && (hasComputedBgFill(fcs) || hasShadow || hasBackdrop);
           const isOpaqueWrapperUnderTheme = allowWrappingComposer && (wallpaperActive || themeScanActive) && (hasComputedBgFill(fcs) || hasShadow || hasBackdrop);
-          if (alreadyFade || hasGradient || isPointerNoneOverlay || isOpaqueWrapperUnderTheme) {
+          if (alreadyFade || hasGradient || hasMask || isPointerNoneOverlay || isOpaqueWrapperUnderTheme) {
             plans.push({ el: node, attr: "data-rudex-bg-fade", hasBg: true });
           }
         };
@@ -5888,8 +5950,9 @@ function createThemeEngine(options = {}) {
           if (info.rect && typeof doc.elementsFromPoint === "function") {
             const cr = info.rect;
             const probeYs = [
-              Math.max(72, Math.round(cr.top - 8)),
+              Math.max(72, Math.round(cr.top - 42)),
               Math.max(72, Math.round(cr.top - 22)),
+              Math.max(72, Math.round(cr.top - 8)),
               Math.max(72, Math.round(cr.top + 8)),
             ];
             const probeXs = [

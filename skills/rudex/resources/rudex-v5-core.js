@@ -567,7 +567,17 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
   const labelWk = isRu ? "Нед" : "Wk";
   const estHint = "";
   const hasAnyValues = rows.some((r) => typeof r.data.fiveHourRem === "number" || typeof r.data.weeklyRem === "number");
-  const titleHint = isRu ? "Лимиты Antigravity" : "Antigravity Limits";
+  const latestQuotaTs = Math.max(Number(gem.updatedAt) || 0, Number(cl.updatedAt) || 0);
+  let freshnessSuffix = "";
+  if (hasReal && latestQuotaTs > 0 && !isPreview) {
+    const ageMin = Math.max(0, Math.floor((Date.now() - latestQuotaTs) / 60000));
+    freshnessSuffix = ageMin < 1
+      ? (isRu ? " · обновлено только что" : " · updated just now")
+      : (ageMin < 60
+        ? (isRu ? ` · обновлено ${ageMin} мин назад` : ` · updated ${ageMin}m ago`)
+        : (isRu ? ` · обновлено ${Math.floor(ageMin / 60)} ч назад` : ` · updated ${Math.floor(ageMin / 60)}h ago`));
+  }
+  const titleHint = (isRu ? "Лимиты Antigravity" : "Antigravity Limits") + freshnessSuffix;
   const pinTitle = isDockedUi
     ? (isRu ? "Открепить (плавающее окно)" : "Undock (floating window)")
     : (isRu ? "Закрепить как часть интерфейса" : "Dock into UI");
@@ -606,7 +616,7 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
   }
 
   return `
-    <div class="rx-limits-box is-${rv5EscapeHtml(cfg.layout)}${cfg.pinned ? " is-pinned" : ""}${modeCls}" data-role="limitsWidgetBox" style="${rv5EscapeHtml(customVars)}">
+    <div class="rx-limits-box is-${rv5EscapeHtml(cfg.layout)}${cfg.pinned ? " is-pinned" : ""}${modeCls}" data-role="limitsWidgetBox" style="${rv5EscapeHtml(customVars)}" title="${rv5EscapeHtml(titleHint)}">
       <div class="rx-lim-head" ${isPreview || isDockedUi ? "" : 'data-limits-drag="1"'}>
         <span class="rx-lim-title">${isPreview || isDockedUi ? "" : '<span class="rx-lim-drag">⋮⋮</span> '}${isRu ? "Лимиты Antigravity" : "Antigravity Limits"}${isPreview && !hasReal ? ` <em style="font-style:normal;opacity:.55;font-weight:400;font-size:.85em">(${isRu ? "пример" : "sample"})</em>` : ""}</span>
         ${isPreview ? "" : `

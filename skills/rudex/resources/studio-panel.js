@@ -1722,7 +1722,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "5.5.1", dictEntries: 4068, dynamicRulesCount: 485 };
+    : { version: "5.5.2", dictEntries: 4068, dynamicRulesCount: 485 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -2006,6 +2006,9 @@ function createStudioPanel(options) {
     quotaSummary: null,
     initAtMs: Date.now(),
     userEditedComposerInChat: false,
+    lastUserTypingAt: 0,
+    lastTurnFinishedAt: 0,
+    lastSilentQuotaSyncAt: 0,
     lastRpcQuotaAt: 0,
     lastQuotaScrapeAt: 0,
     lastQuotaScrapeSig: "",
@@ -2089,6 +2092,9 @@ function createStudioPanel(options) {
   let earlyClickCapture = null;
   let earlyPasteCapture = null;
   let quotaSilentSyncInflight = false;
+  let silentQuotaSyncTimer = null;
+  let silentQuotaFollowupTimer = null;
+  let silentQuotaCloakTimer = null;
   let lastTitleBarOverlaySig = "";
   let titleBarBootTimer = null;
   let quotaScrapeTimers = [];
@@ -3636,9 +3642,11 @@ function createStudioPanel(options) {
         trackHistory: state.settings.trackHistory !== false,
       });
       if (outcome && outcome.finalizedTurn) {
+        state.lastTurnFinishedAt = Date.now();
         recordTurnQuotaImpact(outcome.finalizedTurn.tokens, snap.chatTokens, tel.modelName || snap.modelName || "");
         scheduleTurnTranscriptSync(state.activeChatKey, state.activeChatTitle);
         state.lastAutoQuotaPollAt = 0;
+        scheduleSilentQuotaRefresh(1850, { reason: "post-turn" });
         if (win && typeof win.setTimeout === "function") {
           const finChatKey = state.activeChatKey || "__new__";
           win.setTimeout(() => {
@@ -4029,7 +4037,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.1";
+    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.2";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -4076,9 +4084,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "5.5.1" },
+          installed: realU.installed || { version: pluginMeta.version || "5.5.2" },
           remote: {
-            version: pluginMeta.version || "5.5.1",
+            version: pluginMeta.version || "5.5.2",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -4222,6 +4230,28 @@ function createStudioPanel(options) {
         applyQuotaSummary(qs);
       } else {
         state.quotaSummary = qs;
+      }
+      if (limUiVisible && !state.telemetry.isGenerating && !quotaSilentSyncInflight) {
+        const fams = qs.families || {};
+        const latestSnapAt = Math.max(
+          Number(fams.gemini && fams.gemini.updatedAt) || 0,
+          Number(fams.claudeGpt && fams.claudeGpt.updatedAt) || 0,
+          Number(state.lastRpcQuotaAt) || 0
+        );
+        const turnPendingSync = Boolean(
+          state.lastTurnFinishedAt > 0 &&
+          state.lastTurnFinishedAt > (state.lastRpcQuotaAt || 0) &&
+          now - state.lastTurnFinishedAt >= 3500 &&
+          now - (state.lastSilentQuotaSyncAt || 0) >= 30000
+        );
+        const staleWhileVisible = Boolean(
+          latestSnapAt > 0 &&
+          now - latestSnapAt >= 180000 &&
+          now - (state.lastSilentQuotaSyncAt || 0) >= 120000
+        );
+        if (turnPendingSync || staleWhileVisible) {
+          triggerQuotaSyncClick({ silent: true, reason: turnPendingSync ? "post-turn-catchup" : "stale-poll" });
+        }
       }
     }).catch(() => {
       state.quotaPollInflight = false;
@@ -5035,6 +5065,9 @@ function createStudioPanel(options) {
     checkAutoContinueMonitoring(now);
     if ((state.settings.thinkingInRussian || state.settings.workLogInRussian) && !dictatingNow) scanThinkingBlocks(false);
     updateLiveDom();
+    if (themeEngine && typeof themeEngine.syncEmptyAgentResponsesNow === "function") {
+      try { themeEngine.syncEmptyAgentResponsesNow(); } catch (_e) {}
+    }
     syncChatDockLiveState();
     if (!dictatingNow && now - (state.lastHostMetricsAt || 0) > 900) {
       state.lastHostMetricsAt = now;
@@ -7589,7 +7622,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "verifying" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "5.5.1";
+    const ver = inst.version || pluginMeta.version || "5.5.2";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4068;
     const dynCount = pluginMeta.dynamicRulesCount || 485;
@@ -7951,7 +7984,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.1")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.2")}</span>
               </div>
               <div class="rx-search-wrap">
                 <div class="rx-search-box">
@@ -9221,21 +9254,31 @@ function createStudioPanel(options) {
     try { dockComposerObserver.observe(container); } catch (_e) {}
   }
 
+  let lastChatDockGeomSig = "";
+
+  function hideChatDockIfVisible() {
+    if (!chatDockMountEl) return;
+    if (lastChatDockGeomSig !== "none") {
+      lastChatDockGeomSig = "none";
+      chatDockMountEl.style.display = "none";
+    }
+  }
+
   function positionChatDock() {
     if (!chatDockMountEl || !doc || typeof rv5FindNativeComposer !== "function") return;
     if (state.settings.zenMode || hasVisibleNativeModal()) {
-      chatDockMountEl.style.display = "none";
+      hideChatDockIfVisible();
       return;
     }
     const { container } = rv5FindNativeComposer(doc);
     syncDockComposerResizeObserver(container);
     if (!container || typeof container.getBoundingClientRect !== "function") {
-      chatDockMountEl.style.display = "none";
+      hideChatDockIfVisible();
       return;
     }
     const rect = container.getBoundingClientRect();
     if (!rect || rect.width < 120 || rect.height < 24) {
-      chatDockMountEl.style.display = "none";
+      hideChatDockIfVisible();
       return;
     }
     const vw = (win && win.innerWidth) || 1280;
@@ -9284,7 +9327,7 @@ function createStudioPanel(options) {
     const dockLeft = Math.max(8, Math.round(rect.left));
     const dockRightLimit = hm.drawerRightReserve > 0 ? vw - hm.drawerRightReserve - 12 : vw - 8;
     if (hm.drawerRightReserve > 0 && dockLeft + 180 > dockRightLimit) {
-      chatDockMountEl.style.display = "none";
+      hideChatDockIfVisible();
       return;
     }
     const dockBottom = Math.max(12, Math.round(vh - anchorTop + 6));
@@ -9295,17 +9338,21 @@ function createStudioPanel(options) {
       bottom: vh - dockBottom,
     };
     if (!state.agentPopoverOpen && !state.contextPopoverOpen && hasOverlappingNativePopover(dockBox)) {
-      chatDockMountEl.style.display = "none";
+      hideChatDockIfVisible();
       return;
     }
     const availW = Math.max(160, Math.min(Math.round(rect.width), dockRightLimit - dockLeft));
     const popMaxH = Math.max(180, Math.min(440, Math.round(anchorTop - 24)));
-    chatDockMountEl.style.display = "flex";
-    chatDockMountEl.style.left = `${dockLeft}px`;
-    chatDockMountEl.style.width = `${availW}px`;
-    chatDockMountEl.style.bottom = `${dockBottom}px`;
-    if (typeof chatDockMountEl.style.setProperty === "function") {
-      chatDockMountEl.style.setProperty("--rx-pop-max-h", `${popMaxH}px`);
+    const nextGeomSig = `flex|${dockLeft}|${availW}|${dockBottom}|${popMaxH}`;
+    if (nextGeomSig !== lastChatDockGeomSig) {
+      lastChatDockGeomSig = nextGeomSig;
+      chatDockMountEl.style.display = "flex";
+      chatDockMountEl.style.left = `${dockLeft}px`;
+      chatDockMountEl.style.width = `${availW}px`;
+      chatDockMountEl.style.bottom = `${dockBottom}px`;
+      if (typeof chatDockMountEl.style.setProperty === "function") {
+        chatDockMountEl.style.setProperty("--rx-pop-max-h", `${popMaxH}px`);
+      }
     }
   }
 
@@ -9376,6 +9423,28 @@ function createStudioPanel(options) {
     return `<svg class="rx-usage-ring" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="${r}" fill="none" stroke="var(--rx-theme-border-strong, rgba(128,128,128,0.28))" stroke-width="2"/><circle cx="7" cy="7" r="${r}" fill="none" stroke="${strokeCol}" stroke-width="2" stroke-dasharray="${dash.toFixed(2)} ${c.toFixed(2)}" stroke-linecap="round"/></svg>`;
   }
 
+  function setSilentQuotaSyncCloak(isActive) {
+    if (!doc || !doc.documentElement) return;
+    try {
+      if (silentQuotaCloakTimer && win && typeof win.clearTimeout === "function") {
+        win.clearTimeout(silentQuotaCloakTimer);
+        silentQuotaCloakTimer = null;
+      }
+      if (isActive) {
+        doc.documentElement.setAttribute("data-rudex-silent-quota-sync", "1");
+        let st = typeof doc.getElementById === "function" ? doc.getElementById("rudex-silent-quota-sync-cloak") : null;
+        if (!st && doc.head && typeof doc.createElement === "function") {
+          st = doc.createElement("style");
+          st.id = "rudex-silent-quota-sync-cloak";
+          st.textContent = `html[data-rudex-silent-quota-sync="1"] [data-radix-popper-content-wrapper], html[data-rudex-silent-quota-sync="1"] [data-slot="popover-content"], html[data-rudex-silent-quota-sync="1"] [role="menu"], html[data-rudex-silent-quota-sync="1"] [role="listbox"] { opacity: 0 !important; pointer-events: none !important; transition: none !important; animation: none !important; }`;
+          doc.head.appendChild(st);
+        }
+      } else {
+        doc.documentElement.removeAttribute("data-rudex-silent-quota-sync");
+      }
+    } catch (_e) {}
+  }
+
   function setUsagePopTooltipGuard(isOpen) {
     if (!doc || !doc.documentElement) return;
     try {
@@ -9444,7 +9513,10 @@ function createStudioPanel(options) {
       <div class="rx-usage-pop" role="dialog" aria-label="${escAttr(isRu ? "Использование моделей" : "Model Usage")}">
         <div class="rx-usage-head">
           <span class="rx-usage-title">${escHtml(isRu ? "Использование" : "Usage")}</span>
-          <button type="button" class="rx-lim-btn" data-action="close-model-usage-pop" title="${escAttr(isRu ? "Закрыть" : "Close")}">${iconSvg("close", 12)}</button>
+          <div style="display:flex;align-items:center;gap:4px">
+            ${!state.telemetry || !state.telemetry.isGenerating ? `<button type="button" class="rx-lim-btn" data-action="sync-limits-now" title="${escAttr(isRu ? "Обновить лимиты сейчас" : "Sync limits now")}">${iconSvg("refresh", 12)}</button>` : ""}
+            <button type="button" class="rx-lim-btn" data-action="close-model-usage-pop" title="${escAttr(isRu ? "Закрыть" : "Close")}">${iconSvg("close", 12)}</button>
+          </div>
         </div>
         ${lockNoteHtml}
         ${renderFamSec(isRu ? "Модели Gemini" : "Gemini Models", gem)}
@@ -9657,9 +9729,7 @@ function createStudioPanel(options) {
         } else if (hadPrev && state.userEditedComposerInChat) {
           // Only record cleared tombstone & erase disk draft when the user ACTUALLY edited/cleared the composer in this chat
           // (never let an empty composer after cold-boot React hydration wipe a saved disk draft!).
-          draftTextCacheByChat.delete(curKey);
-          lastKnownComposerSnapByChat.set(curKey, { text: "", items: [], cleared: true });
-          scheduleComposerDraftSave(350);
+          clearActiveDraftImmediately(curKey);
         }
       }
     }
@@ -10723,6 +10793,36 @@ function createStudioPanel(options) {
     draftStickinessObserver = null;
   }
 
+  function clearActiveDraftImmediately(chatKey) {
+    const key = chatKey || state.activeChatKey || "__new__";
+    draftSaveSeq += 1;
+    if (draftSaveTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(draftSaveTimer);
+      draftSaveTimer = null;
+    }
+    if (draftFollowupTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(draftFollowupTimer);
+      draftFollowupTimer = null;
+    }
+    lastSavedDraftByChat.delete(key);
+    draftTextCacheByChat.delete(key);
+    lastKnownComposerSnapByChat.set(key, { text: "", items: [], cleared: true });
+    invokeIpc("agy-studio:clear-composer-draft", { chatKey: key });
+  }
+
+  function cancelDraftRestoreForUserEdit() {
+    state.userEditedComposerInChat = true;
+    if (isRestoringDraft || draftRestoreTimer || draftEarlyTextTimer || draftStickinessObserver || draftRestoreVerifyTimers.length > 0) {
+      draftRestoreSeq += 1;
+      isRestoringDraft = false;
+      if (draftRestoreTimer && win && typeof win.clearTimeout === "function") {
+        win.clearTimeout(draftRestoreTimer);
+        draftRestoreTimer = null;
+      }
+      clearDraftRestoreVerifyTimers();
+    }
+  }
+
   function restoreComposerDraftForChat(chatKey) {
     if (state.destroyed || state.settings.composerDraftsEnabled === false || !chatKey) return;
     const seq = ++draftRestoreSeq;
@@ -10743,6 +10843,7 @@ function createStudioPanel(options) {
     // STEP 0 (0ms INSTANT TEXT): Pre-warmed synchronous cache from boot-state-sync / live session!
     // Injects text IMMEDIATELY without waiting for async disk IPC or binary attachments!
     let earlyInjectedText = false;
+    let earlyInsertPromise = null;
     const cachedText = draftTextCacheByChat.get(chatKey) || "";
     if (cachedText && String(cachedText).trim()) {
       let earlyAttempts = 0;
@@ -10759,7 +10860,7 @@ function createStudioPanel(options) {
         const curEarly = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(foundEarly.editable) : "";
         if (curEarly.length === 0) {
           earlyInjectedText = true;
-          insertTextIntoNativeComposerRich(foundEarly.editable, cachedText).catch(() => {});
+          earlyInsertPromise = insertTextIntoNativeComposerRich(foundEarly.editable, cachedText).catch(() => {});
         }
       };
       tryEarlyText();
@@ -10793,7 +10894,7 @@ function createStudioPanel(options) {
       let rehydrateRetries = 0;
       let stickinessInFlight = false;
       const runStickinessRecovery = async () => {
-        if (stickinessInFlight || state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey) return;
+        if (stickinessInFlight || earlyInsertPromise || state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey) return;
         if (state.userEditedComposerInChat || Date.now() < draftJustSubmittedUntil) return;
         if (rehydrateRetries >= 4) return;
         const foundNow = typeof rv5FindNativeComposer === "function" ? rv5FindNativeComposer(doc) : { container: null, editable: null };
@@ -10858,9 +10959,19 @@ function createStudioPanel(options) {
       };
 
       const tryApply = async () => {
-        if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey) {
+        if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey || state.userEditedComposerInChat) {
           releaseIfCurrent();
           return;
+        }
+        // Await any in-flight Step 0 early text injection BEFORE reading existingTxt so we NEVER inject the same draft text 2x!
+        if (earlyInsertPromise) {
+          const pendingEarly = earlyInsertPromise;
+          await pendingEarly;
+          if (earlyInsertPromise === pendingEarly) earlyInsertPromise = null;
+          if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey || state.userEditedComposerInChat) {
+            releaseIfCurrent();
+            return;
+          }
         }
         const found = typeof rv5FindNativeComposer === "function" ? rv5FindNativeComposer(doc) : { container: null, editable: null };
         if (!found || !found.editable) {
@@ -10882,8 +10993,8 @@ function createStudioPanel(options) {
         }
 
         try {
-          // Inject TEXT FIRST (instant!) so binary attachments never delay text visibility!
-          if (hasText && existingTxt.length === 0) {
+          // Inject TEXT FIRST (instant!) — skip if Step 0 already injected it!
+          if (hasText && existingTxt.length === 0 && !earlyInjectedText) {
             await insertTextIntoNativeComposerRich(found.editable, draft.text);
           }
           if (hasAtts && !existingAtt) {
@@ -12406,7 +12517,72 @@ function createStudioPanel(options) {
     }
   }
 
-  function triggerQuotaSyncClick() {
+  function isLimitsUiVisibleNow() {
+    return Boolean(
+      state.usagePopOpen ||
+      (state.settings.limitsWidget && state.settings.limitsWidget.enabled) ||
+      state.settings.viewMode === "medium" ||
+      (state.settings.miniFields && state.settings.miniFields.quota) ||
+      (state.isOpen && (state.activeTab === "widgets" || (state.activeTab === "settings" && (state.settingsSubTab === "export" || (state.settingsSubTab === "widget" && state.widgetSubSection === "limits")))))
+    );
+  }
+
+  function scheduleSilentQuotaRefresh(delayMs, opts) {
+    if (state.destroyed || !win || typeof win.setTimeout !== "function") return;
+    const o = opts && typeof opts === "object" ? opts : {};
+    if (silentQuotaSyncTimer && typeof win.clearTimeout === "function") {
+      win.clearTimeout(silentQuotaSyncTimer);
+      silentQuotaSyncTimer = null;
+    }
+    const turnRefAt = state.lastTurnFinishedAt || 0;
+    silentQuotaSyncTimer = win.setTimeout(() => {
+      silentQuotaSyncTimer = null;
+      if (state.destroyed) return;
+      // If official passive RPC already delivered a fresh quota snapshot after this turn, skip DOM trigger!
+      if (o.reason === "post-turn" && turnRefAt > 0 && (state.lastRpcQuotaAt || 0) >= turnRefAt - 2000) {
+        return;
+      }
+      if (!isLimitsUiVisibleNow()) return;
+      const started = triggerQuotaSyncClick({ silent: true, reason: o.reason || "auto", allowDefer: true });
+      if (!started && o.reason === "post-turn" && !o.isFollowup) {
+        if (silentQuotaFollowupTimer && typeof win.clearTimeout === "function") {
+          win.clearTimeout(silentQuotaFollowupTimer);
+        }
+        silentQuotaFollowupTimer = win.setTimeout(() => {
+          silentQuotaFollowupTimer = null;
+          if (state.destroyed) return;
+          if (turnRefAt > 0 && (state.lastRpcQuotaAt || 0) >= turnRefAt - 2000) return;
+          if (!isLimitsUiVisibleNow()) return;
+          triggerQuotaSyncClick({ silent: true, reason: "post-turn-followup", allowDefer: false });
+        }, 6500);
+      }
+    }, Math.max(150, Number(delayMs) || 1800));
+  }
+
+  function triggerQuotaSyncClick(opts) {
+    const o = opts && typeof opts === "object" ? opts : {};
+    const silent = Boolean(o.silent);
+    const now = Date.now();
+    if (state.destroyed) return false;
+    if (silent) {
+      if (quotaSilentSyncInflight || isAgentRunningNow() || state.telemetry.isGenerating || isVoiceDictationActive()) return false;
+      if (doc && doc.hidden) return false;
+      if (state.isOpen || state.usagePopOpen || state.agentPopoverOpen || state.contextPopoverOpen || state.liveEditOpen || state.pickerActive) return false;
+      if (now - (state.lastSilentQuotaSyncAt || 0) < 20000) return false;
+      if (now - (state.lastUserTypingAt || 0) < 1400) {
+        if (o.allowDefer !== false && win && typeof win.setTimeout === "function") {
+          scheduleSilentQuotaRefresh(2200, { reason: o.reason || "auto", isFollowup: true });
+        }
+        return false;
+      }
+      if (doc && typeof doc.querySelector === "function") {
+        const openNative = doc.querySelector('[role="dialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]');
+        if (openNative && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(openNative))) {
+          return false;
+        }
+      }
+    }
+
     const scrapedImmediately = scrapeDomQuotaSnapshot(true);
     invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
       if (!state.destroyed && qs) {
@@ -12414,10 +12590,11 @@ function createStudioPanel(options) {
       }
     });
     if (scrapedImmediately) {
-      setToast(state.locale !== "en" ? "Лимиты синхронизированы" : "Limits synced", false);
-      return;
+      if (!silent) setToast(state.locale !== "en" ? "Лимиты синхронизированы" : "Limits synced", false);
+      return true;
     }
-    // When idle and user explicitly clicks Refresh (↻), briefly open & read the native model-selector popover to sync exact live % from Antigravity
+    // Briefly open & read the native model-selector popover (cloaked at opacity:0 so screen never flashes)
+    // to trigger Antigravity's official quota RPC + DOM progress snapshot when idle.
     if (!quotaSilentSyncInflight && !isAgentRunningNow() && doc && typeof doc.querySelector === "function") {
       const trig = doc.querySelector('[data-testid="model-selector-trigger"]');
       const trigDisabled = Boolean(
@@ -12430,38 +12607,81 @@ function createStudioPanel(options) {
       );
       if (!trigDisabled && !alreadyOpen && typeof trig.click === "function") {
         quotaSilentSyncInflight = true;
+        state.lastSilentQuotaSyncAt = now;
+        const rpcBefore = state.lastRpcQuotaAt || 0;
+        const prevFocused = doc.activeElement || null;
+        const wasFocusedInComposer = Boolean(
+          prevFocused &&
+          prevFocused !== doc.body &&
+          prevFocused !== trig &&
+          (prevFocused.tagName === "TEXTAREA" || prevFocused.tagName === "INPUT" || (typeof prevFocused.getAttribute === "function" && prevFocused.getAttribute("contenteditable") === "true"))
+        );
+        setSilentQuotaSyncCloak(true);
         try { trig.click(); } catch (_e) {}
         scheduleQuotaDomScrapeBurst();
+        let finished = false;
         const finishSync = () => {
+          if (finished) return;
+          finished = true;
           quotaSilentSyncInflight = false;
-          if (state.destroyed) return;
-          const gotIt = scrapeDomQuotaSnapshot(true);
+          if (state.destroyed) {
+            setSilentQuotaSyncCloak(false);
+            return;
+          }
+          const gotDom = scrapeDomQuotaSnapshot(true);
+          const gotRpc = (state.lastRpcQuotaAt || 0) > rpcBefore;
           try {
             const KeyEv = (win && win.KeyboardEvent) || (typeof KeyboardEvent !== "undefined" ? KeyboardEvent : null);
             if (KeyEv && typeof doc.dispatchEvent === "function") {
               doc.dispatchEvent(new KeyEv("keydown", { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true }));
-            } else if (typeof trig.click === "function") {
+            }
+            const stillOpen = Boolean(
+              trig && typeof trig.getAttribute === "function" && (trig.getAttribute("aria-expanded") === "true" || trig.getAttribute("data-state") === "open")
+            );
+            if (stillOpen && typeof trig.click === "function") {
               trig.click();
             }
           } catch (_e) {}
-          if (gotIt) {
+          if (wasFocusedInComposer && prevFocused && typeof prevFocused.focus === "function" && doc.activeElement !== prevFocused) {
+            try { prevFocused.focus({ preventScroll: true }); } catch (_f) { try { prevFocused.focus(); } catch (_f2) {} }
+          }
+          if (win && typeof win.setTimeout === "function") {
+            silentQuotaCloakTimer = win.setTimeout(() => {
+              silentQuotaCloakTimer = null;
+              setSilentQuotaSyncCloak(false);
+            }, 55);
+          } else {
+            setSilentQuotaSyncCloak(false);
+          }
+          if (!silent && (gotDom || gotRpc)) {
             setToast(state.locale !== "en" ? "Лимиты синхронизированы с Antigravity" : "Limits synced with Antigravity", false);
           }
         };
         if (win && typeof win.setTimeout === "function") {
           win.setTimeout(() => {
-            if (!state.destroyed && scrapeDomQuotaSnapshot(true)) {
+            if (finished || state.destroyed) return;
+            const rpcArrived = (state.lastRpcQuotaAt || 0) > rpcBefore;
+            const domOk = scrapeDomQuotaSnapshot(true);
+            if (rpcArrived || domOk) {
               finishSync();
             } else {
-              win.setTimeout(finishSync, 260);
+              win.setTimeout(() => {
+                if (finished || state.destroyed) return;
+                if ((state.lastRpcQuotaAt || 0) > rpcBefore || scrapeDomQuotaSnapshot(true)) {
+                  finishSync();
+                } else {
+                  win.setTimeout(finishSync, 220);
+                }
+              }, 190);
             }
-          }, 220);
+          }, 190);
         } else {
           finishSync();
         }
-        return;
+        return true;
       }
     }
+    if (silent) return false;
     // Fallback: check if View Usage button exists in DOM to trigger native refresh if user has no snapshot
     if (doc && typeof doc.querySelectorAll === "function") {
       const qs = state.quotaSummary;
@@ -12482,6 +12702,7 @@ function createStudioPanel(options) {
         }
       }
     }
+    return false;
   }
 
   function handleHotkeyAction(action) {
@@ -16512,6 +16733,15 @@ function createStudioPanel(options) {
         } else if (!state.destroyed && state.mounted) {
           state.lastPollAt = 0;
           pollStream();
+          const fams = state.quotaSummary && state.quotaSummary.families ? state.quotaSummary.families : null;
+          const latestSnapAt = Math.max(
+            Number(fams && fams.gemini && fams.gemini.updatedAt) || 0,
+            Number(fams && fams.claudeGpt && fams.claudeGpt.updatedAt) || 0,
+            Number(state.lastRpcQuotaAt) || 0
+          );
+          if (isLimitsUiVisibleNow() && (latestSnapAt === 0 || Date.now() - latestSnapAt >= 90000)) {
+            scheduleSilentQuotaRefresh(900, { reason: "visible" });
+          }
         }
       };
       doc.addEventListener("visibilitychange", visChangeHandler);
@@ -16605,6 +16835,24 @@ function createStudioPanel(options) {
             setOpen(false);
           }
           return;
+        }
+        // 2.35 Any genuine user edit keystroke inside the composer (Backspace, Delete, Cut, Paste, typing) IMMEDIATELY cancels draft restore/stickiness
+        // so deleting a restored draft in New Chat (or any chat) NEVER gets re-inserted back by stickiness timers!
+        if (e.isTrusted !== false && typeof rv5FindNativeComposer === "function") {
+          const kLow = String(e.key || "").toLowerCase();
+          const isEditKey =
+            kLow === "backspace" ||
+            kLow === "delete" ||
+            ((e.ctrlKey || e.metaKey) && !e.altKey && (kLow === "x" || kLow === "v" || kLow === "z")) ||
+            (e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey);
+          if (isEditKey) {
+            state.lastUserTypingAt = Date.now();
+            if (quotaSilentSyncInflight) setSilentQuotaSyncCloak(false);
+            const { editable: edEdit } = rv5FindNativeComposer(doc);
+            if (edEdit && (e.target === edEdit || (typeof edEdit.contains === "function" && edEdit.contains(e.target)))) {
+              cancelDraftRestoreForUserEdit();
+            }
+          }
         }
         // 2.4 Abort any pending post-submit residual clear immediately if the user manually starts typing a new message
         if (e.isTrusted !== false && e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -16873,21 +17121,34 @@ function createStudioPanel(options) {
       doc.addEventListener("change", docFileChangeHandler, true);
 
       docInputHandler = (e) => {
-        if (state.destroyed || isRestoringDraft || state.settings.composerDraftsEnabled === false) return;
+        if (state.destroyed || state.settings.composerDraftsEnabled === false) return;
+        const isTrustedUserInput = !e || e.isTrusted !== false;
+        if (isRestoringDraft && !isTrustedUserInput) return;
         if (Date.now() < draftJustSubmittedUntil) return;
         const tEl = e && e.target;
         if (!tEl || (hostEl && (tEl === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(tEl))))) return;
         if (typeof rv5FindNativeComposer === "function") {
           const { container, editable } = rv5FindNativeComposer(doc);
           if (editable && (tEl === editable || (typeof editable.contains === "function" && editable.contains(tEl)))) {
-            state.userEditedComposerInChat = true;
+            if (isTrustedUserInput) {
+              state.lastUserTypingAt = Date.now();
+              if (quotaSilentSyncInflight) setSilentQuotaSyncCloak(false);
+              cancelDraftRestoreForUserEdit();
+            } else {
+              state.userEditedComposerInChat = true;
+            }
             // Cache snapshot immediately on every keystroke so rapid chat switching or sudden force-close NEVER loses text!
             const curKey = state.activeChatKey || "__new__";
             const snap = collectComposerSnapshotSync(container, editable);
             const hasContent = Boolean(String(snap.text || "").trim() || (snap.items && snap.items.length > 0));
+            if (!hasContent) {
+              // User erased everything -> clear disk & memory draft IMMEDIATELY (0ms!) so switching away never resurrects old text!
+              clearActiveDraftImmediately(curKey);
+              return;
+            }
             if (String(snap.text || "").trim()) draftTextCacheByChat.set(curKey, snap.text);
             else draftTextCacheByChat.delete(curKey);
-            lastKnownComposerSnapByChat.set(curKey, Object.assign(snap, { cleared: !hasContent }));
+            lastKnownComposerSnapByChat.set(curKey, Object.assign(snap, { cleared: false }));
             scheduleComposerDraftSave(isVoiceDictationActive() ? 1200 : 180);
           }
         }
@@ -17568,7 +17829,7 @@ function createStudioPanel(options) {
     const extraDebouncedTimers = Object.keys(debouncedSaveTimers).map((k) => debouncedSaveTimers[k]);
     for (const k of Object.keys(debouncedSaveTimers)) delete debouncedSaveTimers[k];
     for (const k of Object.keys(debouncedSavePending)) delete debouncedSavePending[k];
-    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftFollowupTimer, draftRestoreTimer, draftEarlyTextTimer, titleBarBootTimer, inspSaveTimer, limitsSaveTimer, studioUiSaveTimer, quotaAutoSaveTimer].concat(extraDebouncedTimers)) {
+    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftFollowupTimer, draftRestoreTimer, draftEarlyTextTimer, titleBarBootTimer, inspSaveTimer, limitsSaveTimer, studioUiSaveTimer, quotaAutoSaveTimer, silentQuotaSyncTimer, silentQuotaFollowupTimer, silentQuotaCloakTimer].concat(extraDebouncedTimers)) {
       if (timer && win && typeof win.clearTimeout === "function") win.clearTimeout(timer);
     }
     for (const qt of quotaScrapeTimers.concat(navBurstTimers)) {
@@ -17576,7 +17837,7 @@ function createStudioPanel(options) {
     }
     quotaScrapeTimers = [];
     navBurstTimers = [];
-    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftFollowupTimer = draftRestoreTimer = draftEarlyTextTimer = titleBarBootTimer = inspSaveTimer = limitsSaveTimer = studioUiSaveTimer = quotaAutoSaveTimer = null;
+    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftFollowupTimer = draftRestoreTimer = draftEarlyTextTimer = titleBarBootTimer = inspSaveTimer = limitsSaveTimer = studioUiSaveTimer = quotaAutoSaveTimer = silentQuotaSyncTimer = silentQuotaFollowupTimer = silentQuotaCloakTimer = null;
     limitsResizeState = null;
     if (dockComposerObserver && typeof dockComposerObserver.disconnect === "function") {
       try { dockComposerObserver.disconnect(); } catch (_e) {}
@@ -17656,6 +17917,7 @@ function createStudioPanel(options) {
     stopElementPicker();
     setPickerCursorStyle(false);
     setUsagePopTooltipGuard(false);
+    setSilentQuotaSyncCloak(false);
     if (annotatorCtrl && typeof annotatorCtrl.close === "function") annotatorCtrl.close();
     annotatorCtrl = null;
     removeAllLiveChatBubbleSlots();
@@ -17664,6 +17926,8 @@ function createStudioPanel(options) {
       if (leStyle && leStyle.parentNode) leStyle.parentNode.removeChild(leStyle);
       const ugStyle = doc.getElementById("rudex-usage-pop-guard");
       if (ugStyle && ugStyle.parentNode) ugStyle.parentNode.removeChild(ugStyle);
+      const sqStyle = doc.getElementById("rudex-silent-quota-sync-cloak");
+      if (sqStyle && sqStyle.parentNode) sqStyle.parentNode.removeChild(sqStyle);
     }
     if (hostEl && hostEl.parentNode) hostEl.parentNode.removeChild(hostEl);
     if (themeEngine && typeof themeEngine.destroy === "function") {

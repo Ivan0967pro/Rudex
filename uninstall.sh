@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Rudex v5.5.1 -- Uninstaller for macOS & Linux (Restores Stock English UI)
+# Rudex v5.5.2 -- Uninstaller for macOS & Linux (Restores Stock English UI)
 # =============================================================================
 set -e
 
 echo "========================================================"
-echo "  Rudex v5.5.1 -- Uninstaller (Restore English UI)"
+echo "  Rudex v5.5.2 -- Uninstaller (Restore English UI)"
 echo "========================================================"
 echo ""
 
