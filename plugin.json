@@ -3,7 +3,7 @@
   "name": "rudex",
   "displayName": "Rudex",
   "version": "5.5.0",
-  "description": "Студия кастомизации и русификатор Google Antigravity 2.0 (Windows, macOS, Linux): стили UI (Claude Code, Codex, OpenCode), 15 тем, «Прицел» с областью и сдвигом, реальные лимиты, бессрочные черновики, голос Sherpa-ONNX и перевод мыслей.",
+  "description": "Кастомизация и русификация Google Antigravity 2.0 (Windows, macOS, Linux): любые обои, темы, шрифты и правка элементов через «Прицел», быстрый офлайн-голос вместо багованной диктовки, реальные лимиты, черновики и правки на лету.",
   "logo": "assets/logo.svg",
   "author": {
     "name": "Ivan0967pro",
