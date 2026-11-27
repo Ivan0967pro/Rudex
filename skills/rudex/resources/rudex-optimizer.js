@@ -1004,7 +1004,9 @@ function buildMainWorldVoicePatchScript(initialConfig) {
   // Local virtual StreamAudioTranscription sessions bridged to Electron Main (Sherpa-ONNX)
   const localStreamsById = new Map();
   const localStreamsBySession = new Map();
+  const suppressedCloudStreamIds = new Set();
   const wsRawOnMsgMap = new WeakMap();
+  let lastAbortOnSendAt = 0;
 
   function deliverSyntheticToSocket(ws, obj) {
     if (!ws) return;
@@ -1016,11 +1018,46 @@ function buildMainWorldVoicePatchScript(initialConfig) {
     } catch (_e) {}
   }
 
+  function abortActiveVoiceStreamsOnSend() {
+    lastAbortOnSendAt = Date.now();
+    if (localStreamsById.size > 0) {
+      const sessions = Array.from(localStreamsById.values());
+      localStreamsById.clear();
+      localStreamsBySession.clear();
+      for (let i = 0; i < sessions.length; i += 1) {
+        const sess = sessions[i];
+        if (!sess) continue;
+        postToPreload("local-cmd", { cmd: "cancel", sessionId: sess.sessionId });
+        deliverSyntheticToSocket(sess.ws, {
+          streamId: sess.streamId,
+          type: "data",
+          payload: { complete: {} },
+        });
+        deliverSyntheticToSocket(sess.ws, {
+          streamId: sess.streamId,
+          type: "end",
+        });
+      }
+      emitVoiceState(false, { mode: "local", abortedOnSend: true });
+    }
+    if (activeCloudStreamIds.size > 0) {
+      for (const sid of activeCloudStreamIds) {
+        suppressedCloudStreamIds.add(sid);
+      }
+      emitVoiceState(false, { mode: "cloud", abortedOnSend: true });
+    }
+  }
+  const activeCloudStreamIds = new Set();
+
   window.addEventListener("message", (ev) => {
     if (!ev || ev.source !== window || !ev.data || typeof ev.data !== "object") return;
     const kind = ev.data.__rudexVoice;
     if (kind === "opt-config" && ev.data.payload && typeof ev.data.payload === "object") {
       cfg = Object.assign({}, cfg, ev.data.payload);
+      return;
+    }
+    if (kind === "abort-on-send") {
+      abortActiveVoiceStreamsOnSend();
       return;
     }
     if (kind === "local-reply" && ev.data.payload && typeof ev.data.payload === "object") {
@@ -1136,7 +1173,7 @@ function buildMainWorldVoicePatchScript(initialConfig) {
     const WS = window.WebSocket;
     if (typeof WS === "function" && WS.prototype && !WS.prototype.__rudexWsPatched) {
       const origSend = WS.prototype.send;
-      const activeAudioStreams = new Set();
+      const activeAudioStreams = activeCloudStreamIds;
       const isConnectWs = (ws) => {
         try {
           const u = ws && typeof ws.url === "string" ? ws.url : "";
@@ -1148,18 +1185,20 @@ function buildMainWorldVoicePatchScript(initialConfig) {
         if (!ws || ws.__rudexMsgWrapped) return;
         ws.__rudexMsgWrapped = true;
         ws.addEventListener("message", (ev) => {
-          if (typeof ev.data !== "string" || activeAudioStreams.size === 0) return;
+          if (typeof ev.data !== "string" || (activeAudioStreams.size === 0 && suppressedCloudStreamIds.size === 0)) return;
           if (ev.data.indexOf('"end"') !== -1) {
             try {
               const parsed = JSON.parse(ev.data);
-              if (parsed && parsed.type === "end" && activeAudioStreams.has(parsed.streamId)) {
+              if (parsed && parsed.type === "end" && (activeAudioStreams.has(parsed.streamId) || suppressedCloudStreamIds.has(parsed.streamId))) {
                 activeAudioStreams.delete(parsed.streamId);
+                suppressedCloudStreamIds.delete(parsed.streamId);
                 if (activeAudioStreams.size === 0) emitVoiceState(false, { mode: "cloud" });
               }
             } catch (_e) {}
           }
         });
         ws.addEventListener("close", () => {
+          suppressedCloudStreamIds.clear();
           if (activeAudioStreams.size > 0) {
             activeAudioStreams.clear();
             emitVoiceState(false, { mode: "cloud" });
@@ -1200,9 +1239,12 @@ function buildMainWorldVoicePatchScript(initialConfig) {
               try {
                 if (ev && typeof ev.data === "string") {
                   observeQuotaJsonText(ev.data);
-                  if (cfg.voiceEnabled && cfg.voiceTextCleanup && ev.data.indexOf('"transcription"') !== -1) {
+                  if (cfg.voiceEnabled && ev.data.indexOf('"transcription"') !== -1) {
                     const parsed = JSON.parse(ev.data);
-                    if (parsed && parsed.type === "data" && parsed.payload && parsed.payload.transcription && typeof parsed.payload.transcription.text === "string") {
+                    if (parsed && parsed.streamId && suppressedCloudStreamIds.has(parsed.streamId) && parsed.type === "data" && parsed.payload && parsed.payload.transcription) {
+                      return;
+                    }
+                    if (cfg.voiceTextCleanup && parsed && parsed.type === "data" && parsed.payload && parsed.payload.transcription && typeof parsed.payload.transcription.text === "string") {
                       const nextTxt = cleanText(parsed.payload.transcription.text);
                       if (nextTxt !== parsed.payload.transcription.text) {
                         parsed.payload.transcription.text = nextTxt;
@@ -1262,13 +1304,15 @@ function buildMainWorldVoicePatchScript(initialConfig) {
                 }
                 emitVoiceState(true, { mode: "cloud", languages: existing.length > 0 ? existing : langs });
               }
-            } else if (localStreamsBySession.size > 0 && data.indexOf("SendAudioChunk") !== -1) {
+            } else if (data.indexOf("SendAudioChunk") !== -1) {
               const msg = JSON.parse(data);
               const sid = msg && msg.payload && msg.payload.sessionId;
-              if (sid && localStreamsBySession.has(sid)) {
+              if (sid && (localStreamsBySession.has(sid) || String(sid).startsWith("rudex-local-"))) {
                 const wsRef = this;
                 const reqStreamId = msg.streamId;
-                postToPreload("local-cmd", { cmd: "chunk", sessionId: sid, data: msg.payload.data || "" });
+                if (localStreamsBySession.has(sid)) {
+                  postToPreload("local-cmd", { cmd: "chunk", sessionId: sid, data: msg.payload.data || "" });
+                }
                 Promise.resolve().then(() => {
                   deliverSyntheticToSocket(wsRef, { streamId: reqStreamId, type: "data", payload: {} });
                   deliverSyntheticToSocket(wsRef, { streamId: reqStreamId, type: "end" });
@@ -1276,19 +1320,19 @@ function buildMainWorldVoicePatchScript(initialConfig) {
                 return;
               }
             } else if (data.indexOf("EndAudioSession") !== -1) {
-              if (localStreamsBySession.size > 0) {
-                const msg = JSON.parse(data);
-                const sid = msg && msg.payload && msg.payload.sessionId;
-                if (sid && localStreamsBySession.has(sid)) {
-                  const wsRef = this;
-                  const reqStreamId = msg.streamId;
+              const msg = JSON.parse(data);
+              const sid = msg && msg.payload && msg.payload.sessionId;
+              if (sid && (localStreamsBySession.has(sid) || String(sid).startsWith("rudex-local-"))) {
+                const wsRef = this;
+                const reqStreamId = msg.streamId;
+                if (localStreamsBySession.has(sid)) {
                   postToPreload("local-cmd", { cmd: "end", sessionId: sid });
-                  Promise.resolve().then(() => {
-                    deliverSyntheticToSocket(wsRef, { streamId: reqStreamId, type: "data", payload: {} });
-                    deliverSyntheticToSocket(wsRef, { streamId: reqStreamId, type: "end" });
-                  });
-                  return;
                 }
+                Promise.resolve().then(() => {
+                  deliverSyntheticToSocket(wsRef, { streamId: reqStreamId, type: "data", payload: {} });
+                  deliverSyntheticToSocket(wsRef, { streamId: reqStreamId, type: "end" });
+                });
+                return;
               }
               emitVoiceState(false, { mode: "cloud" });
             } else if ((activeAudioStreams.size > 0 || localStreamsById.size > 0) && data.indexOf('"cancel"') !== -1) {
@@ -1495,16 +1539,45 @@ function buildMainWorldVoicePatchScript(initialConfig) {
 })();`;
 }
 
+function isSendActionButton(el) {
+  if (!el) return false;
+  try {
+    if (typeof el.getAttribute === "function") {
+      if (el.getAttribute("data-rudex-comp-send") === "1") return true;
+      const meta = [
+        el.getAttribute("data-testid") || "",
+        el.getAttribute("aria-label") || "",
+        el.getAttribute("title") || "",
+      ].join(" ");
+      if (/\b(?:send|submit|queue|enqueue)\b|отправ|очеред/i.test(meta)) return true;
+    }
+  } catch (_e) {}
+  return false;
+}
+
 /**
  * Finds the native Antigravity dictation toggle button (idle or active recording).
+ * Never matches "Stop Recording and Send" / "Остановить запись и отправить" send buttons!
  */
 function findNativeDictationButton(doc, hostEl) {
   if (!doc || typeof doc.querySelector !== "function") return null;
+  const pickMatch = (sel) => {
+    const nodes = typeof doc.querySelectorAll === "function" ? doc.querySelectorAll(sel) : [doc.querySelector(sel)];
+    for (let j = 0; nodes && j < nodes.length; j += 1) {
+      const el = nodes[j];
+      if (!el) continue;
+      if (hostEl && typeof hostEl.contains === "function" && hostEl.contains(el)) continue;
+      if (isSendActionButton(el)) continue;
+      return el;
+    }
+    return null;
+  };
   try {
     // 1. Active recording button first
     const activeSelectors = [
       '[data-rudex-comp-mic-active="1"]',
       'button[aria-label="Stop recording"]',
+      'button[aria-label="Остановить запись"]',
       'button[aria-label*="stop record" i]',
       'button[aria-label*="stop dictat" i]',
       'button[aria-label*="остановить запись" i]',
@@ -1514,10 +1587,8 @@ function findNativeDictationButton(doc, hostEl) {
       'button[data-tooltip-id="input-send-button-record-tooltip"].bg-red-500',
     ];
     for (let i = 0; i < activeSelectors.length; i += 1) {
-      const el = doc.querySelector(activeSelectors[i]);
-      if (el && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(el))) {
-        return { button: el, active: true };
-      }
+      const el = pickMatch(activeSelectors[i]);
+      if (el) return { button: el, active: true };
     }
     // 2. Idle record button
     const idleSelectors = [
@@ -1531,8 +1602,8 @@ function findNativeDictationButton(doc, hostEl) {
       'button[data-rudex-comp-mic="1"]',
     ];
     for (let i = 0; i < idleSelectors.length; i += 1) {
-      const el = doc.querySelector(idleSelectors[i]);
-      if (el && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(el))) {
+      const el = pickMatch(idleSelectors[i]);
+      if (el) {
         const cls = typeof el.className === "string" ? el.className : "";
         const isAct = /\bbg-red-500\b/.test(cls) || String(el.getAttribute && el.getAttribute("aria-pressed") || "") === "true";
         return { button: el, active: isAct };
@@ -1914,6 +1985,16 @@ function createRudexOptimizer(options = {}) {
     if (dictating) renderVoiceBadge();
   }
 
+  function abortVoiceOnSend() {
+    if (destroyed) return;
+    if (win && typeof win.postMessage === "function") {
+      try {
+        win.postMessage({ __rudexVoice: "abort-on-send", payload: { ts: Date.now() } }, "*");
+      } catch (_e) {}
+    }
+    setDictating(false);
+  }
+
   function triggerNativeDictation(hostEl) {
     const found = findNativeDictationButton(doc, hostEl);
     if (found && found.button && typeof found.button.click === "function") {
@@ -1944,6 +2025,7 @@ function createRudexOptimizer(options = {}) {
   return {
     apply,
     setDictating,
+    abortVoiceOnSend,
     positionBadge,
     setLocalVoiceReady,
     isLocalVoiceReady: () => localVoiceInstalled,

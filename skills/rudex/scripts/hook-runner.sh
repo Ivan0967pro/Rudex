@@ -1,6 +1,6 @@
 #!/bin/sh
 # =============================================================================
-# Rudex v5.5.0 -- POSIX Hook Runner for macOS & Linux
+# Rudex v5.5.1 -- POSIX Hook Runner for macOS & Linux
 # Finds Node.js (including GUI-hidden Homebrew/nvm/volta/mise/asdf) or falls
 # back to Antigravity's bundled Electron runtime with ELECTRON_RUN_AS_NODE=1.
 # =============================================================================

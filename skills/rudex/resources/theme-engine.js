@@ -3851,6 +3851,10 @@ body {
   pointer-events: none;
   overflow: hidden;
 }
+#rudex-bg[data-boot-hidden="1"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
 [data-rudex-bg-shell="1"] {
   background-color: transparent !important;
   background-image: none !important;
@@ -4405,6 +4409,27 @@ html:not(#rudex-studio-host):not(#rudex-bg):not(#rudex-studio-theme) [data-rudex
 `);
   }
 
+  if (hasThemeOverride || hasWallpaper || hasSurfaceOverride || hasUiStyle || hasCornersOverride || hasBorderPreset || cfg.borderStrength !== 50) {
+    // Never draw an empty horizontal glass/bordered pill before the agent streams its first text or step
+    chunks.push(`
+html:not(#rudex-studio-host):not(#rudex-bg):not(#rudex-studio-theme) [data-testid="agent-response"]:empty,
+html:not(#rudex-studio-host):not(#rudex-bg):not(#rudex-studio-theme) [data-testid="agent-response"][data-rudex-empty-response="1"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  border-left: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  min-height: 0 !important;
+}
+`);
+  }
+
   const overridesCss = teBuildElementOverridesCss(cfg.elementOverrides, cfg.overridesPaused, cfg);
   if (overridesCss) {
     chunks.push(overridesCss);
@@ -4457,6 +4482,7 @@ function createThemeEngine(options = {}) {
     "data-rudex-comp-model",
     "data-rudex-comp-mode",
     "data-rudex-comp-send",
+    "data-rudex-empty-response",
   ];
   const COMP_PART_ATTRS = [
     "data-rudex-comp-wrap",
@@ -4516,6 +4542,8 @@ function createThemeEngine(options = {}) {
   let shellResizeHandler = null;
   let wallpaperActive = false;
   let themeScanActive = false;
+  let emptyRespWatchActive = false;
+  let bootWallpaperDeferred = Boolean(options.deferWallpaperUntilReady);
   let activeThemeIsLight = false;
   let activeSidebarYiq = 20;
   let lastCssText = "";
@@ -4745,7 +4773,7 @@ function createThemeEngine(options = {}) {
     if (!doc || typeof doc.querySelectorAll !== "function") return;
     try {
       const marked = doc.querySelectorAll(
-        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-timeline-rail], [data-rudex-timeline-pill], [data-rudex-theme-composer], [data-rudex-theme-accent-dot], [data-rudex-light-fix], [data-rudex-light-text], [data-rudex-header-btn-fix], [data-rudex-header-surface], [data-rudex-sidebar-surface], [data-rudex-comp-wrap], [data-rudex-comp-dock], [data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-editor], [data-rudex-comp-editor-wrap], [data-rudex-comp-placeholder], [data-rudex-comp-placeholder-inner], [data-rudex-comp-attach-row], [data-rudex-comp-empty-slot], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-mic-active], [data-rudex-comp-voice], [data-rudex-comp-model], [data-rudex-comp-mode], [data-rudex-comp-send]"
+        "[data-rudex-bg-shell], [data-rudex-bg-sidebar], [data-rudex-bg-header], [data-rudex-bg-fade], [data-rudex-timeline-rail], [data-rudex-timeline-pill], [data-rudex-theme-composer], [data-rudex-theme-accent-dot], [data-rudex-light-fix], [data-rudex-light-text], [data-rudex-header-btn-fix], [data-rudex-header-surface], [data-rudex-sidebar-surface], [data-rudex-comp-wrap], [data-rudex-comp-dock], [data-rudex-comp-stack], [data-rudex-comp-top-row], [data-rudex-comp-input-row], [data-rudex-comp-editor], [data-rudex-comp-editor-wrap], [data-rudex-comp-placeholder], [data-rudex-comp-placeholder-inner], [data-rudex-comp-attach-row], [data-rudex-comp-empty-slot], [data-rudex-comp-toolbar], [data-rudex-comp-group], [data-rudex-comp-plus], [data-rudex-comp-mic], [data-rudex-comp-mic-active], [data-rudex-comp-voice], [data-rudex-comp-model], [data-rudex-comp-mode], [data-rudex-comp-send], [data-rudex-empty-response]"
       );
       for (let i = 0; marked && i < marked.length; i += 1) {
         if (marked[i] && marked[i].style && typeof marked[i].style.removeProperty === "function") {
@@ -4754,6 +4782,104 @@ function createThemeEngine(options = {}) {
         clearShellAttrsOnElement(marked[i]);
       }
     } catch (_e) {}
+  }
+
+  function isAgentResponseVisuallyEmpty(el) {
+    if (!el || el.nodeType !== 1) return false;
+    const rawTxt = String(el.textContent || "").replace(/[\s\u00A0\u200B-\u200D\uFEFF]+/g, "");
+    if (rawTxt.length > 0) return false;
+    if (typeof el.querySelectorAll === "function") {
+      try {
+        const visualNodes = el.querySelectorAll('img, video, canvas, iframe, pre, table, hr, [role="progressbar"], [data-rudex-live-slot]');
+        for (let i = 0; visualNodes && i < visualNodes.length; i += 1) {
+          const vn = visualNodes[i];
+          if (!vn) continue;
+          if (typeof vn.hasAttribute === "function" && (vn.hasAttribute("hidden") || vn.getAttribute("aria-hidden") === "true")) continue;
+          if (typeof vn.getBoundingClientRect === "function") {
+            const r = vn.getBoundingClientRect();
+            if (r && r.width === 0 && r.height === 0) continue;
+          }
+          return false;
+        }
+        const btns = el.querySelectorAll('button, [role="button"]');
+        for (let i = 0; btns && i < btns.length; i += 1) {
+          const b = btns[i];
+          if (!b) continue;
+          if (typeof b.hasAttribute === "function" && (b.hasAttribute("hidden") || b.getAttribute("aria-hidden") === "true")) continue;
+          if (typeof b.closest === "function" && b.closest('[data-testid*="actions"], [data-testid*="toolbar"]')) continue;
+          if (win && typeof win.getComputedStyle === "function") {
+            const bcs = win.getComputedStyle(b);
+            if (bcs && (bcs.display === "none" || bcs.visibility === "hidden" || parseFloat(bcs.opacity) === 0)) continue;
+          }
+          if (typeof b.getBoundingClientRect === "function") {
+            const br = b.getBoundingClientRect();
+            if (br && (br.width < 4 || br.height < 4)) continue;
+          }
+          return false;
+        }
+      } catch (_e) {}
+    }
+    return true;
+  }
+
+  function syncEmptyAgentResponsesNow() {
+    if (!doc || typeof doc.querySelectorAll !== "function") return;
+    try {
+      const nodes = doc.querySelectorAll('[data-testid="agent-response"]');
+      for (let i = 0; nodes && i < nodes.length; i += 1) {
+        const el = nodes[i];
+        if (!el || el.nodeType !== 1) continue;
+        if (typeof el.closest === "function" && el.closest("#rudex-studio-host")) continue;
+        const empty = isAgentResponseVisuallyEmpty(el);
+        const wasEmpty = typeof el.getAttribute === "function" && el.getAttribute("data-rudex-empty-response") === "1";
+        if (empty && !wasEmpty && typeof el.setAttribute === "function") {
+          el.setAttribute("data-rudex-empty-response", "1");
+        } else if (!empty && wasEmpty && typeof el.removeAttribute === "function") {
+          el.removeAttribute("data-rudex-empty-response");
+        }
+      }
+    } catch (_e) {}
+  }
+
+  function isHostAppShellPresent() {
+    if (!doc || typeof doc.querySelector !== "function") return true;
+    try {
+      if (doc.querySelector('[data-testid="model-selector-trigger"], [data-testid="user-message-content"], [data-testid="agent-response"]')) {
+        return true;
+      }
+      if (doc.querySelector('textarea, [contenteditable="true"], [data-testid="composer"]') && doc.querySelector('aside, nav, header, main, [data-testid="sidebar"]')) {
+        return true;
+      }
+    } catch (_e) {}
+    return false;
+  }
+
+  function syncBgBootVisibility() {
+    if (!bgLayer) return;
+    if (bootWallpaperDeferred) {
+      if (typeof bgLayer.setAttribute === "function") bgLayer.setAttribute("data-boot-hidden", "1");
+      if (mediaChild && mediaChild.tagName === "VIDEO") safePauseVideo(mediaChild);
+    } else {
+      if (typeof bgLayer.removeAttribute === "function") bgLayer.removeAttribute("data-boot-hidden");
+      if (mediaChild && mediaChild.tagName === "VIDEO" && !(videoPauseWhenHidden && doc && doc.hidden)) {
+        safePlayVideo(mediaChild);
+      }
+    }
+  }
+
+  function setBootWallpaperDeferred(nextDeferred) {
+    const next = Boolean(nextDeferred);
+    if (next === bootWallpaperDeferred) {
+      syncBgBootVisibility();
+      return;
+    }
+    bootWallpaperDeferred = next;
+    if (!bootWallpaperDeferred && (wallpaperActive || themeScanActive)) {
+      if (!hasPaintedShellScan || (doc && typeof doc.querySelector === "function" && !doc.querySelector('[data-rudex-bg-sidebar="1"], [data-rudex-sidebar-surface]'))) {
+        scanWallpaperShells();
+      }
+    }
+    syncBgBootVisibility();
   }
 
   function isSkippedShellNode(el) {
@@ -5190,8 +5316,10 @@ function createThemeEngine(options = {}) {
         };
         const isPlusLabel = (meta) => meta.txt === "+" || /attach|add\s*context|upload|context|контекст|файл|прикреп|добав/i.test(meta.tid + " " + meta.al);
         const isVoiceModeLabel = (meta) => /voice\s*mode|live\s*voice|talk|conversation|audio\s*mode|end\s+voice|start\s+voice\s+mode|голосов[а-яё]*\s*режим|разговор|живой\s*голос/i.test(meta.tid + " " + meta.al);
+        const isSendActionLabel = (meta) => /\b(?:send|submit|queue|enqueue)\b|отправ|очеред/i.test(meta.tid + " " + meta.al);
         const isMicLabel = (meta) =>
           !isVoiceModeLabel(meta) &&
+          !isSendActionLabel(meta) &&
           /mic|dictat|voice\s*record|speech|transcrib|(?:start|stop|cancel|toggle)\s+(?:voice\s+)?record|(?:mute|unmute|switch)\s+mic|микроф|диктов|запис[а-яё]*\s*голос|голосов[а-яё]*\s*ввод|распознав|(?:начать|остановить|отменить|переключить)\s+запис/i.test(meta.tid + " " + meta.al + " " + meta.txt);
         const isExplicitAgentCancel = (b, meta) => {
           if (!b) return false;
@@ -5201,6 +5329,7 @@ function createThemeEngine(options = {}) {
         };
         const isRecordingActiveBtn = (b, meta) => {
           if (!b) return false;
+          if (isSendActionLabel(meta)) return false;
           const ga = typeof b.getAttribute === "function" ? (k) => String(b.getAttribute(k) || "").toLowerCase() : () => "";
           if (ga("aria-pressed") === "true" || ga("data-recording") === "true") return true;
           const st = ga("data-state");
@@ -5219,9 +5348,9 @@ function createThemeEngine(options = {}) {
         const isExplicitSend = (b, meta) => {
           if (!b || b === modelTrig) return false;
           if (isExplicitAgentCancel(b, meta)) return true;
+          if (isSendActionLabel(meta) && !isPlusLabel(meta) && !isVoiceModeLabel(meta)) return true;
           if (isPlusLabel(meta) || isMicLabel(meta) || isVoiceModeLabel(meta) || isRecordingActiveBtn(b, meta)) return false;
           if (b.getAttribute && String(b.getAttribute("type") || "").toLowerCase() === "submit") return true;
-          if (/\b(?:send|submit)\b|отправ/i.test(meta.tid + " " + meta.al)) return true;
           if (teHasClass(b, "bg-primary") && meta.txt.length <= 2) return true;
           return false;
         };
@@ -5414,6 +5543,9 @@ function createThemeEngine(options = {}) {
   }
 
   function scanWallpaperShells() {
+    if (emptyRespWatchActive || wallpaperActive || themeScanActive) {
+      syncEmptyAgentResponsesNow();
+    }
     if ((!wallpaperActive && !themeScanActive) || !doc || !win || typeof win.getComputedStyle !== "function") return;
     const rootTarget = (typeof doc.querySelector === "function" && doc.querySelector("#root, #app")) || doc.body;
     if (!rootTarget) return;
@@ -6477,12 +6609,21 @@ function createThemeEngine(options = {}) {
       if (doc.documentElement && typeof doc.documentElement.getAttribute === "function" && doc.documentElement.getAttribute("data-rudex-dictating") === "1") {
         return true;
       }
-      if (typeof doc.querySelector !== "function") return false;
-      return Boolean(
-        doc.querySelector(
-          '[data-rudex-comp-mic-active="1"], button[aria-label="Stop recording"], button[aria-label*="stop record" i], button[aria-label*="остановить запись" i], button[data-tooltip-id="input-send-button-record-tooltip"].bg-red-500'
-        )
+      if (typeof doc.querySelectorAll !== "function") return false;
+      const cands = doc.querySelectorAll(
+        '[data-rudex-comp-mic-active="1"], button[aria-label="Stop recording"], button[aria-label*="stop record" i], button[aria-label*="остановить запись" i], button[data-tooltip-id="input-send-button-record-tooltip"].bg-red-500'
       );
+      for (let i = 0; cands && i < cands.length; i += 1) {
+        const b = cands[i];
+        if (!b) continue;
+        if (typeof b.getAttribute === "function") {
+          if (b.getAttribute("data-rudex-comp-send") === "1") continue;
+          const meta = `${b.getAttribute("data-testid") || ""} ${b.getAttribute("aria-label") || ""} ${b.getAttribute("title") || ""}`;
+          if (/\b(?:send|submit|queue|enqueue)\b|отправ|очеред/i.test(meta)) continue;
+        }
+        return true;
+      }
+      return false;
     } catch (_e) {
       return false;
     }
@@ -6512,7 +6653,7 @@ function createThemeEngine(options = {}) {
   }
 
   function ensureShellWatchers() {
-    if ((!wallpaperActive && !themeScanActive) || !doc || !win) return false;
+    if ((!wallpaperActive && !themeScanActive && !emptyRespWatchActive) || !doc || !win) return false;
     const preferredRoot = typeof doc.querySelector === "function" ? doc.querySelector("#root, #app") : null;
     const watchTarget = preferredRoot || doc.body;
     if (!watchTarget) {
@@ -6524,11 +6665,15 @@ function createThemeEngine(options = {}) {
     const isFirstAttach = !shellWatchersAttached;
     let didScan = false;
     if (!shellWatchersAttached || (preferredRoot && shellObservedTarget !== preferredRoot)) {
-      scanWallpaperShells();
+      if (wallpaperActive || themeScanActive) {
+        scanWallpaperShells();
+      } else if (emptyRespWatchActive) {
+        syncEmptyAgentResponsesNow();
+      }
       didScan = true;
     }
 
-    if (isFirstAttach && typeof win.setTimeout === "function") {
+    if (isFirstAttach && (wallpaperActive || themeScanActive) && typeof win.setTimeout === "function") {
       clearShellRescanTimers();
       shellRescanTimers.push(
         win.setTimeout(() => { if (wallpaperActive || themeScanActive) scanWallpaperShells(); }, 350),
@@ -6544,15 +6689,55 @@ function createThemeEngine(options = {}) {
         }
         try {
           shellObserver = new win.MutationObserver((muts) => {
-            if ((!wallpaperActive && !themeScanActive) || isWritingInternalStyle || isSyncingComposer || isSyncingSidebar) return;
+            if ((!wallpaperActive && !themeScanActive && !emptyRespWatchActive) || isWritingInternalStyle || isSyncingComposer || isSyncingSidebar) return;
             let needsComposerSync = false;
             let needsSidebarSync = false;
             let needsFullShellScan = false;
+            let needsEmptyRespSync = false;
             let sawChildListOutsideEditor = false;
+            const fullWatchActive = wallpaperActive || themeScanActive;
             for (let i = 0; i < muts.length; i += 1) {
               const m = muts[i];
               if (m.type === "attributes" && (SHELL_ATTRS.indexOf(m.attributeName) >= 0 || COMP_PART_ATTRS.indexOf(m.attributeName) >= 0)) continue;
               if (m.type === "attributes" && m.attributeName === "style" && m.target && typeof m.target.hasAttribute === "function" && m.target.hasAttribute("data-rudex-theme-composer")) continue;
+              if (emptyRespWatchActive || fullWatchActive) {
+                if (m.type === "characterData") {
+                  const pEl = m.target && (m.target.parentElement || m.target.parentNode);
+                  if (pEl && typeof pEl.closest === "function") {
+                    try {
+                      if (pEl.closest('[data-testid="agent-response"][data-rudex-empty-response="1"]')) {
+                        needsEmptyRespSync = true;
+                      }
+                    } catch (_e) {}
+                  }
+                  continue;
+                }
+                if (m.type === "childList") {
+                  if (m.target && typeof m.target.closest === "function") {
+                    try {
+                      const respHost = m.target.closest('[data-testid="agent-response"]');
+                      if (respHost && ((typeof respHost.getAttribute === "function" && respHost.getAttribute("data-rudex-empty-response") === "1") || (m.removedNodes && m.removedNodes.length > 0))) {
+                        needsEmptyRespSync = true;
+                      }
+                    } catch (_e) {}
+                  }
+                  if (!needsEmptyRespSync && m.addedNodes && m.addedNodes.length > 0) {
+                    for (let ai = 0; ai < m.addedNodes.length; ai += 1) {
+                      const an = m.addedNodes[ai];
+                      if (!an || an.nodeType !== 1) continue;
+                      const isResp = (typeof an.getAttribute === "function" && an.getAttribute("data-testid") === "agent-response") ||
+                        (typeof an.querySelector === "function" && Boolean(an.querySelector('[data-testid="agent-response"]')));
+                      if (isResp) {
+                        needsEmptyRespSync = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+              } else if (m.type === "characterData") {
+                continue;
+              }
+              if (!fullWatchActive) continue;
               if (isIgnoredMutationTarget(m.target)) continue;
               const isSideActiveAttr = m.type === "attributes" && (
                 m.attributeName === "aria-current" ||
@@ -6610,10 +6795,13 @@ function createThemeEngine(options = {}) {
               }
               needsFullShellScan = true;
             }
-            if (!needsComposerSync && sawChildListOutsideEditor && hasUntaggedComposerInDoc()) {
+            if (needsEmptyRespSync) {
+              syncEmptyAgentResponsesNow();
+            }
+            if (!needsComposerSync && fullWatchActive && sawChildListOutsideEditor && hasUntaggedComposerInDoc()) {
               needsComposerSync = true;
             }
-            if (needsComposerSync) {
+            if (needsComposerSync && fullWatchActive) {
               if (compQuickScanTimer && win && typeof win.clearTimeout === "function") {
                 win.clearTimeout(compQuickScanTimer);
                 compQuickScanTimer = null;
@@ -6621,11 +6809,15 @@ function createThemeEngine(options = {}) {
               // Tag composer & buttons synchronously inside MutationObserver microtask (BEFORE browser paints frame -> 0ms flash!)
               syncComposerPartsNow();
             }
-            if (needsSidebarSync) {
+            if (needsSidebarSync && fullWatchActive) {
               // Sync active chat highlight & sidebar panels synchronously inside microtask (0ms switch, zero stuck highlights!)
               syncSidebarSurfacesNow();
             }
-            if (needsFullShellScan) {
+            if (bootWallpaperDeferred && isHostAppShellPresent()) {
+              if (fullWatchActive) scanWallpaperShells();
+              bootWallpaperDeferred = false;
+              syncBgBootVisibility();
+            } else if (needsFullShellScan && fullWatchActive) {
               // On initial React app mount (before first painted shell scan) or whenever sidebar/header just mounted,
               // scan SYNCHRONOUSLY inside MutationObserver microtask so Frame 1 NEVER flashes stock Antigravity UI!
               const needImmediateBootScan = Boolean(
@@ -6643,7 +6835,7 @@ function createThemeEngine(options = {}) {
               }
             }
           });
-          shellObserver.observe(watchTarget, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style", "aria-label", "aria-pressed", "aria-current", "aria-selected", "data-active", "data-selected", "data-state", "type"] });
+          shellObserver.observe(watchTarget, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style", "aria-label", "aria-pressed", "aria-current", "aria-selected", "data-active", "data-selected", "data-state", "type"] });
           shellObservedTarget = watchTarget;
         } catch (_e) {
           shellObserver = null;
@@ -6870,6 +7062,7 @@ function createThemeEngine(options = {}) {
       layer.style.backgroundColor = canvasBgHint;
     }
     bgLayer = layer;
+    syncBgBootVisibility();
     return layer;
   }
 
@@ -7061,10 +7254,10 @@ function createThemeEngine(options = {}) {
         }
         mediaChild = vid;
         activeVideoUrl = resolvedSrc;
-        if (!(videoPauseWhenHidden && doc && doc.hidden)) {
+        if (!bootWallpaperDeferred && !(videoPauseWhenHidden && doc && doc.hidden)) {
           safePlayVideo(vid);
         }
-      } else if (prevPauseWhenHidden && !videoPauseWhenHidden) {
+      } else if (prevPauseWhenHidden && !videoPauseWhenHidden && !bootWallpaperDeferred) {
         safePlayVideo(mediaChild);
       }
       mediaChild.style.objectFit = wp.fit || "cover";
@@ -7272,9 +7465,10 @@ function createThemeEngine(options = {}) {
       : hostIsLight;
 
     if (!hasThemeOverride && !hasAccentOverride && !hasSidebarOverride && !hasBorderColorOverride && !hasWallpaper && !hasCustomTypo && !hasSurfaceOverride && !hasUiStyle && !hasElementOverrides && !effectiveConfig.uiPolish) {
-      if (wallpaperActive || themeScanActive) {
+      if (wallpaperActive || themeScanActive || emptyRespWatchActive) {
         wallpaperActive = false;
         themeScanActive = false;
+        emptyRespWatchActive = false;
         clearWallpaperShells();
       }
       lastCssText = "";
@@ -7301,6 +7495,7 @@ function createThemeEngine(options = {}) {
 
     lastHadThemeOverride = hasThemeOverride;
     themeScanActive = hasThemeOverride || hasUiStyle || hasSidebarOverride || hasBorderColorOverride;
+    emptyRespWatchActive = hasWallpaper || hasThemeOverride || hasSurfaceOverride || hasUiStyle || hasCornersOverride || hasBorderPreset || effectiveConfig.borderStrength !== 50;
     activeThemeIsLight = Boolean(hasThemeOverride && isLight);
     try {
       const rv = teResolveThemeVars(effectiveConfig);
@@ -7309,9 +7504,14 @@ function createThemeEngine(options = {}) {
       activeSidebarYiq = isLight ? 235 : 20;
     }
     applyWallpaper(effectiveConfig, isLight);
+    if (emptyRespWatchActive) {
+      syncEmptyAgentResponsesNow();
+    }
     if (themeScanActive && !wallpaperActive) {
       if (!ensureShellWatchers()) scanWallpaperShells();
-    } else if (!themeScanActive && !wallpaperActive) {
+    } else if (emptyRespWatchActive && !themeScanActive && !wallpaperActive) {
+      ensureShellWatchers();
+    } else if (!themeScanActive && !wallpaperActive && !emptyRespWatchActive) {
       clearWallpaperShells();
     } else if ((themeScanActive || wallpaperActive) && hasUntaggedComposerInDoc()) {
       syncComposerPartsNow();
@@ -7352,6 +7552,9 @@ function createThemeEngine(options = {}) {
     applyFast,
     scanWallpaperShells,
     clearWallpaperShells,
+    syncEmptyAgentResponsesNow,
+    setBootWallpaperDeferred,
+    isBootWallpaperDeferred: () => bootWallpaperDeferred,
     getCurrent: () => normalizeAppearance(currentConfig),
     destroy: () => {
       pendingFastConfig = null;
@@ -7362,6 +7565,8 @@ function createThemeEngine(options = {}) {
       removeDomReadyListener();
       wallpaperActive = false;
       themeScanActive = false;
+      emptyRespWatchActive = false;
+      bootWallpaperDeferred = false;
       failedMediaUrl = "";
       lastAttemptedMediaSrc = "";
       lastCssText = "";

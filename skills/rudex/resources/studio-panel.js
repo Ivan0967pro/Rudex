@@ -1722,7 +1722,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "5.5.0", dictEntries: 4068, dynamicRulesCount: 485 };
+    : { version: "5.5.1", dictEntries: 4068, dynamicRulesCount: 485 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -2187,7 +2187,7 @@ function createStudioPanel(options) {
       if (doc.querySelector('[data-testid="model-selector-trigger"], [data-testid="user-message-content"], [data-testid="agent-response"]')) {
         return true;
       }
-      if (doc.querySelector('textarea, [contenteditable="true"]') && doc.querySelector("nav, aside")) {
+      if (doc.querySelector('textarea, [contenteditable="true"], [data-testid="composer"]') && doc.querySelector("nav, aside, main, header")) {
         return true;
       }
     } catch (_e) {}
@@ -2699,7 +2699,14 @@ function createStudioPanel(options) {
     }
   }
 
+  let inspectorLiveEditUntil = 0;
+  let inspectorPendingSaveSeq = 0;
+  let inspectorLastNudgeAt = 0;
+
   function isInspectorControlActive() {
+    if (inspectorDragMoveState || inspSaveTimer || inspectorPendingSaveSeq > 0 || Date.now() < inspectorLiveEditUntil) {
+      return true;
+    }
     if (
       isControlActivelyFocused("data-insp-range") ||
       isControlActivelyFocused("data-insp-num") ||
@@ -2725,7 +2732,7 @@ function createStudioPanel(options) {
     const editingLimits = !forceRender && isLimitsLiveEditingNow();
     const editingStudioUi = !forceRender && isStudioUiLiveEditingNow();
     const editingQuotaAuto = !forceRender && isQuotaAutoLiveEditingNow();
-    const editingInspector = !forceRender && isInspectorControlActive();
+    const editingInspector = isInspectorControlActive();
     const prevThinkRu = Boolean(state.settings.thinkingInRussian);
     const prevWorkLogRu = Boolean(state.settings.workLogInRussian);
     if (typeof remote.appZoomSupported === "boolean") {
@@ -2766,9 +2773,9 @@ function createStudioPanel(options) {
           syncTranslatorGreeting(state.settings.greeting);
         }
       }
-      if (rawSettings.appearance && typeof rawSettings.appearance === "object") {
+      if (rawSettings.appearance && typeof rawSettings.appearance === "object" && !editingInspector) {
         state.settings.appearance = spCloneAppearance(rawSettings.appearance);
-        if (!state.appearanceDirty && !editingInspector) {
+        if (!state.appearanceDirty) {
           state.appearanceDraft = spCloneAppearance(state.settings.appearance);
         }
         if (!state.appearanceLivePreview) {
@@ -3748,8 +3755,13 @@ function createStudioPanel(options) {
 
   function applyThemeToHost(appCfg) {
     const cfg = appCfg || state.settings.appearance;
-    if (themeEngine && typeof themeEngine.apply === "function") {
-      try { themeEngine.apply(cfg); } catch (_e) {}
+    if (themeEngine) {
+      if (state.mounted && typeof themeEngine.setBootWallpaperDeferred === "function") {
+        try { themeEngine.setBootWallpaperDeferred(false); } catch (_e) {}
+      }
+      if (typeof themeEngine.apply === "function") {
+        try { themeEngine.apply(cfg); } catch (_e) {}
+      }
     }
     syncTheme();
     syncHostTitleBarOverlay(cfg, false);
@@ -3758,6 +3770,9 @@ function createStudioPanel(options) {
   function applyThemeFastToHost(appCfg) {
     const cfg = appCfg || state.appearanceDraft;
     if (themeEngine) {
+      if (state.mounted && typeof themeEngine.setBootWallpaperDeferred === "function") {
+        try { themeEngine.setBootWallpaperDeferred(false); } catch (_e) {}
+      }
       try {
         if (typeof themeEngine.applyFast === "function") themeEngine.applyFast(cfg);
         else if (typeof themeEngine.apply === "function") themeEngine.apply(cfg);
@@ -4014,7 +4029,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.0";
+    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.1";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -4061,9 +4076,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "5.5.0" },
+          installed: realU.installed || { version: pluginMeta.version || "5.5.1" },
           remote: {
-            version: pluginMeta.version || "5.5.0",
+            version: pluginMeta.version || "5.5.1",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -4938,13 +4953,20 @@ function createStudioPanel(options) {
     return isAuth;
   }
 
+  function isSendButtonEl(el) {
+    if (!el || typeof el.getAttribute !== "function") return false;
+    if (el.getAttribute("data-rudex-comp-send") === "1") return true;
+    const meta = `${el.getAttribute("data-testid") || ""} ${el.getAttribute("aria-label") || ""} ${el.getAttribute("title") || ""}`;
+    return /\b(?:send|submit|queue|enqueue)\b|отправ|очеред/i.test(meta);
+  }
+
   function findActiveVoiceDictationButton() {
-    if (!doc || typeof doc.querySelector !== "function") return null;
+    if (!doc || typeof doc.querySelectorAll !== "function") return null;
     try {
-      const marked = doc.querySelector('[data-rudex-comp-mic-active="1"]');
-      if (marked && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(marked))) return marked;
-      const actMic = doc.querySelector(
+      const sel =
+        '[data-rudex-comp-mic-active="1"], ' +
         'button[aria-label="Stop recording"], ' +
+        'button[aria-label="Остановить запись"], ' +
         'button[data-tooltip-id="input-send-button-record-tooltip"].bg-red-500, ' +
         'button[aria-pressed="true"][aria-label*="dictat" i], ' +
         'button[aria-pressed="true"][aria-label*="record" i], ' +
@@ -4954,9 +4976,15 @@ function createStudioPanel(options) {
         'button[aria-label*="stop record" i], ' +
         'button[aria-label*="cancel record" i], ' +
         'button[aria-label*="останов" i][aria-label*="запис" i], ' +
-        'button[aria-label*="отмен" i][aria-label*="запис" i]'
-      );
-      if (actMic && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(actMic))) return actMic;
+        'button[aria-label*="отмен" i][aria-label*="запис" i]';
+      const nodes = doc.querySelectorAll(sel);
+      for (let i = 0; nodes && i < nodes.length; i += 1) {
+        const cand = nodes[i];
+        if (!cand) continue;
+        if (hostEl && typeof hostEl.contains === "function" && hostEl.contains(cand)) continue;
+        if (isSendButtonEl(cand)) continue;
+        return cand;
+      }
     } catch (_e) {}
     return null;
   }
@@ -7561,7 +7589,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "verifying" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "5.5.0";
+    const ver = inst.version || pluginMeta.version || "5.5.1";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4068;
     const dynCount = pluginMeta.dynamicRulesCount || 485;
@@ -7923,7 +7951,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.0")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.1")}</span>
               </div>
               <div class="rx-search-wrap">
                 <div class="rx-search-box">
@@ -9682,13 +9710,26 @@ function createStudioPanel(options) {
     return false;
   }
 
-  function stopActiveVoiceDictationIfAny() {
+  function stopActiveVoiceDictationIfAny(opts) {
+    const abortStream = Boolean(opts && opts.abortStream);
+    let stopped = false;
+    if (abortStream && rudexOptimizer && typeof rudexOptimizer.abortVoiceOnSend === "function") {
+      try {
+        rudexOptimizer.abortVoiceOnSend();
+        stopped = true;
+      } catch (_e) {}
+    }
     const activeMic = findActiveVoiceDictationButton();
     if (activeMic && typeof activeMic.click === "function") {
-      try { activeMic.click(); } catch (_e) {}
-      return true;
+      try {
+        activeMic.click();
+        stopped = true;
+      } catch (_e) {}
     }
-    return false;
+    if (stopped && rudexOptimizer && typeof rudexOptimizer.setDictating === "function") {
+      try { rudexOptimizer.setDictating(false); } catch (_e) {}
+    }
+    return stopped;
   }
 
   function countHostUserMessages() {
@@ -9838,7 +9879,7 @@ function createStudioPanel(options) {
       }
       const wasVoiceActive = isVoiceDictationActive();
       if (wasVoiceActive) {
-        stopActiveVoiceDictationIfAny();
+        stopActiveVoiceDictationIfAny({ abortStream: true });
       }
       lastLiveEditSendAt = sendNowMs;
       lastLiveEditSendText = text;
@@ -10876,14 +10917,16 @@ function createStudioPanel(options) {
     });
   }
 
-  function captureAndRecordUserSubmission(container, editable, source) {
+  function captureAndRecordUserSubmission(container, editable, source, submitOpts) {
     if (!editable) return;
+    const sOpts = submitOpts && typeof submitOpts === "object" ? submitOpts : {};
+    const viaStopAndSendButton = Boolean(sOpts.viaStopAndSendButton);
     const chatKey = state.activeChatKey || "__new__";
     const title = state.activeChatTitle || "";
     const snap = collectComposerSnapshotSync(container, editable);
     if (!snap.text.trim() && snap.items.length === 0) return;
 
-    const wasVoiceActive = isVoiceDictationActive();
+    const wasVoiceActive = isVoiceDictationActive() || viaStopAndSendButton;
     const sentText = snap.text;
     const prevMsgSnap = countHostUserMessages();
     const submitToken = ++normalSubmitClearToken;
@@ -10909,10 +10952,12 @@ function createStudioPanel(options) {
     // Schedule delayed post-send sweep ONLY after confirming Antigravity accepted the message
     // (never clear synchronously at t=0 so native Enter/Send sees the prompt text!)
     if (sentText.trim() && win && typeof win.setTimeout === "function") {
-      if (wasVoiceActive) {
+      if (wasVoiceActive && !viaStopAndSendButton) {
         win.setTimeout(() => {
-          if (!state.destroyed && submitToken === normalSubmitClearToken) stopActiveVoiceDictationIfAny();
-        }, 50);
+          if (!state.destroyed && submitToken === normalSubmitClearToken) {
+            stopActiveVoiceDictationIfAny({ abortStream: true });
+          }
+        }, 35);
       }
       const normSentFull = normalizeSpeechText(sentText);
       const isSubmitConfirmed = () => {
@@ -10925,18 +10970,23 @@ function createStudioPanel(options) {
       const isNormalCancelled = () => submitToken !== normalSubmitClearToken || userTypedAfterNormalSubmit || (!wasVoiceActive && isVoiceDictationActive());
       const runConfirmedSweep = (passIdx) => {
         if (state.destroyed || isNormalCancelled()) return;
-        if (!isSubmitConfirmed()) return;
+        const confirmed = isSubmitConfirmed();
+        if (wasVoiceActive && (confirmed || passIdx >= 2)) {
+          stopActiveVoiceDictationIfAny({ abortStream: true });
+        }
+        if (!confirmed) return;
         const curText = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
-        if (!curText || !isResidualOfSentText(curText, sentText, false)) return;
-        if (wasVoiceActive) stopActiveVoiceDictationIfAny();
-        clearEditableRobust(editable, sentText, {
+        if (!curText) return;
+        const isVoiceTrailingGhost = Boolean(wasVoiceActive && !userTypedAfterNormalSubmit && Date.now() - normalSubmitAtMs < 1500);
+        if (!isVoiceTrailingGhost && !isResidualOfSentText(curText, sentText, false)) return;
+        clearEditableRobust(editable, isVoiceTrailingGhost ? curText : sentText, {
           allowRaw: passIdx >= 2,
           forceKeystroke: passIdx >= 1,
           resetComposition: wasVoiceActive,
           isCancelled: isNormalCancelled,
         });
       };
-      const delays = wasVoiceActive ? [180, 420, 800, 1350, 2000] : [220, 550, 1100];
+      const delays = wasVoiceActive ? [110, 260, 520, 950, 1500, 2100] : [220, 550, 1100];
       for (let di = 0; di < delays.length; di += 1) {
         win.setTimeout(() => runConfirmedSweep(di), delays[di]);
       }
@@ -11887,7 +11937,24 @@ function createStudioPanel(options) {
     const nextApp = spCloneAppearance(state.appearanceDraft);
     state.settings.appearance = spCloneAppearance(nextApp);
     state.appearanceDirty = false;
-    invokeIpc("agy-studio:save-settings", { appearance: nextApp });
+    const seq = ++state.settingsSaveSeq;
+    inspectorPendingSaveSeq = seq;
+    inspectorLiveEditUntil = Date.now() + 800;
+    const p = invokeIpc("agy-studio:save-settings", { appearance: nextApp });
+    if (p && typeof p.then === "function") {
+      p.then((res) => {
+        if (seq === inspectorPendingSaveSeq) inspectorPendingSaveSeq = 0;
+        if (state.destroyed || seq !== state.settingsSaveSeq) return;
+        if (res && res.settings) {
+          const sig = computeSettingsStateSig(res);
+          if (sig) state.lastRemoteStateSig = sig;
+        }
+      }, () => {
+        if (seq === inspectorPendingSaveSeq) inspectorPendingSaveSeq = 0;
+      });
+    } else {
+      inspectorPendingSaveSeq = 0;
+    }
   }
   function flushInspectorPersist() {
     if (inspSaveTimer) {
@@ -11899,6 +11966,7 @@ function createStudioPanel(options) {
     }
   }
   function scheduleInspectorPersist() {
+    inspectorLiveEditUntil = Date.now() + 950;
     if (!win || typeof win.setTimeout !== "function") {
       commitInspectorAppearanceQuietly();
       return;
@@ -11909,7 +11977,22 @@ function createStudioPanel(options) {
       if (!state.destroyed) {
         commitInspectorAppearanceQuietly();
       }
-    }, 180);
+    }, 220);
+  }
+  function syncInspectorOffsetInputsInPlace(nextX, nextY) {
+    if (!pickerMountEl || typeof pickerMountEl.querySelector !== "function") return;
+    if (nextX !== undefined) {
+      const rx = pickerMountEl.querySelector('[data-insp-range="offsetX"]');
+      const nx = pickerMountEl.querySelector('[data-insp-num="offsetX"]');
+      if (rx) rx.value = String(nextX);
+      if (nx) nx.value = String(nextX);
+    }
+    if (nextY !== undefined) {
+      const ry = pickerMountEl.querySelector('[data-insp-range="offsetY"]');
+      const ny = pickerMountEl.querySelector('[data-insp-num="offsetY"]');
+      if (ry) ry.value = String(nextY);
+      if (ny) ny.value = String(nextY);
+    }
   }
 
   function selectElementForInspector(el, opts) {
@@ -12305,6 +12388,7 @@ function createStudioPanel(options) {
     if (idx >= 0) list[idx] = item;
     else list.push(item);
     state.appearanceDraft.elementOverrides = list;
+    inspectorLiveEditUntil = Date.now() + 950;
     applyThemeFastToHost(state.appearanceDraft);
     if (o.liveOnly) {
       scheduleInspectorPersist();
@@ -12991,13 +13075,23 @@ function createStudioPanel(options) {
       const delta = Math.round(Number(actionEl.getAttribute("data-delta")) || 0);
       const ov = (state.appearanceDraft.elementOverrides || []).find((o) => o.id === state.pickerSelected.overrideId || o.selector === state.pickerSelected.selector);
       const st = ov && ov.styles ? ov.styles : {};
+      const nowNudge = Date.now();
+      const isRapidBurst = nowNudge - inspectorLastNudgeAt < 450;
+      inspectorLastNudgeAt = nowNudge;
+      if (!isRapidBurst) inspectorDragUndoCaptured = false;
       if (axis === "reset") {
-        upsertSelectedElementStyle("offsetX", 0, { preserveDom: true, liveOnly: true });
-        upsertSelectedElementStyle("offsetY", 0);
+        upsertSelectedElementStyle("offsetX", 0, { preserveDom: true, liveOnly: true, skipUndo: false });
+        upsertSelectedElementStyle("offsetY", 0, { preserveDom: true, liveOnly: true, skipUndo: true });
+        syncInspectorOffsetInputsInPlace(0, 0);
       } else if (axis === "offsetX" || axis === "offsetY") {
         const cur = Number.isFinite(Number(st[axis])) ? Math.round(Number(st[axis])) : 0;
         const nextVal = Math.max(-800, Math.min(800, cur + delta));
-        upsertSelectedElementStyle(axis, nextVal);
+        upsertSelectedElementStyle(axis, nextVal, { preserveDom: true, liveOnly: true, skipUndo: isRapidBurst });
+        if (axis === "offsetX") syncInspectorOffsetInputsInPlace(nextVal, undefined);
+        else syncInspectorOffsetInputsInPlace(undefined, nextVal);
+      }
+      if (win && typeof win.requestAnimationFrame === "function") {
+        win.requestAnimationFrame(() => updateInspectorMatchBoxesFast());
       }
       return;
     }
@@ -16652,14 +16746,15 @@ function createStudioPanel(options) {
         const lbl = String(btn.getAttribute("aria-label") || btn.getAttribute("title") || "").toLowerCase();
         const typeAttr = String(btn.getAttribute("type") || "").toLowerCase();
         const meta = tid + " " + lbl;
-        const isCancelBtn = tid === "input-cancel-button" || tid === "cancel-invocation-button" || /^(?:cancel|abort|stop|останов|прерв|отмен)/i.test(lbl);
-        if (isCancelBtn) return;
         const hasSendAttr = btn.getAttribute("data-rudex-comp-send") === "1";
         const hasSendWord = /\b(?:send|submit|queue|enqueue)\b|отправ|очеред/i.test(meta);
+        const isCancelBtn = !hasSendWord && (tid === "input-cancel-button" || tid === "cancel-invocation-button" || /^(?:cancel|abort|stop|останов|прерв|отмен)/i.test(lbl));
+        if (isCancelBtn) return;
         if (!hasSendAttr && !hasSendWord && /cancel|abort|отмен|model|mode|attach|upload|plus|add|remove|delete|close|удал|закры/.test(meta)) return;
         if (!hasSendAttr && !hasSendWord && /mic|voice|dictat|record|stop|останов/.test(meta)) return;
         const looksSend = hasSendAttr || typeAttr === "submit" || hasSendWord;
         if (!looksSend) return;
+        const viaStopAndSendButton = Boolean(hasSendWord && /stop|record|dictat|останов|запис|диктов/i.test(meta));
         if (!isPointerPhase && Date.now() - lastLiveSendInterceptAt < 450) {
           e.__rudexSendHandled = true;
           if (typeof e.preventDefault === "function") e.preventDefault();
@@ -16681,7 +16776,7 @@ function createStudioPanel(options) {
           sendInlineLiveEditFromComposer();
         } else if (!isPointerPhase && !runningNow) {
           e.__rudexSendHandled = true;
-          captureAndRecordUserSubmission(container, editable, "chat");
+          captureAndRecordUserSubmission(container, editable, "chat", { viaStopAndSendButton });
         }
       };
       composerSendPointerHandler = (e) => handleComposerSendTrigger(e, true);
@@ -17055,6 +17150,9 @@ function createStudioPanel(options) {
     attachDomEvents();
     state.mounted = true;
     state.hydrationIgnoreUntil = nowHiRes() + 2500;
+    if (themeEngine && typeof themeEngine.setBootWallpaperDeferred === "function") {
+      try { themeEngine.setBootWallpaperDeferred(false); } catch (_e) {}
+    }
     const bootOpt = ensureRudexOptimizer();
     if (bootOpt) bootOpt.apply(state.settings.optimization, state.locale);
     renderStructure();
@@ -17221,6 +17319,9 @@ function createStudioPanel(options) {
           translator.setGreetingConfig(state.settings.greeting);
         }
       } catch (_e) {}
+    }
+    if (themeEngine && typeof themeEngine.setBootWallpaperDeferred === "function") {
+      try { themeEngine.setBootWallpaperDeferred(!state.mounted && !isAntigravityUiReady()); } catch (_e) {}
     }
     applyThemeToHost(state.settings.appearance);
     try {
@@ -17867,6 +17968,7 @@ function createStudioPanel(options) {
     handleHotkeyAction,
     startElementPicker,
     stopElementPicker,
+    selectElementForInspector,
     openAnnotator,
     applyLiveEditsUpdate,
     applyQuotaSummary,

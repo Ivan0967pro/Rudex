@@ -422,7 +422,7 @@ test("Manifest & hooks.json follow Rudex v5.0 safe hook architecture (no global 
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "5.5.0");
+  assert.equal(pkg.version, "5.5.1");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "agy-workshop.js")), "agy-workshop.js must exist");
@@ -3113,7 +3113,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v5.5.0"), "install.ps1 banner must show v5.5.0");
+  assert.ok(ps1Text.includes("Rudex v5.5.1"), "install.ps1 banner must show v5.5.1");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -7451,12 +7451,14 @@ test("Inspector v5.0.4: split paddingY/X, offset move/nudge, CSS Color 4/srgb, e
       assert.equal(ov.styles.bgColor, "#112233");
       assert.equal(ov.styles.bgOpacity, 50);
 
-      // Nudge Y -4 twice -> -8, then reset -> 0
+      // Nudge Y -4 twice -> -8 (debounced cleanly in v5.5.1 to prevent rapid-click lag/snapback), then reset -> 0
       dispatchClick({ action: "inspector-nudge-offset", axis: "offsetY", delta: "-4" });
       dispatchClick({ action: "inspector-nudge-offset", axis: "offsetY", delta: "-4" });
+      await new Promise((r) => setTimeout(r, 260));
       ov = savedPatch.appearance.elementOverrides[0];
       assert.equal(ov.styles.offsetY, -8);
       dispatchClick({ action: "inspector-nudge-offset", axis: "reset", delta: "0" });
+      await new Promise((r) => setTimeout(r, 260));
       ov = savedPatch.appearance.elementOverrides[0];
       assert.equal(ov.styles.offsetY, 0);
     } finally {
@@ -11591,14 +11593,14 @@ test("Force-close composer drafts: Main-World detached file/drop capture, zero-w
   }
 });
 
-test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.0): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
+test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.1): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
   const fsLocal = require("fs");
   const osLocal = require("os");
   const Module = require("module");
 
   // 1) Version consistency check across plugin.json & installers
   const pkg = JSON.parse(fsLocal.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
-  assert.equal(pkg.version, "5.5.0", "plugin.json must be bumped to 5.5.0");
+  assert.equal(pkg.version, "5.5.1", "plugin.json must be bumped to 5.5.1");
 
   // 2) Full legacy v4.x + v5.0.x settings, quota, and drafts migration test
   const tmpDir = fsLocal.mkdtempSync(path.join(osLocal.tmpdir(), "rudex-upgrade-55-"));
@@ -11736,5 +11738,284 @@ test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.0): preserves every user
   } finally {
     Module._load = origLoad;
     fsLocal.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("v5.5.1 fixes: deferred startup wallpaper (no full-screen boot flash), zero empty agent-response strip, clean voice-send stop/clear, and lag-free non-snapback inspector nudges", async () => {
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const teMod = require(path.join(RES_DIR, "theme-engine.js"));
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const { findNativeDictationButton, buildMainWorldVoicePatchScript } = require(path.join(RES_DIR, "rudex-optimizer.js"));
+  const sampleWpDataUrl = "rudex-media://local/rem.png";
+
+  // 1) Startup wallpaper must stay hidden (#rudex-bg[data-boot-hidden="1"]) while React root is empty on HTTP boot,
+  //    then reveal atomically once Antigravity's real layout (sidebar + composer) mounts!
+  {
+    const { doc, win } = createMockDom();
+    win.location = { protocol: "http:", href: "http://127.0.0.1:4242/", pathname: "/", search: "", hash: "" };
+    const rootDiv = doc.createElement("div");
+    rootDiv.id = "root";
+    doc.body.appendChild(rootDiv);
+    const te = createThemeEngine({ document: doc, window: win });
+    const panel = createStudioPanel({
+      document: doc,
+      window: win,
+      ipcRenderer: { invoke: async () => ({ ok: true }), on: () => {}, removeListener: () => {} },
+      telemetryEngine: createTelemetryEngine(),
+      translator: createDomTranslator({ document: doc, window: win }),
+      themeEngine: te,
+      buildStyles: buildStudioStyles,
+      initialBoot: {
+        appearance: {
+          presetId: "native",
+          wallpaper: { type: "image", mediaUrl: sampleWpDataUrl, dim: 35, opacity: 90 },
+        },
+      },
+    });
+    try {
+      panel.bootEarlyTheme();
+      const styleEl = doc.getElementById("rudex-studio-theme");
+      assert.ok(styleEl && styleEl.textContent.includes('#rudex-bg[data-boot-hidden="1"]'), "Wallpaper CSS must include boot-hidden rule");
+      const bg = doc.getElementById("rudex-bg");
+      assert.ok(bg, "#rudex-bg should preload in DOM");
+      assert.equal(bg.getAttribute("data-boot-hidden"), "1", "Wallpaper must stay hidden while Antigravity UI is not yet mounted (prevents full-screen boot flash)");
+      assert.equal(te.isBootWallpaperDeferred(), true);
+
+      // Now mount sidebar + composer -> UI becomes ready and init() reveals wallpaper atomically!
+      const aside = doc.createElement("aside");
+      const ed = doc.createElement("div");
+      ed.setAttribute("contenteditable", "true");
+      rootDiv.appendChild(aside);
+      rootDiv.appendChild(ed);
+      panel.init();
+      assert.equal(bg.getAttribute("data-boot-hidden"), null, "Wallpaper must reveal immediately once Antigravity UI mounts");
+      assert.equal(te.isBootWallpaperDeferred(), false);
+    } finally {
+      panel.destroy();
+    }
+  }
+
+  // 2) Empty [data-testid="agent-response"] before agent prints any text must get data-rudex-empty-response="1"
+  //    and strip glass card/border/padding CSS; the instant text or an image arrives, attribute clears!
+  {
+    const { doc, win } = createMockDom();
+    const emptyResp = doc.createElement("div");
+    emptyResp.setAttribute("data-testid", "agent-response");
+    const emptyMd = doc.createElement("div");
+    emptyMd.setAttribute("data-markdown-root", "");
+    emptyMd.textContent = "   \u200B  ";
+    emptyResp.appendChild(emptyMd);
+    doc.body.appendChild(emptyResp);
+
+    const imgOnlyResp = doc.createElement("div");
+    imgOnlyResp.setAttribute("data-testid", "agent-response");
+    const imgNode = doc.createElement("img");
+    imgNode.setAttribute("src", sampleWpDataUrl);
+    imgOnlyResp.appendChild(imgNode);
+    doc.body.appendChild(imgOnlyResp);
+
+    const te = createThemeEngine({ document: doc, window: win });
+    try {
+      te.apply({
+        presetId: "native",
+        wallpaper: { type: "image", mediaUrl: sampleWpDataUrl, dim: 35, opacity: 90 },
+      });
+      const css = doc.getElementById("rudex-studio-theme").textContent;
+      assert.ok(css.includes('[data-testid="agent-response"][data-rudex-empty-response="1"]'), "Theme CSS must hide empty agent-response card/border/padding");
+      assert.equal(emptyResp.getAttribute("data-rudex-empty-response"), "1", "Whitespace-only pre-output agent-response must be marked empty");
+      assert.equal(imgOnlyResp.getAttribute("data-rudex-empty-response"), null, "Image-only agent-response must NOT be marked empty");
+
+      // Agent starts printing text -> card activates cleanly!
+      emptyMd.textContent = "Привет!";
+      te.syncEmptyAgentResponsesNow();
+      assert.equal(emptyResp.getAttribute("data-rudex-empty-response"), null, "Non-empty agent-response must clear data-rudex-empty-response immediately");
+    } finally {
+      te.destroy();
+    }
+  }
+
+  // 3) Voice dictation + Send:
+  //    3a) "Stop Recording and Send" / "Остановить запись и отправить" must NEVER be matched as active mic button
+  //    3b) Main-world abort-on-send cancels Sherpa-ONNX cleanly, delivers complete+end with ZERO re-injected text, and swallows late partial/final replies
+  {
+    const { doc } = createMockDom();
+    const stopAndSendBtn = doc.createElement("button");
+    stopAndSendBtn.setAttribute("aria-label", "Остановить запись и отправить");
+    doc.body.appendChild(stopAndSendBtn);
+    assert.equal(findNativeDictationButton(doc), null, "findNativeDictationButton must NEVER match 'Остановить запись и отправить'");
+
+    const stopAndSendEn = doc.createElement("button");
+    stopAndSendEn.setAttribute("aria-label", "Stop Recording and Send");
+    doc.body.appendChild(stopAndSendEn);
+    assert.equal(findNativeDictationButton(doc), null, "findNativeDictationButton must NEVER match 'Stop Recording and Send'");
+
+    const realStopMic = doc.createElement("button");
+    realStopMic.setAttribute("aria-label", "Остановить запись");
+    doc.body.appendChild(realStopMic);
+    const foundMic = findNativeDictationButton(doc);
+    assert.ok(foundMic && foundMic.button === realStopMic && foundMic.active === true, "findNativeDictationButton must return only the genuine stop-recording mic button");
+
+    // Test Main-World abort-on-send protocol in isolated VM sandbox
+    const vm = require("vm");
+    const msgHandlers = [];
+    const postedToPreload = [];
+    const wsSentRaw = [];
+    class FakeWS {
+      constructor(url) {
+        this.url = url;
+        this._listeners = {};
+      }
+      addEventListener(t, fn) { (this._listeners[t] = this._listeners[t] || []).push(fn); }
+      send(d) { wsSentRaw.push(d); }
+      get onmessage() { return this._onmsg; }
+      set onmessage(fn) { this._onmsg = fn; }
+    }
+    const sandboxWin = {
+      WebSocket: FakeWS,
+      MessageEvent: function MessageEvent(type, init) { this.type = type; this.data = init && init.data; },
+      CustomEvent: function CustomEvent(type, init) { this.type = type; this.detail = init && init.detail; },
+      dispatchEvent: () => {},
+      addEventListener: (t, fn) => { if (t === "message") msgHandlers.push(fn); },
+      postMessage: (data) => { postedToPreload.push(data); },
+      location: { pathname: "/", search: "", hash: "" },
+      navigator: {},
+    };
+    const vmCtx = vm.createContext(sandboxWin);
+    vm.runInContext("this.window = this;", vmCtx);
+    const scriptSrc = buildMainWorldVoicePatchScript({
+      voiceEnabled: true,
+      localVoiceActive: true,
+      voiceLocalModel: "ru-fast",
+      voiceTextCleanup: true,
+      languages: ["ru-RU"],
+    });
+    vm.runInContext(scriptSrc, vmCtx);
+
+    const ws = new vmCtx.WebSocket("ws://127.0.0.1:4242/connect-websocket");
+    const delivered = [];
+    ws.onmessage = (ev) => delivered.push(JSON.parse(ev.data));
+    // Start local dictation stream
+    ws.send(JSON.stringify({ type: "start", streamId: "st-1", procedure: "StreamAudioTranscription", payload: {} }));
+    await new Promise((r) => setTimeout(r, 5));
+    const startCmd = postedToPreload.find((m) => m.__rudexVoice === "local-cmd" && m.payload && m.payload.cmd === "start");
+    assert.ok(startCmd, "Local dictation start must emit local-cmd start");
+    const sid = startCmd.payload.sessionId;
+
+    // Trigger abort-on-send!
+    for (const h of msgHandlers) h({ source: vmCtx.window, data: { __rudexVoice: "abort-on-send", payload: { ts: Date.now() } } });
+    const cancelCmd = postedToPreload.find((m) => m.__rudexVoice === "local-cmd" && m.payload && m.payload.cmd === "cancel" && m.payload.sessionId === sid);
+    assert.ok(cancelCmd, "abort-on-send must immediately cancel active Sherpa-ONNX session");
+    const completeMsg = delivered.find((m) => m.streamId === "st-1" && m.payload && m.payload.complete);
+    const endMsg = delivered.find((m) => m.streamId === "st-1" && m.type === "end");
+    const leakedTxt = delivered.find((m) => m.streamId === "st-1" && m.payload && m.payload.transcription);
+    assert.ok(completeMsg && endMsg, "abort-on-send must close Antigravity's stream cleanly with complete+end");
+    assert.equal(leakedTxt, undefined, "abort-on-send must NOT inject any transcription text back into cleared composer");
+
+    // Late final reply from Sherpa after cancel must be dropped completely
+    for (const h of msgHandlers) h({ source: vmCtx.window, data: { __rudexVoice: "local-reply", payload: { type: "final", sessionId: sid, streamId: "st-1", text: "хвост текста" } } });
+    assert.equal(delivered.filter((m) => m.payload && m.payload.transcription).length, 0, "Late local-reply after abort-on-send must be dropped");
+
+    // Late EndAudioSession for rudex-local-* after cancel must NOT leak to real backend WebSocket
+    const rawCountBefore = wsSentRaw.length;
+    ws.send(JSON.stringify({ type: "start", streamId: "st-end", procedure: "EndAudioSession", payload: { sessionId: sid } }));
+    assert.equal(wsSentRaw.length, rawCountBefore, "Late EndAudioSession for cancelled rudex-local-* session must stay local and never leak to server");
+  }
+
+  // 4) Element Inspector rapid D-pad nudges:
+  //    - Zero innerHTML rebuild (inspector DOM preserved across 10 rapid clicks!)
+  //    - Debounced IPC (no 10x disk-write flood)
+  //    - Stale remote applyRemoteState echo NEVER snaps offsetX backwards!
+  {
+    const { doc, win } = createMockDom();
+    const prevV5 = {
+      rv5BuildElementInspectorHtml: globalThis.rv5BuildElementInspectorHtml,
+      rv5BuildSmartSelector: globalThis.rv5BuildSmartSelector,
+      rv5DescribeElementFriendly: globalThis.rv5DescribeElementFriendly,
+      rv5IsRenameSafeElement: globalThis.rv5IsRenameSafeElement,
+      teBuildElementOverridesCss: globalThis.teBuildElementOverridesCss,
+      normalizeAppearance: globalThis.normalizeAppearance,
+      teResolveFontStack: globalThis.teResolveFontStack,
+    };
+    globalThis.rv5BuildElementInspectorHtml = v5Ui.rv5BuildElementInspectorHtml;
+    globalThis.rv5BuildSmartSelector = v5Core.rv5BuildSmartSelector;
+    globalThis.rv5DescribeElementFriendly = v5Core.rv5DescribeElementFriendly;
+    globalThis.rv5IsRenameSafeElement = v5Core.rv5IsRenameSafeElement;
+    globalThis.teBuildElementOverridesCss = teMod.teBuildElementOverridesCss;
+    globalThis.normalizeAppearance = teMod.normalizeAppearance;
+    globalThis.teResolveFontStack = teMod.teResolveFontStack;
+
+    const targetBox = doc.createElement("div");
+    targetBox.id = "demo-move-card";
+    targetBox.textContent = "Card";
+    doc.body.appendChild(targetBox);
+
+    const saveCalls = [];
+    const panel = createStudioPanel({
+      document: doc,
+      window: win,
+      ipcRenderer: {
+        invoke: async (ch, payload) => {
+          if (ch === "agy-studio:save-settings") {
+            saveCalls.push(JSON.parse(JSON.stringify(payload)));
+            return { ok: true, settings: payload };
+          }
+          return { ok: true };
+        },
+        on: () => {},
+        removeListener: () => {},
+      },
+      telemetryEngine: createTelemetryEngine(),
+      translator: createDomTranslator({ document: doc, window: win }),
+      themeEngine: createThemeEngine({ document: doc, window: win }),
+      buildStyles: buildStudioStyles,
+    });
+    try {
+      panel.init();
+      panel.selectElementForInspector(targetBox);
+      const shadow = doc.getElementById("rudex-studio-host").shadowRoot;
+      const rootEl = shadow.querySelector(".studio-root");
+      const pickerMount = shadow.querySelector(".rx-picker-mount");
+      assert.ok(pickerMount.innerHTML.includes('data-action="inspector-nudge-offset"'), "Inspector D-pad markup must render");
+
+      const sentinel = doc.createElement("span");
+      sentinel.id = "rx-dom-preserve-sentinel";
+      pickerMount.appendChild(sentinel);
+
+      const rightBtn = doc.createElement("button");
+      rightBtn.setAttribute("data-action", "inspector-nudge-offset");
+      rightBtn.setAttribute("data-axis", "offsetX");
+      rightBtn.setAttribute("data-delta", "4");
+      rootEl.appendChild(rightBtn);
+
+      // Rapidly click right arrow 10 times (4 -> 40px)
+      for (let i = 0; i < 10; i += 1) {
+        rootEl.dispatchEvent({ type: "click", target: rightBtn });
+      }
+      assert.ok(pickerMount.children.includes(sentinel), "Rapid D-pad nudges must preserve inspector DOM (zero innerHTML rebuild lag)");
+      assert.equal(saveCalls.length, 0, "Rapid D-pad nudges must debounce IPC persistence instead of flooding 10 disk writes");
+
+      // Simulate stale remote broadcast echo with offsetX=4 arriving mid-burst!
+      panel.applyRemoteState({
+        settings: {
+          appearance: {
+            presetId: "native",
+            elementOverrides: [{ id: "stale", selector: "#demo-move-card", enabled: true, styles: { offsetX: 4, offsetY: 0 } }],
+          },
+        },
+      }, false);
+
+      // Flush debounce timer and verify final persisted offsetX is STILL 40 (never snapped back to 4!)
+      await new Promise((r) => setTimeout(r, 270));
+      assert.equal(saveCalls.length, 1, "Debounced burst of 10 rapid clicks must coalesce into 1 clean save");
+      const savedOv = saveCalls[0].appearance.elementOverrides.find((o) => o.selector === "#demo-move-card");
+      assert.ok(savedOv && savedOv.styles.offsetX === 40, `Expected offsetX=40 without snapback, got ${savedOv && savedOv.styles.offsetX}`);
+    } finally {
+      panel.destroy();
+      Object.assign(globalThis, prevV5);
+    }
   }
 });
