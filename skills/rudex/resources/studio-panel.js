@@ -19,7 +19,7 @@ if (typeof createScreenshotAnnotator === "undefined" && typeof require === "func
 
 const MAX_PERSONA_BODY_BYTES = 23000;
 const DOCK_POSITIONS = ["inline-header", "top-left", "top-right", "bottom-right", "bottom-left", "middle-right", "hidden"];
-const MINI_FIELD_KEYS = ["status", "lang", "tps", "respTokens", "chatTokens", "model", "quota"];
+const MINI_FIELD_KEYS = ["status", "lang", "tps", "respTokens", "chatTokens", "model", "quota", "exportBtn"];
 const DEFAULT_MINI_FIELDS = {
   status: true,
   lang: true,
@@ -28,6 +28,7 @@ const DEFAULT_MINI_FIELDS = {
   chatTokens: false,
   model: false,
   quota: false,
+  exportBtn: false,
 };
 
 const CURATED_ACCENTS = ["#d97757", "#c15f3c", "#788c5d", "#6a9bcc", "#3b82f6", "#10b981", "#f59e0b", "#e11d48", "#8b5cf6"];
@@ -462,6 +463,7 @@ const TEXT = {
     fieldChat: "Контекст чата",
     fieldModel: "Название модели",
     fieldQuota: "Лимиты (Нед. / 5ч)",
+    fieldExportBtn: "Кнопка «Скачать контекст»",
     dockTitle: "Позиция на экране",
     pinLockLabel: "Закрепить виджет",
     pinLockDesc: "Фиксирует позицию; в закреплённом виде долго удерживайте (~0.5 с) и потяните, чтобы изменить масштаб (клик открывает Rudex)",
@@ -874,6 +876,7 @@ const TEXT = {
     fieldChat: "Chat context",
     fieldModel: "Model name",
     fieldQuota: "Quota (Wk / 5h)",
+    fieldExportBtn: "Download Context button",
     dockTitle: "Position",
     pinLockLabel: "Lock widget in place",
     pinLockDesc: "Locks position; when pinned, hold and drag the widget to scale it (click opens Rudex)",
@@ -1051,6 +1054,7 @@ function normalizeMiniFields(raw) {
     chatTokens: src.chatTokens === true,
     model: src.model === true,
     quota: src.quota === true,
+    exportBtn: src.exportBtn === true,
   };
 }
 
@@ -1722,7 +1726,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "5.5.4", dictEntries: 4068, dynamicRulesCount: 485 };
+    : { version: "5.5.5", dictEntries: 4068, dynamicRulesCount: 485 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1845,12 +1849,42 @@ function createStudioPanel(options) {
       }
     });
   }
+  function formatLocalVoiceProgressLabel(lvObj, isRu) {
+    const pct = Math.max(0, Math.min(100, Math.round(Number(lvObj && lvObj.progressPct) || 0)));
+    let msg = String((lvObj && lvObj.progressMsg) || "");
+    if (isRu && msg) {
+      msg = msg
+        .replace(/^Extracting Sherpa-ONNX\.{0,3}$/i, "Распаковка движка Sherpa-ONNX…")
+        .replace(/^Extracting speech model\.{0,3}$/i, "Распаковка речевой модели…")
+        .replace(/^Local instant voice engine ready$/i, "Локальный голос готов")
+        .replace(/\bMB\/s\b/g, "МБ/с")
+        .replace(/\bMB\b/g, "МБ");
+    }
+    return msg ? `${pct}% · ${msg}` : `${pct}%`;
+  }
   function applyLocalVoiceProgress(prog) {
     if (state.destroyed || !state.localVoice || !prog || typeof prog !== "object") return;
-    state.localVoice.installing = prog.stage !== "done";
+    const wasInstalling = Boolean(state.localVoice.installing);
+    const nextInstalling = prog.stage !== "done";
+    state.localVoice.installing = nextInstalling;
     state.localVoice.progressPct = Math.max(0, Math.min(100, Math.round(Number(prog.pct) || 0)));
     state.localVoice.progressMsg = String(prog.message || "");
     if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "optimization") {
+      // Surgical in-place DOM update during active download — ZERO full-modal rebuild, ZERO window shake!
+      if (wasInstalling && nextInstalling && modalMountEl && typeof modalMountEl.querySelector === "function") {
+        const fillEl = modalMountEl.querySelector('[data-role="lvProgressFill"]');
+        const statusEl = modalMountEl.querySelector('[data-role="lvStatusText"]');
+        const btnEl = modalMountEl.querySelector('[data-role="lvInstallBtn"]');
+        if (fillEl && statusEl) {
+          const isRu = state.locale !== "en";
+          fillEl.style.width = `${state.localVoice.progressPct}%`;
+          statusEl.textContent = formatLocalVoiceProgressLabel(state.localVoice, isRu);
+          if (btnEl) {
+            btnEl.textContent = isRu ? `Загрузка ${state.localVoice.progressPct}%…` : `Downloading ${state.localVoice.progressPct}%…`;
+          }
+          return;
+        }
+      }
       renderStructure();
     }
   }
@@ -2024,8 +2058,11 @@ function createStudioPanel(options) {
       includeFullLog: false,
     },
     exportBusy: false,
+    exportJustDone: false,
     exportResult: null,
     exportError: "",
+    lastOverlayDodgeSig: "",
+    lastOverlayCheckAt: 0,
     draftPersonaText: "",
     draftDirty: false,
     newPresetName: "",
@@ -2064,6 +2101,10 @@ function createStudioPanel(options) {
   let rootEl = null;
   let widgetMountEl = null;
   let popoverMountEl = null;
+  let exportDoneTimer = null;
+  let overlayDodgeTimer = null;
+  let docOverlayClickHandler = null;
+  let modalRenderedOpen = false;
   let updateToastMountEl = null;
   let modalMountEl = null;
   let limitsMountEl = null;
@@ -4037,7 +4078,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.4";
+    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.5";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -4084,9 +4125,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "5.5.4" },
+          installed: realU.installed || { version: pluginMeta.version || "5.5.5" },
           remote: {
-            version: pluginMeta.version || "5.5.4",
+            version: pluginMeta.version || "5.5.5",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -5076,6 +5117,10 @@ function createStudioPanel(options) {
       try { themeEngine.syncEmptyAgentResponsesNow(); } catch (_e) {}
     }
     syncChatDockLiveState();
+    if (!dictatingNow && now - (state.lastOverlayCheckAt || 0) > 350) {
+      state.lastOverlayCheckAt = now;
+      syncNativeOverlayDodgeIfChanged();
+    }
     if (!dictatingNow && now - (state.lastHostMetricsAt || 0) > 900) {
       state.lastHostMetricsAt = now;
       const hm = measureHostUiMetrics();
@@ -5171,6 +5216,17 @@ function createStudioPanel(options) {
       const qd = getActiveChatQuotaDisplay();
       chips.push(`<span class="metric-chip is-muted num" data-live="quotaMini">${escHtml(qd.miniText)}</span>`);
     }
+    if (mf.exportBtn) {
+      const expLbl = state.exportBusy
+        ? "…"
+        : (state.exportJustDone ? "✓" : (state.locale !== "en" ? "Контекст" : "Context"));
+      const expTip = state.locale !== "en" ? "Скачать контекст чата (ZIP)" : "Download chat context (ZIP)";
+      if (isPreview) {
+        chips.push(`<span class="mini-export-btn">${iconSvg("download", 11)}${escHtml(expLbl)}</span>`);
+      } else {
+        chips.push(`<button type="button" class="mini-export-btn" ${state.exportBusy ? "disabled" : ""} data-action="export-chat-zip" data-choose="0" data-no-drag="1" title="${escAttr(expTip)}">${iconSvg("download", 11)}${escHtml(expLbl)}</button>`);
+      }
+    }
 
     if (chips.length === 0) {
       chips.push(`<span class="status-chip"><span class="status-dot${tel.isGenerating ? " is-live" : ""}" data-live="dot"></span>Rudex</span>`);
@@ -5261,6 +5317,16 @@ function createStudioPanel(options) {
           <div class="med-quota-card">
             <span>${escHtml(tr.quotaSectionTitle)}</span>
             <span class="num med-quota-val" style="color:var(--rx-theme-fg-strong, var(--rx-fg-strong));font-weight:600" data-live="quotaMed">${escHtml(getActiveChatQuotaDisplay().miniText)}</span>
+          </div>
+          <div class="med-export-row">
+            ${isPreview
+              ? `<span class="med-export-btn">${iconSvg("download", 12)}${escHtml(state.locale !== "en" ? "Скачать контекст чата" : "Download chat context")}</span>
+                 <span class="icon-btn">${iconSvg("sliders", 12)}</span>`
+              : `<button type="button" class="med-export-btn${state.exportJustDone ? " is-done" : ""}" ${state.exportBusy ? "disabled" : ""} data-action="export-chat-zip" data-choose="0" data-no-drag="1" title="${escAttr(state.locale !== "en" ? "Скачать весь контекст текущего чата в ZIP (Загрузки)" : "Download current chat context as ZIP (Downloads)")}">
+                   ${iconSvg(state.exportJustDone ? "check" : "download", 12)}
+                   <span>${escHtml(state.exportBusy ? tr.exportBusy : (state.exportJustDone ? (state.locale !== "en" ? "Контекст сохранён ✓" : "Context saved ✓") : (state.locale !== "en" ? "Скачать контекст чата" : "Download chat context")))}</span>
+                 </button>
+                 <button type="button" class="icon-btn" data-action="open-export-limits" data-no-drag="1" title="${escAttr(state.locale !== "en" ? "Параметры экспорта и таблица квот" : "Export options & quota table")}">${iconSvg("sliders", 12)}</button>`}
           </div>
           <div class="med-footer">
             <span class="med-model-tag" data-live="model" title="${escAttr(tel.modelName || tr.modelUnknown)}">${escHtml(tel.modelName || "—")}</span>
@@ -6993,7 +7059,7 @@ function createStudioPanel(options) {
     ];
     const effectiveEngine = opt.voiceEngine === "cloud" ? "cloud" : "auto";
     const lvStatusText = lv.installing
-      ? (lv.progressMsg ? `${lv.progressPct}% · ${lv.progressMsg}` : `${lv.progressPct}%`)
+      ? formatLocalVoiceProgressLabel(lv, isRu)
       : (lvInstalled
         ? (lvRunning
           ? (isRu ? `Локальный сервер активен (порт ${lvSt.port}) · финализация ~8 мс` : `Local server warm (port ${lvSt.port}) · ~8 ms finalize`)
@@ -7034,11 +7100,11 @@ function createStudioPanel(options) {
                 <div class="opt-model-head">
                   <div class="row-info">
                     <span class="row-title">${isRu ? "Модель голосового ввода по умолчанию" : "Default Voice Input Model"}</span>
-                    <span class="opt-model-status${lvInstalled ? " is-ready" : ""}">${escHtml(lvStatusText)}</span>
+                    <span class="opt-model-status${lvInstalled ? " is-ready" : ""}" data-role="lvStatusText">${escHtml(lvStatusText)}</span>
                   </div>
-                  <button type="button" class="btn btn-sm${lvInstalled ? "" : " btn-primary"}" ${lv.installing ? "disabled" : ""} data-action="install-local-voice" data-model="${escAttr(lvModel)}">${escHtml(lv.installing ? (isRu ? `Загрузка ${lv.progressPct}%…` : `Downloading ${lv.progressPct}%…`) : (lvInstalled ? (isRu ? "Активна · Прогреть" : "Active · Warm Up") : (isRu ? `Скачать (${activeModelInfo.sizeMb} МБ)` : `Download (${activeModelInfo.sizeMb} MB)`)))}</button>
+                  <button type="button" class="btn btn-sm${lvInstalled ? "" : " btn-primary"}" data-role="lvInstallBtn" ${lv.installing ? "disabled" : ""} data-action="install-local-voice" data-model="${escAttr(lvModel)}">${escHtml(lv.installing ? (isRu ? `Загрузка ${lv.progressPct}%…` : `Downloading ${lv.progressPct}%…`) : (lvInstalled ? (isRu ? "Активна · Прогреть" : "Active · Warm Up") : (isRu ? `Скачать (${activeModelInfo.sizeMb} МБ)` : `Download (${activeModelInfo.sizeMb} MB)`)))}</button>
                 </div>
-                ${lv.installing ? `<div class="opt-progress-track"><div class="opt-progress-fill" style="width:${lv.progressPct}%"></div></div>` : ""}
+                ${lv.installing ? `<div class="opt-progress-track" data-role="lvProgressTrack"><div class="opt-progress-fill" data-role="lvProgressFill" style="width:${lv.progressPct}%"></div></div>` : ""}
                 ${lv.error ? `<div class="row-desc" style="color:var(--rx-danger)">${escHtml(lv.error)}</div>` : ""}
                 <div class="opt-model-grid">
                   ${lvModels.map((m) => {
@@ -7320,6 +7386,7 @@ function createStudioPanel(options) {
       { key: "chatTokens", title: tr.fieldChat },
       { key: "model", title: tr.fieldModel },
       { key: "quota", title: tr.fieldQuota },
+      { key: "exportBtn", title: tr.fieldExportBtn },
     ];
     const docks = [
       { id: "inline-header", label: tr.dockInlineHeader },
@@ -7629,7 +7696,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "verifying" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "5.5.4";
+    const ver = inst.version || pluginMeta.version || "5.5.5";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4068;
     const dynCount = pluginMeta.dynamicRulesCount || 485;
@@ -7768,7 +7835,7 @@ function createStudioPanel(options) {
       { k: "прицел элемент цвет размер переимен скрыть проекты сайдбар зоны расположение сдвиг двигать область рамка группа picker inspector rename override zones position offset marquee region", label: isRu ? "Прицел, область и расположение элементов" : "Element Picker, Region & Positioning", path: isRu ? "Оформление → Элементы" : "Appearance → Elements", tab: "appearance", appSub: "elements" },
       { k: "лимит квот экран 5ч недел уведомлен восстановлен закрыт автопродолжен продолж quota limit bar notify alert reset auto continue resume", label: isRu ? "Лимиты, уведомления о сбросе и автопродолжение" : "Limits, Reset Notifications & Auto-Continue", path: isRu ? "Виджеты → Лимиты" : "Widgets → Limits", tab: "widgets", widgetSub: "limits" },
       { k: "мини окно виджет капсул tps плавающ закреп mini widget capsule dock", label: isRu ? "Мини-окно (TPS) и расположение" : "Mini Widget (TPS) & Placement", path: isRu ? "Виджеты → Мини-окно" : "Widgets → Mini", tab: "widgets", widgetSub: "mini" },
-      { k: "монитор tps график экспорт zip архив чат квот monitor export archive", label: isRu ? "Монитор TPS и экспорт чата в ZIP" : "TPS Monitor & Chat ZIP Export", path: isRu ? "Виджеты → Монитор" : "Widgets → Monitor", tab: "widgets", widgetSub: "monitor" },
+      { k: "монитор tps график экспорт скачать контекст чата zip архив чат квот monitor export download chat context archive", label: isRu ? "Скачать контекст чата (ZIP) и монитор TPS" : "Download Chat Context (ZIP) & TPS Monitor", path: isRu ? "Виджеты → Монитор и Экспорт" : "Widgets → Monitor & Export", tab: "widgets", widgetSub: "monitor" },
       { k: "инструмент субагент тумблер браузер поиск на лету правк контекст модел tool subagent browser live edit context window", label: isRu ? "Инструменты агента, контекст и правки на лету" : "Agent Tools, Context Meter & Live Edits", path: isRu ? "Агент → Инструменты" : "Agent → Tools", tab: "persona", agentSub: "tools" },
       { k: "характер персона промпт инструкц agents.md persona system prompt", label: isRu ? "Характер агента (для текущего чата)" : "Chat Agent Persona", path: isRu ? "Агент → Характер" : "Agent → Persona", tab: "persona", agentSub: "persona" },
       { k: "пресет режим агент preset mode", label: isRu ? "Пресеты поведения агента" : "Agent Behavior Presets", path: isRu ? "Агент → Пресеты" : "Agent → Presets", tab: "persona", agentSub: "presets" },
@@ -7793,7 +7860,7 @@ function createStudioPanel(options) {
     ).join("")}</div>`;
   }
 
-  function renderModalShell() {
+  function renderModalShell(skipAnim) {
     if (!state.isOpen) return "";
     const tr = t();
     const sui = spNormalizeStudioUi(state.settings.studioUi);
@@ -7983,7 +8050,7 @@ function createStudioPanel(options) {
 
     return `
       <div class="modal-backdrop${isAppearanceDrawer ? " is-appearance-live" : ""}" data-action="backdrop-close">
-        <div class="modal-shell${isAppearanceDrawer ? " is-appearance-live" : ""}" data-studio-layout="${isAppearanceDrawer ? "drawer" : escAttr(sui.windowLayout)}" role="dialog" aria-modal="${isAppearanceDrawer ? "false" : "true"}" aria-label="${escAttr(tr.brandTitle)}">
+        <div class="modal-shell${isAppearanceDrawer ? " is-appearance-live" : ""}${skipAnim ? " is-no-anim" : ""}" data-studio-layout="${isAppearanceDrawer ? "drawer" : escAttr(sui.windowLayout)}" role="dialog" aria-modal="${isAppearanceDrawer ? "false" : "true"}" aria-label="${escAttr(tr.brandTitle)}">
           ${isAppearanceDrawer ? "" : `
             <aside class="modal-sidebar">
               <div class="sidebar-brand">
@@ -7991,7 +8058,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.4")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.5")}</span>
               </div>
               <div class="rx-search-wrap">
                 <div class="rx-search-box">
@@ -8017,6 +8084,7 @@ function createStudioPanel(options) {
                 <div class="sidebar-foot-row">
                   <div class="sidebar-quick-actions">
                     <button type="button" class="lang-pill-btn" data-action="toggle-locale" title="${escAttr(tr.tooltipLang)}">${state.locale === "en" ? "EN" : "RU"}</button>
+                    <button type="button" class="icon-btn" data-action="open-export-limits" title="${escAttr(isRu ? "Скачать контекст чата (ZIP)" : "Download Chat Context (ZIP)")}">${iconSvg("download", 13)}</button>
                     <button type="button" class="icon-btn" data-action="cycle-studio-theme" title="${escAttr(tr.studioThemeCycleTip)}">${iconSvg("palette", 13)}</button>
                     <button type="button" class="icon-btn" data-action="open-studio-design" title="${escAttr(tr.setSubStudio)}">${iconSvg("layout", 13)}</button>
                   </div>
@@ -8187,7 +8255,257 @@ function createStudioPanel(options) {
     return { vw, vh, sidebarRight, headerTop, headerBottom, headerRightClear, composerLeft, composerRight, drawerRightReserve };
   }
 
-  function applyWidgetPosition() {
+  function rectsOverlapWithPad(a, b, pad) {
+    if (!a || !b) return false;
+    const p = typeof pad === "number" ? pad : 8;
+    return !(a.right + p <= b.left || a.left - p >= b.right || a.bottom + p <= b.top || a.top - p >= b.bottom);
+  }
+
+  function collectNativeOverlayRects(vw, vh, extraProbePoints) {
+    const out = [];
+    if (!doc || !win) return out;
+    const seen = new Set();
+    const isSelfOrBg = (el) => {
+      if (!el || el.nodeType !== 1) return true;
+      const id = el.id || "";
+      if (id === "rudex-studio-host" || id === "rudex-bg" || id === "rudex-studio-theme") return true;
+      if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) return true;
+      return false;
+    };
+    const pushRect = (el, isModalFlag) => {
+      if (!el || seen.has(el) || isSelfOrBg(el)) return;
+      seen.add(el);
+      if (isHiddenAncestor(el, doc.body)) return;
+      if (typeof el.getBoundingClientRect !== "function") return;
+      const r = el.getBoundingClientRect();
+      if (!r || r.width < 80 || r.height < 44) return;
+      if (r.right <= 0 || r.bottom <= 0 || r.left >= vw || r.top >= vh) return;
+      if (!isModalFlag && r.width >= vw - 16 && r.height >= vh - 16) return;
+      if (typeof win.getComputedStyle === "function") {
+        const cs = win.getComputedStyle(el);
+        if (cs) {
+          if (cs.display === "none" || cs.visibility === "hidden" || cs.pointerEvents === "none") return;
+          const op = parseFloat(cs.opacity);
+          if (Number.isFinite(op) && op <= 0.02) return;
+        }
+      }
+      out.push({
+        left: Math.round(r.left),
+        top: Math.round(r.top),
+        right: Math.round(r.right),
+        bottom: Math.round(r.bottom),
+        width: Math.round(r.width),
+        height: Math.round(r.height),
+        isModal: Boolean(isModalFlag),
+      });
+    };
+
+    try {
+      if (typeof doc.querySelectorAll === "function") {
+        const sel = '[data-radix-popper-content-wrapper], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"], [data-slot*="popover"], [data-slot*="dropdown"], [data-slot*="sheet"], [data-slot*="drawer"], [data-testid*="overview"], [data-testid*="popover"]';
+        const nodes = doc.querySelectorAll(sel);
+        for (let i = 0; nodes && i < nodes.length && i < 32; i += 1) {
+          const n = nodes[i];
+          if (!n) continue;
+          const role = typeof n.getAttribute === "function" ? (n.getAttribute("role") || "") : "";
+          const isModal = role === "dialog" || role === "alertdialog";
+          // Unwrap full-size Radix wrapper if its single child is the actual bounded popover card
+          let target = n;
+          if (!isModal && typeof n.hasAttribute === "function" && n.hasAttribute("data-radix-popper-content-wrapper") && n.children && n.children.length === 1) {
+            const ch = n.children[0];
+            if (ch && typeof ch.getBoundingClientRect === "function") {
+              const cr = ch.getBoundingClientRect();
+              if (cr && cr.width >= 80 && cr.height >= 44) target = ch;
+            }
+          }
+          pushRect(target, isModal);
+        }
+      }
+      // Also probe points under the top-right / floating widget corners so frameless native cards
+      // (such as Antigravity 2.36's Overview/Files/Terminal/Plugins floating card) are caught regardless of class names!
+      if (typeof doc.elementsFromPoint === "function" && typeof win.getComputedStyle === "function") {
+        const probes = [
+          [Math.max(40, vw - 72), 96],
+          [Math.max(40, vw - 72), 164],
+          [Math.max(40, vw - 180), 124],
+          [Math.max(40, vw - 72), 232],
+        ];
+        if (Array.isArray(extraProbePoints)) {
+          for (let i = 0; i < extraProbePoints.length; i += 1) probes.push(extraProbePoints[i]);
+        }
+        const checkedAnc = new Set();
+        for (let pi = 0; pi < probes.length; pi += 1) {
+          let hits = null;
+          try { hits = doc.elementsFromPoint(probes[pi][0], probes[pi][1]); } catch (_e) { hits = null; }
+          if (!Array.isArray(hits)) continue;
+          for (let hi = 0; hi < hits.length && hi < 12; hi += 1) {
+            let cur = hits[hi];
+            let up = 0;
+            while (cur && cur.nodeType === 1 && up < 6) {
+              if (checkedAnc.has(cur) || isSelfOrBg(cur) || cur === doc.body || cur === doc.documentElement) break;
+              checkedAnc.add(cur);
+              const tag = String(cur.tagName || "").toUpperCase();
+              const tid = typeof cur.getAttribute === "function" ? (cur.getAttribute("data-testid") || "") : "";
+              if (tag === "MAIN" || tag === "HEADER" || cur.id === "root" || tid === "conversation-view" || tid === "agent-response" || tid === "user-message-content") break;
+              if (typeof cur.hasAttribute === "function" && (cur.hasAttribute("data-rudex-bg-shell") || cur.hasAttribute("data-rudex-bg-header") || cur.hasAttribute("data-markdown-root") || cur.hasAttribute("data-index"))) break;
+              if (typeof cur.closest === "function" && cur.closest('[data-rudex-theme-composer="1"], [data-testid="agent-response"], [data-markdown-root]')) break;
+              const cs = win.getComputedStyle(cur);
+              if (cs && cs.display !== "none" && cs.visibility !== "hidden" && cs.pointerEvents !== "none") {
+                const pos = cs.position || "";
+                const zNum = parseInt(cs.zIndex, 10) || 0;
+                const hasChrome =
+                  (cs.boxShadow && cs.boxShadow !== "none") ||
+                  (cs.borderTopWidth && parseFloat(cs.borderTopWidth) > 0) ||
+                  (cs.backgroundColor && cs.backgroundColor !== "transparent" && cs.backgroundColor !== "rgba(0, 0, 0, 0)");
+                const isFloatingCard = pos === "fixed" || pos === "absolute" || pos === "sticky" || zNum >= 20 || (typeof cur.getAttribute === "function" && cur.getAttribute("data-state") === "open");
+                if (typeof cur.getBoundingClientRect === "function") {
+                  const cr = cur.getBoundingClientRect();
+                  const isLeftSidebar = cr && cr.left < 60 && cr.right < vw * 0.45 && cr.height > vh * 0.5;
+                  const isRightDockedCard = Boolean(cr && !isLeftSidebar && cr.right >= vw - 52 && cr.left >= vw * 0.45 && cr.top >= 40 && cr.top <= 160 && cr.width >= 150 && cr.width <= 460 && cr.height >= 80 && hasChrome);
+                  if (cr && !isLeftSidebar && (isFloatingCard || isRightDockedCard) && cr.width >= 120 && cr.width <= vw * 0.68 && cr.height >= 64 && cr.height <= vh * 0.92 && cr.top >= 32 && hasChrome) {
+                    pushRect(cur, false);
+                    break;
+                  }
+                }
+              }
+              cur = cur.parentElement;
+              up += 1;
+            }
+          }
+        }
+      }
+    } catch (_e) {}
+    return out;
+  }
+
+  function applyOverlayDodgeToElement(mountEl, opts) {
+    if (!mountEl || !opts) return;
+    const overlays = opts.overlays;
+    const hm = opts.hm;
+    const mode = opts.mode || "top-right";
+    if (!Array.isArray(overlays) || overlays.length === 0) {
+      if (mountEl.classList && typeof mountEl.classList.remove === "function") {
+        mountEl.classList.remove("is-overlay-hidden");
+      }
+      return;
+    }
+    const w = Math.max(80, Math.round(opts.width || 220));
+    const h = Math.max(28, Math.round(opts.height || 64));
+    let left = 0;
+    let top = 0;
+    if (typeof opts.left === "number") {
+      left = opts.left;
+    } else if (typeof opts.right === "number") {
+      left = hm.vw - opts.right - w;
+    }
+    if (typeof opts.top === "number") {
+      top = opts.top;
+    } else if (typeof opts.bottom === "number") {
+      top = hm.vh - opts.bottom - h;
+    }
+    const baseRect = { left, top, right: left + w, bottom: top + h };
+    const hits = overlays.filter((ov) => rectsOverlapWithPad(baseRect, ov, 8));
+    if (hits.length === 0) {
+      if (mountEl.classList && typeof mountEl.classList.remove === "function") {
+        mountEl.classList.remove("is-overlay-hidden");
+      }
+      return;
+    }
+    // Full-screen/large modal dialogs: gracefully fade widget out until dialog closes
+    const hasCoveringModal = hits.some((ov) => ov.isModal && (ov.width >= hm.vw * 0.45 || ov.height >= hm.vh * 0.45));
+    if (hasCoveringModal) {
+      if (mountEl.classList && typeof mountEl.classList.add === "function") {
+        mountEl.classList.add("is-overlay-hidden");
+      }
+      return;
+    }
+    const safeLeft = Math.max(12, hm.sidebarRight > 0 ? hm.sidebarRight + 12 : 12);
+    const minOvLeft = Math.min(...hits.map((ov) => ov.left));
+    const maxOvBottom = Math.max(...hits.map((ov) => ov.bottom));
+    const maxOvRight = Math.max(...hits.map((ov) => ov.right));
+
+    // Strategy 1: Shift cleanly to the LEFT of right-anchored native panels/popovers (e.g. "Обзор / Файлы / Терминал / Плагины")
+    const candLeft = Math.round(minOvLeft - w - 12);
+    if (candLeft >= safeLeft) {
+      const shiftedRect = { left: candLeft, top, right: candLeft + w, bottom: top + h };
+      const stillHits = overlays.some((ov) => rectsOverlapWithPad(shiftedRect, ov, 6));
+      if (!stillHits) {
+        if (mountEl.classList && typeof mountEl.classList.remove === "function") {
+          mountEl.classList.remove("is-overlay-hidden");
+        }
+        if (mode === "top-right" || mode === "bottom-right" || mode === "inline-header" || mode === "middle-right") {
+          mountEl.style.left = "";
+          mountEl.style.right = `${Math.max(12, Math.round(hm.vw - minOvLeft + 12))}px`;
+        } else {
+          mountEl.style.right = "";
+          mountEl.style.left = `${candLeft}px`;
+        }
+        return;
+      }
+    }
+
+    // Strategy 2: If left-side popover, try shifting to the RIGHT of it
+    const candRightLeft = Math.round(maxOvRight + 12);
+    if (candRightLeft + w <= hm.vw - 12) {
+      const shiftedRect = { left: candRightLeft, top, right: candRightLeft + w, bottom: top + h };
+      if (!overlays.some((ov) => rectsOverlapWithPad(shiftedRect, ov, 6))) {
+        if (mountEl.classList && typeof mountEl.classList.remove === "function") {
+          mountEl.classList.remove("is-overlay-hidden");
+        }
+        mountEl.style.right = "";
+        mountEl.style.left = `${candRightLeft}px`;
+        return;
+      }
+    }
+
+    // Strategy 3: Shift cleanly BELOW the popover if room remains
+    const candTop = Math.round(maxOvBottom + 10);
+    if (candTop + h <= hm.vh - 14) {
+      const shiftedRect = { left, top: candTop, right: left + w, bottom: candTop + h };
+      if (!overlays.some((ov) => rectsOverlapWithPad(shiftedRect, ov, 6))) {
+        if (mountEl.classList && typeof mountEl.classList.remove === "function") {
+          mountEl.classList.remove("is-overlay-hidden");
+        }
+        mountEl.style.bottom = "";
+        mountEl.style.top = `${candTop}px`;
+        return;
+      }
+    }
+
+    // Strategy 4: No room -> temporarily fade & make click-through so native UI is never blocked
+    if (mountEl.classList && typeof mountEl.classList.add === "function") {
+      mountEl.classList.add("is-overlay-hidden");
+    }
+  }
+
+  function syncNativeOverlayDodgeIfChanged() {
+    if (state.destroyed || !state.mounted || limitsDragState || limitsResizeState || dragState || widgetResizeState) return;
+    const hm = measureHostUiMetrics();
+    const overlays = collectNativeOverlayRects(hm.vw, hm.vh);
+    const sig = overlays.map((o) => `${o.left},${o.top},${o.right},${o.bottom},${o.isModal ? 1 : 0}`).join(";");
+    if (sig === state.lastOverlayDodgeSig) return;
+    state.lastOverlayDodgeSig = sig;
+    applyWidgetPosition(hm, overlays);
+    renderLimitsWidgetMount(hm, overlays);
+  }
+
+  function scheduleOverlayDodgeSync(delayMs) {
+    if (state.destroyed || !state.mounted) return;
+    if (overlayDodgeTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(overlayDodgeTimer);
+      overlayDodgeTimer = null;
+    }
+    if (!win || typeof win.setTimeout !== "function") {
+      syncNativeOverlayDodgeIfChanged();
+      return;
+    }
+    overlayDodgeTimer = win.setTimeout(() => {
+      overlayDodgeTimer = null;
+      syncNativeOverlayDodgeIfChanged();
+    }, typeof delayMs === "number" ? delayMs : 45);
+  }
+
+  function applyWidgetPosition(hmArg, overlaysArg) {
     if (!widgetMountEl) return;
     const s = state.settings;
     const sui = spNormalizeStudioUi(s.studioUi);
@@ -8206,37 +8524,62 @@ function createStudioPanel(options) {
     widgetMountEl.style.bottom = "";
     if (shouldHide) return;
 
-    const hm = measureHostUiMetrics();
+    const hm = hmArg || measureHostUiMetrics();
     const isRightSideDock = dock === "top-right" || dock === "bottom-right" || dock === "middle-right" || dock === "inline-header";
     if (hm.drawerRightReserve > 0 && (isRightSideDock || (isFloatingPos && Number(s.floatX) > hm.vw - hm.drawerRightReserve - 240))) {
       widgetMountEl.className = "widget-wrap is-hidden";
       return;
     }
+    const wRect = measureWidgetBoxRect();
+    const wW = wRect && wRect.width > 30 ? Math.round(wRect.width) : (s.viewMode === "medium" ? 318 : 240);
+    const wH = wRect && wRect.height > 18 ? Math.round(wRect.height) : (s.viewMode === "medium" ? 310 : 36);
+    const dodgeOpts = { hm, overlays: Array.isArray(overlaysArg) ? overlaysArg : collectNativeOverlayRects(hm.vw, hm.vh), width: wW, height: wH, mode: isFloatingPos ? "floating" : dock };
     if (isFloatingPos) {
-      widgetMountEl.style.left = `${Math.max(8, Math.round(s.floatX))}px`;
-      widgetMountEl.style.top = `${Math.max(8, Math.round(s.floatY))}px`;
+      const fx = Math.max(8, Math.round(s.floatX));
+      const fy = Math.max(8, Math.round(s.floatY));
+      widgetMountEl.style.left = `${fx}px`;
+      widgetMountEl.style.top = `${fy}px`;
       clampWidgetToViewport();
+      dodgeOpts.left = parseInt(widgetMountEl.style.left, 10) || fx;
+      dodgeOpts.top = parseInt(widgetMountEl.style.top, 10) || fy;
     } else {
       widgetMountEl.className = `widget-wrap dock-${dock}${lockedCls}${uiModeCls}`;
       const safeLeft = hm.sidebarRight > 0 ? hm.sidebarRight + 16 : 16;
       const safeTop = hm.headerBottom + 12;
       if (dock === "inline-header") {
         const hdrH = Math.max(28, hm.headerBottom - hm.headerTop);
-        widgetMountEl.style.top = `${Math.max(4, Math.round(hm.headerTop + (hdrH - 28) / 2))}px`;
+        const topVal = Math.max(4, Math.round(hm.headerTop + (hdrH - 28) / 2));
+        widgetMountEl.style.top = `${topVal}px`;
         widgetMountEl.style.right = `${hm.headerRightClear}px`;
+        dodgeOpts.top = topVal;
+        dodgeOpts.right = hm.headerRightClear;
       } else if (dock === "top-right") {
         widgetMountEl.style.top = `${safeTop}px`;
         widgetMountEl.style.right = "18px";
+        dodgeOpts.top = safeTop;
+        dodgeOpts.right = 18;
       } else if (dock === "top-left") {
         widgetMountEl.style.top = `${safeTop}px`;
         widgetMountEl.style.left = `${safeLeft}px`;
+        dodgeOpts.top = safeTop;
+        dodgeOpts.left = safeLeft;
       } else if (dock === "bottom-left") {
         widgetMountEl.style.bottom = "14px";
         widgetMountEl.style.left = `${safeLeft}px`;
+        dodgeOpts.bottom = 14;
+        dodgeOpts.left = safeLeft;
       } else if (dock === "bottom-right") {
         widgetMountEl.style.bottom = "14px";
         widgetMountEl.style.right = "18px";
+        dodgeOpts.bottom = 14;
+        dodgeOpts.right = 18;
+      } else if (dock === "middle-right") {
+        dodgeOpts.top = Math.round((hm.vh - wH) / 2);
+        dodgeOpts.right = 18;
       }
+    }
+    if (!dragState && !widgetResizeState) {
+      applyOverlayDodgeToElement(widgetMountEl, dodgeOpts);
     }
   }
 
@@ -8426,7 +8769,9 @@ function createStudioPanel(options) {
       const navChanged = navKey !== state.lastRenderedNavKey;
       state.lastRenderedNavKey = navKey;
 
-      modalMountEl.innerHTML = state.isOpen ? renderModalShell() : "";
+      const wasModalOpen = modalRenderedOpen;
+      modalMountEl.innerHTML = state.isOpen ? renderModalShell(wasModalOpen) : "";
+      modalRenderedOpen = Boolean(state.isOpen);
       state.lastSparkModalSig = (state.telemetry.samples || []).join(",");
 
       if (state.isOpen) {
@@ -8534,7 +8879,7 @@ function createStudioPanel(options) {
     });
   }
 
-  function renderLimitsWidgetMount() {
+  function renderLimitsWidgetMount(hmArg, overlaysArg) {
     if (!limitsMountEl) return;
     const lw = typeof rv5NormalizeLimitsWidget === "function" ? rv5NormalizeLimitsWidget(state.settings.limitsWidget) : state.settings.limitsWidget;
     const hidden = !lw || !lw.enabled || Boolean(state.settings.zenMode);
@@ -8553,7 +8898,7 @@ function createStudioPanel(options) {
     limitsMountEl.style.right = "";
     limitsMountEl.style.bottom = "";
     limitsMountEl.style.maxWidth = "";
-    const hm = measureHostUiMetrics();
+    const hm = hmArg || measureHostUiMetrics();
     const isLimRightSlot = effPos === "top-right" || effPos === "bottom-right" || effPos === "inline-header";
     if (hm.drawerRightReserve > 0 && (isLimRightSlot || (effPos === "floating" && typeof lw.floatX === "number" && lw.floatX > hm.vw - hm.drawerRightReserve - 240))) {
       limitsMountEl.className = "rx-limits-mount rx-zen-hidden";
@@ -8563,15 +8908,19 @@ function createStudioPanel(options) {
     if (typeof rv5BuildLimitsWidgetHtml === "function") {
       limitsMountEl.innerHTML = rv5BuildLimitsWidgetHtml(lw, state.quotaSummary, state.telemetry.modelName, state.locale !== "en");
     }
+    const boxEl = typeof limitsMountEl.querySelector === "function" ? limitsMountEl.querySelector(".rx-limits-box") : null;
+    const br = boxEl && typeof boxEl.getBoundingClientRect === "function" ? boxEl.getBoundingClientRect() : null;
+    const bw = br && br.width > 30 ? Math.round(br.width) : (lw.width > 0 ? lw.width : (lw.layout === "card" ? 268 : 220));
+    const bh = br && br.height > 20 ? Math.round(br.height) : (lw.layout === "card" ? 172 : 42);
+    const dodgeOpts = { hm, overlays: Array.isArray(overlaysArg) ? overlaysArg : collectNativeOverlayRects(hm.vw, hm.vh), width: bw, height: bh, mode: effPos };
+
     if (effPos === "floating" && typeof lw.floatX === "number" && typeof lw.floatY === "number") {
-      const boxEl = typeof limitsMountEl.querySelector === "function" ? limitsMountEl.querySelector(".rx-limits-box") : null;
-      const br = boxEl && typeof boxEl.getBoundingClientRect === "function" ? boxEl.getBoundingClientRect() : null;
-      const bw = br && br.width > 30 ? br.width : 220;
-      const bh = br && br.height > 20 ? br.height : 60;
       const nx = Math.max(8, Math.min(Math.max(8, hm.vw - bw - 8), Math.round(lw.floatX)));
       const ny = Math.max(8, Math.min(Math.max(8, hm.vh - bh - 8), Math.round(lw.floatY)));
       limitsMountEl.style.left = `${nx}px`;
       limitsMountEl.style.top = `${ny}px`;
+      dodgeOpts.left = nx;
+      dodgeOpts.top = ny;
     } else {
       const safeLeft = hm.sidebarRight > 0 ? hm.sidebarRight + 16 : 16;
       const safeTop = hm.headerBottom + 12;
@@ -8584,27 +8933,46 @@ function createStudioPanel(options) {
 
       if (effPos === "inline-header") {
         const hdrH = Math.max(28, hm.headerBottom - hm.headerTop);
-        limitsMountEl.style.top = `${Math.max(4, Math.round(hm.headerTop + (hdrH - 28) / 2))}px`;
-        limitsMountEl.style.right = `${hm.headerRightClear + (sameSlot ? miniW + 10 : 0)}px`;
+        const topVal = Math.max(4, Math.round(hm.headerTop + (hdrH - 28) / 2));
+        const rightVal = hm.headerRightClear + (sameSlot ? miniW + 10 : 0);
+        limitsMountEl.style.top = `${topVal}px`;
+        limitsMountEl.style.right = `${rightVal}px`;
+        dodgeOpts.top = topVal;
+        dodgeOpts.right = rightVal;
       } else if (effPos === "top-right") {
-        limitsMountEl.style.top = `${safeTop + (sameSlot ? miniH + 10 : 0)}px`;
+        const topVal = safeTop + (sameSlot ? miniH + 10 : 0);
+        limitsMountEl.style.top = `${topVal}px`;
         limitsMountEl.style.right = "18px";
+        dodgeOpts.top = topVal;
+        dodgeOpts.right = 18;
       } else if (effPos === "top-left") {
-        limitsMountEl.style.top = `${safeTop + (sameSlot ? miniH + 10 : 0)}px`;
+        const topVal = safeTop + (sameSlot ? miniH + 10 : 0);
+        limitsMountEl.style.top = `${topVal}px`;
         limitsMountEl.style.left = `${safeLeft}px`;
+        dodgeOpts.top = topVal;
+        dodgeOpts.left = safeLeft;
       } else if (effPos === "bottom-right") {
-        limitsMountEl.style.bottom = `${14 + (sameSlot ? miniH + 10 : 0)}px`;
+        const botVal = 14 + (sameSlot ? miniH + 10 : 0);
+        limitsMountEl.style.bottom = `${botVal}px`;
         limitsMountEl.style.right = "18px";
         if (!lw.width && hm.composerRight > 0 && hm.vw - hm.composerRight > 200) {
           limitsMountEl.style.maxWidth = `${Math.max(190, hm.vw - hm.composerRight - 32)}px`;
         }
+        dodgeOpts.bottom = botVal;
+        dodgeOpts.right = 18;
       } else if (effPos === "bottom-left") {
-        limitsMountEl.style.bottom = `${14 + (sameSlot ? miniH + 10 : 0)}px`;
+        const botVal = 14 + (sameSlot ? miniH + 10 : 0);
+        limitsMountEl.style.bottom = `${botVal}px`;
         limitsMountEl.style.left = `${safeLeft}px`;
         if (!lw.width && hm.composerLeft > safeLeft + 180) {
           limitsMountEl.style.maxWidth = `${Math.max(190, hm.composerLeft - safeLeft - 14)}px`;
         }
+        dodgeOpts.bottom = botVal;
+        dodgeOpts.left = safeLeft;
       }
+    }
+    if (!limitsDragState && !limitsResizeState) {
+      applyOverlayDodgeToElement(limitsMountEl, dodgeOpts);
     }
   }
 
@@ -15255,6 +15623,16 @@ function createStudioPanel(options) {
         if (res && res.ok) {
           state.exportResult = res;
           state.exportError = "";
+          state.exportJustDone = true;
+          if (exportDoneTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(exportDoneTimer);
+          if (win && typeof win.setTimeout === "function") {
+            exportDoneTimer = win.setTimeout(() => {
+              exportDoneTimer = null;
+              state.exportJustDone = false;
+              if (!state.destroyed) renderStructure();
+            }, 2400);
+          }
+          setToast(state.locale !== "en" ? `Контекст сохранён: ${res.fileName || "ZIP"}` : `Context saved: ${res.fileName || "ZIP"}`, false);
         } else if (!res || !res.canceled) {
           state.exportError = (res && res.error) || "EXPORT_FAILED";
         }
@@ -17477,14 +17855,18 @@ function createStudioPanel(options) {
           }
           if (state.settings.thinkingInRussian || state.settings.workLogInRussian) scheduleThinkingScan(160);
           if (Array.isArray(muts)) {
+            let sawOverlayChange = false;
             for (let mi = 0; mi < muts.length; mi += 1) {
               const added = muts[mi] && muts[mi].addedNodes;
+              const removed = muts[mi] && muts[mi].removedNodes;
+              if (removed && removed.length) sawOverlayChange = true;
               if (!added || !added.length) continue;
               let hitOverlay = false;
               for (let ai = 0; ai < added.length; ai += 1) {
                 const an = added[ai];
                 if (!an || an.nodeType !== 1) continue;
                 if (hostEl && (an === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(an)))) continue;
+                sawOverlayChange = true;
                 const role = typeof an.getAttribute === "function" ? (an.getAttribute("role") || "") : "";
                 if (role === "dialog" || role === "menu" || role === "listbox" || (typeof an.hasAttribute === "function" && an.hasAttribute("data-radix-popper-content-wrapper")) || (typeof an.querySelector === "function" && an.querySelector('[data-testid="quota-progress-circle"], [data-radix-popper-content-wrapper], [role="dialog"]'))) {
                   hitOverlay = true;
@@ -17496,10 +17878,21 @@ function createStudioPanel(options) {
                 break;
               }
             }
+            if (sawOverlayChange) scheduleOverlayDodgeSync(45);
           }
         });
         domObserver.observe(doc.body, { childList: true, subtree: true, characterData: true });
       } catch (_e) {}
+    }
+
+    if (doc && typeof doc.addEventListener === "function") {
+      docOverlayClickHandler = (ev) => {
+        if (state.destroyed) return;
+        const tgt = ev && ev.target;
+        if (hostEl && tgt && (tgt === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(tgt)))) return;
+        scheduleOverlayDodgeSync(70);
+      };
+      doc.addEventListener("click", docOverlayClickHandler, true);
     }
 
     if (typeof win !== "undefined" && typeof win.MutationObserver === "function" && doc.documentElement) {
@@ -17840,7 +18233,7 @@ function createStudioPanel(options) {
     const extraDebouncedTimers = Object.keys(debouncedSaveTimers).map((k) => debouncedSaveTimers[k]);
     for (const k of Object.keys(debouncedSaveTimers)) delete debouncedSaveTimers[k];
     for (const k of Object.keys(debouncedSavePending)) delete debouncedSavePending[k];
-    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftFollowupTimer, draftRestoreTimer, draftEarlyTextTimer, titleBarBootTimer, inspSaveTimer, limitsSaveTimer, studioUiSaveTimer, quotaAutoSaveTimer, silentQuotaSyncTimer, silentQuotaFollowupTimer, silentQuotaCloakTimer].concat(extraDebouncedTimers)) {
+    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftFollowupTimer, draftRestoreTimer, draftEarlyTextTimer, titleBarBootTimer, inspSaveTimer, limitsSaveTimer, studioUiSaveTimer, quotaAutoSaveTimer, silentQuotaSyncTimer, silentQuotaFollowupTimer, silentQuotaCloakTimer, exportDoneTimer, overlayDodgeTimer].concat(extraDebouncedTimers)) {
       if (timer && win && typeof win.clearTimeout === "function") win.clearTimeout(timer);
     }
     for (const qt of quotaScrapeTimers.concat(navBurstTimers)) {
@@ -17848,7 +18241,7 @@ function createStudioPanel(options) {
     }
     quotaScrapeTimers = [];
     navBurstTimers = [];
-    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftFollowupTimer = draftRestoreTimer = draftEarlyTextTimer = titleBarBootTimer = inspSaveTimer = limitsSaveTimer = studioUiSaveTimer = quotaAutoSaveTimer = silentQuotaSyncTimer = silentQuotaFollowupTimer = silentQuotaCloakTimer = null;
+    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftFollowupTimer = draftRestoreTimer = draftEarlyTextTimer = titleBarBootTimer = inspSaveTimer = limitsSaveTimer = studioUiSaveTimer = quotaAutoSaveTimer = silentQuotaSyncTimer = silentQuotaFollowupTimer = silentQuotaCloakTimer = exportDoneTimer = overlayDodgeTimer = null;
     limitsResizeState = null;
     if (dockComposerObserver && typeof dockComposerObserver.disconnect === "function") {
       try { dockComposerObserver.disconnect(); } catch (_e) {}
@@ -17919,7 +18312,9 @@ function createStudioPanel(options) {
       if (outsidePopoverHandler) doc.removeEventListener("pointerdown", outsidePopoverHandler, true);
       if (modelTriggerClickHandler) doc.removeEventListener("pointerdown", modelTriggerClickHandler, true);
       if (modelTriggerSuppressClickHandler) doc.removeEventListener("click", modelTriggerSuppressClickHandler, true);
+      if (docOverlayClickHandler) doc.removeEventListener("click", docOverlayClickHandler, true);
     }
+    docOverlayClickHandler = null;
     earlyCaptureAttached = false;
     earlyKeydownCapture = earlyPointerDownCapture = earlyClickCapture = earlyPasteCapture = null;
     revokeCachedMedia("");

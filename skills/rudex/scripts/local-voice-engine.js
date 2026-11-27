@@ -506,23 +506,107 @@ function pickFreePort() {
   });
 }
 
-function downloadFileWithRedirects(url, destPath, onProgress, maxRedirects = 6) {
+function createVoiceAgents() {
+  return {
+    https: new https.Agent({ keepAlive: true, keepAliveMsecs: 1000, maxSockets: 8 }),
+    http: new http.Agent({ keepAlive: true, keepAliveMsecs: 1000, maxSockets: 8 }),
+    destroy() {
+      try { this.https.destroy(); } catch {}
+      try { this.http.destroy(); } catch {}
+    },
+  };
+}
+
+function resolveDownloadMeta(url, maxRedirects = 6, agents = null) {
+  return new Promise((resolve) => {
+    const probe = (curUrl, depth, useGet) => {
+      if (depth > maxRedirects) {
+        resolve({ finalUrl: curUrl, total: 0, acceptRanges: false });
+        return;
+      }
+      const isHttps = curUrl.startsWith("https:");
+      const mod = isHttps ? https : http;
+      const reqOpts = {
+        method: useGet ? "GET" : "HEAD",
+        agent: agents ? (isHttps ? agents.https : agents.http) : undefined,
+        headers: Object.assign(
+          { "User-Agent": "Rudex-Voice-Installer/5.5" },
+          useGet ? { Range: "bytes=0-0" } : {}
+        ),
+        timeout: 15000,
+      };
+      const req = mod.request(curUrl, reqOpts, (res) => {
+        const code = res.statusCode || 0;
+        if (code >= 300 && code < 400 && res.headers.location) {
+          res.resume();
+          const nextUrl = new URL(res.headers.location, curUrl).toString();
+          probe(nextUrl, depth + 1, useGet);
+          return;
+        }
+        res.resume();
+        if (!useGet && (code === 405 || code === 403 || code === 501)) {
+          probe(curUrl, depth, true);
+          return;
+        }
+        if (code === 206 && res.headers["content-range"]) {
+          const m = /\/(\d+)$/.exec(String(res.headers["content-range"]));
+          const total = m ? Number(m[1]) || 0 : 0;
+          resolve({ finalUrl: curUrl, total, acceptRanges: total > 0 });
+          return;
+        }
+        if (code >= 200 && code < 300) {
+          const total = Number(res.headers["content-length"]) || 0;
+          const ar = String(res.headers["accept-ranges"] || "").toLowerCase();
+          resolve({ finalUrl: curUrl, total, acceptRanges: ar.includes("bytes") && total > 0 });
+          return;
+        }
+        resolve({ finalUrl: curUrl, total: 0, acceptRanges: false });
+      });
+      req.on("timeout", () => {
+        req.destroy();
+        resolve({ finalUrl: curUrl, total: 0, acceptRanges: false });
+      });
+      req.on("error", () => {
+        resolve({ finalUrl: curUrl, total: 0, acceptRanges: false });
+      });
+      req.end();
+    };
+    probe(url, 0, false);
+  });
+}
+
+function downloadSingleStream(url, destPath, onProgress, opts = {}) {
+  const maxRedirects = typeof opts.maxRedirects === "number" ? opts.maxRedirects : 6;
+  const rangeStart = typeof opts.rangeStart === "number" ? opts.rangeStart : -1;
+  const rangeEnd = typeof opts.rangeEnd === "number" ? opts.rangeEnd : -1;
+  const rawChunkCb = typeof opts.onChunk === "function" ? opts.onChunk : null;
+
   return new Promise((resolve, reject) => {
     const go = (curUrl, depth) => {
       if (depth > maxRedirects) {
         reject(new Error("Too many HTTP redirects"));
         return;
       }
-      const mod = curUrl.startsWith("https:") ? https : http;
+      const isHttps = curUrl.startsWith("https:");
+      const mod = isHttps ? https : http;
+      const headers = { "User-Agent": "Rudex-Voice-Installer/5.5" };
+      if (rangeStart >= 0 && rangeEnd >= rangeStart) {
+        headers.Range = `bytes=${rangeStart}-${rangeEnd}`;
+      }
       const req = mod.get(
         curUrl,
-        { headers: { "User-Agent": "Rudex-Voice-Installer/5.0" }, timeout: 30000 },
+        { headers, agent: opts.agents ? (isHttps ? opts.agents.https : opts.agents.http) : undefined, timeout: 35000 },
         (res) => {
           const code = res.statusCode || 0;
           if (code >= 300 && code < 400 && res.headers.location) {
             res.resume();
             const nextUrl = new URL(res.headers.location, curUrl).toString();
             go(nextUrl, depth + 1);
+            return;
+          }
+          if (rangeStart >= 0 && code !== 206) {
+            res.resume();
+            reject(new Error(`Range unsupported (HTTP ${code})`));
             return;
           }
           if (code < 200 || code >= 300) {
@@ -533,19 +617,33 @@ function downloadFileWithRedirects(url, destPath, onProgress, maxRedirects = 6) 
           const total = Number(res.headers["content-length"]) || 0;
           let received = 0;
           let lastEmit = 0;
-          const tmpPath = `${destPath}.tmp-${process.pid}`;
-          const ws = fs.createWriteStream(tmpPath);
+          const startedAt = Date.now();
+          const tmpPath = opts.directPath ? destPath : `${destPath}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 6)}`;
+          const ws = fs.createWriteStream(tmpPath, { highWaterMark: 512 * 1024 });
           res.on("data", (chunk) => {
             received += chunk.length;
-            const now = Date.now();
-            if (typeof onProgress === "function" && (now - lastEmit > 180 || (total > 0 && received >= total))) {
-              lastEmit = now;
-              onProgress({ received, total, pct: total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0 });
+            if (rawChunkCb) rawChunkCb(chunk.length);
+            if (typeof onProgress === "function") {
+              const now = Date.now();
+              if (now - lastEmit >= 220 || (total > 0 && received >= total)) {
+                lastEmit = now;
+                const elapsedSec = Math.max(0.2, (now - startedAt) / 1000);
+                onProgress({
+                  received,
+                  total,
+                  speedBps: Math.round(received / elapsedSec),
+                  pct: total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0,
+                });
+              }
             }
           });
           res.pipe(ws);
           ws.on("finish", () => {
             ws.close(() => {
+              if (opts.directPath) {
+                resolve(destPath);
+                return;
+              }
               try {
                 if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
                 fs.renameSync(tmpPath, destPath);
@@ -556,11 +654,13 @@ function downloadFileWithRedirects(url, destPath, onProgress, maxRedirects = 6) 
               }
             });
           });
-          ws.on("error", (err) => {
+          const failAll = (err) => {
             try { ws.destroy(); } catch {}
-            try { fs.unlinkSync(tmpPath); } catch {}
+            try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
             reject(err);
-          });
+          };
+          res.on("error", failAll);
+          ws.on("error", failAll);
         }
       );
       req.on("timeout", () => {
@@ -572,13 +672,115 @@ function downloadFileWithRedirects(url, destPath, onProgress, maxRedirects = 6) 
   });
 }
 
-function extractTarBz2(archivePath, destDir) {
-  fs.mkdirSync(destDir, { recursive: true });
+async function concatPartFiles(partPaths, destPath) {
+  const tmpOut = `${destPath}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 6)}`;
+  const ws = fs.createWriteStream(tmpOut, { highWaterMark: 1024 * 1024 });
+  try {
+    for (let i = 0; i < partPaths.length; i += 1) {
+      await new Promise((resolve, reject) => {
+        const rs = fs.createReadStream(partPaths[i], { highWaterMark: 1024 * 1024 });
+        rs.on("error", reject);
+        rs.on("end", resolve);
+        rs.pipe(ws, { end: false });
+      });
+    }
+    await new Promise((resolve, reject) => {
+      ws.on("error", reject);
+      ws.on("finish", resolve);
+      ws.end();
+    });
+    if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+    fs.renameSync(tmpOut, destPath);
+  } catch (err) {
+    try { ws.destroy(); } catch {}
+    try { if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut); } catch {}
+    throw err;
+  } finally {
+    for (let i = 0; i < partPaths.length; i += 1) {
+      try { if (fs.existsSync(partPaths[i])) fs.unlinkSync(partPaths[i]); } catch {}
+    }
+  }
+}
+
+async function downloadFileWithRedirects(url, destPath, onProgress, maxRedirects = 6) {
+  const agents = createVoiceAgents();
+  try {
+    const meta = await resolveDownloadMeta(url, maxRedirects, agents);
+    const targetUrl = meta.finalUrl || url;
+    const total = meta.total || 0;
+    const PARALLEL_CHUNKS = 4;
+
+    // Use 4 parallel HTTP Range connections for files >= 4 MB when CDN supports byte ranges (3-4x faster on GitHub Releases)
+    if (meta.acceptRanges && total >= 4 * 1024 * 1024) {
+      const chunkSize = Math.ceil(total / PARALLEL_CHUNKS);
+      const partPaths = [];
+      let received = 0;
+      let lastEmit = 0;
+      const startedAt = Date.now();
+      const emitAgg = (force) => {
+        if (typeof onProgress !== "function") return;
+        const now = Date.now();
+        if (!force && now - lastEmit < 220 && received < total) return;
+        lastEmit = now;
+        const elapsedSec = Math.max(0.2, (now - startedAt) / 1000);
+        onProgress({
+          received,
+          total,
+          speedBps: Math.round(received / elapsedSec),
+          pct: Math.min(100, Math.round((received / total) * 100)),
+        });
+      };
+      const jobs = [];
+      for (let idx = 0; idx < PARALLEL_CHUNKS; idx += 1) {
+        const start = idx * chunkSize;
+        if (start >= total) break;
+        const end = Math.min(total - 1, start + chunkSize - 1);
+        const partPath = `${destPath}.part${idx}-${process.pid}`;
+        partPaths.push(partPath);
+        jobs.push(
+          downloadSingleStream(targetUrl, partPath, null, {
+            maxRedirects,
+            agents,
+            rangeStart: start,
+            rangeEnd: end,
+            directPath: true,
+            onChunk: (n) => {
+              received += n;
+              emitAgg(false);
+            },
+          })
+        );
+      }
+      try {
+        await Promise.all(jobs);
+        emitAgg(true);
+        await concatPartFiles(partPaths, destPath);
+        return destPath;
+      } catch {
+        for (let i = 0; i < partPaths.length; i += 1) {
+          try { if (fs.existsSync(partPaths[i])) fs.unlinkSync(partPaths[i]); } catch {}
+        }
+        // Seamless fallback to single-stream download
+      }
+    }
+    return await downloadSingleStream(targetUrl, destPath, onProgress, { maxRedirects, agents });
+  } finally {
+    agents.destroy();
+  }
+}
+
+function resolveTarCommand() {
   let tarCmd = process.platform === "win32" ? "tar.exe" : "tar";
   if (process.platform === "win32") {
     const sysTar = path.join(process.env.SystemRoot || process.env.WINDIR || "C:\\Windows", "System32", "tar.exe");
     if (fs.existsSync(sysTar)) tarCmd = sysTar;
   }
+  return tarCmd;
+}
+
+function extractTarBz2(archivePath, destDir) {
+  fs.mkdirSync(destDir, { recursive: true });
+  const tarCmd = resolveTarCommand();
   const r = spawnSync(tarCmd, ["-xjf", archivePath, "-C", destDir], {
     encoding: "utf8",
     windowsHide: true,
@@ -600,6 +802,60 @@ function extractTarBz2(archivePath, destDir) {
   throw new Error(`tar extraction failed (code ${r.status}): ${(r.stderr || r.stdout || "").trim()}`);
 }
 
+function extractTarBz2Async(archivePath, destDir) {
+  fs.mkdirSync(destDir, { recursive: true });
+  const runProc = (cmd, args) => new Promise((resolve, reject) => {
+    let stderr = "";
+    let settled = false;
+    const child = spawn(cmd, args, { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        try { child.kill(); } catch {}
+        reject(new Error("tar extraction timed out"));
+      }
+    }, 180000);
+    if (child.stderr) {
+      child.stderr.on("data", (d) => {
+        if (stderr.length < 1024) stderr += String(d || "");
+      });
+    }
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      if (!settled) { settled = true; reject(err); }
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (!settled) {
+        settled = true;
+        if (code === 0) resolve();
+        else reject(new Error(`tar extraction failed (code ${code}): ${stderr.trim()}`));
+      }
+    });
+  });
+
+  const tarCmd = resolveTarCommand();
+  return runProc(tarCmd, ["-xjf", archivePath, "-C", destDir]).catch((err) => {
+    if (process.platform !== "win32") {
+      return runProc("python3", [
+        "-c",
+        "import sys, tarfile; tf = tarfile.open(sys.argv[1], 'r:bz2'); tf.extractall(sys.argv[2]); tf.close()",
+        archivePath,
+        destDir,
+      ]);
+    }
+    throw err;
+  });
+}
+
+function formatDlStats(received, total, speedBps) {
+  const recMb = (received / (1024 * 1024)).toFixed(1);
+  const totMb = total > 0 ? (total / (1024 * 1024)).toFixed(1) : "";
+  const spdMb = speedBps > 0 ? (speedBps / (1024 * 1024)).toFixed(1) : "";
+  const sizePart = totMb ? `${recMb} / ${totMb} MB` : `${recMb} MB`;
+  return spdMb ? `${sizePart} · ${spdMb} MB/s` : sizePart;
+}
+
 async function downloadAndInstallLocalVoice(userDataDir, modelId = "ru-fast", onProgress) {
   const binSpec = getPlatformBinarySpec();
   if (!binSpec) {
@@ -612,32 +868,75 @@ async function downloadAndInstallLocalVoice(userDataDir, modelId = "ru-fast", on
   fs.mkdirSync(binParent, { recursive: true });
   fs.mkdirSync(modParent, { recursive: true });
 
-  const emit = (stage, pct, message) => {
+  const emit = (stage, pct, message, extra = {}) => {
     if (typeof onProgress === "function") {
-      try { onProgress({ stage, pct, message, modelId: modSpec.id }); } catch {}
+      try { onProgress(Object.assign({ stage, pct, message, modelId: modSpec.id }, extra)); } catch {}
     }
   };
 
-  if (!resolveBinaryPath(userDataDir)) {
-    const binArc = path.join(rootDir, binSpec.archive);
-    emit("binary-download", 2, `Downloading Sherpa-ONNX (${binSpec.sizeMb} MB)...`);
-    await downloadFileWithRedirects(`${SHERPA_RELEASE_BASE}/${binSpec.archive}`, binArc, (p) => {
-      emit("binary-download", Math.round(p.pct * 0.45), `Downloading engine (${p.pct}%)`);
-    });
-    emit("binary-extract", 48, "Extracting Sherpa-ONNX binary...");
-    extractTarBz2(binArc, binParent);
-    try { fs.unlinkSync(binArc); } catch {}
-  }
+  const needBin = !resolveBinaryPath(userDataDir);
+  const needMod = !resolveModelFiles(userDataDir, modSpec.id);
+  const binArc = path.join(rootDir, binSpec.archive);
+  const modArc = path.join(rootDir, modSpec.archive);
 
-  if (!resolveModelFiles(userDataDir, modSpec.id)) {
-    const modArc = path.join(rootDir, modSpec.archive);
-    emit("model-download", 52, `Downloading model ${modSpec.id} (${modSpec.sizeMb} MB)...`);
-    await downloadFileWithRedirects(`${SHERPA_MODELS_BASE}/${modSpec.archive}`, modArc, (p) => {
-      emit("model-download", 52 + Math.round(p.pct * 0.43), `Downloading model (${p.pct}%)`);
-    });
-    emit("model-extract", 96, "Extracting speech model...");
-    extractTarBz2(modArc, modParent);
-    try { fs.unlinkSync(modArc); } catch {}
+  if (needBin || needMod) {
+    const dlState = {
+      bin: { received: 0, total: Math.round(binSpec.sizeMb * 1024 * 1024), speedBps: 0 },
+      mod: { received: 0, total: Math.round(modSpec.sizeMb * 1024 * 1024), speedBps: 0 },
+    };
+    let lastEmitAt = 0;
+    const emitCombined = (force) => {
+      const now = Date.now();
+      if (!force && now - lastEmitAt < 220) return;
+      lastEmitAt = now;
+      const rec = (needBin ? dlState.bin.received : 0) + (needMod ? dlState.mod.received : 0);
+      const tot = (needBin ? dlState.bin.total : 0) + (needMod ? dlState.mod.total : 0);
+      const spd = (needBin ? dlState.bin.speedBps : 0) + (needMod ? dlState.mod.speedBps : 0);
+      const ratio = tot > 0 ? Math.min(1, rec / tot) : 0;
+      const pct = Math.max(2, Math.min(88, Math.round(2 + ratio * 86)));
+      emit(needMod ? "model-download" : "binary-download", pct, formatDlStats(rec, tot, spd), {
+        receivedBytes: rec,
+        totalBytes: tot,
+        speedBps: spd,
+      });
+    };
+
+    emit(needMod ? "model-download" : "binary-download", 2, formatDlStats(0, (needBin ? dlState.bin.total : 0) + (needMod ? dlState.mod.total : 0), 0));
+    const dlTasks = [];
+    if (needBin) {
+      dlTasks.push(
+        downloadFileWithRedirects(`${SHERPA_RELEASE_BASE}/${binSpec.archive}`, binArc, (p) => {
+          dlState.bin.received = p.received || 0;
+          if (p.total > 0) dlState.bin.total = p.total;
+          dlState.bin.speedBps = p.speedBps || 0;
+          emitCombined(false);
+        })
+      );
+    }
+    if (needMod) {
+      dlTasks.push(
+        downloadFileWithRedirects(`${SHERPA_MODELS_BASE}/${modSpec.archive}`, modArc, (p) => {
+          dlState.mod.received = p.received || 0;
+          if (p.total > 0) dlState.mod.total = p.total;
+          dlState.mod.speedBps = p.speedBps || 0;
+          emitCombined(false);
+        })
+      );
+    }
+    await Promise.all(dlTasks);
+    emitCombined(true);
+
+    // Non-blocking async extraction (never freezes Electron Main Thread!)
+    if (needBin) {
+      emit("binary-extract", 90, "Extracting Sherpa-ONNX...");
+      await extractTarBz2Async(binArc, binParent);
+      try { fs.unlinkSync(binArc); } catch {}
+    }
+    if (needMod) {
+      emit("model-extract", 95, "Extracting speech model...");
+      await extractTarBz2Async(modArc, modParent);
+      try { fs.unlinkSync(modArc); } catch {}
+    }
   }
 
   const exe = resolveBinaryPath(userDataDir);
@@ -1061,6 +1360,9 @@ module.exports = {
   pcm16Base64ToFloat32Buffer,
   formatAccumulatedSegments,
   connectLocalWs,
+  downloadFileWithRedirects,
+  extractTarBz2Async,
+  formatDlStats,
   downloadAndInstallLocalVoice,
   createLocalVoiceManager,
 };

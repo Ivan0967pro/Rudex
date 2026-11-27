@@ -422,7 +422,7 @@ test("Manifest & hooks.json follow Rudex v5.0 safe hook architecture (no global 
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "5.5.4");
+  assert.equal(pkg.version, "5.5.5");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "agy-workshop.js")), "agy-workshop.js must exist");
@@ -3113,7 +3113,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v5.5.4"), "install.ps1 banner must show v5.5.4");
+  assert.ok(ps1Text.includes("Rudex v5.5.5"), "install.ps1 banner must show v5.5.5");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -11593,14 +11593,14 @@ test("Force-close composer drafts: Main-World detached file/drop capture, zero-w
   }
 });
 
-test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.4): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
+test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.5): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
   const fsLocal = require("fs");
   const osLocal = require("os");
   const Module = require("module");
 
   // 1) Version consistency check across plugin.json & installers
   const pkg = JSON.parse(fsLocal.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
-  assert.equal(pkg.version, "5.5.4", "plugin.json must be bumped to 5.5.4");
+  assert.equal(pkg.version, "5.5.5", "plugin.json must be bumped to 5.5.5");
 
   // 2) Full legacy v4.x + v5.0.x settings, quota, and drafts migration test
   const tmpDir = fsLocal.mkdtempSync(path.join(osLocal.tmpdir(), "rudex-upgrade-55-"));
@@ -12665,5 +12665,193 @@ test("v5.5.4 fixes: zero-reflow streaming, fast scanWallpaperShells, lightweight
     globalThis.__RUDEX_DISABLED__ = origDisabled;
     Module._load = origLoad;
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("v5.5.5 fixes: export chat context in medium/mini/Studio, zero overlap with native Overview panel, shake-free voice progress & 4-way parallel Range downloader", async () => {
+  const http = require("http");
+  const Module = require("module");
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const lve = require(path.join(SCRIPTS_DIR, "local-voice-engine.js"));
+  const origLoad = Module._load;
+  let i18nMain;
+  try {
+    Module._load = function (req) {
+      if (req === "electron") {
+        return {
+          app: { getPath: () => os.tmpdir(), getVersion: () => "2.36.0", isReady: () => true, on: () => {}, once: () => {} },
+          BrowserWindow: { getAllWindows: () => [] },
+          webContents: { getAllWebContents: () => [] },
+          ipcMain: { handle: () => {}, on: () => {} },
+          Menu: {}, dialog: {}, shell: {}, protocol: {}, clipboard: {}, nativeImage: {},
+        };
+      }
+      return origLoad.apply(this, arguments);
+    };
+    const mainPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainPath)];
+    i18nMain = require(mainPath);
+  } finally {
+    Module._load = origLoad;
+  }
+
+  // 1) i18n-main sanitizes & persists miniFields.exportBtn cleanly
+  const sanDef = i18nMain.sanitizeStudioSettings({});
+  assert.equal(sanDef.miniFields.exportBtn, false, "miniFields.exportBtn defaults to false");
+  const sanOn = i18nMain.sanitizeStudioSettings({ miniFields: { exportBtn: true } });
+  assert.equal(sanOn.miniFields.exportBtn, true, "miniFields.exportBtn persists when toggled ON");
+
+  // 2) Expanded widget (medium), optional mini capsule exportBtn, Studio modal no-anim re-render & in-place voice progress (zero shake!)
+  const { doc, win } = createMockDom();
+  win.innerWidth = 1440;
+  win.innerHeight = 900;
+  const overviewCard = doc.createElement("div");
+  overviewCard.setAttribute("data-radix-popper-content-wrapper", "");
+  overviewCard.getBoundingClientRect = () => ({ left: 1140, top: 68, width: 280, height: 240, right: 1420, bottom: 308 });
+  doc.body.appendChild(overviewCard);
+  win.getComputedStyle = (el) => {
+    if (el === overviewCard) return { display: "block", visibility: "visible", opacity: "1", pointerEvents: "auto", position: "fixed", zIndex: "50", backgroundColor: "rgb(22, 22, 24)", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" };
+    return { display: "block", visibility: "visible", opacity: "1", pointerEvents: "auto", position: "static", backgroundColor: "rgba(0,0,0,0)" };
+  };
+
+  const ipcCalls = [];
+  const mockIpc = {
+    invoke: (ch, payload) => {
+      ipcCalls.push({ ch, payload });
+      if (ch === "agy-studio:get-state") {
+        return Promise.resolve({
+          settings: {
+            viewMode: "medium",
+            dockPosition: "bottom-right",
+            miniFields: { status: true, lang: true, tps: true, exportBtn: true },
+            limitsWidget: { enabled: true, position: "top-right", layout: "card" },
+          },
+          quotaSummary: { families: { gemini: { weeklyRem: 58, fiveHourRem: 43 }, claudeGpt: { weeklyRem: 100, fiveHourRem: 100 } } },
+        });
+      }
+      return Promise.resolve({ ok: true });
+    },
+    sendSync: () => null,
+    on: () => {},
+  };
+
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: mockIpc,
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+  });
+  try {
+    panel.init();
+    await new Promise((r) => setTimeout(r, 25));
+
+    const host = doc.getElementById("rudex-studio-host");
+    assert.ok(host && host.shadowRoot, "Studio host & shadowRoot must mount");
+
+    // 2a) Medium card must render Скачать контекст чата button + export settings trigger
+    const widgetHtml = host.shadowRoot.querySelector(".widget-wrap").innerHTML;
+    assert.ok(widgetHtml.includes('data-action="export-chat-zip"') && widgetHtml.includes("Скачать контекст чата"), "Expanded widget (medium) must contain Скачать контекст чата button");
+    assert.ok(widgetHtml.includes('data-action="open-export-limits"'), "Expanded widget must contain quick export settings button");
+
+    // 2b) Limits widget at top-right MUST automatically dodge LEFT of the overlapping native Overview card (left=1140 -> right >= 1440-1140+12 = 312px!)
+    const limitsEl = host.shadowRoot.querySelector(".rx-limits-mount");
+    assert.ok(limitsEl, "Limits widget mount must exist");
+    const dodgedRight = parseInt(limitsEl.style.right || "0", 10);
+    assert.ok(dodgedRight >= 300, `Limits widget must shift cleanly to the left of native Overview card (expected right >= 300px, got ${limitsEl.style.right})`);
+
+    // 2c) Removing the Overview card restores normal top-right position (18px)
+    doc.body.removeChild(overviewCard);
+    panel.pollStream();
+    await new Promise((r) => setTimeout(r, 20));
+    panel.applyRemoteState({
+      settings: {
+        viewMode: "mini",
+        dockPosition: "bottom-right",
+        miniFields: { status: true, lang: true, tps: true, exportBtn: true },
+        limitsWidget: { enabled: true, position: "top-right", layout: "card" },
+      },
+    });
+    assert.equal(limitsEl.style.right, "18px", "Limits widget must return to normal 18px right offset once Overview closes");
+    const miniHtml = host.shadowRoot.querySelector(".widget-wrap").innerHTML;
+    assert.ok(miniHtml.includes('class="mini-export-btn"') && miniHtml.includes('data-action="export-chat-zip"'), "Mini capsule must render optional export context button when miniFields.exportBtn is enabled");
+
+    // 2d) Voice download progress updates IN-PLACE without rebuilding .modal-shell (zero window shake!)
+    panel.setOpen(true, { tab: "settings", subTab: "optimization" });
+    const modalMount = host.shadowRoot.querySelector(".modal-mount");
+    assert.ok(modalMount.innerHTML.includes('data-action="open-export-limits"'), "Studio sidebar must include 1-click export context icon");
+    assert.equal(modalMount.innerHTML.includes("is-no-anim"), false, "First open plays entrance animation normally");
+    panel.applyLocalVoiceProgress({ stage: "model-download", pct: 12, message: "14.5 / 122.5 MB · 6.2 MB/s" });
+    assert.ok(modalMount.innerHTML.includes("modal-shell is-no-anim"), "Re-rendered open modal must apply is-no-anim so rxModalIn never replays");
+    assert.ok(modalMount.innerHTML.includes('data-role="lvProgressFill"') && modalMount.innerHTML.includes('data-role="lvStatusText"'), "Voice download markup must emit live progress hooks");
+    // Mount real live child nodes (as Chromium parses innerHTML) to verify subsequent progress ticks mutate in-place without rewriting modalMount.innerHTML!
+    const fillNode = doc.createElement("div");
+    fillNode.setAttribute("data-role", "lvProgressFill");
+    fillNode.style.width = "12%";
+    const statusNode = doc.createElement("span");
+    statusNode.setAttribute("data-role", "lvStatusText");
+    const btnNode = doc.createElement("button");
+    btnNode.setAttribute("data-role", "lvInstallBtn");
+    modalMount.appendChild(fillNode);
+    modalMount.appendChild(statusNode);
+    modalMount.appendChild(btnNode);
+    const htmlSnapshotBefore = modalMount.innerHTML;
+    panel.applyLocalVoiceProgress({ stage: "model-download", pct: 64, message: "78.4 / 122.5 MB · 8.1 MB/s" });
+    assert.equal(modalMount.innerHTML, htmlSnapshotBefore, "applyLocalVoiceProgress must update DOM in-place without rebuilding modal DOM (zero shake!)");
+    assert.equal(fillNode.style.width, "64%", "In-place progress bar width must update to 64%");
+    assert.ok(statusNode.textContent.includes("64%") && statusNode.textContent.includes("МБ/с"), "In-place status text must show localized MB/s speed");
+    assert.ok(btnNode.textContent.includes("64%"), "In-place install button text must update to 64%");
+  } finally {
+    panel.destroy();
+  }
+
+  // 3) 4-way parallel HTTP Range downloader works end-to-end & produces byte-identical output
+  const payloadSize = 5 * 1024 * 1024; // 5 MB (> 4 MB parallel threshold)
+  const payloadBuf = Buffer.alloc(payloadSize);
+  for (let i = 0; i < payloadSize; i += 4096) {
+    payloadBuf[i] = (i / 4096) & 0xff;
+    payloadBuf[i + 1] = ((i / 4096) >> 8) & 0xff;
+  }
+  let rangeHits = 0;
+  const srv = http.createServer((req, res) => {
+    if (req.method === "HEAD") {
+      res.writeHead(200, { "Content-Length": String(payloadSize), "Accept-Ranges": "bytes" });
+      res.end();
+      return;
+    }
+    const rng = req.headers.range;
+    const m = rng && /^bytes=(\d+)-(\d+)$/.exec(rng);
+    if (m) {
+      rangeHits += 1;
+      const start = parseInt(m[1], 10);
+      const end = parseInt(m[2], 10);
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${payloadSize}`,
+        "Content-Length": String(end - start + 1),
+        "Accept-Ranges": "bytes",
+      });
+      res.end(payloadBuf.subarray(start, end + 1));
+      return;
+    }
+    res.writeHead(200, { "Content-Length": String(payloadSize), "Accept-Ranges": "bytes" });
+    res.end(payloadBuf);
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const dlDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-range-dl-"));
+  const dlOut = path.join(dlDir, "model.bin");
+  try {
+    const port = srv.address().port;
+    const progressEvents = [];
+    await lve.downloadFileWithRedirects(`http://127.0.0.1:${port}/model.bin`, dlOut, (p) => progressEvents.push(p));
+    assert.equal(rangeHits, 4, "Files >= 4 MB with Accept-Ranges must use 4 parallel Range connections");
+    const gotBuf = fs.readFileSync(dlOut);
+    assert.equal(gotBuf.length, payloadSize, "Reassembled parallel file must have exact byte length");
+    assert.equal(Buffer.compare(gotBuf, payloadBuf), 0, "Reassembled parallel file must be byte-for-byte identical");
+    assert.ok(progressEvents.some((p) => p.pct === 100 && p.speedBps > 0), "Parallel downloader must emit progress with live speedBps");
+  } finally {
+    if (typeof srv.closeAllConnections === "function") srv.closeAllConnections();
+    await new Promise((r) => srv.close(r));
+    fs.rmSync(dlDir, { recursive: true, force: true });
   }
 });

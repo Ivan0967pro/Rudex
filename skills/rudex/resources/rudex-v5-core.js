@@ -1034,7 +1034,11 @@ function rv5BuildExtraShadowCss() {
   pointer-events: auto;
   user-select: none;
   max-width: calc(100vw - 24px);
-  transition: right 0.16s ease, left 0.16s ease;
+  transition: right 0.14s ease, left 0.14s ease, top 0.14s ease, opacity 0.14s ease;
+}
+.rx-limits-mount.is-overlay-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 .rx-limits-mount.is-dragging {
   transition: none !important;

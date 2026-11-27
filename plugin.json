@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "rudex",
   "displayName": "Rudex",
-  "version": "5.5.4",
+  "version": "5.5.5",
   "description": "Кастомизация и русификация Google Antigravity 2.0 (Windows, macOS, Linux): любые обои, темы, шрифты и правка элементов через «Прицел», быстрый офлайн-голос вместо багованной диктовки, реальные лимиты, черновики и правки на лету.",
   "logo": "assets/logo.svg",
   "author": {

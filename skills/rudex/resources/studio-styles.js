@@ -853,6 +853,69 @@ function buildStudioStyles() {
       background: var(--rx-hover);
       color: var(--rx-fg-strong);
     }
+    .med-export-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 13px;
+      border-top: 1px solid var(--rx-border);
+      background: color-mix(in srgb, var(--rx-bg) 28%, transparent);
+    }
+    .med-export-btn {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid color-mix(in srgb, var(--rx-accent) 36%, var(--rx-border));
+      background: color-mix(in srgb, var(--rx-accent) 12%, transparent);
+      color: var(--rx-fg-strong);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 550;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: background 0.12s ease, border-color 0.12s ease;
+    }
+    .med-export-btn:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--rx-accent) 22%, transparent);
+      border-color: var(--rx-accent);
+    }
+    .med-export-btn:disabled { opacity: 0.6; cursor: default; }
+    .med-export-btn.is-done {
+      border-color: var(--rx-success);
+      color: var(--rx-success);
+      background: color-mix(in srgb, var(--rx-success) 12%, transparent);
+    }
+    .mini-export-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--rx-accent) 34%, var(--rx-border));
+      background: color-mix(in srgb, var(--rx-accent) 12%, transparent);
+      color: var(--rx-fg-strong);
+      font-family: inherit;
+      font-size: 10.5px;
+      font-weight: 550;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.12s ease, border-color 0.12s ease;
+    }
+    .mini-export-btn:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--rx-accent) 22%, transparent);
+      border-color: var(--rx-accent);
+    }
+    .mini-export-btn:disabled { opacity: 0.6; cursor: default; }
+    .widget-wrap.is-overlay-hidden {
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
 
     /* === Settings Modal & Floating Appearance Drawer === */
     .modal-backdrop {
@@ -919,6 +982,9 @@ function buildStudioStyles() {
       border-color: var(--rx-accent) !important;
       animation: none;
       cursor: nwse-resize;
+    }
+    .modal-shell.is-no-anim {
+      animation: none !important;
     }
     .modal-resize-grip {
       position: absolute;
@@ -3293,12 +3359,27 @@ function buildStudioStyles() {
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+    }
+    .opt-model-head .row-info {
+      min-width: 0;
+      flex: 1;
+    }
+    .opt-model-head .btn {
+      font-variant-numeric: tabular-nums;
+      min-width: 142px;
+      justify-content: center;
+      flex-shrink: 0;
     }
     .opt-model-status {
       font-size: 11px;
       color: var(--rx-muted);
       line-height: 1.35;
+      font-variant-numeric: tabular-nums;
+      min-height: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .opt-model-status.is-ready { color: var(--rx-accent); }
     .opt-model-grid {

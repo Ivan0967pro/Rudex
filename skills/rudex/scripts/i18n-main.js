@@ -71,6 +71,7 @@ const DEFAULT_MINI_FIELDS = {
   chatTokens: false,
   model: false,
   quota: false,
+  exportBtn: false,
 };
 const VALID_APPEARANCE_PRESETS = new Set([
   "native",
@@ -1421,6 +1422,7 @@ function sanitizeStudioSettings(raw) {
     chatTokens: Boolean(rawMini.chatTokens),
     model: Boolean(rawMini.model),
     quota: Boolean(rawMini.quota),
+    exportBtn: Boolean(rawMini.exportBtn),
   };
   const presets = Array.isArray(src.customPresets)
     ? src.customPresets
