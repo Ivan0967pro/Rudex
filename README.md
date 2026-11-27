@@ -4,7 +4,7 @@
   <p><strong>Полная кастомизация, быстрый голосовой ввод, реальные лимиты и русский язык для Google Antigravity 2.0</strong></p>
 
   <p>
-    <img src="https://img.shields.io/badge/version-5.5.2-d97757?style=flat-square" alt="Version 5.5.2" />
+    <img src="https://img.shields.io/badge/version-5.5.3-d97757?style=flat-square" alt="Version 5.5.3" />
     <img src="https://img.shields.io/badge/OS-Windows%20%7C%20macOS%20%7C%20Linux-2f855a?style=flat-square" alt="Windows | macOS | Linux" />
     <img src="https://img.shields.io/badge/Antigravity-2.0-262624?style=flat-square" alt="Google Antigravity 2.0" />
     <img src="https://img.shields.io/badge/locale-RU%20%E2%86%94%20EN-788c5d?style=flat-square" alt="RU / EN" />
@@ -160,6 +160,13 @@ node skills/rudex/scripts/install.js --dry-run
    - При наличии опубликованного **GitHub Release** с `SHA256SUMS.txt` установщик проверяет контрольную сумму **SHA-256** скачанного архива до распаковки и прерывает установку при несовпадении.
 6. **Почему патчится `app.asar` и как работает откат:**
    - У Antigravity нет встроенного Extension API для локализации интерфейса, тем, живых виджетов и перехвата диктовки — поэтому UI-слой работает через локальную распаковку `app.asar` с сохранением нетронутой копии `app.asar.orig-<версия>` и защитой `versionGuard`. Достаточно просто **удалить скилл Rudex** — при следующем запуске оригинальный `app.asar` восстановится автоматически (также доступен скрипт `uninstall.js` / `Uninstall-Rudex.cmd` / `uninstall.sh`). Если нужен только скилл без патча Electron — используйте `--plugin-only`.
+
+---
+
+## Что нового в v5.5.3
+
+- **Бесшовное сохранение Rudex после обновлений самого Antigravity** — убрана гонка, из-за которой новый `Antigravity.exe --updated` успевал запуститься и заблокировать стоковый `app.asar` за секунду до окончания автопатча. Фоновый перехватчик обновления теперь проверяет файл каждые `350 мс` вместо `2 с`, а если обновитель всё же успел открыть стоковое окно `--updated`, сам аккуратно завершает перезапуск уже с активным Rudex (все темы, обои, настройки и русский интерфейс возвращаются сразу, без ручного выхода через трей).
+- **В 5 раз быстрее пассивная активация при закрытии** — `rudex-on-exit-activate` теперь реагирует за ~0.8 сек вместо 4 сек (опрос `500 мс` + подтверждение `350 мс`) и отслеживает подпись `app.asar` в lock-файле, так что даже быстрый ручной перезапуск не промахивается мимо разблокировки.
 
 ---
 

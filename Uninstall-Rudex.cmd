@@ -5,7 +5,7 @@ set "USER_ARGS=%*"
 setlocal EnableDelayedExpansion
 
 echo ========================================================
-echo   Rudex v5.5.2 -- Uninstaller (Restore English UI)
+echo   Rudex v5.5.3 -- Uninstaller (Restore English UI)
 echo ========================================================
 echo.
 

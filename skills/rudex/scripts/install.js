@@ -510,7 +510,7 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "5.5.2",
+    version: pkg.version || "5.5.3",
     dictEntries,
     dynamicRulesCount,
     commitSha: commitMeta.commitSha,
@@ -874,7 +874,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "5.5.2";
+    let pkgVer = "5.5.3";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {
@@ -1264,11 +1264,11 @@ function writeOnExitActivateWsh(info, opts = {}) {
     "try {",
     "  var dup = countProcs(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'wscript.exe' AND CommandLine LIKE '%rudex-on-exit-activate.js%'\");",
     "  if (dup > 1) WScript.Quit(0);",
-    "  for (var i = 0; i < 4320; i++) {",
+    "  for (var i = 0; i < 21600; i++) {",
     "    if (!fso.FileExists(asarPath)) break;",
     "    var running = countProcs(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'Antigravity.exe'\");",
     "    if (running === 0) {",
-    "      WScript.Sleep(1500);",
+    "      WScript.Sleep(350);",
     "      if (countProcs(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'Antigravity.exe'\") !== 0) continue;",
     "      if (!fso.FileExists(asarPath)) break;",
     "      var curChanged = false;",
@@ -1281,21 +1281,21 @@ function writeOnExitActivateWsh(info, opts = {}) {
     "      }",
     "      if (curChanged) {",
     "        var s1 = fileStamp(asarPath);",
-    "        WScript.Sleep(2500);",
+    "        WScript.Sleep(1200);",
     "        var s2 = fileStamp(asarPath);",
     "        if (s1 && s1 === s2 && countProcs(\"SELECT ProcessId FROM Win32_Process WHERE Name = 'Antigravity.exe'\") === 0) {",
     "          runHiddenInstall();",
     "        }",
     "      } else if (fso.FileExists(metaPath) && hasOrigBackup(resDir)) {",
-    "        for (var r = 0; r < 6; r++) {",
+    "        for (var r = 0; r < 10; r++) {",
     "          if (!fso.FileExists(asarPath)) break;",
     "          try { fso.DeleteFile(asarPath, true); } catch (e) {}",
-    "          if (fso.FileExists(asarPath)) WScript.Sleep(1200);",
+    "          if (fso.FileExists(asarPath)) WScript.Sleep(300);",
     "        }",
     "      }",
     "      break;",
     "    }",
-    "    WScript.Sleep(2500);",
+    "    WScript.Sleep(500);",
     "  }",
     "} catch (e) {",
     "} finally {",
@@ -1347,10 +1347,10 @@ function writeOnExitActivatePosix(info, opts = {}) {
     '  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0',
     "}",
     "i=0",
-    "while [ $i -lt 3600 ]; do",
+    "while [ $i -lt 7200 ]; do",
     '  [ ! -f "$ASAR_PATH" ] && break',
     "  if ! is_running; then",
-    "    sleep 2",
+    "    sleep 1",
     "    is_running && continue",
     '    [ ! -f "$ASAR_PATH" ] && break',
     "    CUR_CHANGED=0",
@@ -1363,7 +1363,7 @@ function writeOnExitActivatePosix(info, opts = {}) {
     "    fi",
     '    if [ "$CUR_CHANGED" -eq 1 ]; then',
     '      S1="$(file_size "$ASAR_PATH"):$(file_mtime "$ASAR_PATH")"',
-    "      sleep 2",
+    "      sleep 1",
     '      S2="$(file_size "$ASAR_PATH"):$(file_mtime "$ASAR_PATH")"',
     '      if [ -n "$S1" ] && [ "$S1" = "$S2" ] && ! is_running && [ -f "$INSTALL_JS" ]; then',
     '        ELECTRON_RUN_AS_NODE=1 ELECTRON_NO_ASAR=1 ANTIGRAVITY_RESOURCES_DIR="$RES_DIR" "$RUNNER_BIN" "$INSTALL_JS" --no-sync-plugin >/dev/null 2>&1 || true',
@@ -1373,7 +1373,7 @@ function writeOnExitActivatePosix(info, opts = {}) {
     "    fi",
     "    break",
     "  fi",
-    "  sleep 2",
+    "  sleep 1",
     "  i=$((i + 1))",
     "done",
     "",
@@ -1415,17 +1415,20 @@ function spawnOnExitActivatorIfNeeded(info, extraOpts = {}) {
   const wshTarget = path.join(os.tmpdir(), "rudex-on-exit-activate.js");
   const cmdTarget = path.join(os.tmpdir(), "rudex-on-exit-activate.cmd");
   const lockPath = path.join(os.tmpdir(), "rudex-on-exit-activate.lock");
+  const expectedStamp = `${Number(extraOpts.expectedAsarSize) || 0}:${Number(extraOpts.expectedAsarMtimeSec) || 0}`;
   try {
     if (fs.existsSync(lockPath) && (fs.existsSync(wshTarget) || fs.existsSync(cmdTarget))) {
       const st = fs.statSync(lockPath);
-      if (Date.now() - st.mtimeMs < 90 * 60 * 1000) {
+      const lockText = fs.readFileSync(lockPath, "utf8").trim();
+      const sameStamp = !expectedStamp || expectedStamp === "0:0" || lockText.endsWith(`|${expectedStamp}`);
+      if (sameStamp && Date.now() - st.mtimeMs < 90 * 60 * 1000) {
         return true;
       }
     }
   } catch (_e) {}
 
   try {
-    fs.writeFileSync(lockPath, String(Date.now()), "utf8");
+    fs.writeFileSync(lockPath, `${Date.now()}|${expectedStamp}`, "utf8");
     if (resolveWscriptExe()) {
       const wshPath = writeOnExitActivateWsh(info, {
         outPath: wshTarget,

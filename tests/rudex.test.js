@@ -422,7 +422,7 @@ test("Manifest & hooks.json follow Rudex v5.0 safe hook architecture (no global 
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "5.5.2");
+  assert.equal(pkg.version, "5.5.3");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "agy-workshop.js")), "agy-workshop.js must exist");
@@ -3113,7 +3113,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v5.5.2"), "install.ps1 banner must show v5.5.2");
+  assert.ok(ps1Text.includes("Rudex v5.5.3"), "install.ps1 banner must show v5.5.3");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -11593,14 +11593,14 @@ test("Force-close composer drafts: Main-World detached file/drop capture, zero-w
   }
 });
 
-test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.2): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
+test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.3): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
   const fsLocal = require("fs");
   const osLocal = require("os");
   const Module = require("module");
 
   // 1) Version consistency check across plugin.json & installers
   const pkg = JSON.parse(fsLocal.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
-  assert.equal(pkg.version, "5.5.2", "plugin.json must be bumped to 5.5.2");
+  assert.equal(pkg.version, "5.5.3", "plugin.json must be bumped to 5.5.3");
 
   // 2) Full legacy v4.x + v5.0.x settings, quota, and drafts migration test
   const tmpDir = fsLocal.mkdtempSync(path.join(osLocal.tmpdir(), "rudex-upgrade-55-"));
@@ -12331,5 +12331,86 @@ test("v5.5.2 fixes: short bubble width ('ку'), typing flicker/seam guard, hidd
     assert.equal(cardHtml.includes('data-action="sync-limits-now"'), false, "Card limits widget must stay clean without manual refresh button (auto-syncs)");
     assert.equal(pillHtml.includes('data-action="sync-limits-now"'), false, "Pill limits widget must stay clean without manual refresh button (auto-syncs)");
     assert.ok(cardHtml.includes("обновлено 2 мин назад"), "Limits widget tooltip must show snapshot freshness");
+  }
+});
+
+test("v5.5.3 fixes: zero-race Antigravity auto-update survival (350ms post-update watcher + seamless --updated relaunch + 500ms passive on-exit activator)", () => {
+  const vm = require("vm");
+  const Module = require("module");
+  const installer = require(path.join(SCRIPTS_DIR, "install.js"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-v553-update-"));
+  const origLoad = Module._load;
+  const fakeElectron = {
+    app: { getPath: () => tmpDir, getVersion: () => "2.36.0", isReady: () => true, whenReady: () => Promise.resolve(), on: () => {} },
+    BrowserWindow: { getAllWindows: () => [] },
+    ipcMain: { handle: () => {}, on: () => {} },
+    Menu: {}, dialog: {}, shell: {}, protocol: {}, clipboard: {}, nativeImage: {},
+  };
+
+  try {
+    Module._load = function (req) {
+      return req === "electron" ? fakeElectron : origLoad.apply(this, arguments);
+    };
+    const mainPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainPath)];
+    const i18nMain = require(mainPath);
+
+    if (process.platform === "win32") {
+      // 1) Post-app-update WSH watcher: pure ASCII, valid JS, fast 350ms polling, and guarded seamless --updated relaunch
+      const postPath = path.join(tmpDir, "post-update.js");
+      const postLock = path.join(tmpDir, "post-update.lock");
+      const writtenPost = i18nMain.writePostAppUpdateWatcherWsh({
+        resDir: "C:\\Users\\Иван\\AppData\\Local\\Programs\\antigravity\\resources",
+        exePath: "C:\\Users\\Иван\\AppData\\Local\\Programs\\antigravity\\Antigravity.exe",
+        installJs: "C:\\Users\\Иван\\.gemini\\config\\plugins\\rudex\\skills\\rudex\\scripts\\install.js",
+        outPath: postPath,
+        lockPath: postLock,
+      });
+      assert.equal(writtenPost, postPath);
+      const postSrc = fs.readFileSync(postPath, "utf8");
+      assert.equal(/[^\r\n\x20-\x7E]/.test(postSrc), false, "Post-update WSH script must stay pure ASCII");
+      assert.doesNotThrow(() => new vm.Script(postSrc), "Post-update WSH script must be valid JS");
+      assert.ok(postSrc.includes("WScript.Sleep(350);"), "Post-update WSH watcher must poll rapidly (350ms) to win the NSIS restart race");
+      assert.ok(postSrc.includes("CommandLine LIKE '%--updated%'"), "Post-update WSH watcher must only relaunch a fresh Antigravity.exe --updated boot process");
+      assert.ok(postSrc.includes("elapsedMs < 45000"), "Post-update WSH watcher must bound automatic relaunch to the immediate post-update window (<45s)");
+      assert.ok(postSrc.includes("rudex-patch-meta.json") && postSrc.includes("hasOrigBackup(resDir)"), "Post-update WSH watcher must verify staged Rudex meta and backup before unlinking app.asar");
+
+      // 2) Passive on-exit WSH activator: fast 500ms polling + 350ms confirm + ZERO taskkill
+      const exitPath = path.join(tmpDir, "on-exit.js");
+      const exitLock = path.join(tmpDir, "on-exit.lock");
+      const writtenExit = installer.writeOnExitActivateWsh(
+        { resourcesDir: "C:\\Users\\Иван\\resources", exePath: "C:\\Users\\Иван\\Antigravity.exe" },
+        { outPath: exitPath, lockPath: exitLock, expectedAsarSize: 6729546, expectedAsarMtimeSec: 1795796070 }
+      );
+      assert.equal(writtenExit, exitPath);
+      const exitSrc = fs.readFileSync(exitPath, "utf8");
+      assert.equal(/[^\r\n\x20-\x7E]/.test(exitSrc), false, "Passive on-exit WSH script must stay pure ASCII");
+      assert.equal(/taskkill/i.test(exitSrc), false, "Passive on-exit WSH activator must NEVER call taskkill");
+      assert.doesNotThrow(() => new vm.Script(exitSrc), "Passive on-exit WSH script must be valid JS");
+      assert.ok(exitSrc.includes("WScript.Sleep(500);") && exitSrc.includes("WScript.Sleep(350);"), "Passive on-exit WSH activator must use fast 500ms poll + 350ms confirm");
+    }
+
+    // 3) POSIX post-update and on-exit watchers use 1s polling (down from 2s)
+    const posixPost = path.join(tmpDir, "post-update.sh");
+    i18nMain.writePostAppUpdateWatcherPosix({
+      resDir: "/Applications/Antigravity.app/Contents/Resources",
+      exePath: "/Applications/Antigravity.app/Contents/MacOS/Antigravity",
+      installJs: "/Users/test/.gemini/config/plugins/rudex/skills/rudex/scripts/install.js",
+      outPath: posixPost,
+      lockPath: path.join(tmpDir, "post-update.lock"),
+    });
+    const posixPostSrc = fs.readFileSync(posixPost, "utf8");
+    assert.ok(posixPostSrc.includes("  sleep 1\n"), "POSIX post-update watcher must poll every 1s");
+
+    const posixExit = path.join(tmpDir, "on-exit.sh");
+    installer.writeOnExitActivatePosix(
+      { resourcesDir: "/Applications/Antigravity.app/Contents/Resources", asarPath: "/Applications/Antigravity.app/Contents/Resources/app.asar", appDir: "/Applications/Antigravity.app/Contents/Resources/app", exePath: "/Applications/Antigravity.app/Contents/MacOS/Antigravity" },
+      { outPath: posixExit, lockPath: path.join(tmpDir, "on-exit.lock") }
+    );
+    const posixExitSrc = fs.readFileSync(posixExit, "utf8");
+    assert.ok(posixExitSrc.includes("  sleep 1\n") && posixExitSrc.includes("    sleep 1\n"), "POSIX on-exit activator must use 1s poll & confirm");
+  } finally {
+    Module._load = origLoad;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
