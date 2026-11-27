@@ -1726,7 +1726,7 @@ function createStudioPanel(options) {
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "5.5.5", dictEntries: 4068, dynamicRulesCount: 485 };
+    : { version: "5.5.6", dictEntries: 4068, dynamicRulesCount: 485 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -4078,7 +4078,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.5";
+    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.6";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -4125,9 +4125,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "5.5.5" },
+          installed: realU.installed || { version: pluginMeta.version || "5.5.6" },
           remote: {
-            version: pluginMeta.version || "5.5.5",
+            version: pluginMeta.version || "5.5.6",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -5318,16 +5318,18 @@ function createStudioPanel(options) {
             <span>${escHtml(tr.quotaSectionTitle)}</span>
             <span class="num med-quota-val" style="color:var(--rx-theme-fg-strong, var(--rx-fg-strong));font-weight:600" data-live="quotaMed">${escHtml(getActiveChatQuotaDisplay().miniText)}</span>
           </div>
-          <div class="med-export-row">
-            ${isPreview
-              ? `<span class="med-export-btn">${iconSvg("download", 12)}${escHtml(state.locale !== "en" ? "Скачать контекст чата" : "Download chat context")}</span>
-                 <span class="icon-btn">${iconSvg("sliders", 12)}</span>`
-              : `<button type="button" class="med-export-btn${state.exportJustDone ? " is-done" : ""}" ${state.exportBusy ? "disabled" : ""} data-action="export-chat-zip" data-choose="0" data-no-drag="1" title="${escAttr(state.locale !== "en" ? "Скачать весь контекст текущего чата в ZIP (Загрузки)" : "Download current chat context as ZIP (Downloads)")}">
-                   ${iconSvg(state.exportJustDone ? "check" : "download", 12)}
-                   <span>${escHtml(state.exportBusy ? tr.exportBusy : (state.exportJustDone ? (state.locale !== "en" ? "Контекст сохранён ✓" : "Context saved ✓") : (state.locale !== "en" ? "Скачать контекст чата" : "Download chat context")))}</span>
-                 </button>
-                 <button type="button" class="icon-btn" data-action="open-export-limits" data-no-drag="1" title="${escAttr(state.locale !== "en" ? "Параметры экспорта и таблица квот" : "Export options & quota table")}">${iconSvg("sliders", 12)}</button>`}
-          </div>
+          ${state.settings.miniFields && state.settings.miniFields.exportBtn ? `
+            <div class="med-export-row">
+              ${isPreview
+                ? `<span class="med-export-btn">${iconSvg("download", 12)}${escHtml(state.locale !== "en" ? "Скачать контекст чата" : "Download chat context")}</span>
+                   <span class="icon-btn">${iconSvg("sliders", 12)}</span>`
+                : `<button type="button" class="med-export-btn${state.exportJustDone ? " is-done" : ""}" ${state.exportBusy ? "disabled" : ""} data-action="export-chat-zip" data-choose="0" data-no-drag="1" title="${escAttr(state.locale !== "en" ? "Скачать весь контекст текущего чата в ZIP (Загрузки)" : "Download current chat context as ZIP (Downloads)")}">
+                     ${iconSvg(state.exportJustDone ? "check" : "download", 12)}
+                     <span>${escHtml(state.exportBusy ? tr.exportBusy : (state.exportJustDone ? (state.locale !== "en" ? "Контекст сохранён ✓" : "Context saved ✓") : (state.locale !== "en" ? "Скачать контекст чата" : "Download chat context")))}</span>
+                   </button>
+                   <button type="button" class="icon-btn" data-action="open-export-limits" data-no-drag="1" title="${escAttr(state.locale !== "en" ? "Параметры экспорта и таблица квот" : "Export options & quota table")}">${iconSvg("sliders", 12)}</button>`}
+            </div>
+          ` : ""}
           <div class="med-footer">
             <span class="med-model-tag" data-live="model" title="${escAttr(tel.modelName || tr.modelUnknown)}">${escHtml(tel.modelName || "—")}</span>
             ${personaElHtml}
@@ -7696,7 +7698,7 @@ function createStudioPanel(options) {
     const uStatus = u.status || "idle";
     const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "verifying" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "5.5.5";
+    const ver = inst.version || pluginMeta.version || "5.5.6";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
     const dictCount = pluginMeta.dictEntries || 4068;
     const dynCount = pluginMeta.dynamicRulesCount || 485;
@@ -8058,7 +8060,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.5")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.6")}</span>
               </div>
               <div class="rx-search-wrap">
                 <div class="rx-search-box">
@@ -8261,7 +8263,7 @@ function createStudioPanel(options) {
     return !(a.right + p <= b.left || a.left - p >= b.right || a.bottom + p <= b.top || a.top - p >= b.bottom);
   }
 
-  function collectNativeOverlayRects(vw, vh, extraProbePoints) {
+  function collectNativeOverlayRects(vw, vh) {
     const out = [];
     if (!doc || !win) return out;
     const seen = new Set();
@@ -8272,15 +8274,35 @@ function createStudioPanel(options) {
       if (hostEl && (el === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(el)))) return true;
       return false;
     };
-    const pushRect = (el, isModalFlag) => {
-      if (!el || seen.has(el) || isSelfOrBg(el)) return;
+    const containsChatOrComposer = (el) => {
+      if (!el || el.nodeType !== 1) return true;
+      const tag = String(el.tagName || "").toUpperCase();
+      if (tag === "MAIN" || tag === "BODY" || tag === "HTML" || tag === "HEADER" || tag === "ASIDE" || el.id === "root") return true;
+      if (typeof el.closest === "function") {
+        try {
+          if (el.closest('main, [data-testid="conversation-view"], [data-testid="chat-container"], [data-testid="agent-response"], [data-testid="user-message-content"], [data-rudex-theme-composer="1"]')) {
+            return true;
+          }
+        } catch (_e) {}
+      }
+      if (typeof el.querySelector === "function") {
+        try {
+          if (el.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"], textarea, [contenteditable="true"], [data-rudex-theme-composer="1"]')) {
+            return true;
+          }
+        } catch (_e) {}
+      }
+      return false;
+    };
+    const pushBoundedPopover = (el) => {
+      if (!el || seen.has(el) || isSelfOrBg(el) || containsChatOrComposer(el)) return;
       seen.add(el);
       if (isHiddenAncestor(el, doc.body)) return;
       if (typeof el.getBoundingClientRect !== "function") return;
       const r = el.getBoundingClientRect();
-      if (!r || r.width < 80 || r.height < 44) return;
+      // Strictly bounded to real floating popovers / menus (never full chat panes or sidebars!)
+      if (!r || r.width < 100 || r.width > 440 || r.height < 60 || r.height > 560) return;
       if (r.right <= 0 || r.bottom <= 0 || r.left >= vw || r.top >= vh) return;
-      if (!isModalFlag && r.width >= vw - 16 && r.height >= vh - 16) return;
       if (typeof win.getComputedStyle === "function") {
         const cs = win.getComputedStyle(el);
         if (cs) {
@@ -8296,75 +8318,68 @@ function createStudioPanel(options) {
         bottom: Math.round(r.bottom),
         width: Math.round(r.width),
         height: Math.round(r.height),
-        isModal: Boolean(isModalFlag),
       });
     };
 
     try {
+      // 1. Explicit Radix / ARIA floating popovers & dropdown menus portaled outside chat <main>
       if (typeof doc.querySelectorAll === "function") {
-        const sel = '[data-radix-popper-content-wrapper], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"], [data-slot*="popover"], [data-slot*="dropdown"], [data-slot*="sheet"], [data-slot*="drawer"], [data-testid*="overview"], [data-testid*="popover"]';
+        const sel = '[data-radix-popper-content-wrapper], [role="menu"], [role="listbox"], [data-slot*="popover"], [data-slot*="dropdown"]';
         const nodes = doc.querySelectorAll(sel);
-        for (let i = 0; nodes && i < nodes.length && i < 32; i += 1) {
+        for (let i = 0; nodes && i < nodes.length && i < 24; i += 1) {
           const n = nodes[i];
           if (!n) continue;
-          const role = typeof n.getAttribute === "function" ? (n.getAttribute("role") || "") : "";
-          const isModal = role === "dialog" || role === "alertdialog";
-          // Unwrap full-size Radix wrapper if its single child is the actual bounded popover card
           let target = n;
-          if (!isModal && typeof n.hasAttribute === "function" && n.hasAttribute("data-radix-popper-content-wrapper") && n.children && n.children.length === 1) {
+          if (typeof n.hasAttribute === "function" && n.hasAttribute("data-radix-popper-content-wrapper") && n.children && n.children.length === 1) {
             const ch = n.children[0];
             if (ch && typeof ch.getBoundingClientRect === "function") {
               const cr = ch.getBoundingClientRect();
-              if (cr && cr.width >= 80 && cr.height >= 44) target = ch;
+              if (cr && cr.width >= 100 && cr.height >= 60) target = ch;
             }
           }
-          pushRect(target, isModal);
+          pushBoundedPopover(target);
         }
       }
-      // Also probe points under the top-right / floating widget corners so frameless native cards
-      // (such as Antigravity 2.36's Overview/Files/Terminal/Plugins floating card) are caught regardless of class names!
-      if (typeof doc.elementsFromPoint === "function" && typeof win.getComputedStyle === "function") {
+      // 2. Targeted detector for Antigravity's top-right Overview ("Обзор / Файлы / Терминал / Плагины / Субагенты") card
+      // ONLY matches bounded top-right card containing >= 2 Overview section labels (0% false positive on existing chats!)
+      if (typeof doc.elementsFromPoint === "function") {
         const probes = [
-          [Math.max(40, vw - 72), 96],
-          [Math.max(40, vw - 72), 164],
-          [Math.max(40, vw - 180), 124],
-          [Math.max(40, vw - 72), 232],
+          [Math.max(40, vw - 80), 108],
+          [Math.max(40, vw - 160), 148],
+          [Math.max(40, vw - 80), 196],
         ];
-        if (Array.isArray(extraProbePoints)) {
-          for (let i = 0; i < extraProbePoints.length; i += 1) probes.push(extraProbePoints[i]);
-        }
+        const ovKeywordRes = [
+          /(?:^|\b)(?:обзор|overview)(?:\b|$)/i,
+          /(?:^|\b)(?:файлы|files)(?:\b|$)/i,
+          /(?:^|\b)(?:терминал|terminal)(?:\b|$)/i,
+          /(?:^|\b)(?:плагины|plugins)(?:\b|$)/i,
+          /(?:^|\b)(?:субагенты|subagents)(?:\b|$)/i,
+          /(?:^|\b)(?:фоновые\s+задачи|background\s+tasks)(?:\b|$)/i,
+        ];
         const checkedAnc = new Set();
         for (let pi = 0; pi < probes.length; pi += 1) {
           let hits = null;
           try { hits = doc.elementsFromPoint(probes[pi][0], probes[pi][1]); } catch (_e) { hits = null; }
           if (!Array.isArray(hits)) continue;
-          for (let hi = 0; hi < hits.length && hi < 12; hi += 1) {
+          for (let hi = 0; hi < hits.length && hi < 10; hi += 1) {
             let cur = hits[hi];
             let up = 0;
             while (cur && cur.nodeType === 1 && up < 6) {
               if (checkedAnc.has(cur) || isSelfOrBg(cur) || cur === doc.body || cur === doc.documentElement) break;
               checkedAnc.add(cur);
-              const tag = String(cur.tagName || "").toUpperCase();
-              const tid = typeof cur.getAttribute === "function" ? (cur.getAttribute("data-testid") || "") : "";
-              if (tag === "MAIN" || tag === "HEADER" || cur.id === "root" || tid === "conversation-view" || tid === "agent-response" || tid === "user-message-content") break;
-              if (typeof cur.hasAttribute === "function" && (cur.hasAttribute("data-rudex-bg-shell") || cur.hasAttribute("data-rudex-bg-header") || cur.hasAttribute("data-markdown-root") || cur.hasAttribute("data-index"))) break;
-              if (typeof cur.closest === "function" && cur.closest('[data-rudex-theme-composer="1"], [data-testid="agent-response"], [data-markdown-root]')) break;
-              const cs = win.getComputedStyle(cur);
-              if (cs && cs.display !== "none" && cs.visibility !== "hidden" && cs.pointerEvents !== "none") {
-                const pos = cs.position || "";
-                const zNum = parseInt(cs.zIndex, 10) || 0;
-                const hasChrome =
-                  (cs.boxShadow && cs.boxShadow !== "none") ||
-                  (cs.borderTopWidth && parseFloat(cs.borderTopWidth) > 0) ||
-                  (cs.backgroundColor && cs.backgroundColor !== "transparent" && cs.backgroundColor !== "rgba(0, 0, 0, 0)");
-                const isFloatingCard = pos === "fixed" || pos === "absolute" || pos === "sticky" || zNum >= 20 || (typeof cur.getAttribute === "function" && cur.getAttribute("data-state") === "open");
-                if (typeof cur.getBoundingClientRect === "function") {
-                  const cr = cur.getBoundingClientRect();
-                  const isLeftSidebar = cr && cr.left < 60 && cr.right < vw * 0.45 && cr.height > vh * 0.5;
-                  const isRightDockedCard = Boolean(cr && !isLeftSidebar && cr.right >= vw - 52 && cr.left >= vw * 0.45 && cr.top >= 40 && cr.top <= 160 && cr.width >= 150 && cr.width <= 460 && cr.height >= 80 && hasChrome);
-                  if (cr && !isLeftSidebar && (isFloatingCard || isRightDockedCard) && cr.width >= 120 && cr.width <= vw * 0.68 && cr.height >= 64 && cr.height <= vh * 0.92 && cr.top >= 32 && hasChrome) {
-                    pushRect(cur, false);
-                    break;
+              if (typeof cur.getBoundingClientRect === "function") {
+                const cr = cur.getBoundingClientRect();
+                if (cr && cr.width >= 150 && cr.width <= 420 && cr.height >= 80 && cr.height <= 500 && cr.top >= 40 && cr.top <= 130 && cr.right >= vw - 56) {
+                  const txt = String(cur.textContent || "").replace(/\s+/g, " ").trim();
+                  if (txt.length >= 12 && txt.length <= 500) {
+                    let kwHits = 0;
+                    for (let ki = 0; ki < ovKeywordRes.length; ki += 1) {
+                      if (ovKeywordRes[ki].test(txt)) kwHits += 1;
+                    }
+                    if (kwHits >= 2) {
+                      pushBoundedPopover(cur);
+                      break;
+                    }
                   }
                 }
               }
@@ -8380,15 +8395,14 @@ function createStudioPanel(options) {
 
   function applyOverlayDodgeToElement(mountEl, opts) {
     if (!mountEl || !opts) return;
+    if (mountEl.classList && typeof mountEl.classList.remove === "function") {
+      mountEl.classList.remove("is-overlay-hidden");
+    }
     const overlays = opts.overlays;
     const hm = opts.hm;
     const mode = opts.mode || "top-right";
-    if (!Array.isArray(overlays) || overlays.length === 0) {
-      if (mountEl.classList && typeof mountEl.classList.remove === "function") {
-        mountEl.classList.remove("is-overlay-hidden");
-      }
-      return;
-    }
+    if (!Array.isArray(overlays) || overlays.length === 0) return;
+
     const w = Math.max(80, Math.round(opts.width || 220));
     const h = Math.max(28, Math.round(opts.height || 64));
     let left = 0;
@@ -8405,34 +8419,18 @@ function createStudioPanel(options) {
     }
     const baseRect = { left, top, right: left + w, bottom: top + h };
     const hits = overlays.filter((ov) => rectsOverlapWithPad(baseRect, ov, 8));
-    if (hits.length === 0) {
-      if (mountEl.classList && typeof mountEl.classList.remove === "function") {
-        mountEl.classList.remove("is-overlay-hidden");
-      }
-      return;
-    }
-    // Full-screen/large modal dialogs: gracefully fade widget out until dialog closes
-    const hasCoveringModal = hits.some((ov) => ov.isModal && (ov.width >= hm.vw * 0.45 || ov.height >= hm.vh * 0.45));
-    if (hasCoveringModal) {
-      if (mountEl.classList && typeof mountEl.classList.add === "function") {
-        mountEl.classList.add("is-overlay-hidden");
-      }
-      return;
-    }
+    if (hits.length === 0) return;
+
     const safeLeft = Math.max(12, hm.sidebarRight > 0 ? hm.sidebarRight + 12 : 12);
     const minOvLeft = Math.min(...hits.map((ov) => ov.left));
     const maxOvBottom = Math.max(...hits.map((ov) => ov.bottom));
     const maxOvRight = Math.max(...hits.map((ov) => ov.right));
 
-    // Strategy 1: Shift cleanly to the LEFT of right-anchored native panels/popovers (e.g. "Обзор / Файлы / Терминал / Плагины")
+    // Strategy 1: Shift cleanly to the LEFT of right-anchored native popovers (e.g. "Обзор / Файлы / Терминал / Плагины")
     const candLeft = Math.round(minOvLeft - w - 12);
     if (candLeft >= safeLeft) {
       const shiftedRect = { left: candLeft, top, right: candLeft + w, bottom: top + h };
-      const stillHits = overlays.some((ov) => rectsOverlapWithPad(shiftedRect, ov, 6));
-      if (!stillHits) {
-        if (mountEl.classList && typeof mountEl.classList.remove === "function") {
-          mountEl.classList.remove("is-overlay-hidden");
-        }
+      if (!overlays.some((ov) => rectsOverlapWithPad(shiftedRect, ov, 6))) {
         if (mode === "top-right" || mode === "bottom-right" || mode === "inline-header" || mode === "middle-right") {
           mountEl.style.left = "";
           mountEl.style.right = `${Math.max(12, Math.round(hm.vw - minOvLeft + 12))}px`;
@@ -8449,32 +8447,20 @@ function createStudioPanel(options) {
     if (candRightLeft + w <= hm.vw - 12) {
       const shiftedRect = { left: candRightLeft, top, right: candRightLeft + w, bottom: top + h };
       if (!overlays.some((ov) => rectsOverlapWithPad(shiftedRect, ov, 6))) {
-        if (mountEl.classList && typeof mountEl.classList.remove === "function") {
-          mountEl.classList.remove("is-overlay-hidden");
-        }
         mountEl.style.right = "";
         mountEl.style.left = `${candRightLeft}px`;
         return;
       }
     }
 
-    // Strategy 3: Shift cleanly BELOW the popover if room remains
+    // Strategy 3: Shift cleanly BELOW the popover if room remains (never hide user widgets!)
     const candTop = Math.round(maxOvBottom + 10);
     if (candTop + h <= hm.vh - 14) {
       const shiftedRect = { left, top: candTop, right: left + w, bottom: candTop + h };
       if (!overlays.some((ov) => rectsOverlapWithPad(shiftedRect, ov, 6))) {
-        if (mountEl.classList && typeof mountEl.classList.remove === "function") {
-          mountEl.classList.remove("is-overlay-hidden");
-        }
         mountEl.style.bottom = "";
         mountEl.style.top = `${candTop}px`;
-        return;
       }
-    }
-
-    // Strategy 4: No room -> temporarily fade & make click-through so native UI is never blocked
-    if (mountEl.classList && typeof mountEl.classList.add === "function") {
-      mountEl.classList.add("is-overlay-hidden");
     }
   }
 
@@ -8482,7 +8468,7 @@ function createStudioPanel(options) {
     if (state.destroyed || !state.mounted || limitsDragState || limitsResizeState || dragState || widgetResizeState) return;
     const hm = measureHostUiMetrics();
     const overlays = collectNativeOverlayRects(hm.vw, hm.vh);
-    const sig = overlays.map((o) => `${o.left},${o.top},${o.right},${o.bottom},${o.isModal ? 1 : 0}`).join(";");
+    const sig = overlays.map((o) => `${o.left},${o.top},${o.right},${o.bottom}`).join(";");
     if (sig === state.lastOverlayDodgeSig) return;
     state.lastOverlayDodgeSig = sig;
     applyWidgetPosition(hm, overlays);

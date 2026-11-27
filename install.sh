@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Rudex v5.5.5 -- Cross-Platform Installer & Antigravity Patcher (macOS / Linux)
+# Rudex v5.5.6 -- Cross-Platform Installer & Antigravity Patcher (macOS / Linux)
 # Local usage:  ./install.sh [--dry-run|--status|--plugin-only|--uninstall|--no-restart|--force]
 # Remote usage: curl -fsSL https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.sh | bash
 # =============================================================================
@@ -11,7 +11,7 @@ REPO_NAME="Rudex"
 BRANCH="${RUDEX_BRANCH:-main}"
 
 echo "========================================================"
-echo "  Rudex v5.5.5 -- Installer & Antigravity Patcher"
+echo "  Rudex v5.5.6 -- Installer & Antigravity Patcher"
 echo "========================================================"
 echo ""
 
@@ -388,7 +388,7 @@ else
 fi
 
 echo ""
-echo "[Rudex] Rudex v5.5.5 installed cleanly!"
+echo "[Rudex] Rudex v5.5.6 installed cleanly!"
 
 if [ "$WAS_RUNNING" -eq 1 ] && [ "$NO_RESTART" -eq 0 ] && ! is_inside_antigravity; then
   echo "[Rudex] Relaunching Antigravity..."

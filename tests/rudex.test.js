@@ -422,7 +422,7 @@ test("Manifest & hooks.json follow Rudex v5.0 safe hook architecture (no global 
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "5.5.5");
+  assert.equal(pkg.version, "5.5.6");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "agy-workshop.js")), "agy-workshop.js must exist");
@@ -3113,7 +3113,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v5.5.5"), "install.ps1 banner must show v5.5.5");
+  assert.ok(ps1Text.includes("Rudex v5.5.6"), "install.ps1 banner must show v5.5.6");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -11593,14 +11593,14 @@ test("Force-close composer drafts: Main-World detached file/drop capture, zero-w
   }
 });
 
-test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.5): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
+test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.6): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
   const fsLocal = require("fs");
   const osLocal = require("os");
   const Module = require("module");
 
   // 1) Version consistency check across plugin.json & installers
   const pkg = JSON.parse(fsLocal.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
-  assert.equal(pkg.version, "5.5.5", "plugin.json must be bumped to 5.5.5");
+  assert.equal(pkg.version, "5.5.6", "plugin.json must be bumped to 5.5.6");
 
   // 2) Full legacy v4.x + v5.0.x settings, quota, and drafts migration test
   const tmpDir = fsLocal.mkdtempSync(path.join(osLocal.tmpdir(), "rudex-upgrade-55-"));
@@ -12750,13 +12750,44 @@ test("v5.5.5 fixes: export chat context in medium/mini/Studio, zero overlap with
     const host = doc.getElementById("rudex-studio-host");
     assert.ok(host && host.shadowRoot, "Studio host & shadowRoot must mount");
 
-    // 2a) Medium card must render Скачать контекст чата button + export settings trigger
-    const widgetHtml = host.shadowRoot.querySelector(".widget-wrap").innerHTML;
-    assert.ok(widgetHtml.includes('data-action="export-chat-zip"') && widgetHtml.includes("Скачать контекст чата"), "Expanded widget (medium) must contain Скачать контекст чата button");
-    assert.ok(widgetHtml.includes('data-action="open-export-limits"'), "Expanded widget must contain quick export settings button");
+    // 2a) Medium card MUST NOT show download button by default (when exportBtn is false), and MUST show it when exportBtn is true
+    panel.applyRemoteState({
+      settings: {
+        viewMode: "medium",
+        dockPosition: "bottom-right",
+        miniFields: { status: true, lang: true, tps: true, exportBtn: false },
+        limitsWidget: { enabled: true, position: "top-right", layout: "card" },
+      },
+    });
+    const medDefaultHtml = host.shadowRoot.querySelector(".widget-wrap").innerHTML;
+    assert.equal(medDefaultHtml.includes('data-action="export-chat-zip"'), false, "Expanded card must NOT show download context button by default (opt-in only)");
+
+    // Simulate opening an existing chat pane (large absolute container with agent-response): BOTH widgets must remain visible (never is-overlay-hidden!)
+    const existingChatPane = doc.createElement("div");
+    existingChatPane.getBoundingClientRect = () => ({ left: 260, top: 64, width: 1180, height: 820, right: 1440, bottom: 884 });
+    const existingResp = doc.createElement("div");
+    existingResp.setAttribute("data-testid", "agent-response");
+    existingChatPane.appendChild(existingResp);
+    doc.body.appendChild(existingChatPane);
+    panel.applyRemoteState({
+      settings: {
+        viewMode: "medium",
+        dockPosition: "bottom-right",
+        miniFields: { status: true, lang: true, tps: true, exportBtn: true },
+        limitsWidget: { enabled: true, position: "top-right", layout: "card" },
+      },
+    });
+    const widgetWrapEl = host.shadowRoot.querySelector(".widget-wrap");
+    const limitsEl = host.shadowRoot.querySelector(".rx-limits-mount");
+    assert.equal(widgetWrapEl.className.includes("is-overlay-hidden"), false, "Widget must NEVER disappear in an existing chat");
+    assert.equal(limitsEl.className.includes("is-overlay-hidden"), false, "Limits widget must NEVER disappear in an existing chat");
+    doc.body.removeChild(existingChatPane);
+
+    const widgetHtml = widgetWrapEl.innerHTML;
+    assert.ok(widgetHtml.includes('data-action="export-chat-zip"') && widgetHtml.includes("Скачать контекст чата"), "Expanded widget (medium) shows Скачать контекст чата when opt-in exportBtn is ON");
+    assert.ok(widgetHtml.includes('data-action="open-export-limits"'), "Expanded widget shows quick export settings button when opt-in exportBtn is ON");
 
     // 2b) Limits widget at top-right MUST automatically dodge LEFT of the overlapping native Overview card (left=1140 -> right >= 1440-1140+12 = 312px!)
-    const limitsEl = host.shadowRoot.querySelector(".rx-limits-mount");
     assert.ok(limitsEl, "Limits widget mount must exist");
     const dodgedRight = parseInt(limitsEl.style.right || "0", 10);
     assert.ok(dodgedRight >= 300, `Limits widget must shift cleanly to the left of native Overview card (expected right >= 300px, got ${limitsEl.style.right})`);
