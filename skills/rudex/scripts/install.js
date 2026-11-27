@@ -510,7 +510,7 @@ function readPluginMeta(resourcesDir = RESOURCES_SRC_DIR, pluginJsonPath = PLUGI
   return {
     name: pkg.name || "rudex",
     displayName: pkg.displayName || "Rudex",
-    version: pkg.version || "5.0.3",
+    version: pkg.version || "5.5.0",
     dictEntries,
     dynamicRulesCount,
     commitSha: commitMeta.commitSha,
@@ -541,6 +541,8 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
   const v5UiSrc = fs.existsSync(v5UiPath) ? loadStripped("rudex-v5-ui.js") : "";
   const annPath = path.join(resourcesDir, "rudex-annotator.js");
   const annSrc = fs.existsSync(annPath) ? loadStripped("rudex-annotator.js") : "";
+  const optPath = path.join(resourcesDir, "rudex-optimizer.js");
+  const optSrc = fs.existsSync(optPath) ? loadStripped("rudex-optimizer.js") : "";
   const panelSrc = loadStripped("studio-panel.js");
 
   const snippet = [
@@ -549,6 +551,7 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     `"use strict";`,
     `try {`,
     `const _ipc = (typeof electron_1 !== "undefined" && electron_1 && electron_1.ipcRenderer) || (typeof require === "function" ? require("electron").ipcRenderer : null);`,
+    `const _webFrame = (typeof electron_1 !== "undefined" && electron_1 && electron_1.webFrame) || (typeof require === "function" ? require("electron").webFrame : null);`,
     `if (!_ipc || typeof document === "undefined") return;`,
     dynSrc,
     `const DICT = ${dictJson};`,
@@ -560,12 +563,18 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     v5CoreSrc,
     v5UiSrc,
     annSrc,
+    optSrc,
     panelSrc,
     `const _rawBootLocale = (() => { try { return _ipc.sendSync("agy-i18n:get-locale-sync"); } catch (_e) { return "ru"; } })();`,
     `if (_rawBootLocale === "__disabled__") return;`,
     `const _bootLocale = _rawBootLocale === "en" ? "en" : "ru";`,
-    `const _translator = createDomTranslator({ document, window: typeof window !== "undefined" ? window : globalThis, dictionary: DICT, applyDynamicRules: typeof applyDynamicRules === "function" ? applyDynamicRules : () => null, initialLocale: _bootLocale });`,
-    `const _studioPanel = createStudioPanel({ document, window: typeof window !== "undefined" ? window : globalThis, ipcRenderer: _ipc, translator: _translator, initialLocale: _bootLocale, pluginMeta: STUDIO_META, buildStyles: typeof buildStudioStyles === "function" ? buildStudioStyles : null });`,
+    `const _voiceBoot = (() => { try { return _ipc.sendSync("agy-studio:get-voice-boot-sync"); } catch (_e) { return null; } })();`,
+    `const _bootState = (() => { try { return _ipc.sendSync("agy-studio:get-boot-state-sync"); } catch (_e) { return null; } })();`,
+    `if (typeof bootMainWorldVoiceEarly === "function") { try { bootMainWorldVoiceEarly({ window: typeof window !== "undefined" ? window : globalThis, webFrame: _webFrame, ipcRenderer: _ipc, boot: _voiceBoot, locale: _bootLocale }); } catch (_e) {} }`,
+    `const _translator = createDomTranslator({ document, window: typeof window !== "undefined" ? window : globalThis, dictionary: DICT, applyDynamicRules: typeof applyDynamicRules === "function" ? applyDynamicRules : () => null, initialLocale: _bootLocale, initialGreeting: _bootState && _bootState.greeting ? _bootState.greeting : null, initialCustomLabels: _bootState && Array.isArray(_bootState.customLabels) ? _bootState.customLabels : [] });`,
+    `const _studioPanel = createStudioPanel({ document, window: typeof window !== "undefined" ? window : globalThis, ipcRenderer: _ipc, webFrame: _webFrame, translator: _translator, initialLocale: _bootLocale, initialBoot: _bootState, pluginMeta: STUDIO_META, buildStyles: typeof buildStudioStyles === "function" ? buildStudioStyles : null });`,
+    `if (_bootState && typeof _studioPanel.bootEarlyTheme === "function") { try { _studioPanel.bootEarlyTheme(); } catch (_e) {} }`,
+    `_ipc.on("agy-studio:local-voice-progress", (_event, payload) => { try { if (typeof _studioPanel.applyLocalVoiceProgress === "function") _studioPanel.applyLocalVoiceProgress(payload); } catch (_e) {} });`,
     `_ipc.on("agy-i18n:locale-changed", (_event, nextLocale) => { try { _translator.setLocale(nextLocale); } catch (_e) {} try { _studioPanel.setLocale(nextLocale); } catch (_e) {} });`,
     `_ipc.on("agy-studio:toggle-panel", () => { try { _studioPanel.toggleOpen(); } catch (_e) {} });`,
     `_ipc.on("agy-studio:toggle-live-edit", () => { try { _studioPanel.toggleLiveEditPopover(); } catch (_e) {} });`,
@@ -576,7 +585,7 @@ function buildPreloadSnippet(resourcesDir = RESOURCES_SRC_DIR, pluginMeta = read
     `_ipc.on("agy-studio:quota-restored", (_event, payload) => { try { if (typeof _studioPanel.handleQuotaRestored === "function") _studioPanel.handleQuotaRestored(payload); } catch (_e) {} });`,
     `_ipc.on("agy-studio:notification-clicked", (_event, payload) => { try { if (typeof _studioPanel.handleNotificationClicked === "function") _studioPanel.handleNotificationClicked(payload); } catch (_e) {} });`,
     `_ipc.on("agy-studio:update-status", (_event, payload) => { try { _studioPanel.applyUpdateStatus(payload); } catch (_e) {} });`,
-    `const _bootRudex = () => { try { _translator.init(); _translator.translateDocument(); } catch (_e) {} try { _studioPanel.init(); } catch (_e) {} };`,
+    `const _bootRudex = () => { try { if (_bootState && typeof _studioPanel.bootEarlyTheme === "function") _studioPanel.bootEarlyTheme(); } catch (_e) {} try { _translator.init(); _translator.translateDocument(); } catch (_e) {} try { _studioPanel.init(); } catch (_e) {} };`,
     `if (document.readyState === "loading") { if (document.documentElement) { try { _translator.init(); } catch (_e) {} } document.addEventListener("DOMContentLoaded", _bootRudex, { once: true }); } else { _bootRudex(); }`,
     `} catch (err) { console.error("[Rudex] Preload initialization failed:", err); }`,
     `})();`,
@@ -599,6 +608,14 @@ function copyI18nDataFiles(distDir, resourcesDir = RESOURCES_SRC_DIR, scriptsDir
   const wsPath = path.join(scriptsDir, "agy-workshop.js");
   if (fs.existsSync(wsPath)) {
     fs.copyFileSync(wsPath, path.join(dataDir, "agy-workshop.js"));
+  }
+  const perfPath = path.join(scriptsDir, "perf-cache-engine.js");
+  if (fs.existsSync(perfPath)) {
+    fs.copyFileSync(perfPath, path.join(dataDir, "perf-cache-engine.js"));
+  }
+  const lvPath = path.join(scriptsDir, "local-voice-engine.js");
+  if (fs.existsSync(lvPath)) {
+    fs.copyFileSync(lvPath, path.join(dataDir, "local-voice-engine.js"));
   }
 }
 
@@ -801,7 +818,25 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
   }
 
   // Sync hooks.json (using hook-runner fallback on Windows/Linux without global node, and always on macOS where GUI PATH omits Homebrew/nvm)
+  // Stock hooks.json omits PreToolUse by default for zero per-tool process overhead; only include it if user already has an active tool-blocking policy.
   const hooksObj = JSON.parse(fs.readFileSync(path.join(repoRoot, "hooks.json"), "utf8"));
+  try {
+    const toolPolicyFlag = path.join(getUserDataDir(), "agy_studio_tool_policy.flag");
+    if (fs.existsSync(toolPolicyFlag) && hooksObj && hooksObj["rudex-studio"] && !hooksObj["rudex-studio"].PreToolUse) {
+      hooksObj["rudex-studio"].PreToolUse = [
+        {
+          matcher: "search_web|read_url_content|web_search|invoke_subagent|browser_.*|call_mcp_tool|write_file|edit_file|replace_file_content|multi_replace_file_content|write_to_file",
+          hooks: [
+            {
+              type: "command",
+              command: "node ./skills/rudex/scripts/rudex-hook.js",
+              timeout: 5,
+            },
+          ],
+        },
+      ];
+    }
+  } catch (_e) {}
   const needsHookRunner = process.platform === "darwin" || !hasSystemNode();
   if (needsHookRunner && hooksObj && typeof hooksObj === "object") {
     const targetCmd = process.platform === "win32"
@@ -839,7 +874,7 @@ function syncPluginToGlobalConfig(repoRoot = PLUGIN_ROOT) {
 
   // Write install commit metadata inside ~/.gemini/config/plugins/rudex/.rudex-install-meta.json
   try {
-    let pkgVer = "5.0.3";
+    let pkgVer = "5.5.0";
     try {
       const repoPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "plugin.json"), "utf8"));
       if (repoPkg && typeof repoPkg.version === "string" && repoPkg.version.trim()) {
@@ -1009,13 +1044,13 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
   fs.mkdirSync(stagingDir, { recursive: true });
 
   const unpackedCount = unpackAsar(cleanAsarPath, stagingDir);
-  const stampVersion = info.versionFileText || info.appVersion || "custom";
+  const stampVersion = info.appVersion || "custom";
   const patchResult = patchElectronShell(stagingDir, preloadSnippet, { stampVersion });
 
   const distDir = path.join(stagingDir, "dist");
   copyI18nDataFiles(distDir, RESOURCES_SRC_DIR, SCRIPTS_SRC_DIR);
 
-  verifyJsFilesSyntax([
+  const syntaxTargets = [
     path.join(distDir, "main.js"),
     path.join(distDir, "i18nMain.js"),
     path.join(distDir, "preload.js"),
@@ -1024,7 +1059,14 @@ function buildPatchedStaging(info, preloadSnippet, pluginMeta, stagingDir, opts 
     path.join(distDir, "i18nData", "updater-core.js"),
     path.join(distDir, "i18nData", "thinking-translator.js"),
     path.join(distDir, "i18nData", "agy-workshop.js"),
-  ]);
+    path.join(distDir, "i18nData", "perf-cache-engine.js"),
+    path.join(distDir, "i18nData", "local-voice-engine.js"),
+  ];
+  for (const optDistFile of ["languageServer.js", "storage.js"]) {
+    const fullOpt = path.join(distDir, optDistFile);
+    if (fs.existsSync(fullOpt)) syntaxTargets.push(fullOpt);
+  }
+  verifyJsFilesSyntax(syntaxTargets);
 
   return {
     unpackedCount,
@@ -1215,6 +1257,7 @@ function writeOnExitActivateWsh(info, opts = {}) {
     "  var env = sh.Environment('Process');",
     "  env('ELECTRON_RUN_AS_NODE') = '1';",
     "  env('ELECTRON_NO_ASAR') = '1';",
+    "  env('ANTIGRAVITY_RESOURCES_DIR') = resDir;",
     "  var runner = (agyExe && fso.FileExists(agyExe)) ? ('\"' + agyExe + '\"') : 'node';",
     "  try { sh.Run(runner + ' \"' + installJs + '\" --no-sync-plugin', 0, true); } catch (e) {}",
     "}",
@@ -1409,14 +1452,57 @@ function spawnOnExitActivatorIfNeeded(info, extraOpts = {}) {
   }
 }
 
-function runInstall(options = {}) {
-  if (options.syncPlugin !== false) {
-    syncPluginToGlobalConfig(PLUGIN_ROOT);
+function syncPerfFlagAndLightMaintenance() {
+  // Never create root-owned files inside user home when invoked via `sudo` on macOS/Linux
+  if (process.platform !== "win32" && typeof process.getuid === "function" && process.getuid() === 0 && process.env.SUDO_UID) {
+    return;
   }
+  try {
+    const userDataDir = getUserDataDir();
+    fs.mkdirSync(userDataDir, { recursive: true });
+    const settingsPath = path.join(userDataDir, "agy_studio_settings.json");
+    let userEnabledPerfAgent = false;
+    if (fs.existsSync(settingsPath)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+        if (parsed && parsed.optimization && parsed.optimization.geminiFileCacheProtocol === true) {
+          userEnabledPerfAgent = true;
+        }
+      } catch (_e) {}
+    }
+    const perfFlagPath = path.join(userDataDir, "agy_studio_perf_agent.flag");
+    if (userEnabledPerfAgent) {
+      fs.writeFileSync(perfFlagPath, "1\n", "utf8");
+    } else if (fs.existsSync(perfFlagPath)) {
+      try { fs.unlinkSync(perfFlagPath); } catch (_e) {}
+    }
+    // Safe light maintenance on install: clear only expired live edits & orphaned *.tmp-* files
+    const perfMod = require("./perf-cache-engine.js");
+    if (perfMod && typeof perfMod.cleanSafeCaches === "function") {
+      perfMod.cleanSafeCaches({ userDataDir, includeChromium: false, includePartitions: false, includeRudexTemp: true });
+    }
+  } catch (_e) {}
+}
+
+function runInstall(options = {}) {
   const info = detectAntigravity();
   if (!info.found) {
     console.error("Antigravity installation directory not found.");
     process.exit(1);
+  }
+
+  // Verify resourcesDir write access BEFORE syncing plugin metadata so failed EACCES installs
+  // on Linux/macOS never poison ~/.gemini/config/plugins/rudex/.rudex-install-meta.json.
+  try {
+    fs.accessSync(info.resourcesDir, fs.constants.W_OK);
+  } catch (err) {
+    if (process.platform !== "win32") {
+      throw new Error(
+        `No write permission to "${info.resourcesDir}" (${err.code || "EACCES"}). ` +
+        `Run the installer with sudo support: bash ~/.gemini/config/plugins/rudex/install.sh (or set ANTIGRAVITY_RESOURCES_DIR for extracted AppImage).`
+      );
+    }
+    throw err;
   }
 
   const pluginMeta = readPluginMeta();
@@ -1471,11 +1557,24 @@ function runInstall(options = {}) {
       }
     } catch (_e) {}
 
-    verifyJsFilesSyntax([
+    const postInstallSyntaxTargets = [
       path.join(info.appDir, "dist", "main.js"),
       path.join(info.appDir, "dist", "i18nMain.js"),
       path.join(info.appDir, "dist", "preload.js"),
-    ]);
+    ];
+    for (const optDistFile of ["languageServer.js", "storage.js"]) {
+      const fullOpt = path.join(info.appDir, "dist", optDistFile);
+      if (fs.existsSync(fullOpt)) postInstallSyntaxTargets.push(fullOpt);
+    }
+    verifyJsFilesSyntax(postInstallSyntaxTargets);
+
+    // Sync plugin & .rudex-install-meta.json ONLY after app patching & syntax verification succeed
+    if (options.syncPlugin !== false) {
+      syncPluginToGlobalConfig(PLUGIN_ROOT);
+    }
+
+    // Auto-activate Gemini File & Prompt Cache SessionStart protocol unless explicitly disabled by user
+    syncPerfFlagAndLightMaintenance();
 
     // Remove obsolete app.asar.orig-* backups from older Antigravity versions once current backup & patched app are verified
     if (info.appVersion && info.appVersion !== "unknown") {
@@ -1570,16 +1669,82 @@ function printResourcesInfo() {
   if (info.appVersion) console.log(`APP_VERSION=${info.appVersion}`);
 }
 
+function runDiagnostics(cleanNow) {
+  const perfMod = require("./perf-cache-engine.js");
+  const userDataDir = getUserDataDir();
+  const geminiDir = path.join(os.homedir(), ".gemini", "antigravity");
+  let opt = {};
+  try {
+    const sp = path.join(userDataDir, "agy_studio_settings.json");
+    if (fs.existsSync(sp)) {
+      const parsed = JSON.parse(fs.readFileSync(sp, "utf8"));
+      if (parsed && parsed.optimization) opt = parsed.optimization;
+    }
+  } catch (_e) {}
+  if (cleanNow) {
+    const cleaned = perfMod.cleanSafeCaches({ userDataDir, includeChromium: true, includePartitions: true, includeRudexTemp: true });
+    const pruned = perfMod.pruneStaleAppStorage({ userDataDir, geminiDir, dryRun: false });
+    console.log(`CACHE_CLEANED_MB=${(cleaned.freedBytes / (1024 * 1024)).toFixed(2)}`);
+    console.log(`CACHE_FILES_REMOVED=${cleaned.removedFiles}`);
+    console.log(`STORAGE_PRUNED_KEYS=${pruned.removedKeys}`);
+    console.log(`STORAGE_FREED_KB=${(pruned.freedBytes / 1024).toFixed(1)}`);
+  }
+  const diag = perfMod.inspectCacheDiagnostics({ userDataDir, geminiDir, optimization: opt });
+  console.log("=== Rudex Performance & Cache Diagnostics ===");
+  console.log(`LS CPU Threads: ${diag.lsTuning.maxProcs} / ${diag.lsTuning.cpuCount} (fileWatchMaxDirs=${diag.lsTuning.fileWatchMaxDirs}, workspaces=${diag.lsTuning.maxTrackedWorkspaces}, GOMEMLIMIT=${diag.lsTuning.goMemLimit || "default"})`);
+  console.log(`Prompt Cache Hit Rate: ${diag.promptCache.cacheHitRatePct}% (${diag.promptCache.turnsSampled} turns across ${diag.promptCache.chatsSampled} chats)`);
+  console.log(`Chromium Cache: ${(diag.buckets.chromiumCache.bytes / (1024 * 1024)).toFixed(1)} MB (${diag.buckets.chromiumCache.files} files)`);
+  console.log(`Partitions Cache: ${(diag.buckets.partitionsCache.bytes / (1024 * 1024)).toFixed(1)} MB (${diag.buckets.partitionsCache.files} files)`);
+  console.log(`Rudex Temp: ${(diag.buckets.rudexTemp.bytes / (1024 * 1024)).toFixed(2)} MB (${diag.buckets.rudexTemp.files} files)`);
+  console.log(`app_storage.json: ${(diag.appStorage.bytes / 1024).toFixed(1)} KB (${diag.appStorage.staleLayoutKeys.length} stale layout keys)`);
+  try {
+    const lvMod = require("./local-voice-engine.js");
+    const lvMgr = lvMod.createLocalVoiceManager({ userDataDir });
+    const lvSt = lvMgr.getStatus(opt.voiceLocalModel || "ru-fast");
+    console.log(`Local Instant Voice (Sherpa-ONNX): ${lvSt.installed ? `READY (model=${lvSt.modelId}, installed=[${lvSt.installedModels.join(", ")}])` : "NOT INSTALLED (run --install-voice or install in Studio)"}`);
+  } catch (_e) {}
+  console.log("STATUS=DIAGNOSTICS_OK");
+}
+
+async function runInstallVoice(rawArg) {
+  const lvMod = require("./local-voice-engine.js");
+  const userDataDir = getUserDataDir();
+  const mMatch = /^--install-voice=(.+)$/.exec(String(rawArg || ""));
+  const modelId = mMatch && mMatch[1] ? mMatch[1].trim() : "ru-fast";
+  console.log(`Installing Rudex Local Instant Voice (Sherpa-ONNX, model=${modelId})...`);
+  let lastLine = "";
+  const res = await lvMod.downloadAndInstallLocalVoice(userDataDir, modelId, (p) => {
+    const line = `[${p.pct}%] ${p.message}`;
+    if (line !== lastLine) {
+      lastLine = line;
+      console.log(line);
+    }
+  });
+  console.log(`Local voice binary: ${res.exePath}`);
+  console.log(`Local voice model:  ${res.modelFiles.modelDir}`);
+  console.log("STATUS=LOCAL_VOICE_INSTALLED");
+}
+
 function main() {
-  const args = new Set(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  const args = new Set(argv);
+  const voiceInstallArg = argv.find((a) => a === "--install-voice" || a.startsWith("--install-voice="));
   if (args.has("--print-resources")) {
     printResourcesInfo();
   } else if (args.has("--dry-run")) {
     runDryRun();
   } else if (args.has("--status")) {
     runStatus();
+  } else if (args.has("--diagnostics") || args.has("--clean-cache")) {
+    runDiagnostics(args.has("--clean-cache"));
+  } else if (voiceInstallArg) {
+    runInstallVoice(voiceInstallArg).catch((err) => {
+      console.error(`Local voice install failed: ${err && err.message ? err.message : err}`);
+      process.exit(1);
+    });
   } else if (args.has("--plugin-only")) {
     syncPluginToGlobalConfig(PLUGIN_ROOT);
+    syncPerfFlagAndLightMaintenance();
     console.log("STATUS=PLUGIN_ONLY");
   } else {
     runInstall({

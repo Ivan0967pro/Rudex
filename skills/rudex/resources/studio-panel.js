@@ -386,9 +386,9 @@ const TEXT = {
     quotaSectionTitle: "Лимиты моделей (Неделя / 5ч)",
     quotaGeminiLabel: "Модели Gemini",
     quotaClaudeLabel: "Модели Claude и GPT",
-    quotaCalibratedBadge: "Откалибровано",
-    quotaEstimatedBadge: "Оценка",
-    quotaCalibrateTip: "Откройте «Посмотреть использование» или Настройки → Модели и использование в Antigravity для точной калибровки %.",
+    quotaCalibratedBadge: "Точные",
+    quotaEstimatedBadge: "Нет данных",
+    quotaCalibrateTip: "Откройте «Посмотреть использование» или Настройки → Модели в Antigravity — Rudex сразу считает реальные % без догадок.",
     quotaRemShort: "Осталось:",
     quotaOpenLimitsLink: "Детали лимитов →",
     quotaTableTitle: "Расход по чатам (Неделя / 5ч)",
@@ -506,20 +506,26 @@ const TEXT = {
     langEnDesc: "Оригинальный английский интерфейс",
     langActiveBadge: "Активен",
     thinkingRuTitle: "Автоперевод мыслей агента на русский",
-    thinkingRuDesc: "Бесплатно переводит размышления агента прямо в интерфейсе (0 токенов и 0 расхода лимитов Antigravity).",
-    thinkingRuGlobalDesc: "Работает автоматически во всех чатах через бесплатный переводчик — лимиты не расходуются.",
+    thinkingRuDesc: "Выкл. по умолчанию (0 сетевых запросов). При включении переводит мысли через Google Translate или ваш локальный LibreTranslate (127.0.0.1), не тратя токены Antigravity.",
+    thinkingRuGlobalDesc: "Выкл. по умолчанию. При включении переводит мысли прямо в интерфейсе без расхода квот Antigravity.",
     thinkingRuOn: "Русский (авто)",
     thinkingRuDefault: "По умолчанию",
+    workLogRuTitle: "Автоперевод хода работы агента («Работал …»)",
+    workLogRuDesc: "Отдельно от мыслей переводит промежуточные сообщения, статусы и пояснения агента внутри раскрытых блоков «Работал …» (без расхода токенов Antigravity).",
+    thinkingLocalTitle: "Локальный переводчик (опционально, 100% офлайн)",
+    thinkingLocalDesc: "Пусто = Google Translate. Укажите локальный LibreTranslate на 127.0.0.1 / localhost, чтобы мысли вообще не покидали ваш ПК.",
+    thinkingLocalPlaceholder: "http://127.0.0.1:5000/translate",
     updateSectionTitle: "Обновления Rudex",
     updateBadgeNew: "Есть обновление",
     updateAutoTitle: "Автопроверка обновлений",
-    updateAutoDesc: "Фоновая проверка новых версий на GitHub с уведомлением «Обновить»",
+    updateAutoDesc: "Проверяет только номер версии на GitHub (ничего не скачивает и не ставит без вашего клика)",
     updateStatusLabel: "Статус",
     updateStatusIdle: "Автопроверка включена",
     updateStatusChecking: "Проверяем GitHub…",
     updateStatusUpToDate: "Установлена последняя версия",
     updateStatusAvailable: "Доступна новая версия",
     updateStatusDownloading: "Скачивание архива…",
+    updateStatusVerifying: "Проверка SHA-256…",
     updateStatusExtracting: "Распаковка архива…",
     updateStatusInstalling: "Установка обновления…",
     updateStatusRestarting: "Перезапуск Antigravity…",
@@ -792,9 +798,9 @@ const TEXT = {
     quotaSectionTitle: "Model Quotas (5h / Weekly)",
     quotaGeminiLabel: "Gemini Models",
     quotaClaudeLabel: "Claude & GPT Models",
-    quotaCalibratedBadge: "Calibrated",
-    quotaEstimatedBadge: "Estimated",
-    quotaCalibrateTip: "Open View Usage or Settings → Models & Usage in Antigravity to calibrate exact %.",
+    quotaCalibratedBadge: "Exact",
+    quotaEstimatedBadge: "Not synced",
+    quotaCalibrateTip: "Open View Usage or Settings → Models in Antigravity — Rudex reads real % with zero guesses.",
     quotaRemShort: "Remaining:",
     quotaOpenLimitsLink: "Quota details →",
     quotaTableTitle: "Per-Chat Quota Breakdown (Weekly / 5h)",
@@ -912,20 +918,26 @@ const TEXT = {
     langEnDesc: "Native English Antigravity UI",
     langActiveBadge: "Active",
     thinkingRuTitle: "Auto-translate agent thinking to Russian",
-    thinkingRuDesc: "Translates agent thinking blocks right in the UI for free (0 tokens & 0 Antigravity quota used).",
-    thinkingRuGlobalDesc: "Runs automatically across all chats via free translator — zero Antigravity quota cost.",
+    thinkingRuDesc: "Off by default (0 network requests). When enabled, translates thinking via Google Translate or your local LibreTranslate (127.0.0.1) with zero Antigravity tokens.",
+    thinkingRuGlobalDesc: "Off by default. When enabled, translates thinking in the UI without spending Antigravity quota.",
     thinkingRuOn: "Russian (auto)",
     thinkingRuDefault: "Default",
+    workLogRuTitle: "Auto-translate agent work log (“Worked for…”)",
+    workLogRuDesc: "Independently translates intermediate agent status updates and progress notes inside expanded “Worked for…” blocks with zero Antigravity tokens.",
+    thinkingLocalTitle: "Local translator URL (optional, 100% offline)",
+    thinkingLocalDesc: "Empty = Google Translate. Enter a local LibreTranslate endpoint on 127.0.0.1 / localhost to keep thinking strictly on your machine.",
+    thinkingLocalPlaceholder: "http://127.0.0.1:5000/translate",
     updateSectionTitle: "Rudex Updates",
     updateBadgeNew: "Update available",
     updateAutoTitle: "Auto-check updates",
-    updateAutoDesc: "Periodically checks GitHub for updates and prompts to restart",
+    updateAutoDesc: "Checks release version on GitHub only (never downloads or installs without your click)",
     updateStatusLabel: "Status",
     updateStatusIdle: "Auto-check enabled",
     updateStatusChecking: "Checking GitHub…",
     updateStatusUpToDate: "Up to date",
     updateStatusAvailable: "New version available",
     updateStatusDownloading: "Downloading archive…",
+    updateStatusVerifying: "Verifying SHA-256…",
     updateStatusExtracting: "Extracting package…",
     updateStatusInstalling: "Installing update…",
     updateStatusRestarting: "Restarting Antigravity…",
@@ -1129,13 +1141,20 @@ function spDefaultAppearance() {
     accentColor: "#3b82f6",
     canvasBg: "#070708",
     cardBg: "#15151a",
+    customSidebarBg: false,
+    sidebarBg: "#0f0f14",
+    customBorderColor: false,
+    borderColor: "#262630",
     glassOpacity: 78,
     sidebarOpacity: 72,
     glassBlur: 12,
     messageCardOpacity: 74,
     messageStyle: "glass",
+    borderPreset: "crisp",
     borderStrength: 50,
     highContrastText: true,
+    overridesPaused: false,
+    elementOverrides: [],
     radius: 12,
     corners: {
       mode: "linked",
@@ -1186,7 +1205,21 @@ function spDefaultAppearance() {
     typography: {
       uiFont: "system",
       monoFont: "system",
+      inputFont: "inherit",
+      userMsgFont: "inherit",
+      agentFont: "inherit",
+      thinkingFont: "inherit",
+      uiFontCustom: "",
+      inputFontCustom: "",
+      userMsgFontCustom: "",
+      agentFontCustom: "",
+      thinkingFontCustom: "",
+      monoFontCustom: "",
       fontSize: 14,
+      uiFontSize: 0,
+      inputFontSize: 0,
+      agentFontSize: 0,
+      codeFontSize: 0,
       lineHeight: 1.55,
       chatMaxWidth: 0,
       density: "comfortable",
@@ -1682,13 +1715,14 @@ function createStudioPanel(options) {
   const doc = opts.document || (typeof document !== "undefined" ? document : null);
   const win = opts.window || (typeof window !== "undefined" ? window : null);
   const ipc = opts.ipcRenderer || null;
+  const webFrame = opts.webFrame || null;
   const translator = opts.translator || null;
   const stylesFn = typeof opts.buildStyles === "function"
     ? opts.buildStyles
     : (typeof buildStudioStyles === "function" ? buildStudioStyles : () => "");
   const pluginMeta = opts.pluginMeta && typeof opts.pluginMeta === "object"
     ? opts.pluginMeta
-    : { version: "5.0.3", dictEntries: 4065, dynamicRulesCount: 479 };
+    : { version: "5.5.0", dictEntries: 4068, dynamicRulesCount: 485 };
 
   const telemetryEngine = opts.telemetryEngine || (typeof createTelemetryEngine === "function" ? createTelemetryEngine() : null);
 
@@ -1769,7 +1803,7 @@ function createStudioPanel(options) {
           const blobUrl = UrlApi.createObjectURL(blob);
           mediaBlobCache.set(key, blobUrl);
           evictOldCachedMedia(24);
-          if (state.mounted) {
+          if (state.mounted || earlyThemeBooted) {
             applyThemeToHost(state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance);
           }
         } catch (_e) {}
@@ -1779,6 +1813,63 @@ function createStudioPanel(options) {
   }
 
   const themeEngine = opts.themeEngine || (typeof createThemeEngine === "function" ? createThemeEngine({ document: doc, window: win, resolveMediaUrl: resolveStudioMediaUrl }) : null);
+  let rudexOptimizer = null;
+  function ensureRudexOptimizer() {
+    if (rudexOptimizer) return rudexOptimizer;
+    if (typeof createRudexOptimizer !== "function") return null;
+    rudexOptimizer = createRudexOptimizer({
+      document: doc,
+      window: win,
+      webFrame,
+      initialSettings: state.settings.optimization,
+      initialLocale: state.locale,
+    });
+    return rudexOptimizer;
+  }
+  function refreshLocalVoiceStatus(modelIdOverride) {
+    if (state.destroyed || !state.localVoice) return;
+    state.localVoice.loading = true;
+    const modelId = modelIdOverride || (state.settings.optimization && state.settings.optimization.voiceLocalModel) || "ru-fast";
+    invokeIpc("agy-studio:local-voice-status", { modelId }).then((res) => {
+      if (state.destroyed) return;
+      state.localVoice.loading = false;
+      if (res && res.ok && res.status) {
+        state.localVoice.status = res.status;
+        const optCtrl = ensureRudexOptimizer();
+        if (optCtrl && typeof optCtrl.setLocalVoiceReady === "function") {
+          optCtrl.setLocalVoiceReady(Boolean(res.status.installed));
+        }
+      }
+      if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "optimization") {
+        renderStructure();
+      }
+    });
+  }
+  function applyLocalVoiceProgress(prog) {
+    if (state.destroyed || !state.localVoice || !prog || typeof prog !== "object") return;
+    state.localVoice.installing = prog.stage !== "done";
+    state.localVoice.progressPct = Math.max(0, Math.min(100, Math.round(Number(prog.pct) || 0)));
+    state.localVoice.progressMsg = String(prog.message || "");
+    if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "optimization") {
+      renderStructure();
+    }
+  }
+  function refreshPerfDiagnostics() {
+    if (state.destroyed || !state.perfDiag) return;
+    state.perfDiag.loading = true;
+    renderStructure();
+    refreshLocalVoiceStatus();
+    invokeIpc("agy-studio:get-cache-diagnostics").then((res) => {
+      if (state.destroyed) return;
+      state.perfDiag.loading = false;
+      if (res && res.ok && res.diagnostics) {
+        state.perfDiag.data = res.diagnostics;
+      }
+      if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "optimization") {
+        renderStructure();
+      }
+    });
+  }
 
   const state = {
     initialized: false,
@@ -1840,7 +1931,9 @@ function createStudioPanel(options) {
       miniFields: Object.assign({}, DEFAULT_MINI_FIELDS),
       trackHistory: true,
       personaStrictMode: true,
-      thinkingInRussian: true,
+      thinkingInRussian: false,
+      workLogInRussian: false,
+      thinkingTranslatorUrl: "",
       composerDraftsEnabled: true,
       inputHistoryEnabled: true,
       autoCheckUpdates: true,
@@ -1856,8 +1949,11 @@ function createStudioPanel(options) {
       liveEditInline: typeof RUDEX_LIVE_EDIT_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_LIVE_EDIT_DEFAULTS) : { enabled: true, sendKey: "enter", urgentIntercept: false },
       agentProfileDefault: typeof RUDEX_AGENT_PROFILE_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_AGENT_PROFILE_DEFAULTS) : { enabled: false },
       customAgentPresets: [],
-      quotaAutomation: typeof RUDEX_QUOTA_AUTOMATION_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_QUOTA_AUTOMATION_DEFAULTS) : { notifyOnReset: true, notifyWhenClosed: true, notifySound: true, autoContinueEnabled: false, autoContinueScope: "all", autoContinueChatKeys: [], autoContinueCurrentKey: "", autoContinuePrompt: "", autoContinueRetryFirst: true },
+      quotaAutomation: typeof RUDEX_QUOTA_AUTOMATION_DEFAULTS !== "undefined" ? Object.assign({}, RUDEX_QUOTA_AUTOMATION_DEFAULTS) : { notifyOnReset: true, notifyWhenClosed: false, notifySound: true, autoContinueEnabled: false, autoContinueScope: "all", autoContinueChatKeys: [], autoContinueCurrentKey: "", autoContinuePrompt: "", autoContinueRetryFirst: true },
+      optimization: typeof DEFAULT_OPTIMIZATION_SETTINGS !== "undefined" ? Object.assign({}, DEFAULT_OPTIMIZATION_SETTINGS) : { voiceEnabled: true, voiceEngine: "auto", voiceLocalModel: "ru-fast", voiceLangPreset: "auto", voiceCustomLangs: "", voiceExplicitLang: true, voiceChunkMs: 80, voiceDspFilter: true, voiceDisableWinIsolation: true, voiceAutoGain: true, voicePauseHeavyUi: true, voiceTextCleanup: true, voiceShowBadge: true, animMode: "smooth", animFixTransitionAll: true, animContainChat: true, animFreezeHidden: true, gpuAccel: false, lsTuningEnabled: false, lsMaxProcs: 0, lsFileWatchMaxDirs: 32768, lsMaxTrackedWorkspaces: 24, storageRamCache: false, chromiumCacheCapMb: 0, geminiFileCacheProtocol: false },
     },
+    perfDiag: { loading: false, busy: false, data: null, lastMsg: "" },
+    localVoice: { loading: false, installing: false, progressPct: 0, progressMsg: "", status: null, error: "" },
     quotaAlerts: { waitingChats: {} },
     lastRateLimitScanAt: 0,
     autoContinueInflight: false,
@@ -1868,6 +1964,11 @@ function createStudioPanel(options) {
     inlineUrgent: false,
     hasComposerText: false,
     pickerActive: false,
+    pickerMode: "single", // "single" | "region" | "multi"
+    pickerMultiItems: [],
+    pickerMarqueeRect: null,
+    pickerNudgeStep: 4,
+    inspectorDragMoveActive: false,
     pickerSelected: null,
     pickerHoverRect: null,
     pickerHoverLabel: "",
@@ -1903,6 +2004,9 @@ function createStudioPanel(options) {
     widgetPreviewMode: "mini",
     newProfileName: "",
     quotaSummary: null,
+    initAtMs: Date.now(),
+    userEditedComposerInChat: false,
+    lastRpcQuotaAt: 0,
     lastQuotaScrapeAt: 0,
     lastQuotaScrapeSig: "",
     lastQuotaSyncAt: 0,
@@ -1969,11 +2073,22 @@ function createStudioPanel(options) {
   let docDropHandler = null;
   let docFileChangeHandler = null;
   let docInputHandler = null;
+  let docCompEndHandler = null;
   let beforeUnloadDraftHandler = null;
+  let quotaRpcMsgHandler = null;
+  let draftRestoreVerifyTimers = [];
   let outsidePopoverHandler = null;
   let modelTriggerClickHandler = null;
   let modelTriggerSuppressClickHandler = null;
   let composerSendClickHandler = null;
+  let composerSendPointerHandler = null;
+  let lastLiveSendInterceptAt = 0;
+  let earlyCaptureAttached = false;
+  let earlyKeydownCapture = null;
+  let earlyPointerDownCapture = null;
+  let earlyClickCapture = null;
+  let earlyPasteCapture = null;
+  let quotaSilentSyncInflight = false;
   let lastTitleBarOverlaySig = "";
   let titleBarBootTimer = null;
   let quotaScrapeTimers = [];
@@ -1983,8 +2098,13 @@ function createStudioPanel(options) {
   const liveEditLocalPreviews = new Map(); // id -> { images: [{ name, previewDataUrl }], files: [{ name }] }
   const draftDataUrlToFileName = new Map(); // dataUrlSig -> persisted draft fileName (avoids re-sending MBs on every keystroke)
   const lastSavedDraftByChat = new Map(); // chatKey -> { text, atts: [{ name, mime, isImage, fileName }] }
+  const draftTextCacheByChat = new Map(); // chatKey -> instant synchronous text cache (pre-warmed from boot-state-sync)
   let draftSaveTimer = null;
+  let draftFollowupTimer = null;
+  let lastDraftDiskSaveAt = 0;
   let draftRestoreTimer = null;
+  let draftEarlyTextTimer = null;
+  let draftStickinessObserver = null;
   let draftRestoreSeq = 0;
   let isRestoringDraft = false;
   let draftJustSubmittedUntil = 0;
@@ -2008,6 +2128,8 @@ function createStudioPanel(options) {
   let quotaAutoLiveEditUntil = 0;
   let pickerMoveHandler = null;
   let pickerClickHandler = null;
+  let pickerKeyHandler = null;
+  let pickerWheelHandler = null;
   let thinkingScanTimer = null;
   let isApplyingThinkingTranslation = false;
   const thinkingNodeMap = new WeakMap();
@@ -2026,6 +2148,9 @@ function createStudioPanel(options) {
   let toastTimer = null;
   let keydownHandler = null;
   let cancelClickHandler = null;
+  let sidebarNavClickHandler = null;
+  let navChangeHandler = null;
+  let navBurstTimers = [];
   let resizeHandler = null;
   let focusSyncHandler = null;
   let blurDragHandler = null;
@@ -2257,12 +2382,17 @@ function createStudioPanel(options) {
               mode: appNext,
               canvasBg: activeApp.canvasBg,
               cardBg: activeApp.cardBg,
-              sidebarBg: spMixHexColor(activeApp.canvasBg, activeApp.cardBg, 0.45),
+              sidebarBg: activeApp.customSidebarBg ? activeApp.sidebarBg : spMixHexColor(activeApp.canvasBg, activeApp.cardBg, 0.45),
               fgColor: appNext === "light" ? "#141418" : "#ececef",
               mutedColor: appNext === "light" ? "#5c5c66" : "#9a9aa6",
-              borderColor: appNext === "light" ? "rgba(17, 18, 24, 0.14)" : "rgba(255, 255, 255, 0.10)",
+              borderColor: activeApp.customBorderColor ? activeApp.borderColor : (appNext === "light" ? "rgba(17, 18, 24, 0.14)" : "rgba(255, 255, 255, 0.10)"),
             }
-          : (preset && preset.vars ? preset.vars : null);
+          : (preset && preset.vars
+              ? Object.assign({}, preset.vars, {
+                  sidebarBg: activeApp.customSidebarBg ? activeApp.sidebarBg : preset.vars.sidebarBg,
+                  borderColor: activeApp.customBorderColor ? activeApp.borderColor : preset.vars.borderColor,
+                })
+              : null);
         if (vars) {
           const isThemeLight = (preset && preset.mode === "light") || (activeApp.presetId === "custom" && appNext === "light");
           const surface2 = spMixHexColor(vars.cardBg, isThemeLight ? "#000000" : "#ffffff", isThemeLight ? 0.05 : 0.065);
@@ -2274,7 +2404,7 @@ function createStudioPanel(options) {
           rootEl.style.setProperty("--rx-theme-fg", softFg);
           rootEl.style.setProperty("--rx-theme-fg-strong", vars.fgColor);
           rootEl.style.setProperty("--rx-theme-muted", vars.mutedColor);
-          rootEl.style.setProperty("--rx-theme-border", isThemeLight ? "rgba(20, 20, 19, 0.09)" : "rgba(255, 255, 255, 0.08)");
+          rootEl.style.setProperty("--rx-theme-border", activeApp.customBorderColor ? activeApp.borderColor : (isThemeLight ? "rgba(20, 20, 19, 0.09)" : "rgba(255, 255, 255, 0.08)"));
           rootEl.style.setProperty("--rx-theme-border-strong", vars.borderColor || (isThemeLight ? "rgba(20, 20, 19, 0.16)" : "rgba(255, 255, 255, 0.15)"));
         }
       } else {
@@ -2416,6 +2546,7 @@ function createStudioPanel(options) {
   function saveSettingsPatch(patch) {
     const seq = ++state.settingsSaveSeq;
     const prevThinkRu = Boolean(state.settings.thinkingInRussian);
+    const prevWorkLogRu = Boolean(state.settings.workLogInRussian);
     Object.assign(state.settings, patch);
     if (patch.miniFields) {
       state.settings.miniFields = normalizeMiniFields(patch.miniFields);
@@ -2449,7 +2580,11 @@ function createStudioPanel(options) {
     renderStructure();
     if (typeof patch.thinkingInRussian === "boolean" && patch.thinkingInRussian !== prevThinkRu) {
       if (state.settings.thinkingInRussian) scanThinkingBlocks(true);
-      else restoreAllThinkingNodes();
+      else restoreThinkingNodesByKind("thinking");
+    }
+    if (typeof patch.workLogInRussian === "boolean" && patch.workLogInRussian !== prevWorkLogRu) {
+      if (state.settings.workLogInRussian) scanThinkingBlocks(true);
+      else restoreThinkingNodesByKind("worklog");
     }
     return invokeIpc("agy-studio:save-settings", patch).then((res) => {
       if (state.destroyed || seq !== state.settingsSaveSeq) return res;
@@ -2493,8 +2628,17 @@ function createStudioPanel(options) {
     return isControlActivelyFocused("data-quota-auto-field", "");
   }
 
+  const debouncedSaveTimers = Object.create(null);
+  const debouncedSavePending = Object.create(null);
+
   function flushDebouncedSettingsSave(kind, patch) {
     const now = Date.now();
+    const effectivePatch = patch || debouncedSavePending[kind];
+    if (debouncedSaveTimers[kind] && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(debouncedSaveTimers[kind]);
+    }
+    delete debouncedSaveTimers[kind];
+    delete debouncedSavePending[kind];
     if (kind === "limits") {
       if (limitsSaveTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(limitsSaveTimer);
       limitsSaveTimer = null;
@@ -2508,8 +2652,9 @@ function createStudioPanel(options) {
       quotaAutoSaveTimer = null;
       quotaAutoLiveEditUntil = now + 420;
     }
+    if (!effectivePatch) return Promise.resolve({ ok: true });
     const seq = ++state.settingsSaveSeq;
-    return invokeIpc("agy-studio:save-settings", patch).then((res) => {
+    return invokeIpc("agy-studio:save-settings", effectivePatch).then((res) => {
       if (state.destroyed || seq !== state.settingsSaveSeq) return res;
       if (res && res.settings) {
         const sig = computeSettingsStateSig(res);
@@ -2519,47 +2664,48 @@ function createStudioPanel(options) {
     });
   }
 
+  function flushAllDebouncedSettingsSaves() {
+    const kinds = Object.keys(debouncedSavePending);
+    for (let i = 0; i < kinds.length; i += 1) {
+      flushDebouncedSettingsSave(kinds[i]);
+    }
+  }
+
   function scheduleDebouncedSettingsSave(kind, patch, delayMs) {
     const now = Date.now();
     const wait = typeof delayMs === "number" ? delayMs : 160;
-    if (kind === "limits") {
-      limitsLiveEditUntil = now + Math.max(850, wait + 600);
-      if (limitsSaveTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(limitsSaveTimer);
-      if (win && typeof win.setTimeout === "function") {
-        limitsSaveTimer = win.setTimeout(() => {
-          limitsSaveTimer = null;
-          flushDebouncedSettingsSave("limits", patch);
-        }, wait);
-      } else {
-        flushDebouncedSettingsSave("limits", patch);
-      }
-    } else if (kind === "studioUi") {
-      studioUiLiveEditUntil = now + Math.max(850, wait + 600);
-      if (studioUiSaveTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(studioUiSaveTimer);
-      if (win && typeof win.setTimeout === "function") {
-        studioUiSaveTimer = win.setTimeout(() => {
-          studioUiSaveTimer = null;
-          flushDebouncedSettingsSave("studioUi", patch);
-        }, wait);
-      } else {
-        flushDebouncedSettingsSave("studioUi", patch);
-      }
-    } else if (kind === "quotaAuto") {
-      quotaAutoLiveEditUntil = now + Math.max(850, wait + 600);
-      if (quotaAutoSaveTimer && win && typeof win.clearTimeout === "function") win.clearTimeout(quotaAutoSaveTimer);
-      if (win && typeof win.setTimeout === "function") {
-        quotaAutoSaveTimer = win.setTimeout(() => {
-          quotaAutoSaveTimer = null;
-          flushDebouncedSettingsSave("quotaAuto", patch);
-        }, wait);
-      } else {
-        flushDebouncedSettingsSave("quotaAuto", patch);
-      }
+    if (kind === "limits") limitsLiveEditUntil = now + Math.max(850, wait + 600);
+    else if (kind === "studioUi") studioUiLiveEditUntil = now + Math.max(850, wait + 600);
+    else if (kind === "quotaAuto") quotaAutoLiveEditUntil = now + Math.max(850, wait + 600);
+
+    debouncedSavePending[kind] = patch;
+    if (debouncedSaveTimers[kind] && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(debouncedSaveTimers[kind]);
+    }
+    if (win && typeof win.setTimeout === "function") {
+      const tid = win.setTimeout(() => {
+        delete debouncedSaveTimers[kind];
+        if (kind === "limits") limitsSaveTimer = null;
+        else if (kind === "studioUi") studioUiSaveTimer = null;
+        else if (kind === "quotaAuto") quotaAutoSaveTimer = null;
+        flushDebouncedSettingsSave(kind);
+      }, wait);
+      debouncedSaveTimers[kind] = tid;
+      if (kind === "limits") limitsSaveTimer = tid;
+      else if (kind === "studioUi") studioUiSaveTimer = tid;
+      else if (kind === "quotaAuto") quotaAutoSaveTimer = tid;
+    } else {
+      flushDebouncedSettingsSave(kind, patch);
     }
   }
 
   function isInspectorControlActive() {
-    if (isControlActivelyFocused("data-insp-range") || isControlActivelyFocused("data-insp-num") || isControlActivelyFocused("data-insp-style")) {
+    if (
+      isControlActivelyFocused("data-insp-range") ||
+      isControlActivelyFocused("data-insp-num") ||
+      isControlActivelyFocused("data-insp-style") ||
+      isControlActivelyFocused("data-insp-hex-input")
+    ) {
       return true;
     }
     try {
@@ -2581,6 +2727,7 @@ function createStudioPanel(options) {
     const editingQuotaAuto = !forceRender && isQuotaAutoLiveEditingNow();
     const editingInspector = !forceRender && isInspectorControlActive();
     const prevThinkRu = Boolean(state.settings.thinkingInRussian);
+    const prevWorkLogRu = Boolean(state.settings.workLogInRussian);
     if (typeof remote.appZoomSupported === "boolean") {
       state.appZoomSupported = remote.appZoomSupported;
     }
@@ -2606,6 +2753,8 @@ function createStudioPanel(options) {
       if (typeof rawSettings.trackHistory === "boolean") state.settings.trackHistory = rawSettings.trackHistory;
       if (typeof rawSettings.personaStrictMode === "boolean") state.settings.personaStrictMode = rawSettings.personaStrictMode;
       if (typeof rawSettings.thinkingInRussian === "boolean") state.settings.thinkingInRussian = rawSettings.thinkingInRussian;
+      if (typeof rawSettings.workLogInRussian === "boolean") state.settings.workLogInRussian = rawSettings.workLogInRussian;
+      if (typeof rawSettings.thinkingTranslatorUrl === "string") state.settings.thinkingTranslatorUrl = rawSettings.thinkingTranslatorUrl;
       if (typeof rawSettings.composerDraftsEnabled === "boolean") state.settings.composerDraftsEnabled = rawSettings.composerDraftsEnabled;
       if (typeof rawSettings.inputHistoryEnabled === "boolean") state.settings.inputHistoryEnabled = rawSettings.inputHistoryEnabled;
       if (typeof rawSettings.autoCheckUpdates === "boolean") state.settings.autoCheckUpdates = rawSettings.autoCheckUpdates;
@@ -2671,6 +2820,13 @@ function createStudioPanel(options) {
           ? rv5NormalizeQuotaAutomation(rawSettings.quotaAutomation)
           : Object.assign({}, state.settings.quotaAutomation, rawSettings.quotaAutomation);
       }
+      if (rawSettings.optimization && typeof rawSettings.optimization === "object") {
+        state.settings.optimization = typeof sanitizeOptimizationSettings === "function"
+          ? sanitizeOptimizationSettings(rawSettings.optimization)
+          : Object.assign({}, state.settings.optimization, rawSettings.optimization);
+        const optCtrl = ensureRudexOptimizer();
+        if (optCtrl) optCtrl.apply(state.settings.optimization, state.locale);
+      }
     }
     if (remote.quotaAlerts && typeof remote.quotaAlerts === "object") {
       state.quotaAlerts = {
@@ -2700,7 +2856,11 @@ function createStudioPanel(options) {
     }
     if (state.settings.thinkingInRussian !== prevThinkRu) {
       if (state.settings.thinkingInRussian) scanThinkingBlocks(true);
-      else restoreAllThinkingNodes();
+      else restoreThinkingNodesByKind("thinking");
+    }
+    if (state.settings.workLogInRussian !== prevWorkLogRu) {
+      if (state.settings.workLogInRussian) scanThinkingBlocks(true);
+      else restoreThinkingNodesByKind("worklog");
     }
   }
 
@@ -2852,13 +3012,24 @@ function createStudioPanel(options) {
           }
         }
         if (win && typeof win.getComputedStyle === "function" && rows.length >= 2) {
+          // Prefer non-hovered explicitly marked active row first
+          for (let i = 0; i < Math.min(rows.length, 40); i += 1) {
+            const r = rows[i];
+            if (!r || isUiOverlayNode(r)) continue;
+            if (typeof r.getAttribute === "function" && r.getAttribute("data-rudex-sidebar-surface") === "active") {
+              const pAct = extractKeyPartsFromEl(r);
+              if (pAct.uuid) return pAct;
+            }
+          }
           const bgCounts = new Map();
           const rowStyles = [];
           for (let i = 0; i < Math.min(rows.length, 25); i += 1) {
             const r = rows[i];
             if (!r || isUiOverlayNode(r)) continue;
-            const bg = String(win.getComputedStyle(r).backgroundColor || "").trim();
-            rowStyles.push({ r, bg });
+            let hovered = false;
+            try { hovered = typeof r.matches === "function" && r.matches(":hover"); } catch (_e) {}
+            const bg = hovered ? "rgba(0, 0, 0, 0)" : String(win.getComputedStyle(r).backgroundColor || "").trim();
+            rowStyles.push({ r, bg, hovered });
             bgCounts.set(bg, (bgCounts.get(bg) || 0) + 1);
           }
           let majorityBg = "";
@@ -2868,6 +3039,7 @@ function createStudioPanel(options) {
           });
           const distinctActive = [];
           for (let i = 0; i < rowStyles.length; i += 1) {
+            if (rowStyles[i].hovered) continue;
             const bg = rowStyles[i].bg;
             if (!bg || bg === majorityBg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") continue;
             distinctActive.push(rowStyles[i].r);
@@ -2884,6 +3056,59 @@ function createStudioPanel(options) {
     }
   }
 
+  function findExplicitActiveSidebarUuid(activeTitle) {
+    if (!doc || typeof doc.querySelectorAll !== "function") return "";
+    try {
+      // 1. Explicitly marked active sidebar/nav conversation rows (never triggers on blank New Chat where no chat row is active)
+      const activeNodes = doc.querySelectorAll('[aria-current="page"], [aria-current="true"], [aria-selected="true"], [data-active="true"], [data-selected="true"], [data-state="active"], [data-rudex-sidebar-surface="active"], aside [class*="bg-sidebar-accent"], nav [class*="bg-sidebar-accent"]');
+      for (let i = 0; activeNodes && i < activeNodes.length; i += 1) {
+        const el = activeNodes[i];
+        if (!el || isUiOverlayNode(el)) continue;
+        const pSelf = extractKeyPartsFromEl(el);
+        if (pSelf.uuid) return pSelf.uuid;
+        if (typeof el.closest === "function") {
+          const anc = el.closest('[data-conversation-id], [data-cascade-id], [data-session-id], [data-chat-id], a[href]');
+          if (anc && !isUiOverlayNode(anc)) {
+            const pAnc = extractKeyPartsFromEl(anc);
+            if (pAnc.uuid) return pAnc.uuid;
+          }
+        }
+        if (typeof el.querySelector === "function") {
+          const desc = el.querySelector('[data-conversation-id], [data-cascade-id], [data-session-id], [data-chat-id], a[href]');
+          if (desc && !isUiOverlayNode(desc)) {
+            const pDesc = extractKeyPartsFromEl(desc);
+            if (pDesc.uuid) return pDesc.uuid;
+          }
+        }
+      }
+      // 2. Non-empty conversation title already rendered in header -> match unique sidebar row BEFORE messages finish hydrating!
+      if (activeTitle) {
+        const normTitle = cleanTitleStr(activeTitle).toLowerCase();
+        if (normTitle) {
+          const rows = doc.querySelectorAll('aside [data-conversation-id], aside [data-cascade-id], aside [data-session-id], aside [data-chat-id], nav [data-conversation-id], nav [data-cascade-id], nav [data-session-id], nav [data-chat-id], [data-testid="sidebar"] [data-conversation-id], [data-testid="sidebar"] [data-cascade-id], [data-testid="sidebar"] [data-session-id], [data-testid="sidebar"] [data-chat-id]');
+          const matches = [];
+          for (let i = 0; rows && i < Math.min(rows.length, 40); i += 1) {
+            const r = rows[i];
+            if (!r || isUiOverlayNode(r)) continue;
+            const rawTxt = (r.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+            if (rawTxt && rawTxt.includes(normTitle)) matches.push({ r, rawTxt });
+          }
+          if (matches.length === 1) {
+            const pTm = extractKeyPartsFromEl(matches[0].r);
+            if (pTm.uuid) return pTm.uuid;
+          } else if (matches.length > 1) {
+            const justNowMatch = matches.find((m) => /\b(?:just now|now)\b|сейчас/i.test(m.rawTxt));
+            if (justNowMatch) {
+              const pJn = extractKeyPartsFromEl(justNowMatch.r);
+              if (pJn.uuid) return pJn.uuid;
+            }
+          }
+        }
+      }
+    } catch (_e) {}
+    return "";
+  }
+
   function detectChatIdentity(snap) {
     let rawUrl = "";
     try {
@@ -2898,6 +3123,9 @@ function createStudioPanel(options) {
     if (urlUuid) return { key: urlUuid, isNew: false, title };
 
     if (snap.userMsgCount === 0 && snap.respCount === 0) {
+      // On cold boot or chat switch, sidebar active UUID / header title often appear 300-1500ms BEFORE chat messages finish hydrating!
+      const explicitSideUuid = findExplicitActiveSidebarUuid(title);
+      if (explicitSideUuid) return { key: explicitSideUuid, isNew: false, title };
       state.pendingNewSendAt = 0;
       return { key: "__new__", isNew: true, title: "" };
     }
@@ -3017,13 +3245,22 @@ function createStudioPanel(options) {
         }
       }
       if (!isGenerating) {
-        const composerBtns = doc.querySelectorAll('form button[aria-label], [data-testid="composer"] button[aria-label], .composer-container button[aria-label], button[data-testid="input-cancel-button"]');
-        for (let i = 0; composerBtns && i < composerBtns.length; i += 1) {
-          const b = composerBtns[i];
+        const composerBtnSet = new Set();
+        const composerBtns = doc.querySelectorAll('form button[aria-label], [data-testid="composer"] button[aria-label], .composer-container button[aria-label], [data-rudex-theme-composer="1"] button[aria-label], [data-rudex-theme-composer="1"] button[title], button[data-testid="input-cancel-button"]');
+        for (let i = 0; composerBtns && i < composerBtns.length; i += 1) composerBtnSet.add(composerBtns[i]);
+        if (typeof rv5FindNativeComposer === "function") {
+          const nativeComp = rv5FindNativeComposer(doc);
+          if (nativeComp && nativeComp.container && typeof nativeComp.container.querySelectorAll === "function") {
+            const ncBtns = nativeComp.container.querySelectorAll("button[aria-label], button[title]");
+            for (let i = 0; ncBtns && i < ncBtns.length; i += 1) composerBtnSet.add(ncBtns[i]);
+          }
+        }
+        for (const b of composerBtnSet) {
           if (!b || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(b))) continue;
           if (isHiddenAncestor(b, doc.body)) continue;
-          const lbl = typeof b.getAttribute === "function" ? (b.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim() : "";
-          if (/^(?:stop\s+(?:generat|respond|stream|agent)|cancel(?:\s*\(|$|\s+(?:invoc|generat|request))|остановить\s+(?:генерац|ответ|агент)|прервать\s+(?:генерац|ответ)|отмен(?:а|ить)(?:\s*\(|$|\s+(?:генерац|запрос)))/i.test(lbl)) {
+          const lbl = typeof b.getAttribute === "function" ? ((b.getAttribute("aria-label") || b.getAttribute("title") || "").replace(/\s+/g, " ").trim()) : "";
+          if (/voice|mic|dictat|record|голос|диктов|запис/i.test(lbl)) continue;
+          if (/^(?:stop(?:\s+(?:generat|respond|stream|agent|exec|task)|$)|cancel(?:\s*\(|$|\s+(?:invoc|generat|request|task))|остановить(?:\s+(?:генерац|ответ|агент|работ)|$)|прервать(?:\s+(?:генерац|ответ|работ)|$)|отмен(?:а|ить)(?:\s*\(|$|\s+(?:генерац|запрос)))/i.test(lbl)) {
             isGenerating = true;
             break;
           }
@@ -3106,7 +3343,14 @@ function createStudioPanel(options) {
     const wasActivated = state.hasActivatedChat;
     const tel = state.telemetry;
 
-    const isPromotion = wasActivated && prevKey === "__new__" && detected.key !== "__new__" && snap.userMsgCount <= 1 && (state.newChatDraftPersona !== null || state.newChatDraftAgentProfile !== null || snap.isGenerating || tel.isGenerating || state.pendingNewSendAt > 0);
+    const pastColdBoot = Date.now() - (state.initAtMs || 0) > 4000;
+    const isPromotion = wasActivated && prevKey === "__new__" && detected.key !== "__new__" && snap.userMsgCount <= 1 && (
+      state.pendingNewSendAt > 0 ||
+      Date.now() < draftJustSubmittedUntil ||
+      state.newChatDraftPersona !== null ||
+      state.newChatDraftAgentProfile !== null ||
+      (pastColdBoot && (snap.isGenerating || tel.isGenerating))
+    );
     state.pendingNewSendAt = 0;
 
     if (wasActivated && prevKey.startsWith("chat-")) {
@@ -3221,6 +3465,17 @@ function createStudioPanel(options) {
       state.toastError = false;
     }
 
+    // Cancel any pending debounced draft save from the previous chat so it can NEVER overwrite the incoming chat's draft!
+    if (draftSaveTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(draftSaveTimer);
+      draftSaveTimer = null;
+    }
+    if (draftFollowupTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(draftFollowupTimer);
+      draftFollowupTimer = null;
+    }
+    draftSaveSeq += 1;
+
     if (wasActivated && !isPromotion && !migrateFromKey && Date.now() > draftJustSubmittedUntil) {
       flushComposerDraftSync(prevKey, prevTitle, true);
     }
@@ -3228,18 +3483,13 @@ function createStudioPanel(options) {
     state.hasActivatedChat = true;
     state.activeChatKey = detected.key;
     state.activeChatTitle = detected.title;
+    if (!migrateFromKey) state.userEditedComposerInChat = false;
     lastDraftObsSig = "";
     const seq = ++state.activeChatSwitchSeq;
     renderStructure();
     updateLiveDom();
 
-    if (isPromotion) {
-      lastSavedDraftByChat.delete("__new__");
-      invokeIpc("agy-studio:clear-composer-draft", { chatKey: "__new__" });
-    } else if (!migrateFromKey) {
-      restoreComposerDraftForChat(detected.key);
-    }
-
+    // Always invoke activate-chat BEFORE get-composer-draft so migrateFromKey migrates the disk draft key first!
     invokeIpc("agy-studio:activate-chat", {
       chatKey: detected.key,
       title: detected.title,
@@ -3316,6 +3566,28 @@ function createStudioPanel(options) {
       }
     });
 
+    if (isPromotion) {
+      lastSavedDraftByChat.delete("__new__");
+      lastKnownComposerSnapByChat.delete("__new__");
+      draftTextCacheByChat.delete("__new__");
+      invokeIpc("agy-studio:clear-composer-draft", { chatKey: "__new__" });
+    } else if (!migrateFromKey) {
+      restoreComposerDraftForChat(detected.key);
+    } else {
+      if (draftTextCacheByChat.has(migrateFromKey) && !draftTextCacheByChat.has(detected.key)) {
+        draftTextCacheByChat.set(detected.key, draftTextCacheByChat.get(migrateFromKey));
+        draftTextCacheByChat.delete(migrateFromKey);
+      }
+      // Cold restart often briefly detects temp chat-<hash> before URL/sidebar UUID hydrates.
+      // If composer is still empty, ALWAYS restore the saved UUID draft instead of skipping!
+      const foundMig = typeof rv5FindNativeComposer === "function" ? rv5FindNativeComposer(doc) : { container: null, editable: null };
+      const curMigTxt = foundMig && foundMig.editable && typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(foundMig.editable) : "";
+      const curMigAtt = foundMig && foundMig.editable ? hasComposerAttachments(foundMig.container, foundMig.editable) : false;
+      if (!curMigTxt && !curMigAtt) {
+        restoreComposerDraftForChat(detected.key);
+      }
+    }
+
     return { switched: true, promoted: isPromotion };
   }
 
@@ -3359,6 +3631,16 @@ function createStudioPanel(options) {
       if (outcome && outcome.finalizedTurn) {
         recordTurnQuotaImpact(outcome.finalizedTurn.tokens, snap.chatTokens, tel.modelName || snap.modelName || "");
         scheduleTurnTranscriptSync(state.activeChatKey, state.activeChatTitle);
+        state.lastAutoQuotaPollAt = 0;
+        if (win && typeof win.setTimeout === "function") {
+          const finChatKey = state.activeChatKey || "__new__";
+          win.setTimeout(() => {
+            if (state.destroyed) return;
+            invokeIpc("agy-studio:get-quota-summary", { chatKey: finChatKey, forceFresh: true }).then((qs) => {
+              if (!state.destroyed && qs) applyQuotaSummary(qs);
+            });
+          }, 1800);
+        }
       }
       if (outcome && outcome.flushNeeded && state.activeChatKey !== "__new__") {
         flushChatTelemetry(state.activeChatKey, state.activeChatTitle, tel);
@@ -3429,7 +3711,9 @@ function createStudioPanel(options) {
   function syncHostTitleBarOverlay(appCfg, force) {
     const cfg = spNormalizeAppearance(appCfg || (state.appearanceLivePreview ? state.appearanceDraft : state.settings.appearance));
     const preset = spFindThemePreset(cfg.presetId);
-    const sig = `${cfg.presetId}|${cfg.canvasBg}|${cfg.cardBg}`;
+    const hasWp = Boolean(cfg.wallpaper && cfg.wallpaper.type && cfg.wallpaper.type !== "none");
+    const isGlassPreset = cfg.presetId === "liquid-glass" || cfg.presetId === "obsidian-glass" || cfg.presetId === "midnight-neon";
+    const sig = `${cfg.presetId}|${cfg.canvasBg}|${cfg.cardBg}|${cfg.customSidebarBg ? cfg.sidebarBg : ""}|${hasWp ? "wp" : "no"}`;
     if (!force && sig === lastTitleBarOverlaySig) return;
     lastTitleBarOverlaySig = sig;
     try {
@@ -3440,12 +3724,22 @@ function createStudioPanel(options) {
         let color = "#0d0d11";
         let symbolColor = "#ececef";
         if (cfg.presetId === "custom") {
-          color = cfg.canvasBg || "#09090b";
+          color = (cfg.customSidebarBg && cfg.sidebarBg) ? cfg.sidebarBg : (cfg.canvasBg || "#09090b");
           const l = parseColorLightness(color);
           symbolColor = l !== null && l > 0.58 ? "#141418" : "#f1f2f6";
         } else if (cfg.presetId !== "native" && preset && preset.vars) {
-          color = preset.vars.sidebarBg || preset.vars.canvasBg || color;
-          symbolColor = preset.vars.fgColor || symbolColor;
+          color = (cfg.customSidebarBg && cfg.sidebarBg) ? cfg.sidebarBg : (preset.vars.sidebarBg || preset.vars.canvasBg || color);
+          const l = cfg.customSidebarBg && cfg.sidebarBg ? parseColorLightness(cfg.sidebarBg) : null;
+          symbolColor = l !== null ? (l > 0.58 ? "#141418" : "#f1f2f6") : (preset.vars.fgColor || symbolColor);
+        } else if (cfg.customSidebarBg && cfg.sidebarBg) {
+          color = cfg.sidebarBg;
+          const l = parseColorLightness(color);
+          symbolColor = l !== null && l > 0.58 ? "#141418" : "#f1f2f6";
+        }
+        // Under wallpaper or glass themes the titlebar is translucent over the backdrop,
+        // so use transparent overlay (#00000000) to prevent black squares behind — □ ×.
+        if (hasWp || isGlassPreset) {
+          color = "#00000000";
         }
         win.electronNativeAPI.setTitleBarOverlay({ color, symbolColor });
       }
@@ -3720,7 +4014,7 @@ function createStudioPanel(options) {
   function formatUpdateVersionBadge(u) {
     const inst = u && u.installed ? u.installed : null;
     const rem = u && u.remote ? u.remote : null;
-    const instVer = (inst && inst.version) || pluginMeta.version || "5.0.3";
+    const instVer = (inst && inst.version) || pluginMeta.version || "5.5.0";
     const remVer = (rem && rem.version) || "";
     const remShort = (rem && rem.commitShort) || "";
     if (remVer && remVer !== instVer) {
@@ -3736,6 +4030,7 @@ function createStudioPanel(options) {
     const st = u && u.status ? u.status : "idle";
     if (st === "checking") return tr.updateStatusChecking;
     if (st === "downloading") return tr.updateStatusDownloading;
+    if (st === "verifying") return tr.updateStatusVerifying || tr.updateStatusDownloading;
     if (st === "extracting") return tr.updateStatusExtracting;
     if (st === "installing") return tr.updateStatusInstalling;
     if (st === "restarting") return tr.updateStatusRestarting;
@@ -3766,9 +4061,9 @@ function createStudioPanel(options) {
           status: "available",
           available: true,
           dismissed: false,
-          installed: realU.installed || { version: pluginMeta.version || "5.0.3" },
+          installed: realU.installed || { version: pluginMeta.version || "5.5.0" },
           remote: {
-            version: pluginMeta.version || "5.0.3",
+            version: pluginMeta.version || "5.5.0",
             commitShort: (realU.installed && realU.installed.commitShort) || "preview",
             commitMessage: tr.updatePreviewBadge,
           },
@@ -3844,7 +4139,7 @@ function createStudioPanel(options) {
     updateLiveDom();
     renderLimitsWidgetMount();
     if (state.usagePopOpen) renderModelUsagePopover();
-    if (state.isOpen && state.activeTab === "settings" && (state.settingsSubTab === "export" || (state.settingsSubTab === "widget" && state.widgetSubSection === "limits"))) {
+    if (state.isOpen && (state.activeTab === "widgets" || (state.activeTab === "settings" && (state.settingsSubTab === "export" || (state.settingsSubTab === "widget" && state.widgetSubSection === "limits"))))) {
       const ae = shadowRoot && shadowRoot.activeElement ? shadowRoot.activeElement : null;
       const isEditingControl = Boolean(ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA"));
       if (isEditingControl && state.settingsSubTab === "widget" && modalMountEl && typeof rv5BuildLimitsWidgetHtml === "function") {
@@ -3864,7 +4159,7 @@ function createStudioPanel(options) {
       scrapeDomQuotaSnapshot(true);
       return;
     }
-    const delays = [220, 680, 1450];
+    const delays = [90, 260, 680, 1450];
     for (let i = 0; i < delays.length; i += 1) {
       const tid = win.setTimeout(() => {
         quotaScrapeTimers = quotaScrapeTimers.filter((t) => t !== tid);
@@ -3884,8 +4179,8 @@ function createStudioPanel(options) {
       (state.isOpen && (state.activeTab === "widgets" || (state.activeTab === "settings" && (state.settingsSubTab === "export" || (state.settingsSubTab === "widget" && state.widgetSubSection === "limits")))))
     );
     const intervalMs = state.telemetry.isGenerating
-      ? 10000
-      : (limUiVisible ? 22000 : 60000);
+      ? 4000
+      : (limUiVisible ? 9000 : 45000);
     if (now - (state.lastAutoQuotaPollAt || 0) < intervalMs) return;
     state.lastAutoQuotaPollAt = now;
     state.quotaPollInflight = true;
@@ -3922,7 +4217,8 @@ function createStudioPanel(options) {
       remote: payload.remote && typeof payload.remote === "object" ? payload.remote : state.update.remote,
     };
     renderUpdateToast();
-    if (state.isOpen && ((state.activeTab === "settings" && state.settingsSubTab === "system") || prevAvailable !== state.update.available)) {
+    const normSub = ["system", "optimization", "studio", "hotkeys"].indexOf(state.settingsSubTab) >= 0 ? state.settingsSubTab : "system";
+    if (state.isOpen && ((state.activeTab === "settings" && normSub === "system") || prevAvailable !== state.update.available)) {
       renderStructure();
     }
   }
@@ -4057,17 +4353,22 @@ function createStudioPanel(options) {
   }
 
   function scrapeDomQuotaSnapshot(force) {
-    if (!doc || !doc.body) return;
+    if (!doc || !doc.body) return false;
     const now = Date.now();
     try {
       const circles = typeof doc.querySelectorAll === "function"
         ? doc.querySelectorAll('[data-testid="quota-progress-circle"]')
         : null;
       const hasCircles = Boolean(circles && circles.length > 0);
-      const minInterval = hasCircles ? 600 : 4000;
-      if (!force && now - state.lastQuotaScrapeAt < minInterval) return;
+      const overlays = !hasCircles && typeof doc.querySelectorAll === "function"
+        ? doc.querySelectorAll('[role="dialog"], .agy-overlay, [data-radix-popper-content-wrapper], [role="menu"], [role="listbox"], [data-slot="popover-content"]')
+        : null;
+      const hasOpenOverlay = Boolean(overlays && overlays.length > 0);
+      const minInterval = hasCircles ? 450 : (hasOpenOverlay ? 550 : 3500);
+      if (!force && now - state.lastQuotaScrapeAt < minInterval) return false;
       state.lastQuotaScrapeAt = now;
 
+      const quotaHintRe = /limit\s*remaining|weekly\s*limit|five\s*hour|5[-\s]*hour|5h\s+limit|лимит\s*\(\s*5\s*ч\s*\)|остаток\s*(?:недельн|5|пяти)|недельн[а-яё]*\s*лимит|5[-\s]*часов|%\s*(?:left|осталось)/i;
       let txt = "";
       if (hasCircles) {
         const box = findQuotaCirclesContainer(circles);
@@ -4076,26 +4377,40 @@ function createStudioPanel(options) {
           collectVisibleQuotaText(box, chunks);
           txt = chunks.join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
         }
-      } else if (typeof doc.querySelectorAll === "function") {
-        const overlays = doc.querySelectorAll('[role="dialog"], .agy-overlay');
-        for (let i = 0; overlays && i < overlays.length; i += 1) {
+      } else if (overlays && overlays.length > 0) {
+        for (let i = 0; i < overlays.length; i += 1) {
           const ov = overlays[i];
           if (!ov || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(ov))) continue;
           const chunks = [];
           collectVisibleQuotaText(ov, chunks);
           const candidateTxt = chunks.join("").replace(/[ \t]+\n/g, "\n").trim();
-          if (candidateTxt && /limit\s*remaining|weekly\s*limit|five\s*hour|5[-\s]*hour|5h\s+limit|лимит\s*\(\s*5\s*ч\s*\)|остаток\s*(?:недельн|5|пяти)|недельн[а-яё]*\s*лимит|5[-\s]*часов|%\s*(?:left|осталось)/i.test(candidateTxt)) {
+          if (candidateTxt && quotaHintRe.test(candidateTxt)) {
             txt = candidateTxt;
             break;
           }
         }
       }
+      // Also scrape full-page Antigravity Settings -> Models view inside <main> (excluding chat messages so chat prose can NEVER spoof real limits!)
+      if (!txt && typeof doc.querySelector === "function") {
+        const mainEl = doc.querySelector("main");
+        if (mainEl && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(mainEl))) {
+          const hasChatMsgs = typeof mainEl.querySelector === "function" && Boolean(mainEl.querySelector('[data-testid="agent-response"], [data-testid="user-message-bubble"], [data-testid="user-message-content"]'));
+          if (!hasChatMsgs) {
+            const chunks = [];
+            collectVisibleQuotaText(mainEl, chunks);
+            const mainTxt = chunks.join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+            if (mainTxt && mainTxt.length < 18000 && quotaHintRe.test(mainTxt)) {
+              txt = mainTxt;
+            }
+          }
+        }
+      }
 
-      if (!txt || txt.length < 20) return;
+      if (!txt || txt.length < 20) return false;
       const parsed = parseQuotaFromDocumentText(txt, state.telemetry.modelName);
-      if (!parsed) return;
+      if (!parsed) return false;
       const sig = JSON.stringify(parsed);
-      if (sig === state.lastQuotaScrapeSig && now - state.lastQuotaSyncAt < 10000) return;
+      if (!force && sig === state.lastQuotaScrapeSig && now - state.lastQuotaSyncAt < 8000) return false;
       state.lastQuotaScrapeSig = sig;
       state.lastQuotaSyncAt = now;
       invokeIpc("agy-studio:sync-quota-snapshot", {
@@ -4107,7 +4422,9 @@ function createStudioPanel(options) {
           applyQuotaSummary(res.summary);
         }
       });
+      return true;
     } catch (_e) {}
+    return false;
   }
 
   function collectDomConversation() {
@@ -4144,13 +4461,13 @@ function createStudioPanel(options) {
     const hasReal5 = Boolean(fam && typeof fam.fiveHourRem === "number" && Number.isFinite(fam.fiveHourRem));
     const hasRealW = Boolean(fam && typeof fam.weeklyRem === "number" && Number.isFinite(fam.weeklyRem));
     if (hasReal5 || hasRealW) {
-      const fmtFam = (rem, isEst) => {
+      const fmtFam = (rem) => {
         if (typeof rem !== "number" || !Number.isFinite(rem)) return "—";
         const val = isUsedMode ? Math.max(0, Math.min(100, Math.round(100 - rem))) : Math.max(0, Math.min(100, Math.round(rem)));
-        return `${isEst ? "~" : ""}${val}%`;
+        return `${val}%`;
       };
-      const fiveHour = fmtFam(fam.fiveHourRem, fam.fiveHourEstimated);
-      const week = fmtFam(fam.weeklyRem, fam.weeklyEstimated);
+      const fiveHour = fmtFam(fam.fiveHourRem);
+      const week = fmtFam(fam.weeklyRem);
       const parts = [];
       if (hasRealW) parts.push(`${tr.quotaWeekShort} ${week}`);
       if (hasReal5) parts.push(`${tr.quota5hShort} ${fiveHour}`);
@@ -4239,98 +4556,155 @@ function createStudioPanel(options) {
     return null;
   }
 
-  function findExpandedThinkingPanels() {
-    if (!doc || typeof doc.querySelectorAll !== "function") return [];
-    const panels = [];
-    const seen = new Set();
+  function isThinkingTriggerLabel(labelTxt) {
+    return /^(?:Thought\s+for\b|Thought\s+Process\b|Thinking\b|(?:Думал|Думает|Размышлял|Размышляет|Процесс\s+мышления|Размышлени[яей]?)(?=\s|·|:|\(|$))/i.test(labelTxt);
+  }
+
+  function isWorkLogTriggerLabel(labelTxt) {
+    return /^(?:Worked\s+for\b|Working\b|(?:Работал|Работает)(?=\s|·|:|\(|$))/i.test(labelTxt);
+  }
+
+  function findExpandedThinkingPanels(wantThinking, wantWorkLog) {
+    if (!doc || typeof doc.querySelectorAll !== "function") return { items: [], thinkingPanelSet: new Set() };
+    const items = [];
+    const seenThinking = new Set();
+    const seenWorkLog = new Set();
+    const thinkingPanelSet = new Set();
     try {
-      const triggers = doc.querySelectorAll(
-        'button[data-testid="thinking-collapsible-trigger"][aria-expanded="true"], button[aria-expanded="true"]'
-      );
+      const selector = wantWorkLog
+        ? 'button[data-testid="thinking-collapsible-trigger"][aria-expanded="true"], button[aria-expanded="true"], button[data-state="open"], main button, [data-testid="conversation-view"] button'
+        : 'button[data-testid="thinking-collapsible-trigger"][aria-expanded="true"], button[aria-expanded="true"]';
+      const triggers = doc.querySelectorAll(selector);
+      const checkedBtns = new Set();
       for (let i = 0; triggers && i < triggers.length; i += 1) {
         const btn = triggers[i];
-        if (!btn || (hostEl && (btn === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(btn))))) continue;
+        if (!btn || checkedBtns.has(btn)) continue;
+        checkedBtns.add(btn);
+        if (hostEl && (btn === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(btn)))) continue;
+        const ariaExp = typeof btn.getAttribute === "function" ? btn.getAttribute("aria-expanded") : null;
+        const dataSt = typeof btn.getAttribute === "function" ? btn.getAttribute("data-state") : null;
+        if (ariaExp === "false" || dataSt === "closed") continue;
         const testId = typeof btn.getAttribute === "function" ? (btn.getAttribute("data-testid") || "") : "";
-        if (testId !== "thinking-collapsible-trigger") {
-          const aria = typeof btn.getAttribute === "function" ? (btn.getAttribute("aria-label") || "").trim() : "";
-          const labelTxt = aria || String(btn.textContent || "").replace(/\s+/g, " ").trim();
-          if (!/^(?:Thought\s+for\b|Thought\s+Process\b|Thinking\b|Думал\b|Думает\b|Размышлял\b|Размышляет\b|Процесс\s+мышления\b|Размышлени)/i.test(labelTxt)) {
-            continue;
-          }
-        }
+        const aria = typeof btn.getAttribute === "function" ? (btn.getAttribute("aria-label") || "").trim() : "";
+        const labelTxt = aria || String(btn.textContent || "").replace(/\s+/g, " ").trim();
+        const isThinkBtn = testId === "thinking-collapsible-trigger" || (ariaExp === "true" && isThinkingTriggerLabel(labelTxt));
+        const isWorkBtn = !isThinkBtn && isWorkLogTriggerLabel(labelTxt);
+        if (!isThinkBtn && !isWorkBtn) continue;
+
         const parent = btn.parentNode;
         let panel = findThinkingContentSibling(parent, btn);
         if (!panel && parent && parent !== doc.body && parent !== doc.documentElement && parent.parentNode) {
           panel = findThinkingContentSibling(parent.parentNode, parent);
         }
-        if (panel && !seen.has(panel)) {
-          seen.add(panel);
-          panels.push(panel);
+        if (!panel) continue;
+
+        if (isThinkBtn) {
+          thinkingPanelSet.add(panel);
+          if (wantThinking && !seenThinking.has(panel)) {
+            seenThinking.add(panel);
+            items.push({ panel, kind: "thinking" });
+          }
+        } else if (isWorkBtn && wantWorkLog && !seenWorkLog.has(panel)) {
+          seenWorkLog.add(panel);
+          items.push({ panel, kind: "worklog" });
         }
       }
     } catch (_e) {}
-    return panels;
+    return { items, thinkingPanelSet };
   }
 
-  function collectTranslatableThinkingNodes(node, out) {
-    if (!node) return;
-    if (node.nodeType === 3) {
-      const val = node.nodeValue || "";
-      if (val.trim()) out.push(node);
-      return;
-    }
-    if (node.nodeType !== 1 && node.nodeType !== 11) return;
-    if (node.nodeType === 1) {
-      if (hostEl && (node === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(node)))) return;
-      if (typeof node.getAttribute === "function" && node.getAttribute("data-rudex-ignore")) return;
-      const tag = String(node.tagName || "").toUpperCase();
-      if (
-        tag === "CODE" ||
-        tag === "PRE" ||
-        tag === "KBD" ||
-        tag === "SAMP" ||
-        tag === "SCRIPT" ||
-        tag === "STYLE" ||
-        tag === "SVG" ||
-        tag === "NOSCRIPT" ||
-        tag === "BUTTON" ||
-        tag === "TEXTAREA" ||
-        tag === "INPUT"
-      ) {
+  const THINKING_SKIP_TAGS = new Set(["CODE", "PRE", "KBD", "SAMP", "SCRIPT", "STYLE", "SVG", "NOSCRIPT", "BUTTON", "TEXTAREA", "INPUT"]);
+  const THINKING_BLOCK_TAGS = new Set(["P", "DIV", "LI", "UL", "OL", "BLOCKQUOTE", "H1", "H2", "H3", "H4", "H5", "H6", "SECTION", "ARTICLE", "HEADER", "FOOTER", "TR", "TD", "TH", "HR", "BR", "DETAILS", "SUMMARY"]);
+
+  // Group contiguous inline text nodes (including word-by-word streaming <span>s inside a <p>/<li>/<div>)
+  // into full sentence/paragraph runs so Google Translate receives complete grammatical context
+  // instead of translating single words and skipping 2-letter prepositions ("of", "by", "at", "if")!
+  function collectTranslatableThinkingRuns(rootNode, outRuns, skipPanelsSet) {
+    let curRun = [];
+    const flushRun = () => {
+      if (curRun.length > 0) {
+        outRuns.push(curRun);
+        curRun = [];
+      }
+    };
+    const walk = (node) => {
+      if (!node) return;
+      if (node.nodeType === 3) {
+        const val = node.nodeValue || "";
+        const rec = thinkingNodeMap.get(node);
+        // Keep tracked cleared follower spans (rec.applied && val === "") inside the same run so streaming updates reconstruct the full original sentence!
+        if (val || (rec && rec.applied)) {
+          curRun.push(node);
+        }
         return;
       }
-    }
-    const children = node.childNodes;
-    if (children && typeof children.length === "number") {
-      for (let i = 0; i < children.length; i += 1) {
-        collectTranslatableThinkingNodes(children[i], out);
+      if (node.nodeType !== 1 && node.nodeType !== 11) return;
+      let isBlock = false;
+      if (node.nodeType === 1) {
+        if (skipPanelsSet && skipPanelsSet.has(node)) {
+          flushRun();
+          return;
+        }
+        if (hostEl && (node === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(node)))) {
+          flushRun();
+          return;
+        }
+        if (typeof node.getAttribute === "function" && node.getAttribute("data-rudex-ignore")) {
+          flushRun();
+          return;
+        }
+        const tag = String(node.tagName || "").toUpperCase();
+        if (THINKING_SKIP_TAGS.has(tag)) {
+          flushRun();
+          return;
+        }
+        isBlock = THINKING_BLOCK_TAGS.has(tag);
+        if (isBlock) flushRun();
       }
-    }
+      const children = node.childNodes;
+      if (children && typeof children.length === "number") {
+        for (let i = 0; i < children.length; i += 1) {
+          walk(children[i]);
+        }
+      }
+      if (isBlock) flushRun();
+    };
+    walk(rootNode);
+    flushRun();
   }
 
-  function restoreAllThinkingNodes() {
-    if (thinkingScanTimer && win && typeof win.clearTimeout === "function") {
+  function restoreThinkingNodesByKind(targetKind) {
+    if (!targetKind && thinkingScanTimer && win && typeof win.clearTimeout === "function") {
       win.clearTimeout(thinkingScanTimer);
       thinkingScanTimer = null;
     }
     if (trackedThinkingNodes.size === 0) return;
     isApplyingThinkingTranslation = true;
     try {
+      const toDelete = [];
       trackedThinkingNodes.forEach((tn) => {
         const rec = thinkingNodeMap.get(tn);
-        if (rec && rec.translated && tn.nodeValue === rec.translated) {
+        if (targetKind && rec && (rec.kind || "thinking") !== targetKind) return;
+        if (rec && rec.applied && tn.nodeValue === rec.translated) {
           tn.nodeValue = rec.orig;
           rec.translated = "";
+          rec.applied = false;
+          rec.runJoined = "";
         }
+        toDelete.push(tn);
       });
-      trackedThinkingNodes.clear();
+      for (let i = 0; i < toDelete.length; i += 1) trackedThinkingNodes.delete(toDelete[i]);
     } finally {
       isApplyingThinkingTranslation = false;
     }
   }
 
+  function restoreAllThinkingNodes() {
+    restoreThinkingNodesByKind("");
+  }
+
   function scheduleThinkingScan(delayMs) {
-    if (state.destroyed || !state.mounted || !state.settings.thinkingInRussian) return;
+    if (state.destroyed || !state.mounted || (!state.settings.thinkingInRussian && !state.settings.workLogInRussian)) return;
     if (!win || typeof win.setTimeout !== "function") {
       scanThinkingBlocks(false);
       return;
@@ -4342,80 +4716,133 @@ function createStudioPanel(options) {
     }, typeof delayMs === "number" ? delayMs : 140);
   }
 
+  function applyTranslatedRun(runNodes, origParts, origJoined, trText, kind) {
+    const full = wrapEdgeSpaces(origJoined, trText);
+    const nowTs = Date.now();
+    for (let k = 0; k < runNodes.length; k += 1) {
+      const tn = runNodes[k];
+      const nextVal = k === 0 ? full : "";
+      applyThinkingNodeValue(tn, nextVal);
+      const prev = thinkingNodeMap.get(tn);
+      thinkingNodeMap.set(tn, {
+        orig: origParts[k],
+        translated: nextVal,
+        applied: true,
+        runJoined: origJoined,
+        stableSince: prev ? prev.stableSince : nowTs,
+        kind,
+      });
+      trackedThinkingNodes.add(tn);
+    }
+  }
+
   function scanThinkingBlocks(immediate) {
     if (state.destroyed || !doc) return;
-    if (!state.settings.thinkingInRussian) {
+    const wantThinking = Boolean(state.settings.thinkingInRussian);
+    const wantWorkLog = Boolean(state.settings.workLogInRussian);
+    if (!wantThinking && !wantWorkLog) {
       restoreAllThinkingNodes();
       return;
     }
-    const panels = findExpandedThinkingPanels();
+    const { items: panels, thinkingPanelSet } = findExpandedThinkingPanels(wantThinking, wantWorkLog);
     if (panels.length === 0) return;
 
-    const nodes = [];
+    const runs = [];
+    const seenFirst = new Set();
     for (let i = 0; i < panels.length; i += 1) {
-      collectTranslatableThinkingNodes(panels[i], nodes);
+      const item = panels[i];
+      const subRuns = [];
+      const skipSet = item.kind === "worklog" && !wantThinking ? thinkingPanelSet : null;
+      collectTranslatableThinkingRuns(item.panel, subRuns, skipSet);
+      for (let k = 0; k < subRuns.length; k += 1) {
+        const rn = subRuns[k];
+        if (!rn || rn.length === 0 || seenFirst.has(rn[0])) continue;
+        seenFirst.add(rn[0]);
+        runs.push({ nodes: rn, kind: item.kind });
+      }
     }
-    if (nodes.length === 0) return;
+    if (runs.length === 0) return;
 
     const now = Date.now();
     const isGen = Boolean(state.telemetry && state.telemetry.isGenerating);
     const activeRespEl = state.telemetry ? state.telemetry.activeRespEl : null;
     const batch = [];
-    const nodeGroups = new Map();
+    const runGroups = new Map();
     let needsFollowup = false;
     let remainingReady = false;
 
-    for (let i = 0; i < nodes.length; i += 1) {
-      const tn = nodes[i];
-      const curVal = tn.nodeValue || "";
-      let rec = thinkingNodeMap.get(tn);
-      if (rec && rec.translated && curVal === rec.translated) {
+    for (let i = 0; i < runs.length; i += 1) {
+      const runNodes = runs[i].nodes;
+      const kind = runs[i].kind;
+      const origParts = [];
+      let allAppliedSameRun = true;
+      let latestStableSince = 0;
+
+      for (let k = 0; k < runNodes.length; k += 1) {
+        const tn = runNodes[k];
+        const curVal = tn.nodeValue || "";
+        let rec = thinkingNodeMap.get(tn);
+        if (rec && rec.applied && curVal === rec.translated) {
+          origParts.push(rec.orig);
+          rec.kind = kind;
+          if (rec.stableSince > latestStableSince) latestStableSince = rec.stableSince;
+        } else {
+          allAppliedSameRun = false;
+          if (!rec || curVal !== rec.orig) {
+            rec = { orig: curVal, translated: "", applied: false, runJoined: "", stableSince: now, kind };
+            thinkingNodeMap.set(tn, rec);
+          } else {
+            rec.kind = kind;
+          }
+          origParts.push(curVal);
+          if (rec.stableSince > latestStableSince) latestStableSince = rec.stableSince;
+        }
+      }
+
+      const origJoined = origParts.join("");
+      const core = origJoined.trim();
+      if (!core) continue;
+
+      const firstRec = thinkingNodeMap.get(runNodes[0]);
+      if (allAppliedSameRun && firstRec && firstRec.runJoined === origJoined) {
         continue;
       }
-      if (!rec || curVal !== rec.orig) {
-        rec = { orig: curVal, translated: "", stableSince: now };
-        thinkingNodeMap.set(tn, rec);
-      }
-      const core = curVal.trim();
       if (!spNeedsRuThinking(core)) continue;
 
       if (thinkingCache.has(core)) {
         const cached = thinkingCache.get(core);
         setThinkingCacheEntry(core, cached);
-        const full = wrapEdgeSpaces(curVal, cached);
-        applyThinkingNodeValue(tn, full);
-        rec.translated = full;
-        trackedThinkingNodes.add(tn);
+        applyTranslatedRun(runNodes, origParts, origJoined, cached, kind);
         continue;
       }
 
       if (thinkingInflight.has(core)) continue;
 
       const insideActiveResp = Boolean(
-        activeRespEl && typeof activeRespEl.contains === "function" && activeRespEl.contains(tn)
+        activeRespEl && typeof activeRespEl.contains === "function" && activeRespEl.contains(runNodes[0])
       );
-      const isReady = Boolean(immediate || !isGen || !insideActiveResp || now - rec.stableSince >= 420);
+      const isReady = Boolean(immediate || !isGen || !insideActiveResp || now - latestStableSince >= 420);
       if (!isReady) {
         needsFollowup = true;
         continue;
       }
 
-      if (!nodeGroups.has(core)) {
+      if (!runGroups.has(core)) {
         if (batch.length >= 10) {
           remainingReady = true;
           continue;
         }
         batch.push(core);
-        nodeGroups.set(core, []);
+        runGroups.set(core, []);
       }
-      nodeGroups.get(core).push(tn);
+      runGroups.get(core).push({ nodes: runNodes, origParts, origJoined, kind });
     }
 
     if (batch.length > 0) {
       for (let i = 0; i < batch.length; i += 1) thinkingInflight.add(batch[i]);
       invokeIpc("agy-studio:translate-thinking-batch", { texts: batch }).then((res) => {
         for (let i = 0; i < batch.length; i += 1) thinkingInflight.delete(batch[i]);
-        if (state.destroyed || !state.settings.thinkingInRussian) return;
+        if (state.destroyed || (!state.settings.thinkingInRussian && !state.settings.workLogInRussian)) return;
         const map = res && res.translations && typeof res.translations === "object" ? res.translations : null;
         if (map) {
           for (let i = 0; i < batch.length; i += 1) {
@@ -4423,16 +4850,25 @@ function createStudioPanel(options) {
             const trText = map[core];
             if (typeof trText !== "string" || !trText.trim()) continue;
             setThinkingCacheEntry(core, trText);
-            const list = nodeGroups.get(core) || [];
+            const list = runGroups.get(core) || [];
             for (let j = 0; j < list.length; j += 1) {
-              const tn = list[j];
-              const rec = thinkingNodeMap.get(tn);
-              if (!rec) continue;
-              if ((tn.nodeValue || "") !== rec.orig) continue;
-              const full = wrapEdgeSpaces(rec.orig, trText);
-              applyThinkingNodeValue(tn, full);
-              rec.translated = full;
-              trackedThinkingNodes.add(tn);
+              const entry = list[j];
+              if (entry.kind === "thinking" && !state.settings.thinkingInRussian) continue;
+              if (entry.kind === "worklog" && !state.settings.workLogInRussian) continue;
+              // Verify none of the nodes mutated externally while translation was in flight
+              let stillIntact = true;
+              for (let k = 0; k < entry.nodes.length; k += 1) {
+                const tn = entry.nodes[k];
+                const rec = thinkingNodeMap.get(tn);
+                const curV = tn.nodeValue || "";
+                const expectedV = rec && rec.applied ? rec.translated : entry.origParts[k];
+                if (curV !== expectedV) {
+                  stillIntact = false;
+                  break;
+                }
+              }
+              if (!stillIntact) continue;
+              applyTranslatedRun(entry.nodes, entry.origParts, entry.origJoined, trText, entry.kind);
             }
           }
         }
@@ -4497,6 +4933,8 @@ function createStudioPanel(options) {
       const marked = doc.querySelector('[data-rudex-comp-mic-active="1"]');
       if (marked && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(marked))) return marked;
       const actMic = doc.querySelector(
+        'button[aria-label="Stop recording"], ' +
+        'button[data-tooltip-id="input-send-button-record-tooltip"].bg-red-500, ' +
         'button[aria-pressed="true"][aria-label*="dictat" i], ' +
         'button[aria-pressed="true"][aria-label*="record" i], ' +
         'button[aria-pressed="true"][aria-label*="запис" i], ' +
@@ -4513,6 +4951,9 @@ function createStudioPanel(options) {
   }
 
   function isVoiceDictationActive() {
+    if (rudexOptimizer && typeof rudexOptimizer.isDictating === "function" && rudexOptimizer.isDictating()) {
+      return true;
+    }
     return Boolean(findActiveVoiceDictationButton());
   }
 
@@ -4520,9 +4961,29 @@ function createStudioPanel(options) {
     if (state.destroyed) return;
     if (doc && doc.hidden) return;
     const now = Date.now();
-    const dictatingNow = isVoiceDictationActive();
-    const isBusy = state.telemetry.isGenerating || (!dictatingNow && now - state.lastDomMutationAt < 3000);
-    if (!isBusy && now - state.lastPollAt < (dictatingNow ? 550 : 650)) return;
+    const domMicActive = Boolean(findActiveVoiceDictationButton());
+    const optCtrl = rudexOptimizer;
+    if (optCtrl && typeof optCtrl.setDictating === "function") {
+      if (domMicActive && !optCtrl.isDictating()) {
+        state._domDictatingSync = true;
+        optCtrl.setDictating(true);
+      } else if (!domMicActive && state._domDictatingSync) {
+        state._domDictatingSync = false;
+        optCtrl.setDictating(false);
+      }
+    }
+    const dictatingNow = domMicActive || Boolean(optCtrl && optCtrl.isDictating());
+    const pauseForVoice = Boolean(dictatingNow && (!state.settings.optimization || state.settings.optimization.voicePauseHeavyUi !== false));
+    if (pauseForVoice) {
+      if (now - state.lastPollAt < 500) return;
+      state.lastPollAt = now;
+      return;
+    }
+    const curUrlSig = win && win.location ? `${win.location.pathname || ""}${win.location.search || ""}${win.location.hash || ""}` : "";
+    const urlChanged = Boolean(curUrlSig && curUrlSig !== state.lastObservedUrlSig);
+    if (curUrlSig) state.lastObservedUrlSig = curUrlSig;
+    const isBusy = urlChanged || state.telemetry.isGenerating || (!dictatingNow && now - state.lastDomMutationAt < 3000);
+    if (!isBusy && now - state.lastPollAt < (dictatingNow ? 550 : 600)) return;
     state.lastPollAt = now;
 
     if (syncAuthScreenVisibility()) {
@@ -4533,7 +4994,7 @@ function createStudioPanel(options) {
     if (!dictatingNow) scrapeDomQuotaSnapshot(false);
     pollQuotaSummaryIfDue(now);
     checkAutoContinueMonitoring(now);
-    if (state.settings.thinkingInRussian && !dictatingNow) scanThinkingBlocks(false);
+    if ((state.settings.thinkingInRussian || state.settings.workLogInRussian) && !dictatingNow) scanThinkingBlocks(false);
     updateLiveDom();
     syncChatDockLiveState();
     if (!dictatingNow && now - (state.lastHostMetricsAt || 0) > 900) {
@@ -5015,6 +5476,9 @@ function createStudioPanel(options) {
         <button type="button" class="layer-pill" style="margin-left:auto" data-action="start-element-picker" title="${escAttr(isRu ? "Ткнуть в элемент Antigravity" : "Pick any Antigravity element")}">
           ${iconSvg("crosshair", 12)}<span>${escHtml(isRu ? "Прицел" : "Picker")}</span>
         </button>
+        <button type="button" class="layer-pill" data-action="start-region-picker" title="${escAttr(isRu ? "Выделить область рамкой (сразу 2+ окна синхронно)" : "Drag region to select 2+ windows synchronously")}">
+          <span>▢ ${escHtml(isRu ? "Область" : "Region")}</span>
+        </button>
       </div>
       ${inner}
     `;
@@ -5369,12 +5833,20 @@ function createStudioPanel(options) {
     const effAccent = draft.customAccent
       ? draft.accentColor
       : ((curPreset && curPreset.vars && curPreset.vars.accentColor) || draft.accentColor);
-    const fineOpen = Boolean(state.openDisclosures.themeFine);
+    const effSidebarBg = draft.customSidebarBg
+      ? draft.sidebarBg
+      : ((curPreset && curPreset.vars && curPreset.vars.sidebarBg) || spMixHexColor(draft.canvasBg, draft.cardBg, 0.55));
+    const effBorderCol = draft.customBorderColor
+      ? draft.borderColor
+      : ((curPreset && curPreset.vars && curPreset.vars.borderColor && /^#[0-9a-f]{6}$/i.test(curPreset.vars.borderColor))
+          ? curPreset.vars.borderColor
+          : "#2a2b36");
+    const fineOpen = state.openDisclosures.themeFine !== false;
     const profiles = state.settings.appearanceProfiles || [];
     const us = draft.uiStyle || spDefaultUiStyle();
     const isClaudeDarkActive = draft.presetId === "claude-code-dark" && us.preset === "claude-code";
     const isClaudeLightActive = draft.presetId === "claude-code-light" && us.preset === "claude-code";
-    const isNativeSuiteActive = draft.presetId === "native" && us.preset === "antigravity" && !draft.customAccent;
+    const isNativeSuiteActive = draft.presetId === "native" && us.preset === "antigravity" && !draft.customAccent && !draft.customSidebarBg && !draft.customBorderColor;
     const isCodexSuiteActive = us.preset === "codex";
     const isOpenCodeSuiteActive = us.preset === "opencode";
     const modeFilter = state.themeModeFilter === "dark" || state.themeModeFilter === "light" ? state.themeModeFilter : "all";
@@ -5456,17 +5928,48 @@ function createStudioPanel(options) {
           `).join("")}
           <label class="color-box" style="margin-left:auto">
             <span>${escHtml(tr.appCustomColor)}</span>
-            <input type="color" class="color-input" data-app-field="accentColor" value="${escAttr(effAccent)}"/>
+            <span class="rx-color-row">
+              <input type="color" class="color-input" data-app-field="accentColor" value="${escAttr(effAccent)}"/>
+              <input type="text" class="app-hex-input" data-app-hex-field="accentColor" value="${escAttr(effAccent)}" placeholder="#rrggbb" maxlength="7" spellcheck="false" autocomplete="off"/>
+            </span>
           </label>
         </div>
       </div>
 
       <details class="rx-details" data-disc="themeFine"${fineOpen ? " open" : ""}>
-        <summary>${escHtml(tr.appFineTune)}</summary>
+        <summary>${escHtml(isRu ? "Цвета фона, карточек, сайдбара и границ" : "Canvas, Cards, Sidebar & Border Colors")}</summary>
         <div class="rx-details-body">
           <div class="control-grid-2">
-            <div class="color-box"><span>${escHtml(tr.appCanvasColor)}</span><input type="color" class="color-input" data-app-field="canvasBg" value="${escAttr(draft.canvasBg)}"/></div>
-            <div class="color-box"><span>${escHtml(tr.appCardColor)}</span><input type="color" class="color-input" data-app-field="cardBg" value="${escAttr(draft.cardBg)}"/></div>
+            <div class="color-box">
+              <span>${escHtml(tr.appCanvasColor)}</span>
+              <span class="rx-color-row">
+                <input type="color" class="color-input" data-app-field="canvasBg" value="${escAttr(draft.canvasBg)}"/>
+                <input type="text" class="app-hex-input" data-app-hex-field="canvasBg" value="${escAttr(draft.canvasBg)}" placeholder="#rrggbb" maxlength="7" spellcheck="false" autocomplete="off"/>
+              </span>
+            </div>
+            <div class="color-box">
+              <span>${escHtml(tr.appCardColor)}</span>
+              <span class="rx-color-row">
+                <input type="color" class="color-input" data-app-field="cardBg" value="${escAttr(draft.cardBg)}"/>
+                <input type="text" class="app-hex-input" data-app-hex-field="cardBg" value="${escAttr(draft.cardBg)}" placeholder="#rrggbb" maxlength="7" spellcheck="false" autocomplete="off"/>
+              </span>
+            </div>
+            <div class="color-box">
+              <span>${escHtml(isRu ? "Боковая панель" : "Left Sidebar")}</span>
+              <span class="rx-color-row">
+                <input type="color" class="color-input" data-app-field="sidebarBg" value="${escAttr(effSidebarBg)}"/>
+                <input type="text" class="app-hex-input" data-app-hex-field="sidebarBg" value="${escAttr(effSidebarBg)}" placeholder="#rrggbb" maxlength="7" spellcheck="false" autocomplete="off"/>
+                ${draft.customSidebarBg ? `<button type="button" class="btn btn-sm btn-ghost rx-insp-reset-btn" data-action="reset-custom-sidebar-bg" title="${escAttr(isRu ? "Вернуть цвет из темы" : "Reset to theme sidebar color")}">↺</button>` : ""}
+              </span>
+            </div>
+            <div class="color-box">
+              <span>${escHtml(isRu ? "Линии и границы" : "Lines & Borders")}</span>
+              <span class="rx-color-row">
+                <input type="color" class="color-input" data-app-field="borderColor" value="${escAttr(effBorderCol)}"/>
+                <input type="text" class="app-hex-input" data-app-hex-field="borderColor" value="${escAttr(effBorderCol)}" placeholder="#rrggbb" maxlength="7" spellcheck="false" autocomplete="off"/>
+                ${draft.customBorderColor ? `<button type="button" class="btn btn-sm btn-ghost rx-insp-reset-btn" data-action="reset-custom-border-color" title="${escAttr(isRu ? "Вернуть цвет границ из темы" : "Reset to theme border color")}">↺</button>` : ""}
+              </span>
+            </div>
           </div>
           <div class="card">
             <div class="row-item">
@@ -6287,10 +6790,310 @@ function createStudioPanel(options) {
     `;
   }
 
+  function renderOptimizationSub(isRu) {
+    const opt = typeof sanitizeOptimizationSettings === "function"
+      ? sanitizeOptimizationSettings(state.settings.optimization)
+      : Object.assign({}, state.settings.optimization);
+    const diag = state.perfDiag && state.perfDiag.data ? state.perfDiag.data : null;
+    const diagLoading = Boolean(state.perfDiag && state.perfDiag.loading);
+    const diagBusy = Boolean(state.perfDiag && state.perfDiag.busy);
+    const lastMsg = (state.perfDiag && state.perfDiag.lastMsg) || "";
+    const kbDict = (state.settings.keybindings && state.settings.keybindings.toggleDictation) || "Ctrl+Alt+V";
+
+    const optToggle = (key, title, desc) => {
+      const on = Boolean(opt[key]);
+      return `
+        <div class="row-item">
+          <div class="row-info">
+            <span class="row-title">${escHtml(title)}</span>
+            <span class="row-desc">${escHtml(desc)}</span>
+          </div>
+          <button type="button" class="switch${on ? " is-on" : ""}" role="switch" aria-checked="${on ? "true" : "false"}" data-action="toggle-opt" data-key="${escAttr(key)}" aria-label="${escAttr(title)}"><span class="switch-thumb"></span></button>
+        </div>
+      `;
+    };
+
+    const langPresets = [
+      { id: "auto", label: isRu ? "Авто" : "Auto" },
+      { id: "ru-en", label: "RU + EN" },
+      { id: "ru", label: "RU" },
+      { id: "en-ru", label: "EN + RU" },
+      { id: "en", label: "EN" },
+      { id: "uk-ru-en", label: "UK+RU+EN" },
+      { id: "custom", label: isRu ? "Свои" : "Custom" },
+    ];
+    const chunkOpts = [
+      { id: "80", label: isRu ? "80 мс (баланс)" : "80 ms (balanced)" },
+      { id: "100", label: isRu ? "100 мс (эконом)" : "100 ms (low RPC)" },
+      { id: "40", label: isRu ? "40 мс (сток)" : "40 ms (stock)" },
+    ];
+    const animModes = [
+      { id: "smooth", label: isRu ? "Плавные 60–144 FPS" : "Smooth 60–144 FPS" },
+      { id: "snappy", label: isRu ? "Молниеносные" : "Snappy" },
+      { id: "reduced", label: isRu ? "Минимум" : "Reduced" },
+      { id: "native", label: isRu ? "Стандарт" : "Native" },
+    ];
+    const capOpts = [
+      { id: "0", label: isRu ? "Стандарт (выкл.)" : "Default (off)" },
+      { id: "50", label: "50 MB" },
+      { id: "100", label: "100 MB" },
+      { id: "256", label: "256 MB" },
+    ];
+
+    const fmtMb = (b) => `${((Number(b) || 0) / (1024 * 1024)).toFixed(1)} MB`;
+    const fmtKb = (b) => `${((Number(b) || 0) / 1024).toFixed(1)} KB`;
+    const cacheHitStr = diag && diag.promptCache && diag.promptCache.turnsSampled > 0
+      ? `${diag.promptCache.cacheHitRatePct}%`
+      : "—";
+    const lsThreadsStr = diag && diag.lsTuning
+      ? `${diag.lsTuning.maxProcs} / ${diag.lsTuning.cpuCount}`
+      : (opt.lsTuningEnabled ? "Auto" : (isRu ? "Сток (4)" : "Stock (4)"));
+    const cleanableStr = diag ? fmtMb(diag.cleanableTotalBytes) : (diagLoading ? "…" : "—");
+    const staleKeysCount = diag && diag.appStorage && Array.isArray(diag.appStorage.staleLayoutKeys)
+      ? diag.appStorage.staleLayoutKeys.length
+      : 0;
+
+    const lv = state.localVoice || { loading: false, installing: false, progressPct: 0, progressMsg: "", status: null, error: "" };
+    const lvSt = lv.status;
+    const lvInstalled = Boolean(lvSt && lvSt.installed);
+    const lvRunning = Boolean(lvSt && lvSt.running);
+    const lvModel = opt.voiceLocalModel || "ru-fast";
+    const modelMeta = {
+      "ru-tone": {
+        nameRu: "RU T-one Pro",
+        nameEn: "RU T-one Pro",
+        descRu: "80Kч живой русской речи · 8 кГц",
+        descEn: "80Kh conversational Russian · 8 kHz",
+      },
+      "ru-fast": {
+        nameRu: "RU Быстрая",
+        nameEn: "RU Fast",
+        descRu: "16 кГц + IT-словарь · мгновенный старт",
+        descEn: "16 kHz + dev hotwords · instant boot",
+      },
+      "ru-hq": {
+        nameRu: "RU Точная (FP32)",
+        nameEn: "RU Accurate (FP32)",
+        descRu: "16 кГц FP32 + IT-словарь · макс. точность",
+        descEn: "16 kHz FP32 + dev hotwords · high precision",
+      },
+      "multi-ru-en": {
+        nameRu: "RU + EN Мульти",
+        nameEn: "RU + EN Multi",
+        descRu: "Русский и English в одной модели",
+        descEn: "Mixed Russian & English in one model",
+      },
+      "en-fast": {
+        nameRu: "EN Быстрая",
+        nameEn: "EN Fast",
+        descRu: "English 16 кГц потоковая",
+        descEn: "English 16 kHz streaming",
+      },
+    };
+    const lvModels = (lvSt && Array.isArray(lvSt.models) && lvSt.models.length > 0)
+      ? lvSt.models
+      : [
+          { id: "ru-tone", sizeMb: 122.5, labelRu: "RU T-one Pro (80Kч, 122 МБ)", labelEn: "RU T-one Pro (80Kh, 122 MB)", installed: false },
+          { id: "ru-fast", sizeMb: 23, labelRu: "RU Быстрая (23 МБ)", labelEn: "RU Fast (23 MB)", installed: false },
+          { id: "ru-hq", sizeMb: 85.5, labelRu: "RU Точная (85 МБ)", labelEn: "RU Accurate (85 MB)", installed: false },
+          { id: "multi-ru-en", sizeMb: 247.1, labelRu: "RU + EN Мульти (247 МБ)", labelEn: "RU + EN Multi (247 MB)", installed: false },
+          { id: "en-fast", sizeMb: 122, labelRu: "EN Быстрая (122 МБ)", labelEn: "EN Fast (122 MB)", installed: false },
+        ];
+    const activeModelInfo = lvModels.find((m) => m.id === lvModel) || lvModels[0];
+    const engineOpts = [
+      {
+        id: "auto",
+        title: isRu ? "Локальный мгновенный (~8 мс)" : "Local Instant (~8 ms)",
+        desc: isRu ? "Sherpa-ONNX офлайн на вашем ПК" : "Sherpa-ONNX offline on your machine",
+      },
+      {
+        id: "cloud",
+        title: isRu ? "Облачный Antigravity" : "Antigravity Cloud",
+        desc: isRu ? "Штатный облачный стрим с тюнингом" : "Stock cloud stream with Rudex tuning",
+      },
+    ];
+    const effectiveEngine = opt.voiceEngine === "cloud" ? "cloud" : "auto";
+    const lvStatusText = lv.installing
+      ? (lv.progressMsg ? `${lv.progressPct}% · ${lv.progressMsg}` : `${lv.progressPct}%`)
+      : (lvInstalled
+        ? (lvRunning
+          ? (isRu ? `Локальный сервер активен (порт ${lvSt.port}) · финализация ~8 мс` : `Local server warm (port ${lvSt.port}) · ~8 ms finalize`)
+          : (isRu ? "Локальный движок готов · запускается мгновенно при старте диктовки" : "Local engine ready · starts instantly on dictation"))
+        : (isRu ? "Модель ещё не скачана — нажмите кнопку справа (работает 100% офлайн)" : "Model not downloaded yet — click button on the right (100% offline)"));
+
+    return `
+      <div class="opt-jump-bar">
+        <button type="button" class="opt-jump-pill" data-action="scroll-opt-section" data-target="opt-sec-voice">${isRu ? "Голос (Pro)" : "Voice (Pro)"}</button>
+        <button type="button" class="opt-jump-pill" data-action="scroll-opt-section" data-target="opt-sec-cache">${isRu ? "Файлы и кэш" : "Files & Cache"}</button>
+        <button type="button" class="opt-jump-pill" data-action="scroll-opt-section" data-target="opt-sec-anim">${isRu ? "Анимации" : "Animations"}</button>
+      </div>
+      <div class="section-group" data-opt-sec="opt-sec-voice">
+        <div class="opt-section-head">
+          <span class="section-label">${isRu ? "Голосовой ввод (Voice Dictation Pro)" : "Voice Input (Voice Dictation Pro)"}</span>
+          <span class="kbd">${escHtml(kbDict)}</span>
+        </div>
+        <div class="card">
+          ${optToggle("voiceEnabled", isRu ? "Ускорение и исправление голосового ввода" : "Enhanced Voice Dictation Engine", isRu ? `Мгновенная локальная потоковая диктовка (Sherpa-ONNX) или улучшенный облачный стрим + хоткей ${kbDict}` : `Instant local streaming dictation (Sherpa-ONNX) or enhanced cloud stream & hotkey ${kbDict}`)}
+          <div class="row-item opt-row-stack">
+            <div class="row-info">
+              <span class="row-title">${isRu ? "Движок распознавания речи" : "Speech Recognition Engine"}</span>
+              <span class="row-desc">${isRu ? "Локальный Sherpa-ONNX печатает слова прямо во время речи (~100 мс) и закрывает запись за ~8 мс без облачной задержки." : "Local Sherpa-ONNX streams words live (~100 ms) and finalizes in ~8 ms with zero cloud wait."}</span>
+            </div>
+            <div class="segmented-2">
+              ${engineOpts.map((eo) => `
+                <button type="button" class="choice-card${effectiveEngine === eo.id ? " is-selected" : ""}" data-action="set-opt-val" data-key="voiceEngine" data-val="${eo.id}">
+                  <span class="choice-title">
+                    <span>${escHtml(eo.title)}</span>
+                    ${effectiveEngine === eo.id ? `<span class="badge-active">${isRu ? "Активен" : "Active"}</span>` : ""}
+                  </span>
+                  <span class="choice-desc">${escHtml(eo.desc)}</span>
+                </button>
+              `).join("")}
+            </div>
+            ${effectiveEngine !== "cloud" ? `
+              <div class="opt-model-box">
+                <div class="opt-model-head">
+                  <div class="row-info">
+                    <span class="row-title">${isRu ? "Модель голосового ввода по умолчанию" : "Default Voice Input Model"}</span>
+                    <span class="opt-model-status${lvInstalled ? " is-ready" : ""}">${escHtml(lvStatusText)}</span>
+                  </div>
+                  <button type="button" class="btn btn-sm${lvInstalled ? "" : " btn-primary"}" ${lv.installing ? "disabled" : ""} data-action="install-local-voice" data-model="${escAttr(lvModel)}">${escHtml(lv.installing ? (isRu ? `Загрузка ${lv.progressPct}%…` : `Downloading ${lv.progressPct}%…`) : (lvInstalled ? (isRu ? "Активна · Прогреть" : "Active · Warm Up") : (isRu ? `Скачать (${activeModelInfo.sizeMb} МБ)` : `Download (${activeModelInfo.sizeMb} MB)`)))}</button>
+                </div>
+                ${lv.installing ? `<div class="opt-progress-track"><div class="opt-progress-fill" style="width:${lv.progressPct}%"></div></div>` : ""}
+                ${lv.error ? `<div class="row-desc" style="color:var(--rx-danger)">${escHtml(lv.error)}</div>` : ""}
+                <div class="opt-model-grid">
+                  ${lvModels.map((m) => {
+                    const meta = modelMeta[m.id] || {};
+                    const isSel = lvModel === m.id;
+                    const title = isRu ? (meta.nameRu || m.labelRu) : (meta.nameEn || m.labelEn);
+                    const sub = isRu
+                      ? `${meta.descRu || m.labelRu} · ${m.sizeMb} МБ`
+                      : `${meta.descEn || m.labelEn} · ${m.sizeMb} MB`;
+                    const badgeHtml = isSel && m.installed
+                      ? `<span class="badge-active">${isRu ? "По умолчанию" : "Default"}</span>`
+                      : (m.installed
+                        ? `<span class="nav-badge">OK</span>`
+                        : `<span class="nav-badge num">${m.sizeMb} ${isRu ? "МБ" : "MB"}</span>`);
+                    return `
+                      <button type="button" class="opt-model-card${isSel ? " is-selected" : ""}" data-action="select-local-voice-model" data-val="${escAttr(m.id)}">
+                        <span class="opt-model-card-top">
+                          <span class="opt-model-name">${escHtml(title)}</span>
+                          ${badgeHtml}
+                        </span>
+                        <span class="opt-model-sub">${escHtml(sub)}</span>
+                      </button>
+                    `;
+                  }).join("")}
+                </div>
+                <span class="row-desc">${isRu ? "Переключение между скачанными моделями происходит мгновенно без перезапуска Antigravity." : "Switching between downloaded models takes effect immediately without restarting Antigravity."}</span>
+              </div>
+            ` : ""}
+          </div>
+          <div class="row-item opt-row-stack">
+            <div class="row-info">
+              <span class="row-title">${isRu ? "Приоритет языков распознавания" : "Speech Recognition Language Priority"}</span>
+              <span class="row-desc">${isRu ? "Передаёт languageCodes в облачном движке диктовки — меньше ошибок на русском и англ. терминах." : "Sends languageCodes in cloud dictation for faster, accurate multilingual recognition."}</span>
+            </div>
+            <div class="token-chips">
+              ${langPresets.map((lp) => `<button type="button" class="btn btn-sm${opt.voiceLangPreset === lp.id ? " btn-primary" : ""}" data-action="set-opt-val" data-key="voiceLangPreset" data-val="${lp.id}">${escHtml(lp.label)}</button>`).join("")}
+            </div>
+            ${opt.voiceLangPreset === "custom" ? `<input type="text" class="text-input" data-opt-field="voiceCustomLangs" value="${escAttr(opt.voiceCustomLangs || "")}" placeholder="ru-RU, en-US, de-DE" spellcheck="false" autocomplete="off"/>` : ""}
+          </div>
+          <div class="row-item opt-row-stack">
+            <div class="row-info">
+              <span class="row-title">${isRu ? "Размер аудио-чанка (облачный RPC)" : "Audio Streaming Chunk Size (Cloud RPC)"}</span>
+              <span class="row-desc">${isRu ? "80 мс снижает число сетевых SendAudioChunk запросов в 2 раза без ощутимой задержки." : "80 ms cuts SendAudioChunk RPC frequency by 50% with imperceptible latency."}</span>
+            </div>
+            <div class="token-chips">
+              ${chunkOpts.map((co) => `<button type="button" class="btn btn-sm${String(opt.voiceChunkMs) === co.id ? " btn-primary" : ""}" data-action="set-opt-val" data-key="voiceChunkMs" data-val="${co.id}">${escHtml(co.label)}</button>`).join("")}
+            </div>
+          </div>
+          ${optToggle("voiceDspFilter", isRu ? "DSP-фильтр диктовки (HPF 65 Гц + антиалиасинг 7.4 кГц)" : "Dictation DSP Filter (65 Hz HPF + 7.4 kHz LPF)", isRu ? "Убирает гул сети и искажение шипящих при ресемплинге 48 → 16 кГц (не затрагивает Голосовой режим)." : "Removes hum and aliasing on sibilants during 48 → 16 kHz resampling (never touches Live Voice Mode).")}
+          ${optToggle("voiceDisableWinIsolation", isRu ? "Фикс задержки микрофона Windows WASAPI" : "Windows WASAPI Latency Fix", isRu ? "Отключает проблемный voiceIsolation в Chromium, убирая проглатывание первых слов." : "Disables buggy Chromium voiceIsolation flag that delays/muffles mic startup on Windows.")}
+          ${optToggle("voiceAutoGain", isRu ? "Автоусиление микрофона (AGC)" : "Microphone Auto Gain Control (AGC)", isRu ? "Выравнивает громкость тихой речи для стабильного распознавания." : "Normalizes quiet microphone levels for consistent speech capture.")}
+          ${optToggle("voiceTextCleanup", isRu ? "Умная очистка текста диктовки" : "Smart Dictation Text Cleanup", isRu ? "Убирает двойные пробелы, пробелы перед знаками препинания и повторы слов на стыках." : "Fixes double spaces, stray spaces before punctuation, and duplicate word stutters.")}
+          ${optToggle("voicePauseHeavyUi", isRu ? "Приостанавливать тяжёлый UI и blur при диктовке" : "Pause Heavy UI & Blur While Dictating", isRu ? "Исключает микрофризы во время записи голоса." : "Eliminates UI frame drops and observer load during active dictation.")}
+          ${optToggle("voiceShowBadge", isRu ? "Таймер рядом с кнопкой записи" : "Inline Timer Next to Record Button", isRu ? "Компактный индикатор времени (0:12) справа от красной кнопки диктовки — не перекрывает текст." : "Compact elapsed timer (0:12) right beside the red stop-recording button — never covers text.")}
+        </div>
+      </div>
+
+      <div class="section-group" data-opt-sec="opt-sec-cache">
+        <div class="opt-section-head">
+          <span class="section-label">${isRu ? "Агенты Gemini, файлы ПК и кэш" : "Gemini Agents, Files & Cache"}</span>
+          <span class="opt-badge-exp">${isRu ? "Экспериментально · Выкл. по умолчанию" : "Experimental · Off by default"}</span>
+        </div>
+        <div class="card">
+          <div class="card-pad opt-diag-head">
+            <div class="opt-kpi-grid">
+              <div class="opt-kpi-card">
+                <span class="opt-kpi-label">${isRu ? "Попадание в Prompt Cache" : "Prompt Cache Hit Rate"}</span>
+                <span class="opt-kpi-val is-accent num">${escHtml(cacheHitStr)}</span>
+                <span class="opt-kpi-sub">${diag && diag.promptCache ? (isRu ? `${diag.promptCache.turnsSampled} ходов · ${diag.promptCache.chatsSampled} чатов` : `${diag.promptCache.turnsSampled} turns · ${diag.promptCache.chatsSampled} chats`) : (isRu ? "Нажмите «Обновить»" : "Click Refresh")}</span>
+              </div>
+              <div class="opt-kpi-card">
+                <span class="opt-kpi-label">${isRu ? "Потоки Language Server" : "Language Server Threads"}</span>
+                <span class="opt-kpi-val num">${escHtml(lsThreadsStr)}</span>
+                <span class="opt-kpi-sub">${diag && diag.lsTuning && opt.lsTuningEnabled ? `Watcher: ${diag.lsTuning.fileWatchMaxDirs} · ${diag.lsTuning.goMemLimit || "auto"}` : (isRu ? "Стандартный режим Antigravity" : "Stock Antigravity default")}</span>
+              </div>
+              <div class="opt-kpi-card">
+                <span class="opt-kpi-label">${isRu ? "Временные кэши на диске" : "Cleanable Disk Caches"}</span>
+                <span class="opt-kpi-val num">${escHtml(cleanableStr)}</span>
+                <span class="opt-kpi-sub">${diag ? `Chromium ${fmtMb(diag.buckets.chromiumCache.bytes)} · Part ${fmtMb(diag.buckets.partitionsCache.bytes)}` : "—"}</span>
+              </div>
+              <div class="opt-kpi-card">
+                <span class="opt-kpi-label">app_storage.json</span>
+                <span class="opt-kpi-val num">${diag && diag.appStorage ? escHtml(fmtKb(diag.appStorage.bytes)) : "—"}</span>
+                <span class="opt-kpi-sub">${isRu ? `Мёртвых макетов: ${staleKeysCount}` : `Stale layout keys: ${staleKeysCount}`}</span>
+              </div>
+            </div>
+            <div class="opt-actions-bar">
+              <button type="button" class="btn btn-sm" ${diagBusy ? "disabled" : ""} data-action="clean-caches">${isRu ? "Очистить временные кэши" : "Clean Temp Caches"}</button>
+              <button type="button" class="btn btn-sm" ${diagBusy ? "disabled" : ""} data-action="prune-app-storage">${isRu ? "Сжать app_storage.json" : "Compact app_storage.json"}</button>
+              <button type="button" class="btn btn-sm btn-ghost" ${diagLoading ? "disabled" : ""} data-action="refresh-perf-diag">${iconSvg("reset", 12)}${isRu ? "Обновить" : "Refresh"}</button>
+            </div>
+            ${lastMsg ? `<div class="opt-diag-msg">${escHtml(lastMsg)}</div>` : ""}
+          </div>
+          ${optToggle("geminiFileCacheProtocol", isRu ? "Протокол Gemini для файлов и Prompt Cache (SessionStart)" : "Gemini File I/O & Prompt Cache Protocol (SessionStart)", isRu ? "Выкл. по умолчанию. Добавляет компактное правило на 0-м ходе: пакетные чтения, точечные edit_file и бережное кэширование префикса." : "Off by default. Adds a compact turn-0 rule for parallel reads, surgical edits & prefix cache stability.")}
+          ${optToggle("lsTuningEnabled", isRu ? "Тюнинг потоков language_server (после перезапуска)" : "Language Server Thread Tuning (on restart)", isRu ? "Выкл. по умолчанию. Подбирает GOMAXPROCS, File Watcher (с учётом Linux inotify), GOMEMLIMIT и UV_THREADPOOL_SIZE." : "Off by default. Auto-scales GOMAXPROCS, File Watcher (Linux inotify-safe), GOMEMLIMIT & UV_THREADPOOL_SIZE.")}
+          ${optToggle("storageRamCache", isRu ? "RAM-кэш для Electron StorageManager" : "Electron StorageManager RAM Cache", isRu ? "Выкл. по умолчанию. Кэширует в памяти повторные синхронные чтения app_storage.json с проверкой mtime/ctime/size/ino." : "Off by default. Caches repeated sync app_storage.json reads in RAM guarded by mtime/ctime/size/ino.")}
+          <div class="row-item opt-row-stack">
+            <div class="row-info">
+              <span class="row-title">${isRu ? "Лимит HTTP-кэша Chromium (после перезапуска)" : "Chromium Disk Cache Cap (on restart)"}</span>
+              <span class="row-desc">${isRu ? "Выкл. по умолчанию. Ограничивает размер временного кэша Chromium на диске (50–256 МБ)." : "Off by default. Caps temporary Chromium disk cache size (50–256 MB)."}</span>
+            </div>
+            <div class="token-chips">
+              ${capOpts.map((c) => `<button type="button" class="btn btn-sm${String(opt.chromiumCacheCapMb || 0) === c.id ? " btn-primary" : ""}" data-action="set-opt-val" data-key="chromiumCacheCapMb" data-val="${c.id}">${escHtml(c.label)}</button>`).join("")}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-group" data-opt-sec="opt-sec-anim">
+        <span class="section-label">${isRu ? "Анимации и плавность интерфейса" : "Animations & 60–144 FPS Smoothness"}</span>
+        <div class="card">
+          <div class="row-item opt-row-stack">
+            <div class="row-info">
+              <span class="row-title">${isRu ? "Режим анимаций Antigravity и Rudex" : "Antigravity & Rudex Animation Curve"}</span>
+              <span class="row-desc">${isRu ? "GPU-кривые cubic-bezier(0.16, 1, 0.3, 1) без дёрганий и задержек." : "GPU-composited expo-out curves without layout jank."}</span>
+            </div>
+            <div class="token-chips">
+              ${animModes.map((am) => `<button type="button" class="btn btn-sm${opt.animMode === am.id ? " btn-primary" : ""}" data-action="set-opt-val" data-key="animMode" data-val="${am.id}">${escHtml(am.label)}</button>`).join("")}
+            </div>
+          </div>
+          ${optToggle("animFixTransitionAll", isRu ? "Убрать layout-лаги от transition: all и skeleton-shimmer" : "Fix transition: all & skeleton-shimmer Paint Jank", isRu ? "Ограничивает CSS-переходы безопасными GPU-свойствами (opacity/transform/color)." : "Scopes transitions to compositor-safe properties so streaming never janks.")}
+          ${optToggle("animContainChat", isRu ? "Изоляция слоёв сообщений чата (contain: layout style)" : "Isolate Chat Message Layout Layers (contain: layout style)", isRu ? "Ускоряет скролл и рендер в длинных переписках." : "Speeds up scrolling & token streaming in long conversations.")}
+          ${optToggle("animFreezeHidden", isRu ? "Замораживать анимации в свёрнутом/скрытом окне" : "Pause Infinite Animations When Window Is Hidden", isRu ? "Обнуляет фоновый расход GPU и CPU при свёрнутом Antigravity." : "Stops idle GPU/CPU drain when Antigravity is minimized or occluded.")}
+          ${optToggle("gpuAccel", isRu ? "Плавный скроллинг Chromium (после перезапуска)" : "Chromium Smooth Scrolling Flag (on restart)", isRu ? "Экспериментально (выкл. по умолчанию). Добавляет безопасный флаг --enable-smooth-scrolling." : "Experimental (off by default). Appends the safe --enable-smooth-scrolling switch.")}
+        </div>
+      </div>
+    `;
+  }
+
   function renderSettingsTab() {
     const tr = t();
     const isRu = state.locale !== "en";
-    const sub = state.settingsSubTab || "system";
+    const sub = ["system", "optimization", "studio", "hotkeys"].indexOf(state.settingsSubTab) >= 0 ? state.settingsSubTab : "system";
+    if (sub === "optimization") return renderOptimizationSub(isRu);
     if (sub === "hotkeys" && typeof rv5RenderKeybindingsHtml === "function") {
       return rv5RenderKeybindingsHtml(state.settings.keybindings, state.recordingKeybindingId, isRu);
     }
@@ -6341,7 +7144,7 @@ function createStudioPanel(options) {
   function renderWorkshopTab() {
     const isRu = state.locale !== "en";
     if (typeof rv5RenderWorkshopHtml !== "function") return "";
-    return rv5RenderWorkshopHtml(state.workshop, isRu, state.chatAgentProfile && state.chatAgentProfile.pinnedSkills);
+    return rv5RenderWorkshopHtml(state.workshop, isRu, state.chatAgentProfile && state.chatAgentProfile.pinnedSkills, { hideSubTabs: true });
   }
 
   function renderStudioDesignSub(tr, isRu) {
@@ -6612,17 +7415,10 @@ function createStudioPanel(options) {
         <div class="card">
           <div class="row-item">
             <div class="row-info">
-              <span class="row-title">${escHtml(isRu ? "Кнопка «Инструменты» над полем ввода" : "«Tools» button above composer")}</span>
-              <span class="row-desc">${escHtml(isRu ? "Выключите, чтобы полностью скрыть плашку «Инструменты · Авто» над строкой ввода" : "Turn off to hide the «Tools · Auto» pill above the chat input")}</span>
+              <span class="row-title">${escHtml(isRu ? "Кнопка «Инструменты» и контекстное окно модели" : "«Tools» button & model context meter")}</span>
+              <span class="row-desc">${escHtml(isRu ? "Управление планками над полем ввода перенесено в единый раздел «Агент → Инструменты и правки»." : "Composer bar toggles live in one place under Agent → Tools & Live Edits.")}</span>
             </div>
-            <button type="button" class="switch${(!s.liveEditInline || s.liveEditInline.showChatDock !== false) ? " is-on" : ""}" role="switch" aria-checked="${(!s.liveEditInline || s.liveEditInline.showChatDock !== false) ? "true" : "false"}" data-action="toggle-live-inline" data-field="showChatDock"><span class="switch-thumb"></span></button>
-          </div>
-          <div class="row-item">
-            <div class="row-info">
-              <span class="row-title">${escHtml(isRu ? "Контекстное окно модели в чате" : "Model context window meter in chat")}</span>
-              <span class="row-desc">${escHtml(isRu ? "Показывает над вводом, сколько контекстного окна выбранной модели занято этим чатом" : "Shows above composer how much of the selected model's context window this chat occupies")}</span>
-            </div>
-            <button type="button" class="switch${Boolean(s.liveEditInline && s.liveEditInline.showContextMeter) ? " is-on" : ""}" role="switch" aria-checked="${Boolean(s.liveEditInline && s.liveEditInline.showContextMeter) ? "true" : "false"}" data-action="toggle-live-inline" data-field="showContextMeter"><span class="switch-thumb"></span></button>
+            <button type="button" class="btn btn-sm" data-action="jump-search-hit" data-tab="persona" data-agent-sub="tools">${escHtml(isRu ? "Настроить →" : "Configure →")}</button>
           </div>
         </div>
       </div>
@@ -6748,19 +7544,21 @@ function createStudioPanel(options) {
     const isRu = state.locale !== "en";
     const sui = spNormalizeStudioUi(state.settings.studioUi);
     const thinkingRu = Boolean(state.settings.thinkingInRussian);
+    const workLogRu = Boolean(state.settings.workLogInRussian);
     const autoUpdates = state.settings.autoCheckUpdates !== false;
     const u = state.update || {};
     const uStatus = u.status || "idle";
-    const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
+    const uBusy = uStatus === "checking" || uStatus === "downloading" || uStatus === "verifying" || uStatus === "extracting" || uStatus === "installing" || uStatus === "restarting";
     const inst = u.installed || {};
-    const ver = inst.version || pluginMeta.version || "5.0.3";
+    const ver = inst.version || pluginMeta.version || "5.5.0";
     const verDisplay = inst.commitShort ? `v${ver} · #${inst.commitShort}` : `v${ver}`;
-    const dictCount = pluginMeta.dictEntries || 4048;
-    const dynCount = pluginMeta.dynamicRulesCount || 474;
+    const dictCount = pluginMeta.dictEntries || 4068;
+    const dynCount = pluginMeta.dynamicRulesCount || 485;
 
     const checkedTime = formatLastCheckTime(u.lastCheckedAt);
     const instShaTag = inst.commitShort ? ` · #${inst.commitShort}` : "";
     const remShaTag = u.remote && u.remote.commitShort ? ` → #${u.remote.commitShort}` : "";
+    const hasReleaseSha256 = Boolean(u.remote && u.remote.sha256);
 
     return `
       <div class="section-group">
@@ -6786,6 +7584,25 @@ function createStudioPanel(options) {
               <button type="button" class="switch${thinkingRu ? " is-on" : ""}" role="switch" aria-checked="${thinkingRu ? "true" : "false"}" data-action="toggle-thinking-ru" aria-label="${escAttr(tr.thinkingRuTitle)}"><span class="switch-thumb"></span></button>
             </div>
           </div>
+          <div class="row-item">
+            <div class="row-info">
+              <span class="row-title">${escHtml(tr.workLogRuTitle)}</span>
+              <span class="row-desc">${escHtml(tr.workLogRuDesc)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+              <span class="${workLogRu ? "badge-active" : "nav-badge"}">${escHtml(workLogRu ? tr.thinkingRuOn : tr.thinkingRuDefault)}</span>
+              <button type="button" class="switch${workLogRu ? " is-on" : ""}" role="switch" aria-checked="${workLogRu ? "true" : "false"}" data-action="toggle-worklog-ru" aria-label="${escAttr(tr.workLogRuTitle)}"><span class="switch-thumb"></span></button>
+            </div>
+          </div>
+          ${thinkingRu || workLogRu ? `
+            <div class="row-item opt-row-stack">
+              <div class="row-info">
+                <span class="row-title">${escHtml(tr.thinkingLocalTitle)}</span>
+                <span class="row-desc">${escHtml(tr.thinkingLocalDesc)}</span>
+              </div>
+              <input type="text" class="text-input" data-sys-field="thinkingTranslatorUrl" value="${escAttr(state.settings.thinkingTranslatorUrl || "")}" placeholder="${escAttr(tr.thinkingLocalPlaceholder)}" spellcheck="false" autocomplete="off"/>
+            </div>
+          ` : ""}
         </div>
       </div>
 
@@ -6823,6 +7640,7 @@ function createStudioPanel(options) {
               <span class="row-desc num">${escHtml(formatUpdateStatusLabel(u, tr))}${u.available && u.remote ? ` (${escHtml(formatUpdateVersionBadge(u))})` : escHtml(instShaTag)}${u.available && remShaTag ? escHtml(remShaTag) : ""}${checkedTime ? ` · ${escHtml(tr.updateLastCheckLabel)} ${escHtml(checkedTime)}` : ""}</span>
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+              ${hasReleaseSha256 ? `<span class="nav-badge">SHA-256</span>` : ""}
               ${u.available ? `<span class="badge-active">${escHtml(tr.updateBadgeNew)}</span>` : ""}
               <button type="button" class="btn btn-sm btn-ghost" data-action="preview-update-toast">${escHtml(tr.updateBtnPreview)}</button>
               <button type="button" class="btn btn-sm" ${uBusy ? "disabled" : ""} data-action="check-updates">${iconSvg("reset", 12)}${escHtml(tr.updateBtnCheck)}</button>
@@ -6861,26 +7679,27 @@ function createStudioPanel(options) {
     const searchQ = String(queryStr || "").trim().toLowerCase();
     if (!searchQ) return [];
     return [
-      { k: "тема палитра цвет акцент темная светлая claude theme palette accent dark light", label: isRu ? "Темы, палитра и акцент" : "Themes, Palette & Accent", tab: "appearance", appSub: "theme" },
-      { k: "стиль ui композер ввод чат модел claude code codex opencode antigravity style composer bubble model", label: isRu ? "Стиль UI (Claude Code / Codex / OpenCode)" : "UI Style (Claude Code / Codex / OpenCode)", tab: "appearance", appSub: "uistyle" },
-      { k: "обои градиент видео картинк фон wallpaper gradient image video", label: isRu ? "Обои, фото, видео и градиенты" : "Wallpaper, Video & Gradients", tab: "appearance", appSub: "wallpaper" },
-      { k: "границ обводк стекло прозрачн размыт border surface glass blur", label: isRu ? "Стекло, размытие и границы" : "Glass, Blur & Borders", tab: "appearance", appSub: "surface" },
-      { k: "шрифт font типографика размер текст код ввод агент", label: isRu ? "Шрифты (4 слота) и типографика" : "Fonts (4 slots) & Typography", tab: "appearance", appSub: "text" },
-      { k: "угл радиус скруглен corner radius", label: isRu ? "Скругление углов" : "Corner Radii", tab: "appearance", appSub: "corners" },
-      { k: "приветств экран шаблон greeting welcome placeholder", label: isRu ? "Приветствие на новом чате" : "New Chat Greeting", tab: "appearance", appSub: "greeting" },
-      { k: "прицел элемент цвет размер переимен скрыть picker inspector rename override", label: isRu ? "Прицел и правка элементов" : "Element Picker & Rename", tab: "appearance", appSub: "elements" },
-      { k: "лимит квот экран 5ч недел уведомлен восстановлен закрыт автопродолжен продолж quota limit bar notify alert reset auto continue resume", label: isRu ? "Лимиты, уведомления о сбросе и автопродолжение" : "Limits, Reset Notifications & Auto-Continue", tab: "widgets", widgetSub: "limits" },
-      { k: "мини окно виджет капсул tps плавающ закреп контекст модел заполнен инструмент скрыть кнопк mini widget capsule dock context window meter hide tools", label: isRu ? "Мини-окно, кнопка «Инструменты» и контекст модели" : "Mini Widget, Tools Button & Context Window Meter", tab: "widgets", widgetSub: "mini" },
-      { k: "монитор tps график экспорт zip архив чат квот monitor export archive", label: isRu ? "Монитор TPS и экспорт чата в ZIP" : "TPS Monitor & Chat ZIP Export", tab: "widgets", widgetSub: "monitor" },
-      { k: "инструмент субагент тумблер браузер поиск на лету правк tool subagent browser live edit", label: isRu ? "Инструменты агента и правки на лету" : "Agent Tools & Inline Live Edits", tab: "persona", agentSub: "tools" },
-      { k: "характер персона промпт инструкц agents.md persona system prompt", label: isRu ? "Характер агента (для текущего чата)" : "Chat Agent Persona", tab: "persona", agentSub: "persona" },
-      { k: "пресет режим агент preset mode", label: isRu ? "Пресеты поведения агента" : "Agent Behavior Presets", tab: "persona", agentSub: "presets" },
-      { k: "история черновик сообщен буфер draft history last 20", label: isRu ? "Черновики и история последних 20 сообщений" : "Drafts & Last 20 Messages History", tab: "history" },
-      { k: "мастерская правил скилл skill rule mcp хук hook плагин workshop", label: isRu ? "Мастерская AGY (Rules / Skills / MCP)" : "AGY Workshop (Rules / Skills / MCP)", tab: "workshop" },
-      { k: "язык перевод мысл масштаб scale zoom обновл бекап json system language update backup", label: isRu ? "Язык, масштаб, обновления и JSON-бекап" : "Language, Scale, Updates & JSON Backup", tab: "settings", setSub: "system" },
-      { k: "окно studio макет сайдбар тема дизайн window layout sidebar rail topbar", label: isRu ? "Дизайн и макет окна Rudex Studio" : "Rudex Studio Window & Layout", tab: "settings", setSub: "studio" },
-      { k: "клавиш хоткей shortcut hotkey keybind дзен zen", label: isRu ? "Горячие клавиши и режим Дзен" : "Hotkeys & Zen Mode", tab: "settings", setSub: "hotkeys" },
-    ].filter((it) => it.k.includes(searchQ) || it.label.toLowerCase().includes(searchQ));
+      { k: "тема палитра цвет акцент темная светлая claude сайдбар боковая панель проекты черный фон карточк линии границ theme palette accent dark light sidebar projects border", label: isRu ? "Темы, цвета сайдбара и границ" : "Themes, Sidebar & Border Colors", path: isRu ? "Оформление → Тема" : "Appearance → Theme", tab: "appearance", appSub: "theme" },
+      { k: "стиль ui композер ввод чат модел claude code codex opencode antigravity style composer bubble model", label: isRu ? "Стиль UI (Claude Code / Codex / OpenCode)" : "UI Style (Claude Code / Codex / OpenCode)", path: isRu ? "Оформление → Стиль UI" : "Appearance → UI Style", tab: "appearance", appSub: "uistyle" },
+      { k: "обои градиент видео картинк фон wallpaper gradient image video", label: isRu ? "Обои, фото, видео и градиенты" : "Wallpaper, Video & Gradients", path: isRu ? "Оформление → Обои" : "Appearance → Wallpaper", tab: "appearance", appSub: "wallpaper" },
+      { k: "границ обводк линии разделител стекло прозрачн размыт border divider surface glass blur", label: isRu ? "Стекло, размытие, линии и границы" : "Glass, Blur, Lines & Borders", path: isRu ? "Оформление → Стекло" : "Appearance → Glass", tab: "appearance", appSub: "surface" },
+      { k: "шрифт font типографика размер текст код ввод агент жирност межстрочн", label: isRu ? "Шрифты (4 слота) и типографика" : "Fonts (4 slots) & Typography", path: isRu ? "Оформление → Шрифты" : "Appearance → Fonts", tab: "appearance", appSub: "text" },
+      { k: "угл радиус скруглен corner radius", label: isRu ? "Скругление углов" : "Corner Radii", path: isRu ? "Оформление → Углы" : "Appearance → Corners", tab: "appearance", appSub: "corners" },
+      { k: "приветств экран шаблон greeting welcome placeholder", label: isRu ? "Приветствие на новом чате" : "New Chat Greeting", path: isRu ? "Оформление → Приветствие" : "Appearance → Greeting", tab: "appearance", appSub: "greeting" },
+      { k: "прицел элемент цвет размер переимен скрыть проекты сайдбар зоны расположение сдвиг двигать область рамка группа picker inspector rename override zones position offset marquee region", label: isRu ? "Прицел, область и расположение элементов" : "Element Picker, Region & Positioning", path: isRu ? "Оформление → Элементы" : "Appearance → Elements", tab: "appearance", appSub: "elements" },
+      { k: "лимит квот экран 5ч недел уведомлен восстановлен закрыт автопродолжен продолж quota limit bar notify alert reset auto continue resume", label: isRu ? "Лимиты, уведомления о сбросе и автопродолжение" : "Limits, Reset Notifications & Auto-Continue", path: isRu ? "Виджеты → Лимиты" : "Widgets → Limits", tab: "widgets", widgetSub: "limits" },
+      { k: "мини окно виджет капсул tps плавающ закреп mini widget capsule dock", label: isRu ? "Мини-окно (TPS) и расположение" : "Mini Widget (TPS) & Placement", path: isRu ? "Виджеты → Мини-окно" : "Widgets → Mini", tab: "widgets", widgetSub: "mini" },
+      { k: "монитор tps график экспорт zip архив чат квот monitor export archive", label: isRu ? "Монитор TPS и экспорт чата в ZIP" : "TPS Monitor & Chat ZIP Export", path: isRu ? "Виджеты → Монитор" : "Widgets → Monitor", tab: "widgets", widgetSub: "monitor" },
+      { k: "инструмент субагент тумблер браузер поиск на лету правк контекст модел tool subagent browser live edit context window", label: isRu ? "Инструменты агента, контекст и правки на лету" : "Agent Tools, Context Meter & Live Edits", path: isRu ? "Агент → Инструменты" : "Agent → Tools", tab: "persona", agentSub: "tools" },
+      { k: "характер персона промпт инструкц agents.md persona system prompt", label: isRu ? "Характер агента (для текущего чата)" : "Chat Agent Persona", path: isRu ? "Агент → Характер" : "Agent → Persona", tab: "persona", agentSub: "persona" },
+      { k: "пресет режим агент preset mode", label: isRu ? "Пресеты поведения агента" : "Agent Behavior Presets", path: isRu ? "Агент → Пресеты" : "Agent → Presets", tab: "persona", agentSub: "presets" },
+      { k: "история черновик сообщен буфер навсегда бессрочно draft history last 20 permanent", label: isRu ? "Черновики и история последних 20 сообщений" : "Drafts & Last 20 Messages History", path: isRu ? "История" : "History", tab: "history" },
+      { k: "мастерская правил скилл skill rule mcp хук hook плагин workshop", label: isRu ? "Мастерская AGY (Rules / Skills / MCP)" : "AGY Workshop (Rules / Skills / MCP)", path: isRu ? "Мастерская" : "Workshop", tab: "workshop" },
+      { k: "язык перевод мысл рабочий лог действия шаги работал локальн переводчик масштаб scale zoom обновл бекап json system language update backup translator worklog", label: isRu ? "Язык, перевод мыслей и шагов, масштаб и бекап" : "Language, Thinking & Work Log Translator, Scale & Backup", path: isRu ? "Настройки → Система" : "Settings → System", tab: "settings", setSub: "system" },
+      { k: "окно studio макет сайдбар тема дизайн window layout sidebar rail topbar", label: isRu ? "Дизайн и макет окна Rudex Studio" : "Rudex Studio Window & Layout", path: isRu ? "Настройки → Окно Studio" : "Settings → Studio", tab: "settings", setSub: "studio" },
+      { k: "клавиш хоткей shortcut hotkey keybind дзен zen", label: isRu ? "Горячие клавиши и режим Дзен" : "Hotkeys & Zen Mode", path: isRu ? "Настройки → Клавиши" : "Settings → Hotkeys", tab: "settings", setSub: "hotkeys" },
+      { k: "голос диктовк микрофон аудио sherpa t-one кэш файл анимац плавност ускорен оптимиз voice dictation mic audio cache file animation performance", label: isRu ? "Оптимизация: Голос Pro, Файлы, Кэш и Анимации" : "Optimization: Voice Pro, Files, Cache & Animations", path: isRu ? "Настройки → Оптимизация" : "Settings → Optimization", tab: "settings", setSub: "optimization" },
+    ].filter((it) => it.k.includes(searchQ) || it.label.toLowerCase().includes(searchQ) || (it.path && it.path.toLowerCase().includes(searchQ)));
   }
 
   function buildSearchHitsHtml(queryStr, isRu) {
@@ -6891,7 +7710,7 @@ function createStudioPanel(options) {
       return `<div class="rx-search-empty">${escHtml(isRu ? "Ничего не найдено" : "No matches")}</div>`;
     }
     return `<div class="rx-search-hits">${hits.slice(0, 6).map((q) =>
-      `<button type="button" class="btn btn-sm" style="justify-content:flex-start;text-align:left;font-size:11px;padding:5px 8px" data-action="jump-search-hit" data-tab="${escAttr(q.tab)}" data-app-sub="${escAttr(q.appSub || "")}" data-set-sub="${escAttr(q.setSub || "")}" data-widget-sub="${escAttr(q.widgetSub || "")}" data-agent-sub="${escAttr(q.agentSub || "")}">${escHtml(q.label)}</button>`
+      `<button type="button" class="btn btn-sm rx-search-hit-btn" data-action="jump-search-hit" data-tab="${escAttr(q.tab)}" data-app-sub="${escAttr(q.appSub || "")}" data-set-sub="${escAttr(q.setSub || "")}" data-widget-sub="${escAttr(q.widgetSub || "")}" data-agent-sub="${escAttr(q.agentSub || "")}"><span class="rx-search-hit-label">${escHtml(q.label)}</span>${q.path ? `<span class="rx-search-hit-path">${escHtml(q.path)}</span>` : ""}</button>`
     ).join("")}</div>`;
   }
 
@@ -6903,14 +7722,14 @@ function createStudioPanel(options) {
     const lwOn = Boolean(state.settings.limitsWidget && state.settings.limitsWidget.enabled);
     const navGroups = [
       {
-        label: isRu ? "Оформление и вид" : "Look & Widgets",
+        label: isRu ? "Внешний вид" : "Look & Widgets",
         items: [
           {
             id: "appearance",
             label: isRu ? "Оформление" : "Appearance",
             ic: "palette",
             title: tr.modalTitleAppearance,
-            sub: isRu ? "Темы, стили Claude / Codex / OpenCode, обои, стекло, шрифты и прицел" : "Themes, Claude / Codex / OpenCode styles, wallpaper, glass, fonts & picker",
+            sub: isRu ? "Темы, цвета сайдбара и границ, стили UI, обои, шрифты и прицел" : "Themes, sidebar & border colors, UI styles, wallpaper, fonts & picker",
             dot: Boolean(state.appearanceDirty),
           },
           {
@@ -6924,7 +7743,7 @@ function createStudioPanel(options) {
         ],
       },
       {
-        label: isRu ? "Агент и система" : "Agent & System",
+        label: isRu ? "Работа с агентом" : "Agent & Workspace",
         items: [
           {
             id: "persona",
@@ -6949,12 +7768,17 @@ function createStudioPanel(options) {
             title: isRu ? "Мастерская AGY" : "AGY Workshop",
             sub: isRu ? "Глобальные и проектные Rules, Skills, MCP-серверы и Hooks" : "Global & project Rules, Skills, MCP servers & Hooks",
           },
+        ],
+      },
+      {
+        label: isRu ? "Система" : "System",
+        items: [
           {
             id: "settings",
             label: isRu ? "Настройки" : "Settings",
             ic: "gear",
             title: isRu ? "Настройки и система" : "Settings & System",
-            sub: isRu ? "Язык интерфейса, перевод мыслей, дизайн окна Studio, клавиши и бекап" : "Language, thinking translation, Studio window design, hotkeys & backup",
+            sub: isRu ? "Язык, перевод мыслей, голос Pro, кэш, дизайн окна Studio и клавиши" : "Language, thinking translation, Voice Pro, cache, Studio window & hotkeys",
             dot: Boolean(state.update && state.update.available),
           },
         ],
@@ -7035,11 +7859,29 @@ function createStudioPanel(options) {
     } else if (current.id === "history") {
       bodyHtml = renderHistoryTab();
     } else if (current.id === "workshop") {
+      const wsScope = (state.workshop && state.workshop.scope) || "global";
+      const wsSub = (state.workshop && state.workshop.sub) || "rules";
+      const wsData = state.workshop && state.workshop.data ? state.workshop.data : null;
+      const wsCount = (arr) => (arr || []).filter((it) => wsScope === "all" || it.scope === wsScope || (wsScope === "global" && it.scope === "plugin")).length;
+      const wsTabs = [
+        { id: "rules", label: `${isRu ? "Правила" : "Rules"} (${wsCount(wsData && wsData.rules)})` },
+        { id: "skills", label: `${isRu ? "Скиллы" : "Skills"} (${wsCount(wsData && wsData.skills)})` },
+        { id: "mcp", label: `MCP (${wsCount(wsData && wsData.mcpServers)})` },
+        { id: "hooks", label: isRu ? "Плагины и Хуки" : "Plugins & Hooks" },
+      ];
+      stickySubTabsHtml = `
+        <div class="modal-sticky-subtabs">
+          <div class="subtab-bar">
+            ${wsTabs.map((st) => `<button type="button" class="subtab-btn${st.id === wsSub ? " is-active" : ""}" data-action="ws-set-sub" data-val="${st.id}">${escHtml(st.label)}</button>`).join("")}
+          </div>
+        </div>
+      `;
       bodyHtml = renderWorkshopTab();
     } else {
-      const sSub = state.settingsSubTab || "system";
+      const sSub = ["system", "optimization", "studio", "hotkeys"].indexOf(state.settingsSubTab) >= 0 ? state.settingsSubTab : "system";
       const sTabs = [
         { id: "system", label: isRu ? "Система и язык" : "System & Language" },
+        { id: "optimization", label: isRu ? "Оптимизация и Голос" : "Performance & Voice" },
         { id: "studio", label: isRu ? "Окно Studio" : "Studio Window" },
         { id: "hotkeys", label: isRu ? "Горячие клавиши" : "Hotkeys" },
       ];
@@ -7070,7 +7912,7 @@ function createStudioPanel(options) {
                   <span class="brand-logo-dot">${iconSvg("rudexMark", 13)}</span>
                   <span class="brand-title">${escHtml(tr.brandTitle)}</span>
                 </span>
-                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.0.3")}</span>
+                <span class="brand-ver num">v${escHtml(pluginMeta.version || "5.5.0")}</span>
               </div>
               <div class="rx-search-wrap">
                 <div class="rx-search-box">
@@ -7128,12 +7970,7 @@ function createStudioPanel(options) {
                     ${iconSvg(isAppearanceDrawer ? "panelCenter" : "panelRight", 13)}
                     <span>${escHtml(isAppearanceDrawer ? tr.appDockCenterBtn : tr.appDockRightBtn)}</span>
                   </button>
-                ` : (current.id !== "settings" ? `
-                  <button type="button" class="btn btn-sm btn-ghost" data-action="open-studio-design" title="${escAttr(tr.setSubStudio)}">
-                    ${iconSvg("layout", 13)}
-                    <span>${escHtml(tr.studioDesignQuickBtn)}</span>
-                  </button>
-                ` : "")}
+                ` : ""}
                 <button type="button" class="icon-btn" data-action="close-modal" title="${escAttr(tr.tooltipClose)}">${iconSvg("close", 15)}</button>
               </div>
             </header>
@@ -7716,12 +8553,64 @@ function createStudioPanel(options) {
     if (state.telemetry && state.telemetry.isGenerating) return true;
     if (!doc || typeof doc.querySelectorAll !== "function") return false;
     try {
-      const busyBtns = doc.querySelectorAll('[data-testid="input-cancel-button"], [data-testid="cancel-invocation-button"], [data-testid="send-button-loading"], [data-testid="send-button-pending"]');
+      const busyBtns = doc.querySelectorAll('[data-testid="input-cancel-button"], [data-testid="cancel-invocation-button"], [data-testid="send-button-loading"], [data-testid="send-button-pending"], [data-testid="stop-button"], [data-testid="cancel-button"]');
       for (let i = 0; busyBtns && i < busyBtns.length; i += 1) {
         const b = busyBtns[i];
         if (!b) continue;
         if (hostEl && (b === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(b)))) continue;
         if (!isHiddenAncestor(b, doc.body)) return true;
+      }
+      // Also check composer stop/cancel buttons by aria-label/title (works even if Antigravity omits input-cancel-button testid or uses a div composer!)
+      const compBtnSet = new Set();
+      const labeledBtns = doc.querySelectorAll('form button[aria-label], [data-testid="composer"] button[aria-label], .composer-container button[aria-label], [data-rudex-theme-composer="1"] button[aria-label], [data-rudex-theme-composer="1"] button[title]');
+      for (let i = 0; labeledBtns && i < labeledBtns.length; i += 1) compBtnSet.add(labeledBtns[i]);
+      if (typeof rv5FindNativeComposer === "function") {
+        const nc = rv5FindNativeComposer(doc);
+        if (nc && nc.container && typeof nc.container.querySelectorAll === "function") {
+          const ncBtns = nc.container.querySelectorAll("button[aria-label], button[title]");
+          for (let i = 0; ncBtns && i < ncBtns.length; i += 1) compBtnSet.add(ncBtns[i]);
+        }
+      }
+      for (const b of compBtnSet) {
+        if (!b || (hostEl && (b === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(b))))) continue;
+        if (isHiddenAncestor(b, doc.body)) continue;
+        const lbl = typeof b.getAttribute === "function" ? ((b.getAttribute("aria-label") || b.getAttribute("title") || "").replace(/\s+/g, " ").trim()) : "";
+        if (!lbl || /voice|mic|dictat|record|голос|диктов|запис/i.test(lbl)) continue;
+        if (/^(?:stop(?:\s+(?:generat|respond|stream|agent|exec|task)|$)|cancel(?:\s*\(|$|\s+(?:invoc|generat|request|task))|остановить(?:\s+(?:генерац|ответ|агент|работ)|$)|прервать(?:\s+(?:генерац|ответ|работ)|$)|отмен(?:а|ить)(?:\s*\(|$|\s+(?:генерац|запрос)))/i.test(lbl)) {
+          return true;
+        }
+      }
+      // Check visible streaming status heading inside the latest agent response if pollStream hasn't ticked yet
+      const resps = doc.querySelectorAll('[data-testid="agent-response"]');
+      if (resps && resps.length > 0) {
+        const lastR = resps[resps.length - 1];
+        if (lastR && !isHiddenAncestor(lastR, doc.body) && typeof lastR.querySelectorAll === "function") {
+          const h6s = lastR.querySelectorAll("h6");
+          for (let i = 0; h6s && i < h6s.length; i += 1) {
+            if (!h6s[i] || hasMarkdownRootAncestor(h6s[i], lastR)) continue;
+            const t = (h6s[i].textContent || "").replace(/\s+/g, " ").trim();
+            if (t && t.length <= 48 && /agent\s+working|агент\s+работает|\bworking\b|\bgenerating\b|\bthinking\b|\bstreaming\b|работает|думает|генерац|выполня|пишет/i.test(t)) {
+              return true;
+            }
+          }
+        }
+      }
+      // If Antigravity's native "Queued messages / Сообщения в очереди" bar is currently visible above the composer, the agent is definitely running
+      if (typeof rv5FindNativeComposer === "function") {
+        const nc = rv5FindNativeComposer(doc);
+        const scope = nc && nc.container && nc.container.parentElement ? nc.container.parentElement : (nc && nc.container);
+        if (scope && typeof scope.querySelectorAll === "function") {
+          const qEls = scope.querySelectorAll("span, div, p");
+          for (let qi = 0; qEls && qi < qEls.length && qi < 40; qi += 1) {
+            const qe = qEls[qi];
+            if (!qe || (nc.editable && (qe === nc.editable || (typeof nc.editable.contains === "function" && nc.editable.contains(qe))))) continue;
+            if (isHiddenAncestor(qe, doc.body)) continue;
+            const qt = String(qe.textContent || "").replace(/\s+/g, " ").trim();
+            if (qt.length >= 10 && qt.length <= 120 && /(?:сообщения\s+в\s+очереди|отправится\s+после\s+завершения|queued\s+messages|will\s+send\s+after\s+agent)/i.test(qt)) {
+              return true;
+            }
+          }
+        }
       }
     } catch (_e) {}
     return false;
@@ -7753,6 +8642,85 @@ function createStudioPanel(options) {
     return src;
   }
 
+  const thumbSrcToOrigSig = new Map();
+
+  function computeImageVisualFingerprint(imgSource) {
+    if (!imgSource || !doc || typeof doc.createElement !== "function") return null;
+    try {
+      const w = Number(imgSource.naturalWidth) || Number(imgSource.width) || 0;
+      const h = Number(imgSource.naturalHeight) || Number(imgSource.height) || 0;
+      if (w < 2 || h < 2) return null;
+      const cv = doc.createElement("canvas");
+      if (!cv || typeof cv.getContext !== "function") return null;
+      cv.width = 16;
+      cv.height = 16;
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      if (!ctx || typeof ctx.drawImage !== "function" || typeof ctx.getImageData !== "function") return null;
+      ctx.drawImage(imgSource, 0, 0, 16, 16);
+      const data = ctx.getImageData(0, 0, 16, 16).data;
+      if (!data || data.length < 16 * 16 * 4) return null;
+      const fp = new Uint8Array(16 * 16 * 3);
+      for (let i = 0, o = 0; i < data.length; i += 4, o += 3) {
+        fp[o] = data[i];
+        fp[o + 1] = data[i + 1];
+        fp[o + 2] = data[i + 2];
+      }
+      return fp;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function visualFingerprintMae(fpA, fpB) {
+    if (!fpA || !fpB || fpA.length !== fpB.length || fpA.length === 0) return Infinity;
+    let sum = 0;
+    for (let i = 0; i < fpA.length; i += 1) {
+      sum += Math.abs(fpA[i] - fpB[i]);
+    }
+    return sum / fpA.length;
+  }
+
+  function cacheOriginalImageDataUrl(dataUrl, fname, mime) {
+    if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return null;
+    const sig = `${dataUrl.length}:${dataUrl.slice(0, 64)}:${dataUrl.slice(-48)}`;
+    for (let i = composerOrigImages.length - 1; i >= 0; i -= 1) {
+      if (composerOrigImages[i] && composerOrigImages[i].sig === sig) {
+        composerOrigImages[i].ts = Date.now();
+        return null;
+      }
+    }
+    const entry = {
+      sig,
+      name: fname || `screenshot-${Date.now()}.png`,
+      mime: mime || "image/png",
+      dataUrl,
+      width: 0,
+      height: 0,
+      aspect: 0,
+      fp: null,
+      ts: Date.now(),
+    };
+    composerOrigImages.push(entry);
+    if (composerOrigImages.length > 16) composerOrigImages.shift();
+    const ImgCtor = (win && win.Image) || (typeof Image !== "undefined" ? Image : null);
+    if (!ImgCtor) return null;
+    const p = new Promise((resolve) => {
+      const probe = new ImgCtor();
+      probe.onload = () => {
+        entry.width = probe.naturalWidth || probe.width || 0;
+        entry.height = probe.naturalHeight || probe.height || 0;
+        entry.aspect = entry.height > 0 ? entry.width / entry.height : 0;
+        entry.fp = computeImageVisualFingerprint(probe);
+        resolve();
+      };
+      probe.onerror = () => resolve();
+      probe.src = dataUrl;
+    });
+    pendingComposerReads.add(p);
+    p.then(() => pendingComposerReads.delete(p), () => pendingComposerReads.delete(p));
+    return p;
+  }
+
   function cacheOriginalComposerFile(fileOrBlob) {
     if (!fileOrBlob || typeof FileReader === "undefined") return;
     const mime = String(fileOrBlob.type || "").toLowerCase();
@@ -7770,23 +8738,9 @@ function createStudioPanel(options) {
           }
           const dataUrl = reader.result;
           if (isImg && dataUrl.startsWith("data:image/")) {
-            const entry = { name: fname || `screenshot-${Date.now()}.png`, mime: mime || "image/png", dataUrl, width: 0, height: 0, aspect: 0, ts: Date.now() };
-            composerOrigImages.push(entry);
-            if (composerOrigImages.length > 8) composerOrigImages.shift();
-            const ImgCtor = (win && win.Image) || (typeof Image !== "undefined" ? Image : null);
-            if (ImgCtor) {
-              const probe = new ImgCtor();
-              probe.onload = () => {
-                entry.width = probe.naturalWidth || probe.width || 0;
-                entry.height = probe.naturalHeight || probe.height || 0;
-                entry.aspect = entry.height > 0 ? entry.width / entry.height : 0;
-                resolve();
-              };
-              probe.onerror = () => resolve();
-              probe.src = dataUrl;
-            } else {
-              resolve();
-            }
+            const p = cacheOriginalImageDataUrl(dataUrl, fname, mime || "image/png");
+            if (p) p.then(() => resolve(), () => resolve());
+            else resolve();
           } else if (fname) {
             composerOrigFiles.push({
               name: fname,
@@ -7828,41 +8782,84 @@ function createStudioPanel(options) {
       .catch(() => "");
   }
 
-  function getComposerAttachmentScope(container) {
-    if (!container) return null;
-    const p = container.parentElement;
-    if (p && p !== doc.body && p !== doc.documentElement && p.tagName !== "MAIN" && typeof p.querySelector === "function") {
-      try {
-        if (!p.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"]')) {
-          return p;
-        }
-      } catch (_e) {}
-    }
-    return container;
+  function isComposerAttachmentImg(imgEl) {
+    if (!imgEl || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(imgEl))) return false;
+    const rawSrc = String((imgEl.getAttribute && imgEl.getAttribute("src")) || imgEl.src || "").trim().toLowerCase();
+    if (rawSrc.startsWith("data:image/svg+xml") || /\.svg(?:\?|#|$)/.test(rawSrc)) return false;
+    const alt = String((imgEl.getAttribute && imgEl.getAttribute("alt")) || "").toLowerCase();
+    if (/\b(?:avatar|profile|logo)\b/.test(alt)) return false;
+    const nw = Number(imgEl.naturalWidth) || Number(imgEl.width) || 0;
+    const nh = Number(imgEl.naturalHeight) || Number(imgEl.height) || 0;
+    if (nw > 0 && nh > 0 && nw <= 24 && nh <= 24) return false;
+    return true;
   }
 
-  function collectComposerChipFileMatches(scopeEl, editable) {
-    if (!scopeEl || composerOrigFiles.length === 0) return [];
+  function getComposerAttachmentScope(container) {
+    if (!container) return null;
+    let best = container;
+    let cur = container.parentElement;
+    for (let hop = 0; hop < 5 && cur && cur !== doc.body && cur !== doc.documentElement && cur.tagName !== "MAIN"; hop += 1) {
+      if (typeof cur.querySelector === "function") {
+        try {
+          if (cur.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"]')) {
+            break;
+          }
+          best = cur;
+        } catch (_e) {
+          break;
+        }
+      }
+      cur = cur.parentElement;
+    }
+    return best;
+  }
+
+  function collectComposerChipFileMatches(scopeEl, editable, usedOrigImages) {
+    if (!scopeEl || (composerOrigFiles.length === 0 && composerOrigImages.length === 0)) return [];
     const now = Date.now();
-    // Read text outside the editable box so we detect Antigravity's attachment file chips reliably
+    // Read text + title/aria-label/alt attributes outside the editable box so Antigravity's attachment file chips are always detected
     let scopeText = "";
     try {
       const fullTxt = String(scopeEl.textContent || "");
       const edTxt = editable ? String(editable.textContent || "") : "";
-      scopeText = (edTxt ? fullTxt.replace(edTxt, " ") : fullTxt).toLowerCase();
+      const parts = [edTxt ? fullTxt.replace(edTxt, " ") : fullTxt];
+      if (typeof scopeEl.querySelectorAll === "function") {
+        const metaNodes = scopeEl.querySelectorAll("[title], [aria-label], [alt]");
+        for (let m = 0; metaNodes && m < metaNodes.length && m < 80; m += 1) {
+          const el = metaNodes[m];
+          if (!el || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(el))) continue;
+          if (editable && (el === editable || (typeof editable.contains === "function" && editable.contains(el)))) continue;
+          const t = el.getAttribute && el.getAttribute("title");
+          const a = el.getAttribute && el.getAttribute("aria-label");
+          const alt = el.getAttribute && el.getAttribute("alt");
+          if (t) parts.push(t);
+          if (a) parts.push(a);
+          if (alt) parts.push(alt);
+        }
+      }
+      scopeText = parts.join(" ").toLowerCase();
     } catch (_e) {}
     const matched = [];
     const seen = new Set();
-    for (let i = composerOrigFiles.length - 1; i >= 0 && matched.length < 6; i -= 1) {
-      const f = composerOrigFiles[i];
-      if (!f || !f.name || !f.dataUrl || seen.has(f.name) || now - f.ts > 20 * 60 * 1000) continue;
-      const lowName = f.name.toLowerCase();
-      const baseNoExt = lowName.replace(/\.[^.]+$/, "");
-      if (scopeText.includes(lowName) || (baseNoExt.length >= 4 && scopeText.includes(baseNoExt))) {
-        seen.add(f.name);
-        matched.push({ file: f, cacheIdx: i });
+    const matchPool = (pool, isImgPool) => {
+      for (let i = pool.length - 1; i >= 0 && matched.length < 6; i -= 1) {
+        const f = pool[i];
+        if (!f || !f.name || !f.dataUrl || seen.has(f.name) || now - f.ts > 20 * 60 * 1000) continue;
+        if (isImgPool && usedOrigImages && usedOrigImages.has(f)) continue;
+        const lowName = f.name.toLowerCase();
+        const baseNoExt = lowName.replace(/\.[^.]+$/, "");
+        const truncPrefix = baseNoExt.length >= 6 ? baseNoExt.slice(0, 6) : "";
+        const hitExact = scopeText.includes(lowName);
+        const hitBase = baseNoExt.length >= 3 && scopeText.includes(baseNoExt);
+        const hitTrunc = truncPrefix && (scopeText.includes(truncPrefix + "…") || scopeText.includes(truncPrefix + "..."));
+        if (hitExact || hitBase || hitTrunc) {
+          seen.add(f.name);
+          matched.push({ file: f, cacheIdx: i, isImage: Boolean(isImgPool) });
+        }
       }
-    }
+    };
+    matchPool(composerOrigFiles, false);
+    matchPool(composerOrigImages, true);
     return matched;
   }
 
@@ -7871,42 +8868,162 @@ function createStudioPanel(options) {
     if (!scope || typeof scope.querySelectorAll !== "function") return false;
     const imgs = scope.querySelectorAll("img");
     for (let i = 0; imgs && i < imgs.length; i += 1) {
-      if (imgs[i] && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(imgs[i]))) return true;
+      if (isComposerAttachmentImg(imgs[i])) return true;
     }
     return collectComposerChipFileMatches(scope, editable).length > 0;
+  }
+
+  function isAspectRatioMatch(origW, origH, thumbW, thumbH) {
+    if (!origW || !origH || !thumbW || !thumbH) return true;
+    const origAsp = origW / origH;
+    const thumbAsp = thumbW / thumbH;
+    // Relative aspect ratio comparison (works for ultra-wide 1920x210 -> 320x36 AND tall screenshots where absolute diff fails!)
+    const ratio = Math.max(origAsp / thumbAsp, thumbAsp / origAsp);
+    if (ratio <= 1.18) return true;
+    // Also account for ±2.5px integer rounding when Antigravity shrinks wide/tall screenshots down to tiny thumbnails (e.g. 320x36)
+    const expectedH = thumbW / origAsp;
+    const expectedW = thumbH * origAsp;
+    if (Math.abs(thumbH - expectedH) <= 2.5 || Math.abs(thumbW - expectedW) <= 2.5) return true;
+    return false;
   }
 
   function findFullResForThumbnail(imgEl, usedCacheSet) {
     const tw = (imgEl && (Number(imgEl.naturalWidth) || Number(imgEl.width))) || 0;
     const th = (imgEl && (Number(imgEl.naturalHeight) || Number(imgEl.height))) || 0;
-    const tAspect = th > 0 ? tw / th : 0;
-    // Match against our ring buffer of original full-res pasted/dropped images by aspect ratio & recency
-    for (let i = composerOrigImages.length - 1; i >= 0; i -= 1) {
+    const rawSrc = imgEl ? String((imgEl.getAttribute && imgEl.getAttribute("src")) || imgEl.src || "") : "";
+    const srcKey = rawSrc.length >= 48 ? `${rawSrc.length}:${rawSrc.slice(0, 64)}:${rawSrc.slice(-48)}` : "";
+    const now = Date.now();
+    const eligible = [];
+    for (let i = 0; i < composerOrigImages.length; i += 1) {
       const c = composerOrigImages[i];
       if (!c || !c.dataUrl) continue;
       if (usedCacheSet && usedCacheSet.has(c)) continue;
-      if (Date.now() - c.ts > 30 * 60 * 1000) continue;
-      if (c.width > 0 && c.width > tw * 1.15) {
-        if (!tAspect || !c.aspect || Math.abs(c.aspect - tAspect) < 0.14) {
-          if (usedCacheSet) usedCacheSet.add(c);
-          return c.dataUrl;
+      if (now - c.ts > 30 * 60 * 1000) continue;
+      const isHigherRes = c.width > 0
+        ? (c.width > tw * 1.12 || c.height > th * 1.12)
+        : (tw < 500 || th < 500);
+      if (!isHigherRes) continue;
+      eligible.push(c);
+    }
+    if (eligible.length === 0) return "";
+
+    const rememberAndReturn = (c) => {
+      if (usedCacheSet) usedCacheSet.add(c);
+      if (srcKey && c.sig) {
+        thumbSrcToOrigSig.set(srcKey, c.sig);
+        if (thumbSrcToOrigSig.size > 48) {
+          const oldest = thumbSrcToOrigSig.keys().next().value;
+          thumbSrcToOrigSig.delete(oldest);
         }
-      } else if (c.width === 0 && tw < 450) {
-        if (usedCacheSet) usedCacheSet.add(c);
-        return c.dataUrl;
       }
+      return c.dataUrl;
+    };
+
+    // Pass 0: Exact remembered binding for this specific thumbnail src
+    if (srcKey && thumbSrcToOrigSig.has(srcKey)) {
+      const boundSig = thumbSrcToOrigSig.get(srcKey);
+      const bound = eligible.find((c) => c.sig === boundSig);
+      if (bound) return rememberAndReturn(bound);
+    }
+
+    const aspectMatches = eligible.filter((c) => c.width === 0 || isAspectRatioMatch(c.width, c.height, tw, th));
+    const smallThumb = tw > 0 && tw <= 420 && th > 0 && th <= 420;
+    const poolForFp = aspectMatches.length > 0 ? aspectMatches : (smallThumb ? eligible : []);
+
+    // Pass 1: Visual 16x16 RGB fingerprint comparison (distinguishes identical-aspect screenshots 100% accurately!)
+    const thumbFp = computeImageVisualFingerprint(imgEl);
+    if (thumbFp && poolForFp.length > 0) {
+      let bestCand = null;
+      let bestMae = Infinity;
+      let comparedCount = 0;
+      for (let i = poolForFp.length - 1; i >= 0; i -= 1) {
+        const c = poolForFp[i];
+        if (!c.fp) continue;
+        comparedCount += 1;
+        const mae = visualFingerprintMae(thumbFp, c.fp);
+        if (mae < bestMae) {
+          bestMae = mae;
+          bestCand = c;
+        }
+      }
+      if (bestCand && bestMae <= 28) {
+        return rememberAndReturn(bestCand);
+      }
+      // If EVERY candidate in the pool had a valid fingerprint and NONE visually matched this thumbnail,
+      // do NOT open a completely different screenshot by mistake!
+      if (comparedCount > 0 && comparedCount === poolForFp.length) {
+        return "";
+      }
+    }
+
+    // Pass 2: DOM thumbnail index alignment (prevents clicking thumb #0 from opening thumb #2 when canvas pixels aren't readable)
+    let domImgs = [];
+    let domIdx = -1;
+    if (imgEl && typeof rv5FindNativeComposer === "function") {
+      try {
+        const nc = rv5FindNativeComposer(doc);
+        const scope = getComposerAttachmentScope(nc && nc.container);
+        domImgs = scope && typeof scope.querySelectorAll === "function"
+          ? Array.from(scope.querySelectorAll("img")).filter((x) => x && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(x)))
+          : [];
+        domIdx = domImgs.indexOf(imgEl);
+      } catch (_e) {}
+    }
+
+    if (domImgs.length > 1 && domIdx >= 0) {
+      // Align chronologically with the most recent domImgs.length cached originals in composer order
+      if (eligible.length >= domImgs.length) {
+        const aligned = eligible[eligible.length - domImgs.length + domIdx];
+        if (aligned && (aligned.width === 0 || isAspectRatioMatch(aligned.width, aligned.height, tw, th) || smallThumb)) {
+          return rememberAndReturn(aligned);
+        }
+      }
+      if (aspectMatches.length === 1) {
+        return rememberAndReturn(aspectMatches[0]);
+      }
+      if (aspectMatches.length > 1) {
+        // Count how many thumbnails in composer share this aspect ratio and match by ordinal index among them
+        const sameAspectDom = domImgs.filter((x) => {
+          const xw = Number(x.naturalWidth) || Number(x.width) || 0;
+          const xh = Number(x.naturalHeight) || Number(x.height) || 0;
+          return isAspectRatioMatch(xw, xh, tw, th);
+        });
+        const ordIdx = sameAspectDom.indexOf(imgEl);
+        if (ordIdx >= 0 && aspectMatches.length >= sameAspectDom.length) {
+          const picked = aspectMatches[aspectMatches.length - sameAspectDom.length + ordIdx];
+          if (picked) return rememberAndReturn(picked);
+        }
+      }
+      return "";
+    }
+
+    // Pass 3: Single-thumbnail composer fallback (aspect match first, then single fresh candidate for square-cropped previews)
+    if (aspectMatches.length > 0) {
+      return rememberAndReturn(aspectMatches[aspectMatches.length - 1]);
+    }
+    if (smallThumb && eligible.length === 1 && now - eligible[0].ts <= 15 * 60 * 1000) {
+      return rememberAndReturn(eligible[0]);
     }
     return "";
   }
 
-  function handleEditImageFromDom(info) {
+  async function handleEditImageFromDom(info) {
     if (!info || !info.imgEl) return;
+    if (pendingComposerReads.size > 0) {
+      try {
+        await Promise.race([
+          Promise.all(Array.from(pendingComposerReads)),
+          new Promise((r) => (win && typeof win.setTimeout === "function" ? win.setTimeout(r, 900) : setTimeout(r, 900))),
+        ]);
+      } catch (_e) {}
+      if (state.destroyed) return;
+    }
     const im = info.imgEl;
     const rawSrc = String((im.getAttribute && im.getAttribute("src")) || im.src || "");
     const natW = Number(im.naturalWidth) || Number(im.width) || 0;
     const natH = Number(im.naturalHeight) || Number(im.height) || 0;
     const openWith = (url) => {
-      if (!url) return;
+      if (!url || state.destroyed) return;
       openAnnotator({
         dataUrl: url,
         sourceImgEl: im,
@@ -7916,22 +9033,23 @@ function createStudioPanel(options) {
       });
     };
 
-    // 1. If the DOM image itself is already high-resolution (>=600px), use it directly
-    if (natW >= 600) {
+    // 1. If the DOM image itself is already high-resolution (>=600px on longest side), use it directly
+    if (Math.max(natW, natH) >= 600) {
       const directUrl = (rawSrc.startsWith("data:image/") || rawSrc.startsWith("blob:")) ? rawSrc : imageElToDataUrl(im);
       openWith(directUrl);
       return;
     }
 
-    // 2. Antigravity downscales composer thumbnails (~160-240px): check our full-res paste/drop/upload cache first!
+    // 2. Antigravity downscales composer thumbnails (~160-320px): check our full-res paste/drop/upload cache first!
     const cachedFull = findFullResForThumbnail(im);
     if (cachedFull) {
       openWith(cachedFull);
       return;
     }
 
-    // 3. Fallback: if clipboard still holds the full-res screenshot with matching aspect ratio, grab it seamlessly!
+    // 3. Fallback: if clipboard still holds the full-res screenshot with matching aspect ratio AND visual fingerprint, grab it seamlessly!
     const fallbackUrl = (rawSrc.startsWith("data:image/") || rawSrc.startsWith("blob:")) ? rawSrc : imageElToDataUrl(im);
+    const thumbFp = computeImageVisualFingerprint(im);
     invokeIpc("agy-studio:read-clipboard-image").then((res) => {
       if (state.destroyed) return;
       if (res && res.ok && res.dataUrl) {
@@ -7941,9 +9059,10 @@ function createStudioPanel(options) {
           probe.onload = () => {
             const cw = probe.naturalWidth || probe.width || 0;
             const ch = probe.naturalHeight || probe.height || 0;
-            const clipAsp = ch > 0 ? cw / ch : 0;
-            const thumbAsp = natW / natH;
-            if (cw > natW * 1.35 && (!clipAsp || Math.abs(clipAsp - thumbAsp) < 0.14)) {
+            const clipFp = thumbFp ? computeImageVisualFingerprint(probe) : null;
+            const visuallyMatches = !(thumbFp && clipFp) || visualFingerprintMae(thumbFp, clipFp) <= 28;
+            if (visuallyMatches && (cw > natW * 1.25 || ch > natH * 1.25) && isAspectRatioMatch(cw, ch, natW, natH)) {
+              cacheOriginalImageDataUrl(res.dataUrl, `clipboard-${Date.now()}.png`, "image/png");
               openWith(res.dataUrl);
             } else {
               openWith(fallbackUrl);
@@ -8083,13 +9202,53 @@ function createStudioPanel(options) {
     const vw = (win && win.innerWidth) || 1280;
     const vh = (win && win.innerHeight) || 800;
     const hm = measureHostUiMetrics();
+    let anchorTop = rect.top;
+    // Lift Tools dock cleanly above any visible native tray directly above the composer (e.g. Antigravity's native "Queued messages" bar)
+    try {
+      const trayCandidates = [];
+      const addPrevSibs = (node) => {
+        if (!node) return;
+        if (node.previousElementSibling) {
+          trayCandidates.push(node.previousElementSibling);
+          return;
+        }
+        const p = node.parentElement;
+        if (p && p.children && p.children.length > 1) {
+          for (let ci = 0; ci < p.children.length; ci += 1) {
+            if (p.children[ci] === node) {
+              if (ci > 0) trayCandidates.push(p.children[ci - 1]);
+              break;
+            }
+          }
+        }
+      };
+      addPrevSibs(container);
+      if (container.parentElement) addPrevSibs(container.parentElement);
+      for (let ti = 0; ti < trayCandidates.length; ti += 1) {
+        const sib = trayCandidates[ti];
+        if (!sib || sib === hostEl || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(sib))) continue;
+        if (typeof sib.getBoundingClientRect !== "function" || isHiddenAncestor(sib, doc.body)) continue;
+        const sr = sib.getBoundingClientRect();
+        if (!sr || sr.height < 24 || sr.height > 260 || sr.width < 120) continue;
+        const gapToComp = anchorTop - sr.bottom;
+        const horizOverlap = Math.min(rect.right, sr.right) - Math.max(rect.left, sr.left);
+        if (gapToComp >= -4 && gapToComp <= 28 && horizOverlap >= Math.min(rect.width, sr.width) * 0.5) {
+          const sibTxt = String(sib.textContent || "");
+          const isNativeTray = /сообщения в очереди|queued messages|отправится после заверш|will send after|pending/i.test(sibTxt) ||
+            (typeof sib.querySelector === "function" && !sib.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"], [data-markdown-root]'));
+          if (isNativeTray) {
+            anchorTop = Math.min(anchorTop, sr.top);
+          }
+        }
+      }
+    } catch (_e) {}
     const dockLeft = Math.max(8, Math.round(rect.left));
     const dockRightLimit = hm.drawerRightReserve > 0 ? vw - hm.drawerRightReserve - 12 : vw - 8;
     if (hm.drawerRightReserve > 0 && dockLeft + 180 > dockRightLimit) {
       chatDockMountEl.style.display = "none";
       return;
     }
-    const dockBottom = Math.max(12, Math.round(vh - rect.top + 6));
+    const dockBottom = Math.max(12, Math.round(vh - anchorTop + 6));
     const dockBox = {
       left: dockLeft,
       right: dockLeft + Math.min(260, Math.round(rect.width)),
@@ -8101,7 +9260,7 @@ function createStudioPanel(options) {
       return;
     }
     const availW = Math.max(160, Math.min(Math.round(rect.width), dockRightLimit - dockLeft));
-    const popMaxH = Math.max(180, Math.min(440, Math.round(rect.top - 24)));
+    const popMaxH = Math.max(180, Math.min(440, Math.round(anchorTop - 24)));
     chatDockMountEl.style.display = "flex";
     chatDockMountEl.style.left = `${dockLeft}px`;
     chatDockMountEl.style.width = `${availW}px`;
@@ -8213,10 +9372,10 @@ function createStudioPanel(options) {
     const fams = qs.families || {};
     const gem = fams.gemini || {};
     const cla = fams.claudeGpt || {};
-    const renderRow = (label, rem, isEst, resetStr) => {
+    const renderRow = (label, rem, _isEst, resetStr) => {
       const hasVal = typeof rem === "number" && Number.isFinite(rem);
       const pctText = hasVal
-        ? `${isEst ? "~" : ""}${Math.max(0, Math.min(100, Math.round(rem)))}% ${isRu ? "осталось" : "left"}`
+        ? `${Math.max(0, Math.min(100, Math.round(rem)))}% ${isRu ? "осталось" : "left"}`
         : (isRu ? "Нет снимка" : "No data");
       return `
         <div class="rx-usage-row">
@@ -8435,7 +9594,7 @@ function createStudioPanel(options) {
       if (scope && typeof scope.querySelectorAll === "function") {
         const imgs = scope.querySelectorAll("img");
         for (let i = 0; imgs && i < imgs.length; i += 1) {
-          if (imgs[i] && !(hostEl && typeof hostEl.contains === "function" && hostEl.contains(imgs[i]))) imgCnt += 1;
+          if (isComposerAttachmentImg(imgs[i])) imgCnt += 1;
         }
       }
       const chipCnt = composerOrigFiles.length > 0 ? collectComposerChipFileMatches(scope, editable).length : 0;
@@ -8445,19 +9604,23 @@ function createStudioPanel(options) {
         const hadPrev = lastDraftObsSig.startsWith(curKey + "|");
         lastDraftObsSig = obsSig;
         if (hasTxt || imgCnt > 0 || chipCnt > 0) {
+          if (hasTxt) draftTextCacheByChat.set(curKey, curTxt);
+          else draftTextCacheByChat.delete(curKey);
           const snap = imgCnt === 0 && chipCnt === 0
-            ? { text: curTxt, items: [] }
-            : collectComposerSnapshotSync(container, editable);
+            ? { text: curTxt, items: [], cleared: false }
+            : Object.assign(collectComposerSnapshotSync(container, editable), { cleared: false });
           lastKnownComposerSnapByChat.set(curKey, snap);
           if (lastKnownComposerSnapByChat.size > 16) {
             const oldest = lastKnownComposerSnapByChat.keys().next().value;
             lastKnownComposerSnapByChat.delete(oldest);
           }
-        } else if (hadPrev) {
-          lastKnownComposerSnapByChat.delete(curKey);
-        }
-        if (hadPrev || hasTxt || imgCnt > 0 || chipCnt > 0) {
-          scheduleComposerDraftSave(550);
+          scheduleComposerDraftSave(260);
+        } else if (hadPrev && state.userEditedComposerInChat) {
+          // Only record cleared tombstone & erase disk draft when the user ACTUALLY edited/cleared the composer in this chat
+          // (never let an empty composer after cold-boot React hydration wipe a saved disk draft!).
+          draftTextCacheByChat.delete(curKey);
+          lastKnownComposerSnapByChat.set(curKey, { text: "", items: [], cleared: true });
+          scheduleComposerDraftSave(350);
         }
       }
     }
@@ -8700,7 +9863,7 @@ function createStudioPanel(options) {
       }
       const clearToken = ++liveEditClearToken;
       userTypedAfterLiveEdit = false;
-      const isLiveCancelled = () => clearToken !== liveEditClearToken || userTypedAfterLiveEdit;
+      const isLiveCancelled = () => clearToken !== liveEditClearToken || userTypedAfterLiveEdit || (!wasVoiceActive && isVoiceDictationActive());
       // Pass 0: Clear Lexical cleanly via native selection/delete without desyncing EditorState
       clearEditableRobust(editable, text, { allowRaw: "initial", forceKeystroke: false, resetComposition: wasVoiceActive, isCancelled: isLiveCancelled });
       // Follow-up passes catch speech-to-text / voice-typing converters that flush trailing text up to 2s after Enter/Send
@@ -8832,10 +9995,272 @@ function createStudioPanel(options) {
     }
   }
 
+  function buildMainWorldComposerTextInjectScript(rawText) {
+    const safeText = JSON.stringify(String(rawText || ""));
+    return `(async () => {
+      try {
+        const text = ${safeText};
+        if (!text) return { ok: false, reason: "empty" };
+        const isSkipped = (el) => !el || Boolean(el.closest('#rudex-studio-host, [data-testid="user-message-content"], [data-testid="agent-response"], .monaco-editor, [role="dialog"], [role="alertdialog"]')) || /\\b(?:inputarea|ime-text-area)\\b/.test(String(el.className || ""));
+        const isVis = (el) => { const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null; return Boolean(r && r.width > 0 && r.height > 0); };
+        const findEd = () => {
+          const tagged = document.querySelectorAll('[data-rudex-theme-composer="1"] textarea, [data-rudex-theme-composer="1"] [contenteditable="true"], [data-rudex-theme-composer="1"] [role="textbox"]');
+          for (let i = tagged.length - 1; i >= 0; i -= 1) if (!isSkipped(tagged[i]) && isVis(tagged[i])) return tagged[i];
+          const all = document.querySelectorAll('main textarea, main [contenteditable="true"], form textarea, form [contenteditable="true"], [contenteditable="true"], textarea');
+          for (let i = all.length - 1; i >= 0; i -= 1) if (!isSkipped(all[i]) && isVis(all[i])) return all[i];
+          return null;
+        };
+        const ed = findEd();
+        if (!ed) return { ok: false, reason: "no-editable" };
+        const readTxt = () => (ed.tagName === "TEXTAREA" || ed.tagName === "INPUT" ? String(ed.value || "") : String(ed.innerText || ed.textContent || "")).replace(/[\\u200B-\\u200D\\uFEFF]/g, "").trim();
+        if (readTxt().length > 0) return { ok: true, already: true };
+        if (ed.tagName === "TEXTAREA" || ed.tagName === "INPUT") {
+          const proto = ed.tagName === "INPUT" ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+          const desc = Object.getOwnPropertyDescriptor(proto, "value");
+          if (desc && desc.set) desc.set.call(ed, text);
+          else ed.value = text;
+          ed.dispatchEvent(new Event("input", { bubbles: true }));
+          return { ok: readTxt().length > 0 };
+        }
+        const waitCommitted = async (maxMs) => {
+          if (readTxt().length > 0) return true;
+          const endAt = Date.now() + maxMs;
+          while (Date.now() < endAt) {
+            await new Promise((r) => setTimeout(r, 5));
+            if (readTxt().length > 0) return true;
+          }
+          return readTxt().length > 0;
+        };
+        const placeCaret = () => {
+          try {
+            if (ed.__lexicalEditor && typeof ed.__lexicalEditor.focus === "function") {
+              ed.__lexicalEditor.focus();
+            }
+          } catch (_e) {}
+          try { ed.focus(); } catch (_e) {}
+          try {
+            const sel = window.getSelection();
+            if (sel) {
+              const rng = document.createRange();
+              const inner = ed.querySelector("p, div") || ed;
+              rng.selectNodeContents(inner);
+              rng.collapse(false);
+              sel.removeAllRanges();
+              sel.addRange(rng);
+              document.dispatchEvent(new Event("selectionchange"));
+            }
+          } catch (_e) {}
+        };
+        placeCaret();
+        // 0. Instant 0ms synchronous Blink execCommand("insertText") for single-line drafts (Lexical handles trusted beforeinput synchronously!)
+        if (!text.includes("\\n")) {
+          try {
+            document.execCommand("insertText", false, text);
+            if (readTxt().length > 0) return { ok: true, method: "mw-exec-sync" };
+          } catch (_e) {}
+        }
+        // 1. Real Main-World ClipboardEvent("paste") with genuine Main-World DataTransfer (preserves multi-line breaks natively!)
+        try {
+          const dt = new DataTransfer();
+          dt.setData("text/plain", text);
+          ed.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
+          if (await waitCommitted(22)) return { ok: true, method: "mw-paste" };
+        } catch (_e) {}
+        // 2. Real Main-World execCommand("insertText") (for multi-line or deferred caret)
+        try {
+          placeCaret();
+          document.execCommand("insertText", false, text);
+          if (await waitCommitted(16)) return { ok: true, method: "mw-exec" };
+        } catch (_e) {}
+        // 3. Real Main-World InputEvent("beforeinput")
+        try {
+          placeCaret();
+          ed.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertText", data: text, bubbles: true, cancelable: true }));
+          if (await waitCommitted(18)) return { ok: true, method: "mw-beforeinput" };
+        } catch (_e) {}
+        return { ok: false, reason: "not-committed" };
+      } catch (_err) {
+        return { ok: false, reason: "err" };
+      }
+    })()`;
+  }
+
+  function buildMainWorldComposerAttachInjectScript(attachments) {
+    const safeList = JSON.stringify((Array.isArray(attachments) ? attachments : []).slice(0, 6).map((a) => ({
+      name: String(a.name || "attachment.bin"),
+      mime: String(a.mime || "application/octet-stream"),
+      isImage: Boolean(a.isImage),
+      dataUrl: String(a.dataUrl || ""),
+    })).filter((a) => a.dataUrl.startsWith("data:")));
+    return `(async () => {
+      try {
+        const list = ${safeList};
+        if (!list.length) return { ok: false, count: 0 };
+        const isSkipped = (el) => !el || Boolean(el.closest('#rudex-studio-host, [data-testid="user-message-content"], [data-testid="agent-response"], .monaco-editor, [role="dialog"], [role="alertdialog"]')) || /\\b(?:inputarea|ime-text-area)\\b/.test(String(el.className || ""));
+        const isVis = (el) => { const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null; return Boolean(r && r.width > 0 && r.height > 0); };
+        const findEd = () => {
+          const tagged = document.querySelectorAll('[data-rudex-theme-composer="1"] textarea, [data-rudex-theme-composer="1"] [contenteditable="true"], [data-rudex-theme-composer="1"] [role="textbox"]');
+          for (let i = tagged.length - 1; i >= 0; i -= 1) if (!isSkipped(tagged[i]) && isVis(tagged[i])) return tagged[i];
+          const all = document.querySelectorAll('main textarea, main [contenteditable="true"], form textarea, form [contenteditable="true"], [contenteditable="true"], textarea');
+          for (let i = all.length - 1; i >= 0; i -= 1) if (!isSkipped(all[i]) && isVis(all[i])) return all[i];
+          return null;
+        };
+        const ed = findEd();
+        if (!ed) return { ok: false, count: 0 };
+        const cont = ed.closest('[data-rudex-theme-composer="1"], form, [data-testid="composer"], .composer-container') || ed.parentElement || ed;
+        let scope = cont;
+        let p = cont.parentElement;
+        for (let h = 0; h < 5 && p && p !== document.body && p.tagName !== "MAIN"; h += 1) {
+          if (p.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"], [data-testid="user-message-bubble"]')) break;
+          scope = p;
+          p = p.parentElement;
+        }
+        const countImgs = () => {
+          let n = 0;
+          const imgs = scope.querySelectorAll("img");
+          for (let i = 0; i < imgs.length; i += 1) {
+            const im = imgs[i];
+            if (!im || im.closest("#rudex-studio-host")) continue;
+            const rawSrc = String(im.getAttribute("src") || im.src || "").trim().toLowerCase();
+            if (rawSrc.startsWith("data:image/svg+xml") || /\\.svg(?:\\?|#|$)/.test(rawSrc)) continue;
+            const alt = String(im.getAttribute("alt") || "").toLowerCase();
+            if (/\\b(?:avatar|profile|logo)\\b/.test(alt)) continue;
+            const nw = im.naturalWidth || im.width || 0;
+            const nh = im.naturalHeight || im.height || 0;
+            if (nw > 0 && nh > 0 && nw <= 24 && nh <= 24) continue;
+            n += 1;
+          }
+          return n;
+        };
+        const readScopeMeta = () => {
+          const parts = [String(scope.textContent || "")];
+          const metas = scope.querySelectorAll("[title], [aria-label], [alt]");
+          for (let m = 0; m < metas.length && m < 80; m += 1) {
+            const el = metas[m];
+            if (!el || el.closest("#rudex-studio-host")) continue;
+            const t = el.getAttribute("title");
+            const a = el.getAttribute("aria-label");
+            const alt = el.getAttribute("alt");
+            if (t) parts.push(t);
+            if (a) parts.push(a);
+            if (alt) parts.push(alt);
+          }
+          return parts.join(" ").toLowerCase();
+        };
+        const toFile = (a, idx) => {
+          const comma = a.dataUrl.indexOf(",");
+          if (comma <= 0) return null;
+          const bin = atob(a.dataUrl.slice(comma + 1));
+          const arr = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i += 1) arr[i] = bin.charCodeAt(i);
+          const mime = a.mime || "application/octet-stream";
+          return new File([new Blob([arr], { type: mime })], a.name || ("file-" + (idx + 1)), { type: mime });
+        };
+        const waitAdded = async (fn, maxMs) => {
+          if (fn()) return true;
+          const endAt = Date.now() + maxMs;
+          while (Date.now() < endAt) {
+            await new Promise((r) => setTimeout(r, 16));
+            if (fn()) return true;
+          }
+          return fn();
+        };
+        try { ed.focus(); } catch (_e) {}
+        let attached = 0;
+        for (let i = 0; i < list.length; i += 1) {
+          const item = list[i];
+          const file = toFile(item, i);
+          if (!file) continue;
+          const imgsBefore = countImgs();
+          const txtBefore = String(scope.textContent || "").length;
+          const btnsBefore = scope.querySelectorAll("button").length;
+          const checkAdded = () => {
+            if (item.isImage || file.type.startsWith("image/")) {
+              if (countImgs() > imgsBefore) return true;
+            }
+            const lowNow = readScopeMeta();
+            const fLow = file.name.toLowerCase();
+            const stem = fLow.replace(/\\.[^.]+$/, "").slice(0, 8);
+            if (lowNow.includes(fLow) || (stem.length >= 3 && lowNow.includes(stem))) return true;
+            return scope.querySelectorAll("button").length > btnsBefore || String(scope.textContent || "").length > txtBefore + 3;
+          };
+          // 1. Genuine Main-World ClipboardEvent("paste")
+          try {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            ed.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
+            if (await waitAdded(checkAdded, 120)) { attached += 1; continue; }
+          } catch (_e) {}
+          // 2. Genuine Main-World dragenter + dragover + drop on composer container & scope
+          const dropTargets = scope && scope !== cont ? [cont, scope] : [cont];
+          let dropOk = false;
+          for (let dti = 0; dti < dropTargets.length; dti += 1) {
+            try {
+              const dt2 = new DataTransfer();
+              dt2.items.add(file);
+              const tgt = dropTargets[dti];
+              tgt.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: dt2 }));
+              tgt.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt2 }));
+              tgt.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt2 }));
+              if (await waitAdded(checkAdded, 120)) { attached += 1; dropOk = true; break; }
+            } catch (_e) {}
+          }
+          if (dropOk) continue;
+          // 3. Fallback: live <input type="file"> inside composer scope or main
+          try {
+            const fileInputs = Array.from(scope.querySelectorAll('input[type="file"]')).concat(Array.from(document.querySelectorAll('main input[type="file"]')));
+            const fileInp = fileInputs.find((el) => el && !el.closest("#rudex-studio-host"));
+            if (fileInp) {
+              const dt3 = new DataTransfer();
+              dt3.items.add(file);
+              const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "files");
+              if (desc && desc.set) desc.set.call(fileInp, dt3.files);
+              else fileInp.files = dt3.files;
+              fileInp.dispatchEvent(new Event("input", { bubbles: true }));
+              fileInp.dispatchEvent(new Event("change", { bubbles: true }));
+              if (await waitAdded(checkAdded, 110)) { attached += 1; continue; }
+            }
+          } catch (_e) {}
+        }
+        return { ok: attached > 0, count: attached };
+      } catch (_err) {
+        return { ok: false, count: 0 };
+      }
+    })()`;
+  }
+
   async function insertTextIntoNativeComposerRich(editable, rawText) {
     const text = String(rawText || "");
     if (!editable || !text) return false;
+    const readCur = () => (typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "");
+    const waitCommit = (ms) => new Promise((resolve) => {
+      if (win && typeof win.setTimeout === "function") win.setTimeout(resolve, ms);
+      else resolve();
+    });
+    // Never append onto already-present text (prevents duplicated drafts!)
+    if (readCur().trim().length > 0) return true;
+    // 0. Main-World injection (crucial in Electron contextIsolation: true so Lexical receives genuine Main-World Selection + DataTransfer!)
+    let ranMainWorld = false;
+    if (webFrame && typeof webFrame.executeJavaScript === "function") {
+      try {
+        ranMainWorld = true;
+        const mwRes = await webFrame.executeJavaScript(buildMainWorldComposerTextInjectScript(text), true);
+        if (mwRes && mwRes.ok && readCur().trim().length > 0) return true;
+      } catch (_e) {}
+    }
     try { if (typeof editable.focus === "function") editable.focus(); } catch (_e) {}
+    // Ensure a collapsed caret selection exists inside Lexical's inner paragraph before dispatching paste/beforeinput
+    try {
+      const sel = win && typeof win.getSelection === "function" ? win.getSelection() : null;
+      if (sel && doc && typeof doc.createRange === "function") {
+        const rng = doc.createRange();
+        const inner = typeof editable.querySelector === "function" ? (editable.querySelector("p, div") || editable) : editable;
+        rng.selectNodeContents(inner);
+        rng.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(rng);
+      }
+    } catch (_e) {}
     const tag = String(editable.tagName || "").toUpperCase();
     if (tag === "TEXTAREA" || tag === "INPUT") {
       try {
@@ -8850,34 +10275,56 @@ function createStudioPanel(options) {
         return true;
       } catch (_e) {}
     }
-    // 1. Lexical / ProseMirror native paste (preserves multi-line breaks cleanly)
+    // 1-2. Isolated-World paste / beforeinput fallback ONLY when Main-World webFrame was unavailable (avoids 130ms duplicate sleep in Electron!)
+    if (!ranMainWorld) {
+      try {
+        const DtCtor = (win && win.DataTransfer) || (typeof DataTransfer !== "undefined" ? DataTransfer : null);
+        const PasteEvt = (win && win.ClipboardEvent) || (typeof ClipboardEvent !== "undefined" ? ClipboardEvent : null);
+        if (DtCtor && PasteEvt) {
+          const dt = new DtCtor();
+          dt.setData("text/plain", text);
+          editable.dispatchEvent(new PasteEvt("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
+          if (readCur().trim().length > 0) return true;
+          await waitCommit(65);
+          if (readCur().trim().length > 0) return true;
+        }
+      } catch (_e) {}
+      try {
+        if (readCur().trim().length > 0) return true;
+        const InpEvt = (win && win.InputEvent) || (typeof InputEvent !== "undefined" ? InputEvent : null);
+        if (InpEvt) {
+          editable.dispatchEvent(new InpEvt("beforeinput", { inputType: "insertText", data: text, bubbles: true, cancelable: true }));
+          if (readCur().trim().length > 0) return true;
+          await waitCommit(65);
+          if (readCur().trim().length > 0) return true;
+        }
+      } catch (_e) {}
+    }
+    // 3. Native Chromium webContents.insertText via Electron main process (~2ms, works even without synthetic event support!)
     try {
-      const DtCtor = (win && win.DataTransfer) || (typeof DataTransfer !== "undefined" ? DataTransfer : null);
-      const PasteEvt = (win && win.ClipboardEvent) || (typeof ClipboardEvent !== "undefined" ? ClipboardEvent : null);
-      if (DtCtor && PasteEvt) {
-        const dt = new DtCtor();
-        dt.setData("text/plain", text);
-        editable.dispatchEvent(new PasteEvt("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
-        if (typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).trim().length > 0) {
-          return true;
+      if (readCur().trim().length > 0) return true;
+      if (typeof editable.focus === "function") editable.focus();
+      const res = await invokeIpc("agy-studio:insert-text-into-focused", { text });
+      if (res && res.ok) {
+        if (readCur().trim().length > 0) return true;
+        const endWait = Date.now() + 36;
+        while (Date.now() < endWait) {
+          await waitCommit(10);
+          if (readCur().trim().length > 0) return true;
         }
       }
     } catch (_e) {}
-    // 2. Native Chromium webContents.insertText via Electron main process
+    // 4. Fallback execCommand / textContent
     try {
-      if (typeof editable.focus === "function") editable.focus();
-      const res = await invokeIpc("agy-studio:insert-text-into-focused", { text });
-      if (res && res.ok && typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).trim().length > 0) {
-        return true;
-      }
-    } catch (_e) {}
-    // 3. Fallback execCommand / textContent
-    try {
+      if (readCur().trim().length > 0) return true;
       if (doc && typeof doc.execCommand === "function" && doc.execCommand("insertText", false, text)) {
-        if (typeof rv5ReadEditableText === "function" && rv5ReadEditableText(editable).trim().length > 0) return true;
+        if (readCur().trim().length > 0) return true;
+        await waitCommit(45);
+        if (readCur().trim().length > 0) return true;
       }
     } catch (_e) {}
     try {
+      if (readCur().trim().length > 0) return true;
       editable.textContent = text;
       const Evt = (win && typeof win.Event === "function" ? win.Event : (typeof Event === "function" ? Event : null));
       if (Evt) editable.dispatchEvent(new Evt("input", { bubbles: true }));
@@ -8886,51 +10333,56 @@ function createStudioPanel(options) {
     return false;
   }
 
-  function insertAttachmentsIntoNativeComposer(attachments, container, editable) {
+  async function insertAttachmentsIntoNativeComposer(attachments, container, editable) {
     const list = Array.isArray(attachments) ? attachments : [];
     if (!list.length || !editable) return 0;
     const DtCtor = (win && win.DataTransfer) || (typeof DataTransfer !== "undefined" ? DataTransfer : null);
     const FileCtor = (win && win.File) || (typeof File !== "undefined" ? File : null);
     const PasteEvt = (win && win.ClipboardEvent) || (typeof ClipboardEvent !== "undefined" ? ClipboardEvent : null);
     const DragEvt = (win && win.DragEvent) || (typeof DragEvent !== "undefined" ? DragEvent : null);
-    if (!DtCtor || !FileCtor) return 0;
 
-    let attached = 0;
-    const filesToAttach = [];
+    // Pre-register all restored attachments in Full HD & file caches regardless of injection world
+    const validAtts = [];
     for (let i = 0; i < list.length; i += 1) {
       const a = list[i];
       if (!a || !a.dataUrl) continue;
-      const blob = draftDataUrlToBlob(a.dataUrl, a.mime);
-      if (!blob) continue;
-      const mime = a.mime || blob.type || "application/octet-stream";
+      const mime = a.mime || "application/octet-stream";
       const fname = a.name || (a.isImage ? `screenshot-${i + 1}.png` : `file-${i + 1}.bin`);
-      const file = new FileCtor([blob], fname, { type: mime });
-      filesToAttach.push({ file, att: a, mime, fname });
-      // Pre-register in Full HD cache & fileName map so editing & re-saving work immediately
       const sig = draftSigForDataUrl(a.dataUrl);
       if (a.fileName && sig) draftDataUrlToFileName.set(sig, a.fileName);
       if (a.isImage || mime.startsWith("image/")) {
-        const entry = { name: fname, mime, dataUrl: a.dataUrl, width: 0, height: 0, aspect: 0, ts: Date.now() };
-        composerOrigImages.push(entry);
-        if (composerOrigImages.length > 8) composerOrigImages.shift();
-        const ImgCtor = (win && win.Image) || (typeof Image !== "undefined" ? Image : null);
-        if (ImgCtor) {
-          try {
-            const probe = new ImgCtor();
-            probe.onload = () => {
-              entry.width = probe.naturalWidth || probe.width || 0;
-              entry.height = probe.naturalHeight || probe.height || 0;
-              entry.aspect = entry.height > 0 ? entry.width / entry.height : 0;
-            };
-            probe.src = a.dataUrl;
-          } catch (_e) {}
-        }
+        cacheOriginalImageDataUrl(a.dataUrl, fname, mime);
       } else {
-        composerOrigFiles.push({ name: fname, mime, size: blob.size || 0, dataUrl: a.dataUrl, ts: Date.now() });
-        if (composerOrigFiles.length > 10) composerOrigFiles.shift();
+        const exists = composerOrigFiles.some((x) => x && x.name === fname && x.dataUrl === a.dataUrl);
+        if (!exists) {
+          composerOrigFiles.push({ name: fname, mime, size: Number(a.sizeBytes) || 0, dataUrl: a.dataUrl, ts: Date.now() });
+          if (composerOrigFiles.length > 10) composerOrigFiles.shift();
+        }
       }
+      validAtts.push({ name: fname, mime, isImage: Boolean(a.isImage || mime.startsWith("image/")), dataUrl: a.dataUrl, fileName: a.fileName || "" });
+    }
+    if (validAtts.length === 0) return 0;
+
+    // 0. Main-World attachment injection (genuine Main-World File + DataTransfer across contextIsolation!)
+    if (webFrame && typeof webFrame.executeJavaScript === "function") {
+      try {
+        const mwRes = await webFrame.executeJavaScript(buildMainWorldComposerAttachInjectScript(validAtts), true);
+        if (mwRes && mwRes.count > 0) return mwRes.count;
+      } catch (_e) {}
     }
 
+    if (!DtCtor || !FileCtor) return 0;
+    let attached = 0;
+    const filesToAttach = [];
+    for (let i = 0; i < validAtts.length; i += 1) {
+      const a = validAtts[i];
+      const blob = draftDataUrlToBlob(a.dataUrl, a.mime);
+      if (!blob) continue;
+      const mime = a.mime || blob.type || "application/octet-stream";
+      const fname = a.name;
+      const file = new FileCtor([blob], fname, { type: mime });
+      filesToAttach.push({ file, att: a, mime, fname });
+    }
     if (filesToAttach.length === 0) return 0;
     try { if (typeof editable.focus === "function") editable.focus(); } catch (_e) {}
     for (let i = 0; i < filesToAttach.length; i += 1) {
@@ -8989,7 +10441,7 @@ function createStudioPanel(options) {
       const imgs = scope.querySelectorAll("img");
       for (let i = 0; imgs && i < imgs.length && items.length < 6; i += 1) {
         const im = imgs[i];
-        if (!im || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(im))) continue;
+        if (!isComposerAttachmentImg(im)) continue;
         let dataUrl = findFullResForThumbnail(im, usedOrig);
         if (!dataUrl || !dataUrl.startsWith("data:image/")) dataUrl = imageElToDataUrl(im);
         const rawSrc = (!dataUrl || !dataUrl.startsWith("data:image/")) ? String((im.getAttribute && im.getAttribute("src")) || im.src || "") : "";
@@ -9006,15 +10458,16 @@ function createStudioPanel(options) {
         });
       }
     }
-    const matchedFiles = collectComposerChipFileMatches(scope, editable);
+    const matchedFiles = collectComposerChipFileMatches(scope, editable, usedOrig);
     for (let i = 0; i < matchedFiles.length && items.length < 8; i += 1) {
       const mf = matchedFiles[i].file;
+      const isImgChip = Boolean(matchedFiles[i].isImage);
       const sig = draftSigForDataUrl(mf.dataUrl);
       const cachedFileName = sig ? (draftDataUrlToFileName.get(sig) || "") : "";
       items.push({
         name: mf.name,
-        mime: mf.mime || "application/octet-stream",
-        isImage: false,
+        mime: mf.mime || (isImgChip ? "image/png" : "application/octet-stream"),
+        isImage: isImgChip,
         dataUrl: mf.dataUrl,
         rawSrc: "",
         sig,
@@ -9080,6 +10533,7 @@ function createStudioPanel(options) {
       attachments: payloadAtts,
     });
     if (!state.destroyed && saveSeq === draftSaveSeq && res && res.ok) {
+      lastDraftDiskSaveAt = Date.now();
       if (res.draft && Array.isArray(res.draft.attachments)) {
         for (let i = 0; i < res.draft.attachments.length && i < resolvedAtts.length; i += 1) {
           const saved = res.draft.attachments[i];
@@ -9089,8 +10543,22 @@ function createStudioPanel(options) {
           }
         }
         lastSavedDraftByChat.set(key, res.draft);
+        if (String(snap.text || "").trim()) draftTextCacheByChat.set(key, snap.text);
+        else draftTextCacheByChat.delete(key);
+        lastKnownComposerSnapByChat.set(key, {
+          text: snap.text,
+          items: res.draft.attachments.map((a, idx) => ({
+            name: a.name || (resolvedAtts[idx] && resolvedAtts[idx].name) || `file-${idx + 1}`,
+            mime: a.mime || (resolvedAtts[idx] && resolvedAtts[idx].mime) || "application/octet-stream",
+            isImage: Boolean(a.isImage),
+            fileName: a.fileName || "",
+            dataUrl: (resolvedAtts[idx] && resolvedAtts[idx].dataUrl) || "",
+          })),
+          cleared: false,
+        });
       } else {
         lastSavedDraftByChat.delete(key);
+        draftTextCacheByChat.delete(key);
       }
     }
   }
@@ -9101,17 +10569,34 @@ function createStudioPanel(options) {
     if (!doc || typeof rv5FindNativeComposer !== "function" || !ipc || typeof ipc.send !== "function") return;
     const key = explicitKey || state.activeChatKey || "__new__";
     const title = typeof explicitTitle === "string" ? explicitTitle : (state.activeChatTitle || "");
-    const { container, editable } = rv5FindNativeComposer(doc);
-    let snap = editable ? collectComposerSnapshotSync(container, editable) : { text: "", items: [] };
-    const isSnapEmpty = !String(snap.text || "").trim() && (!snap.items || snap.items.length === 0);
-    if (isChatSwitch && isSnapEmpty) {
-      // On chat switch Antigravity often resets the composer BEFORE we detect the new chat key:
-      // NEVER wipe an existing saved draft with an empty composer — flush our last known non-empty snapshot instead!
+    let snap = null;
+    if (isChatSwitch) {
+      // On chat switch, the live DOM composer may ALREADY belong to the incoming chat!
+      // NEVER read live DOM into prevKey (prevents cross-chat text leak!) — ONLY flush prevKey's cached snapshot.
       const cached = lastKnownComposerSnapByChat.get(key);
-      if (cached && (String(cached.text || "").trim() || (cached.items && cached.items.length > 0))) {
-        snap = cached;
-      } else {
+      if (!cached) return;
+      if (cached.cleared || (!String(cached.text || "").trim() && (!cached.items || cached.items.length === 0))) {
+        lastSavedDraftByChat.delete(key);
+        lastKnownComposerSnapByChat.delete(key);
+        draftTextCacheByChat.delete(key);
+        try {
+          ipc.send("agy-studio:save-composer-draft-sync", { chatKey: key, title, text: "", attachments: [] });
+        } catch (_e) {}
         return;
+      }
+      snap = cached;
+    } else {
+      const { container, editable } = rv5FindNativeComposer(doc);
+      snap = editable ? collectComposerSnapshotSync(container, editable) : { text: "", items: [] };
+      const isSnapEmpty = !String(snap.text || "").trim() && (!snap.items || snap.items.length === 0);
+      if (isSnapEmpty) {
+        const cached = lastKnownComposerSnapByChat.get(key);
+        if (cached && !cached.cleared && (String(cached.text || "").trim() || (cached.items && cached.items.length > 0))) {
+          snap = cached;
+        } else if (!cached || !cached.cleared) {
+          // NEVER overwrite an existing disk draft with "" during Electron shutdown/unmount/blur when user did not clear it!
+          return;
+        }
       }
     }
     const atts = [];
@@ -9132,10 +10617,21 @@ function createStudioPanel(options) {
     } catch (_e) {}
   }
 
-  function scheduleComposerDraftSave(delayMs) {
+  function scheduleComposerDraftSave(delayMs, withAttachmentFollowup) {
     if (state.destroyed || isRestoringDraft || state.settings.composerDraftsEnabled === false) return;
     if (Date.now() < draftJustSubmittedUntil) return;
     if (!win || typeof win.setTimeout !== "function") {
+      saveComposerDraftNow();
+      return;
+    }
+    const now = Date.now();
+    // During continuous typing without pauses, guarantee a disk save at least every 1100ms so force-kill (taskkill /F) never loses typed text!
+    if (lastDraftDiskSaveAt > 0 && now - lastDraftDiskSaveAt >= 1100 && !withAttachmentFollowup) {
+      lastDraftDiskSaveAt = now;
+      if (draftSaveTimer && typeof win.clearTimeout === "function") {
+        win.clearTimeout(draftSaveTimer);
+        draftSaveTimer = null;
+      }
       saveComposerDraftNow();
       return;
     }
@@ -9145,7 +10641,34 @@ function createStudioPanel(options) {
     draftSaveTimer = win.setTimeout(() => {
       draftSaveTimer = null;
       saveComposerDraftNow();
-    }, typeof delayMs === "number" ? delayMs : 350);
+    }, typeof delayMs === "number" ? delayMs : 180);
+    // Attachment chips/thumbnails can take 300-700ms for React to mount after paste/drop/upload — schedule a clean follow-up capture!
+    if (withAttachmentFollowup) {
+      if (draftFollowupTimer && typeof win.clearTimeout === "function") win.clearTimeout(draftFollowupTimer);
+      draftFollowupTimer = win.setTimeout(() => {
+        draftFollowupTimer = null;
+        if (!state.destroyed && !isRestoringDraft && Date.now() > draftJustSubmittedUntil) {
+          saveComposerDraftNow();
+        }
+      }, 780);
+    }
+  }
+
+  function clearDraftRestoreVerifyTimers() {
+    if (win && typeof win.clearTimeout === "function") {
+      if (draftEarlyTextTimer) {
+        win.clearTimeout(draftEarlyTextTimer);
+        draftEarlyTextTimer = null;
+      }
+      for (let i = 0; i < draftRestoreVerifyTimers.length; i += 1) {
+        win.clearTimeout(draftRestoreVerifyTimers[i]);
+      }
+    }
+    draftRestoreVerifyTimers = [];
+    if (draftStickinessObserver && typeof draftStickinessObserver.disconnect === "function") {
+      try { draftStickinessObserver.disconnect(); } catch (_e) {}
+    }
+    draftStickinessObserver = null;
   }
 
   function restoreComposerDraftForChat(chatKey) {
@@ -9155,53 +10678,190 @@ function createStudioPanel(options) {
       win.clearTimeout(draftRestoreTimer);
       draftRestoreTimer = null;
     }
+    clearDraftRestoreVerifyTimers();
+    // Block auto-saving an empty composer over the incoming chat's disk draft while IPC + restore are in-flight!
+    isRestoringDraft = true;
+    const releaseIfCurrent = () => {
+      if (seq === draftRestoreSeq) {
+        isRestoringDraft = false;
+        lastDraftObsSig = "";
+      }
+    };
+
+    // STEP 0 (0ms INSTANT TEXT): Pre-warmed synchronous cache from boot-state-sync / live session!
+    // Injects text IMMEDIATELY without waiting for async disk IPC or binary attachments!
+    let earlyInjectedText = false;
+    const cachedText = draftTextCacheByChat.get(chatKey) || "";
+    if (cachedText && String(cachedText).trim()) {
+      let earlyAttempts = 0;
+      const tryEarlyText = () => {
+        if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey || state.userEditedComposerInChat) return;
+        const foundEarly = typeof rv5FindNativeComposer === "function" ? rv5FindNativeComposer(doc) : { container: null, editable: null };
+        if (!foundEarly || !foundEarly.editable) {
+          earlyAttempts += 1;
+          if (earlyAttempts < 240 && win && typeof win.setTimeout === "function") {
+            draftEarlyTextTimer = win.setTimeout(tryEarlyText, 25);
+          }
+          return;
+        }
+        const curEarly = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(foundEarly.editable) : "";
+        if (curEarly.length === 0) {
+          earlyInjectedText = true;
+          insertTextIntoNativeComposerRich(foundEarly.editable, cachedText).catch(() => {});
+        }
+      };
+      tryEarlyText();
+    }
+
     invokeIpc("agy-studio:get-composer-draft", { chatKey }).then((res) => {
-      if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey) return;
-      if (!res || !res.ok || !res.draft) return;
+      if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey) {
+        releaseIfCurrent();
+        return;
+      }
+      if (draftEarlyTextTimer && win && typeof win.clearTimeout === "function") {
+        win.clearTimeout(draftEarlyTextTimer);
+        draftEarlyTextTimer = null;
+      }
+      if (!res || !res.ok || !res.draft) {
+        draftTextCacheByChat.delete(chatKey);
+        releaseIfCurrent();
+        return;
+      }
       const draft = res.draft;
       const hasText = Boolean(draft.text && String(draft.text).trim());
       const hasAtts = Array.isArray(draft.attachments) && draft.attachments.length > 0;
-      if (!hasText && !hasAtts) return;
+      if (hasText) draftTextCacheByChat.set(chatKey, draft.text);
+      else draftTextCacheByChat.delete(chatKey);
+      if (!hasText && !hasAtts) {
+        releaseIfCurrent();
+        return;
+      }
 
       let attempts = 0;
+      let rehydrateRetries = 0;
+      let stickinessInFlight = false;
+      const runStickinessRecovery = async () => {
+        if (stickinessInFlight || state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey) return;
+        if (state.userEditedComposerInChat || Date.now() < draftJustSubmittedUntil) return;
+        if (rehydrateRetries >= 4) return;
+        const foundNow = typeof rv5FindNativeComposer === "function" ? rv5FindNativeComposer(doc) : { container: null, editable: null };
+        if (!foundNow || !foundNow.editable) return;
+        const curNow = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(foundNow.editable) : "";
+        const needText = hasText && curNow.trim().length === 0;
+        const needAtts = hasAtts && !hasComposerAttachments(foundNow.container, foundNow.editable);
+        if (!needText && !needAtts) return;
+        // React cold-hydration reset or remounted Lexical/attachments over our restored draft — re-apply cleanly!
+        stickinessInFlight = true;
+        rehydrateRetries += 1;
+        isRestoringDraft = true;
+        try {
+          if (needText) {
+            await insertTextIntoNativeComposerRich(foundNow.editable, draft.text);
+          }
+          if (needAtts) {
+            await insertAttachmentsIntoNativeComposer(draft.attachments, foundNow.container, foundNow.editable);
+          }
+        } finally {
+          stickinessInFlight = false;
+          if (win && typeof win.setTimeout === "function") win.setTimeout(releaseIfCurrent, needAtts ? 600 : 350);
+          else releaseIfCurrent();
+        }
+      };
+
+      const scheduleStickinessCheck = (targetContainer, targetEditable) => {
+        if ((!hasText && !hasAtts) || !win || typeof win.setTimeout !== "function") return;
+        // Instant MutationObserver recovery on composer container (catches BOTH in-place Lexical clears AND full DOM remounts!)
+        const obsRoot = targetContainer || targetEditable;
+        if (hasText && obsRoot && typeof win.MutationObserver === "function") {
+          try {
+            if (draftStickinessObserver) draftStickinessObserver.disconnect();
+            draftStickinessObserver = new win.MutationObserver(() => {
+              if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey || state.userEditedComposerInChat) {
+                if (draftStickinessObserver) {
+                  try { draftStickinessObserver.disconnect(); } catch (_e) {}
+                  draftStickinessObserver = null;
+                }
+                return;
+              }
+              const curFound = typeof rv5FindNativeComposer === "function" ? rv5FindNativeComposer(doc) : { editable: targetEditable };
+              const edNow = (curFound && curFound.editable) || targetEditable;
+              const txtNow = edNow && typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(edNow) : "";
+              if (txtNow.length === 0) runStickinessRecovery();
+            });
+            draftStickinessObserver.observe(obsRoot, { childList: true, subtree: true, characterData: true });
+            const stopObsTid = win.setTimeout(() => {
+              if (draftStickinessObserver) {
+                try { draftStickinessObserver.disconnect(); } catch (_e) {}
+                draftStickinessObserver = null;
+              }
+            }, 1500);
+            draftRestoreVerifyTimers.push(stopObsTid);
+          } catch (_e) {}
+        }
+        const delays = [50, 150, 380, 900];
+        for (let di = 0; di < delays.length; di += 1) {
+          const tid = win.setTimeout(runStickinessRecovery, delays[di]);
+          draftRestoreVerifyTimers.push(tid);
+        }
+      };
+
       const tryApply = async () => {
-        if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey) return;
+        if (state.destroyed || seq !== draftRestoreSeq || state.activeChatKey !== chatKey) {
+          releaseIfCurrent();
+          return;
+        }
         const found = typeof rv5FindNativeComposer === "function" ? rv5FindNativeComposer(doc) : { container: null, editable: null };
         if (!found || !found.editable) {
           attempts += 1;
-          if (attempts < 20 && win && typeof win.setTimeout === "function") {
-            draftRestoreTimer = win.setTimeout(tryApply, 120);
+          // Cold Antigravity restarts can take 3-8s before React mounts the Lexical composer — poll fast (35ms)!
+          if (attempts < 240 && win && typeof win.setTimeout === "function") {
+            draftRestoreTimer = win.setTimeout(tryApply, 35);
+          } else {
+            releaseIfCurrent();
           }
           return;
         }
         const existingTxt = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(found.editable) : "";
         const existingAtt = hasComposerAttachments(found.container, found.editable);
-        if (existingTxt.length > 0 || existingAtt) return;
+        if ((existingTxt.length > 0 && !earlyInjectedText) || (!hasText && existingAtt)) {
+          lastKnownComposerSnapByChat.set(chatKey, collectComposerSnapshotSync(found.container, found.editable));
+          releaseIfCurrent();
+          return;
+        }
 
-        isRestoringDraft = true;
         try {
-          if (hasAtts) {
-            insertAttachmentsIntoNativeComposer(draft.attachments, found.container, found.editable);
-          }
-          if (hasText) {
+          // Inject TEXT FIRST (instant!) so binary attachments never delay text visibility!
+          if (hasText && existingTxt.length === 0) {
             await insertTextIntoNativeComposerRich(found.editable, draft.text);
           }
+          if (hasAtts && !existingAtt) {
+            await insertAttachmentsIntoNativeComposer(draft.attachments, found.container, found.editable);
+          }
           lastSavedDraftByChat.set(chatKey, draft);
+          lastKnownComposerSnapByChat.set(chatKey, {
+            text: draft.text || "",
+            items: Array.isArray(draft.attachments)
+              ? draft.attachments.map((a) => ({
+                  name: a.name,
+                  mime: a.mime,
+                  isImage: Boolean(a.isImage),
+                  fileName: a.fileName || "",
+                  dataUrl: a.dataUrl || "",
+                }))
+              : [],
+            cleared: false,
+          });
+          scheduleStickinessCheck(found.container, found.editable);
         } finally {
-          const release = () => {
-            isRestoringDraft = false;
-            lastDraftObsSig = "";
-          };
-          if (win && typeof win.setTimeout === "function") win.setTimeout(release, 450);
-          else release();
+          if (win && typeof win.setTimeout === "function") win.setTimeout(releaseIfCurrent, hasAtts ? 600 : 360);
+          else releaseIfCurrent();
         }
       };
 
-      if (win && typeof win.setTimeout === "function") {
-        draftRestoreTimer = win.setTimeout(tryApply, 90);
-      } else {
-        tryApply();
-      }
+      // Run IMMEDIATELY (0ms delay!) instead of waiting 160ms
+      tryApply();
+    }).catch(() => {
+      releaseIfCurrent();
     });
   }
 
@@ -9225,8 +10885,13 @@ function createStudioPanel(options) {
       win.clearTimeout(draftSaveTimer);
       draftSaveTimer = null;
     }
+    if (draftFollowupTimer && win && typeof win.clearTimeout === "function") {
+      win.clearTimeout(draftFollowupTimer);
+      draftFollowupTimer = null;
+    }
     lastSavedDraftByChat.delete(chatKey);
     lastKnownComposerSnapByChat.delete(chatKey);
+    draftTextCacheByChat.delete(chatKey);
     draftDataUrlToFileName.clear();
     invokeIpc("agy-studio:clear-composer-draft", { chatKey });
 
@@ -9246,7 +10911,7 @@ function createStudioPanel(options) {
         if (isAgentRunningNow()) return true;
         return false;
       };
-      const isNormalCancelled = () => submitToken !== normalSubmitClearToken || userTypedAfterNormalSubmit;
+      const isNormalCancelled = () => submitToken !== normalSubmitClearToken || userTypedAfterNormalSubmit || (!wasVoiceActive && isVoiceDictationActive());
       const runConfirmedSweep = (passIdx) => {
         if (state.destroyed || isNormalCancelled()) return;
         if (!isSubmitConfirmed()) return;
@@ -9315,7 +10980,18 @@ function createStudioPanel(options) {
   let pickerMoveRafId = 0;
   let pickerPendingEl = null;
   let pickerPointerDownHandler = null;
+  let pickerPointerUpHandler = null;
+  let pickerMarqueeState = null;
+  let suppressNextPickerClickUntil = 0;
   let inspectorDragUndoCaptured = false;
+  let inspectorDragMoveState = null;
+  let inspectorDragMoveDownHandler = null;
+  let inspectorDragMoveMoveHandler = null;
+  let inspectorDragMoveUpHandler = null;
+  let inspectorDragMoveKeyHandler = null;
+
+  let pickerHoverEl = null;
+  let pickerHoverChildStack = [];
 
   function isIgnoredPickerTarget(el) {
     if (!el || el.nodeType !== 1) return true;
@@ -9330,6 +11006,381 @@ function createStudioPanel(options) {
     return false;
   }
 
+  function resolvePickerTargetAtPoint(ev) {
+    if (!ev) return null;
+    const cx = typeof ev.clientX === "number" && Number.isFinite(ev.clientX) ? ev.clientX : null;
+    const cy = typeof ev.clientY === "number" && Number.isFinite(ev.clientY) ? ev.clientY : null;
+    const SKIP_SVG_PARTS = new Set(["PATH", "CIRCLE", "RECT", "LINE", "POLYLINE", "POLYGON", "ELLIPSE", "G", "USE", "DEFS", "CLIPPATH", "MASK"]);
+    const normalizePickedNode = (node) => {
+      if (!node) return null;
+      let cur = node.nodeType === 3 ? node.parentElement : node;
+      while (cur && cur.nodeType === 1 && SKIP_SVG_PARTS.has(String(cur.tagName || "").toUpperCase())) {
+        cur = cur.parentElement;
+      }
+      if (!cur || cur.nodeType !== 1 || isIgnoredPickerTarget(cur)) return null;
+      return cur;
+    };
+
+    const stackCands = [];
+    const stackSet = new Set();
+    const pushStack = (el) => {
+      const norm = normalizePickedNode(el);
+      if (!norm || stackSet.has(norm)) return;
+      stackSet.add(norm);
+      stackCands.push(norm);
+    };
+    pushStack(ev.target);
+    if (cx !== null && cy !== null && doc && typeof doc.elementsFromPoint === "function") {
+      try {
+        const stack = doc.elementsFromPoint(cx, cy) || [];
+        for (let i = 0; i < stack.length && stackCands.length < 18; i += 1) {
+          pushStack(stack[i]);
+        }
+      } catch (_e) {}
+    }
+    const raw = stackCands[0] || null;
+    if (!raw) return null;
+    if (cx === null || cy === null || typeof raw.getBoundingClientRect !== "function") return raw;
+
+    const getDepth = (el) => {
+      let d = 0;
+      let p = el && el.parentElement;
+      while (p && p !== doc.body && d < 64) { d += 1; p = p.parentElement; }
+      return d;
+    };
+    const isVisiblePickerNode = (el) => {
+      if (!win || typeof win.getComputedStyle !== "function") return true;
+      try {
+        const cs = win.getComputedStyle(el);
+        if (cs && (cs.display === "none" || cs.visibility === "hidden")) return false;
+      } catch (_e) {}
+      return true;
+    };
+    const isInteractiveHint = (el) => {
+      const t = String(el.tagName || "").toUpperCase();
+      if (t === "BUTTON" || t === "A" || t === "INPUT" || t === "SELECT" || t === "TEXTAREA" || t === "SVG") return true;
+      const role = typeof el.getAttribute === "function" ? (el.getAttribute("role") || "") : "";
+      return role === "button" || role === "tab" || role === "switch" || role === "listitem" || role === "menuitem" || role === "option";
+    };
+
+    const rawRect = raw.getBoundingClientRect();
+    const rawArea = Math.max(1, (rawRect.width || 0) * (rawRect.height || 0));
+
+    // Seed search with ALL elementsFromPoint candidates + immediate parent of raw (catches pointer-events:none siblings & small buttons/dots under wrappers!)
+    const seen = new Set();
+    const queue = [];
+    const enqueue = (el) => {
+      if (!el || el.nodeType !== 1 || seen.has(el) || isIgnoredPickerTarget(el)) return;
+      seen.add(el);
+      queue.push(el);
+    };
+    for (let si = 0; si < stackCands.length; si += 1) {
+      enqueue(stackCands[si]);
+    }
+    if (raw.parentElement && raw.parentElement !== doc.body && raw.parentElement !== doc.documentElement) {
+      const pChs = raw.parentElement.children;
+      for (let ci = 0; pChs && ci < pChs.length && ci < 48; ci += 1) enqueue(pChs[ci]);
+    }
+
+    let bestStrict = null;
+    let bestStrictScore = Infinity;
+    let bestStrictDepth = -1;
+    let bestFuzzy = null;
+    let bestFuzzyScore = Infinity;
+
+    let scanned = 0;
+    while (queue.length > 0 && scanned < 420) {
+      const cand = queue.shift();
+      scanned += 1;
+      const tag = String(cand.tagName || "").toUpperCase();
+      if (SKIP_SVG_PARTS.has(tag)) continue;
+      if (typeof cand.getBoundingClientRect !== "function") continue;
+      const r = cand.getBoundingClientRect();
+      if (!r || r.width < 4 || r.height < 4) continue;
+      if (!isVisiblePickerNode(cand)) continue;
+
+      const strictHit = cx >= r.left - 0.5 && cx <= r.right + 0.5 && cy >= r.top - 0.5 && cy <= r.bottom + 0.5;
+      const isUltraThin = r.width <= 16 || r.height <= 16;
+      const fuzzyPad = isUltraThin ? 4 : 1.5;
+      const fuzzyHit = strictHit || (cx >= r.left - fuzzyPad && cx <= r.right + fuzzyPad && cy >= r.top - fuzzyPad && cy <= r.bottom + fuzzyPad);
+
+      // Pruned descent: descend into children ONLY if cursor is inside/near this container (or container has zero-clipped overflow)
+      if (cand.children && cand.children.length > 0 && tag !== "SVG") {
+        const nearBox = cx >= r.left - 18 && cx <= r.right + 18 && cy >= r.top - 18 && cy <= r.bottom + 18;
+        if (nearBox) {
+          for (let j = 0; j < cand.children.length && queue.length < 480; j += 1) {
+            enqueue(cand.children[j]);
+          }
+        }
+      }
+
+      if (!fuzzyHit) continue;
+      const area = Math.max(1, r.width * r.height);
+      const depth = getDepth(cand);
+      const isSlimRail = (r.width <= 64 && r.height >= 48) || (r.height <= 44 && r.width >= 96);
+      const isInsideRaw = raw === cand || (typeof raw.contains === "function" && raw.contains(cand));
+      if (!isInsideRaw && !stackSet.has(cand) && area > rawArea * 0.9 && !isSlimRail) continue;
+
+      // Prefer exact compact targets (dots, buttons, icons, tight wrappers) over huge containers
+      const interFactor = isInteractiveHint(cand) && area <= 60000 ? 0.86 : 1.0;
+      const railFactor = isSlimRail && area < rawArea * 0.35 ? 0.72 : 1.0;
+      const score = area * interFactor * railFactor;
+
+      if (strictHit) {
+        if (score < bestStrictScore * 0.98 || (Math.abs(score - bestStrictScore) <= bestStrictScore * 0.02 && depth > bestStrictDepth)) {
+          bestStrict = cand;
+          bestStrictScore = score;
+          bestStrictDepth = depth;
+        }
+      } else if (score < bestFuzzyScore) {
+        bestFuzzy = cand;
+        bestFuzzyScore = score;
+      }
+    }
+    return bestStrict || bestFuzzy || raw;
+  }
+
+  function splitTopLevelCssSelectors(rawSelector) {
+    const s = String(rawSelector || "").trim();
+    if (!s) return [];
+    const out = [];
+    let cur = "";
+    let paren = 0;
+    let bracket = 0;
+    let quote = "";
+    for (let i = 0; i < s.length; i += 1) {
+      const ch = s[i];
+      if (quote) {
+        cur += ch;
+        if (ch === "\\" && i + 1 < s.length) {
+          i += 1;
+          cur += s[i];
+        } else if (ch === quote) {
+          quote = "";
+        }
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+        cur += ch;
+      } else if (ch === "(") {
+        paren += 1;
+        cur += ch;
+      } else if (ch === ")") {
+        paren = Math.max(0, paren - 1);
+        cur += ch;
+      } else if (ch === "[") {
+        bracket += 1;
+        cur += ch;
+      } else if (ch === "]") {
+        bracket = Math.max(0, bracket - 1);
+        cur += ch;
+      } else if (ch === "," && paren === 0 && bracket === 0) {
+        const part = cur.trim();
+        if (part) out.push(part);
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    const tail = cur.trim();
+    if (tail) out.push(tail);
+    return out;
+  }
+
+  function querySelectedElements(selector) {
+    const out = [];
+    if (!selector || !doc || typeof doc.querySelectorAll !== "function") return out;
+    const seen = new Set();
+    const branches = splitTopLevelCssSelectors(selector);
+    const listToQuery = branches.length > 0 ? branches : [selector];
+    for (let bi = 0; bi < listToQuery.length; bi += 1) {
+      try {
+        const matches = doc.querySelectorAll(listToQuery[bi]);
+        for (let mi = 0; matches && mi < matches.length; mi += 1) {
+          const el = matches[mi];
+          if (!el || seen.has(el) || isIgnoredPickerTarget(el)) continue;
+          seen.add(el);
+          out.push(el);
+        }
+      } catch (_e) {}
+    }
+    return out;
+  }
+
+  function collectElementsInMarqueeRect(box) {
+    if (!box || !doc || !doc.body) return [];
+    const bLeft = Number(box.left) || 0;
+    const bTop = Number(box.top) || 0;
+    const bRight = Number(box.right !== undefined ? box.right : bLeft + (Number(box.width) || 0));
+    const bBottom = Number(box.bottom !== undefined ? box.bottom : bTop + (Number(box.height) || 0));
+    const bw = bRight - bLeft;
+    const bh = bBottom - bTop;
+    if (bw < 8 || bh < 8) return [];
+
+    const vpW = (win && Number(win.innerWidth)) || 1440;
+    const vpH = (win && Number(win.innerHeight)) || 900;
+    const vpArea = Math.max(1, vpW * vpH);
+    const SKIP_TAGS = new Set([
+      "SCRIPT", "STYLE", "LINK", "META", "NOSCRIPT", "BR", "HR", "HEAD", "TITLE",
+      "PATH", "CIRCLE", "RECT", "LINE", "POLYLINE", "POLYGON", "ELLIPSE", "G", "USE", "DEFS", "CLIPPATH", "MASK",
+    ]);
+    const SEMANTIC_TAGS = new Set(["ASIDE", "HEADER", "MAIN", "SECTION", "NAV", "FOOTER", "ARTICLE", "BUTTON", "A", "INPUT", "TEXTAREA", "SELECT", "FORM"]);
+    const isRu = state.locale !== "en";
+
+    const isVisibleEl = (el) => {
+      if (!win || typeof win.getComputedStyle !== "function") return true;
+      try {
+        const cs = win.getComputedStyle(el);
+        if (!cs) return true;
+        if (cs.display === "none" || cs.visibility === "hidden") return false;
+        const op = parseFloat(cs.opacity);
+        if (Number.isFinite(op) && op <= 0.01) return false;
+      } catch (_e) {}
+      return true;
+    };
+
+    const hasOwnVisualOrSemantic = (el) => {
+      const tag = String(el.tagName || "").toUpperCase();
+      if (SEMANTIC_TAGS.has(tag)) return true;
+      if (typeof el.getAttribute === "function") {
+        if (
+          el.getAttribute("data-testid") ||
+          el.getAttribute("role") ||
+          el.getAttribute("aria-label") ||
+          el.getAttribute("data-rudex-bg-sidebar") ||
+          el.getAttribute("data-rudex-bg-header") ||
+          el.getAttribute("data-rudex-theme-composer")
+        ) {
+          return true;
+        }
+      }
+      if (win && typeof win.getComputedStyle === "function") {
+        try {
+          const cs = win.getComputedStyle(el);
+          if (cs) {
+            const bg = parseCssColorToHex(cs.backgroundColor, "");
+            if (bg && bg.alphaPct > 2) return true;
+            const bTopW = parseFloat(cs.borderTopWidth) || 0;
+            const bLeftW = parseFloat(cs.borderLeftWidth) || 0;
+            if (bTopW >= 0.5 || bLeftW >= 0.5) return true;
+            if (cs.boxShadow && cs.boxShadow !== "none") return true;
+          }
+        } catch (_e) {}
+      }
+      return false;
+    };
+
+    const allNodes = [];
+    const queue = [];
+    if (doc.body.children) {
+      for (let i = 0; i < doc.body.children.length; i += 1) queue.push(doc.body.children[i]);
+    }
+    let scanned = 0;
+    while (queue.length > 0 && scanned < 1400) {
+      const el = queue.shift();
+      scanned += 1;
+      if (!el || el.nodeType !== 1 || isIgnoredPickerTarget(el)) continue;
+      const tag = String(el.tagName || "").toUpperCase();
+      if (SKIP_TAGS.has(tag)) continue;
+      if (typeof el.getBoundingClientRect !== "function") continue;
+      const r = el.getBoundingClientRect();
+      if (!r || r.width < 10 || r.height < 10) continue;
+      const ixL = Math.max(bLeft, r.left);
+      const ixT = Math.max(bTop, r.top);
+      const ixR = Math.min(bRight, r.right);
+      const ixB = Math.min(bBottom, r.bottom);
+      const ixW = ixR - ixL;
+      const ixH = ixB - ixT;
+      if (ixW <= 0 || ixH <= 0) continue;
+      if (!isVisibleEl(el)) continue;
+
+      if (el.children && el.children.length > 0 && tag !== "SVG") {
+        for (let ci = 0; ci < el.children.length && queue.length < 1800; ci += 1) {
+          queue.push(el.children[ci]);
+        }
+      }
+      const area = Math.max(1, r.width * r.height);
+      if (area >= vpArea * 0.88) continue;
+      const ixArea = ixW * ixH;
+      const elCoverage = ixArea / area;
+      const envelopsBox = r.left <= bLeft + 2 && r.right >= bRight - 2 && r.top <= bTop + 2 && r.bottom >= bBottom - 2;
+      allNodes.push({ el, rect: r, area, ixW, ixH, ixArea, elCoverage, envelopsBox });
+    }
+
+    const isAncestorOf = (anc, desc) => {
+      if (!anc || !desc || anc === desc) return false;
+      if (typeof anc.contains === "function") return anc.contains(desc);
+      let p = desc.parentElement;
+      while (p) {
+        if (p === anc) return true;
+        p = p.parentElement;
+      }
+      return false;
+    };
+
+    const unwrapAndPrune = (pool) => {
+      // Unwrap transparent non-semantic layout containers that wrap >=2 distinct candidates in pool
+      const unwrapped = pool.filter((item) => {
+        if (hasOwnVisualOrSemantic(item.el)) return true;
+        let childHits = 0;
+        for (let j = 0; j < pool.length; j += 1) {
+          if (pool[j] !== item && isAncestorOf(item.el, pool[j].el)) {
+            childHits += 1;
+            if (childHits >= 1) return false;
+          }
+        }
+        return true;
+      });
+      // Keep topmost candidates (drop descendants of an already selected candidate)
+      const kept = [];
+      for (let i = 0; i < unwrapped.length; i += 1) {
+        const cur = unwrapped[i];
+        let coveredByAnc = false;
+        for (let j = 0; j < unwrapped.length; j += 1) {
+          if (i !== j && isAncestorOf(unwrapped[j].el, cur.el)) {
+            coveredByAnc = true;
+            break;
+          }
+        }
+        if (!coveredByAnc) kept.push(cur);
+      }
+      return kept;
+    };
+
+    // Pass 1: Elements mostly contained (>= 55%) inside the marquee rectangle
+    const containedPool = allNodes.filter((n) => n.elCoverage >= 0.55 && !n.envelopsBox);
+    let chosen = unwrapAndPrune(containedPool);
+
+    // Pass 2: Crossing fallback — e.g. dragging across 2 tall full-height windows / panels
+    if (chosen.length < 2) {
+      const crossingPool = allNodes.filter((n) => !n.envelopsBox && n.ixW >= 12 && n.ixH >= 12 && (n.rect.width >= 24 && n.rect.height >= 24));
+      const crossingChosen = unwrapAndPrune(crossingPool);
+      if (crossingChosen.length > chosen.length) {
+        chosen = crossingChosen;
+      }
+    }
+
+    // Sort top-to-bottom, left-to-right for predictable chip numbering
+    chosen.sort((a, b) => {
+      if (Math.abs(a.rect.top - b.rect.top) > 18) return a.rect.top - b.rect.top;
+      return a.rect.left - b.rect.left;
+    });
+
+    const targets = [];
+    const seenSel = new Set();
+    for (let i = 0; i < chosen.length && targets.length < 12; i += 1) {
+      const el = chosen[i].el;
+      const sel = typeof rv5BuildSmartSelector === "function" ? rv5BuildSmartSelector(el, "exact", doc) : "";
+      if (!sel || seenSel.has(sel)) continue;
+      seenSel.add(sel);
+      const origTxt = translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(el) : "";
+      const name = typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(el, isRu, origTxt) : sel;
+      targets.push({ el, selector: sel, name });
+    }
+    return targets;
+  }
+
   function updatePickerHighlightFast() {
     if (!pickerMountEl) return;
     const hl = typeof pickerMountEl.querySelector === "function" ? pickerMountEl.querySelector('[data-role="pickerHighlight"]') : null;
@@ -9338,7 +11389,7 @@ function createStudioPanel(options) {
       return;
     }
     const r = state.pickerHoverRect;
-    if (!r) {
+    if (!r || state.pickerMarqueeRect) {
       hl.style.display = "none";
       return;
     }
@@ -9352,19 +11403,64 @@ function createStudioPanel(options) {
     if (tag) tag.textContent = state.pickerHoverLabel || "";
   }
 
+  function updateInspectorMatchBoxesFast() {
+    if (!pickerMountEl || !state.pickerSelected || state.pickerActive) return;
+    const layer = typeof pickerMountEl.querySelector === "function" ? pickerMountEl.querySelector('[data-role="inspectorMatchLayer"]') : null;
+    if (!layer) return;
+    const matched = querySelectedElements(state.pickerSelected.selector);
+    const boxes = [];
+    for (let i = 0; i < matched.length && boxes.length < 16; i += 1) {
+      const el = matched[i];
+      if (!el || typeof el.getBoundingClientRect !== "function") continue;
+      const r = el.getBoundingClientRect();
+      if (!r || r.width < 2 || r.height < 2) continue;
+      const badge = matched.length > 1 ? `<span class="rx-picker-match-num">${i + 1}</span>` : "";
+      boxes.push(`<div class="rx-picker-match-box" style="left:${Math.round(r.left)}px;top:${Math.round(r.top)}px;width:${Math.round(r.width)}px;height:${Math.round(r.height)}px">${badge}</div>`);
+    }
+    layer.innerHTML = boxes.join("");
+  }
+
   function renderPickerMount() {
     if (!pickerMountEl) return;
     const isRu = state.locale !== "en";
     const parts = [];
     if (state.pickerActive) {
+      const mode = state.pickerMode || "single";
+      const multiCount = Array.isArray(state.pickerMultiItems) ? state.pickerMultiItems.length : 0;
+      const hintText = mode === "region"
+        ? (isRu ? "Область: протяните рамку по окнам (или клик — 1 эл.)" : "Region: drag a box over windows (or click 1 el)")
+        : (mode === "multi"
+          ? (isRu ? "Группа: кликайте по элементам или рамкой → «Настроить»" : "Group: click elements or drag box → Edit")
+          : (isRu ? "Клик — 1 эл. · Протяжка — область · Ctrl+клик — группа" : "Click — 1 el · Drag — region · Ctrl+click — group"));
       parts.push(`
         <div class="rx-picker-banner">
-          ${iconSvg("crosshair", 13)}<span>${isRu ? "Прицел активен — кликните по любому элементу Antigravity (Esc — выход)" : "Picker active — click any Antigravity element (Esc to exit)"}</span>
-          <button type="button" class="btn btn-sm" data-action="stop-element-picker">${isRu ? "Готово" : "Done"}</button>
+          ${iconSvg("crosshair", 13)}
+          <div class="rx-picker-mode-pills">
+            <button type="button" class="rx-picker-mode-btn${mode === "single" ? " is-active" : ""}" data-action="picker-set-mode" data-val="single">${isRu ? "1 элемент" : "Single"}</button>
+            <button type="button" class="rx-picker-mode-btn${mode === "region" ? " is-active" : ""}" data-action="picker-set-mode" data-val="region">${isRu ? "Область" : "Region"}</button>
+            <button type="button" class="rx-picker-mode-btn${mode === "multi" ? " is-active" : ""}" data-action="picker-set-mode" data-val="multi">${isRu ? "Группа (+)" : "Group (+)"}</button>
+          </div>
+          <span>${escHtml(hintText)}</span>
+          ${multiCount > 0 ? `<button type="button" class="btn btn-sm btn-primary" data-action="picker-commit-multi">${isRu ? `Настроить (${multiCount})` : `Edit (${multiCount})`}</button>` : ""}
+          <button type="button" class="btn btn-sm" data-action="stop-element-picker">${isRu ? "Выход" : "Exit"}</button>
         </div>
       `);
+      const mq = state.pickerMarqueeRect;
+      if (mq && mq.width >= 4 && mq.height >= 4) {
+        parts.push(`<div class="rx-picker-marquee" data-role="pickerMarquee" style="left:${Math.round(mq.left)}px;top:${Math.round(mq.top)}px;width:${Math.round(mq.width)}px;height:${Math.round(mq.height)}px"></div>`);
+      }
+      if (multiCount > 0) {
+        for (let mi = 0; mi < state.pickerMultiItems.length && mi < 16; mi += 1) {
+          const item = state.pickerMultiItems[mi];
+          const el = (item && item.el && item.el.nodeType === 1) ? item.el : (item && item.selector ? querySelectedElements(item.selector)[0] : null);
+          if (!el || typeof el.getBoundingClientRect !== "function") continue;
+          const mr = el.getBoundingClientRect();
+          if (!mr || mr.width < 2 || mr.height < 2) continue;
+          parts.push(`<div class="rx-picker-match-box" style="left:${Math.round(mr.left)}px;top:${Math.round(mr.top)}px;width:${Math.round(mr.width)}px;height:${Math.round(mr.height)}px"><span class="rx-picker-match-num">${mi + 1}</span></div>`);
+        }
+      }
       const r = state.pickerHoverRect;
-      const styleStr = r
+      const styleStr = (r && !mq)
         ? `left:${Math.round(r.left)}px;top:${Math.round(r.top)}px;width:${Math.round(r.width)}px;height:${Math.round(r.height)}px`
         : "display:none";
       const belowCls = r && r.top < 28 ? " is-tag-below" : "";
@@ -9375,18 +11471,36 @@ function createStudioPanel(options) {
       `);
     }
     if (state.pickerSelected && typeof rv5BuildElementInspectorHtml === "function") {
+      if (!state.pickerActive) {
+        const matched = querySelectedElements(state.pickerSelected.selector);
+        const matchHtml = [];
+        for (let i = 0; i < matched.length && matchHtml.length < 16; i += 1) {
+          const mel = matched[i];
+          if (!mel || typeof mel.getBoundingClientRect !== "function") continue;
+          const mr = mel.getBoundingClientRect();
+          if (!mr || mr.width < 2 || mr.height < 2) continue;
+          const num = matched.length > 1 ? `<span class="rx-picker-match-num">${i + 1}</span>` : "";
+          matchHtml.push(`<div class="rx-picker-match-box" style="left:${Math.round(mr.left)}px;top:${Math.round(mr.top)}px;width:${Math.round(mr.width)}px;height:${Math.round(mr.height)}px">${num}</div>`);
+        }
+        parts.push(`<div data-role="inspectorMatchLayer">${matchHtml.join("")}</div>`);
+      }
       parts.push(rv5BuildElementInspectorHtml(
         state.pickerSelected,
         state.appearanceDraft,
         state.settings.customLabels || [],
         state.systemFonts,
-        isRu
+        isRu,
+        {
+          drawerOpen: Boolean(state.isOpen && state.activeTab === "appearance" && state.appearanceDockedRight),
+          nudgeStep: state.pickerNudgeStep || 4,
+          dragMoveActive: Boolean(state.inspectorDragMoveActive),
+        }
       ));
     }
     pickerMountEl.innerHTML = parts.join("");
   }
 
-  function setPickerCursorStyle(active) {
+  function setPickerCursorStyle(active, cursorKind) {
     if (!doc) return;
     const id = "rudex-picker-cursor-style";
     try {
@@ -9395,30 +11509,129 @@ function createStudioPanel(options) {
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
         return;
       }
-      if (!existing && doc.head && typeof doc.createElement === "function") {
+      const cur = cursorKind === "move" ? "move" : "crosshair";
+      const css = `body *:not(#rudex-studio-host):not(#rudex-studio-host *) { cursor: ${cur} !important; user-select: none !important; }`;
+      if (existing) {
+        existing.textContent = css;
+        return;
+      }
+      if (doc.head && typeof doc.createElement === "function") {
         const st = doc.createElement("style");
         st.id = id;
         st.setAttribute("data-rudex-ignore", "1");
-        st.textContent = "body *:not(#rudex-studio-host):not(#rudex-studio-host *) { cursor: crosshair !important; }";
+        st.textContent = css;
         doc.head.appendChild(st);
       }
     } catch (_e) {}
+  }
+
+  function stopInspectorDragMove(skipRender) {
+    const wasActive = Boolean(state.inspectorDragMoveActive);
+    state.inspectorDragMoveActive = false;
+    inspectorDragMoveState = null;
+    inspectorDragUndoCaptured = false;
+    if (doc && typeof doc.removeEventListener === "function") {
+      if (inspectorDragMoveDownHandler) { doc.removeEventListener("pointerdown", inspectorDragMoveDownHandler, true); inspectorDragMoveDownHandler = null; }
+      if (inspectorDragMoveMoveHandler) { doc.removeEventListener("mousemove", inspectorDragMoveMoveHandler, true); inspectorDragMoveMoveHandler = null; }
+      if (inspectorDragMoveUpHandler) { doc.removeEventListener("pointerup", inspectorDragMoveUpHandler, true); inspectorDragMoveUpHandler = null; }
+      if (inspectorDragMoveKeyHandler) { doc.removeEventListener("keydown", inspectorDragMoveKeyHandler, true); inspectorDragMoveKeyHandler = null; }
+    }
+    if (!state.pickerActive) setPickerCursorStyle(false);
+    if (wasActive && !skipRender) renderPickerMount();
+  }
+
+  function startInspectorDragMove() {
+    if (!state.pickerSelected) return;
+    if (state.inspectorDragMoveActive) {
+      stopInspectorDragMove();
+      return;
+    }
+    if (state.pickerActive) stopElementPicker();
+    state.inspectorDragMoveActive = true;
+    setPickerCursorStyle(true, "move");
+    inspectorDragMoveDownHandler = (e) => {
+      if (!state.inspectorDragMoveActive || !state.pickerSelected || !e) return;
+      if (e.target && isIgnoredPickerTarget(e.target)) return;
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
+      const sel = state.pickerSelected;
+      const ov = (state.appearanceDraft.elementOverrides || []).find((o) => o.id === sel.overrideId || o.selector === sel.selector);
+      const st = ov && ov.styles ? ov.styles : {};
+      const baseX = Number.isFinite(Number(st.offsetX)) ? Math.round(Number(st.offsetX)) : 0;
+      const baseY = Number.isFinite(Number(st.offsetY)) ? Math.round(Number(st.offsetY)) : 0;
+      inspectorDragMoveState = {
+        startX: Number(e.clientX) || 0,
+        startY: Number(e.clientY) || 0,
+        baseX,
+        baseY,
+      };
+    };
+    inspectorDragMoveMoveHandler = (e) => {
+      if (!state.inspectorDragMoveActive || !inspectorDragMoveState || !state.pickerSelected || !e) return;
+      const dx = Math.round((Number(e.clientX) || 0) - inspectorDragMoveState.startX);
+      const dy = Math.round((Number(e.clientY) || 0) - inspectorDragMoveState.startY);
+      const nextX = Math.max(-800, Math.min(800, inspectorDragMoveState.baseX + dx));
+      const nextY = Math.max(-800, Math.min(800, inspectorDragMoveState.baseY + dy));
+      upsertSelectedElementStyle("offsetX", nextX, { preserveDom: true, liveOnly: true, skipUndo: true });
+      upsertSelectedElementStyle("offsetY", nextY, { preserveDom: true, liveOnly: true, skipUndo: true });
+      if (pickerMountEl && typeof pickerMountEl.querySelector === "function") {
+        const rx = pickerMountEl.querySelector('[data-insp-range="offsetX"]');
+        const nx = pickerMountEl.querySelector('[data-insp-num="offsetX"]');
+        const ry = pickerMountEl.querySelector('[data-insp-range="offsetY"]');
+        const ny = pickerMountEl.querySelector('[data-insp-num="offsetY"]');
+        if (rx) rx.value = String(nextX);
+        if (nx) nx.value = String(nextX);
+        if (ry) ry.value = String(nextY);
+        if (ny) ny.value = String(nextY);
+      }
+    };
+    inspectorDragMoveUpHandler = () => {
+      if (!inspectorDragMoveState) return;
+      inspectorDragMoveState = null;
+      inspectorDragUndoCaptured = false;
+      applyThemeToHost(state.appearanceDraft);
+      flushInspectorPersist();
+      updateInspectorMatchBoxesFast();
+    };
+    inspectorDragMoveKeyHandler = (e) => {
+      if (!state.inspectorDragMoveActive || !e) return;
+      if (e.key === "Escape") {
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        if (typeof e.stopPropagation === "function") e.stopPropagation();
+        stopInspectorDragMove();
+      }
+    };
+    if (doc && typeof doc.addEventListener === "function") {
+      doc.addEventListener("pointerdown", inspectorDragMoveDownHandler, true);
+      doc.addEventListener("mousemove", inspectorDragMoveMoveHandler, true);
+      doc.addEventListener("pointerup", inspectorDragMoveUpHandler, true);
+      doc.addEventListener("keydown", inspectorDragMoveKeyHandler, true);
+    }
+    renderPickerMount();
   }
 
   function stopElementPicker() {
     state.pickerActive = false;
     state.pickerHoverRect = null;
     state.pickerHoverLabel = "";
+    state.pickerMarqueeRect = null;
+    state.pickerMultiItems = [];
+    pickerMarqueeState = null;
     pickerPendingEl = null;
+    pickerHoverEl = null;
+    pickerHoverChildStack = [];
     if (pickerMoveRafId && win && typeof win.cancelAnimationFrame === "function") {
       try { win.cancelAnimationFrame(pickerMoveRafId); } catch (_e) {}
       pickerMoveRafId = 0;
     }
-    setPickerCursorStyle(false);
+    if (!state.inspectorDragMoveActive) setPickerCursorStyle(false);
     if (doc && typeof doc.removeEventListener === "function") {
       if (pickerMoveHandler) { doc.removeEventListener("mousemove", pickerMoveHandler, true); pickerMoveHandler = null; }
       if (pickerPointerDownHandler) { doc.removeEventListener("pointerdown", pickerPointerDownHandler, true); pickerPointerDownHandler = null; }
+      if (pickerPointerUpHandler) { doc.removeEventListener("pointerup", pickerPointerUpHandler, true); pickerPointerUpHandler = null; }
       if (pickerClickHandler) { doc.removeEventListener("click", pickerClickHandler, true); pickerClickHandler = null; }
+      if (pickerKeyHandler) { doc.removeEventListener("keydown", pickerKeyHandler, true); pickerKeyHandler = null; }
+      if (pickerWheelHandler) { doc.removeEventListener("wheel", pickerWheelHandler, true); pickerWheelHandler = null; }
     }
     if (!state.isOpen && !state.pickerSelected) {
       state.appearanceLivePreview = false;
@@ -9427,9 +11640,59 @@ function createStudioPanel(options) {
     if (state.isOpen) renderStructure();
   }
 
+  let cssColorProbeCtx = null;
+  function getCssColorProbeCtx() {
+    if (cssColorProbeCtx !== null) return cssColorProbeCtx || null;
+    try {
+      if (doc && typeof doc.createElement === "function") {
+        const cv = doc.createElement("canvas");
+        if (cv && typeof cv.getContext === "function") {
+          cv.width = 1;
+          cv.height = 1;
+          const ctx = cv.getContext("2d", { willReadFrequently: true });
+          if (ctx) {
+            cssColorProbeCtx = ctx;
+            return ctx;
+          }
+        }
+      }
+    } catch (_e) {}
+    cssColorProbeCtx = false;
+    return null;
+  }
+
+  function parseUserHexInput(raw) {
+    const clean = String(raw || "").trim().replace(/^#/, "");
+    if (/^[0-9a-f]{3}$/i.test(clean)) {
+      const hex = "#" + clean.split("").map((ch) => ch + ch).join("").toLowerCase();
+      return { hex, alphaPct: null };
+    }
+    if (/^[0-9a-f]{6}$/i.test(clean)) {
+      return { hex: "#" + clean.toLowerCase(), alphaPct: null };
+    }
+    if (/^[0-9a-f]{8}$/i.test(clean)) {
+      const hex = "#" + clean.slice(0, 6).toLowerCase();
+      const alphaPct = Math.round((parseInt(clean.slice(6, 8), 16) / 255) * 100);
+      return { hex, alphaPct };
+    }
+    return null;
+  }
+
   function parseCssColorToHex(raw, fallbackHex) {
     const s = String(raw || "").trim();
+    if (!s || /^transparent$/i.test(s) || /^none$/i.test(s)) {
+      return { hex: fallbackHex || "#262624", alphaPct: 0 };
+    }
     if (/^#[0-9a-f]{6}$/i.test(s)) return { hex: s.toLowerCase(), alphaPct: 100 };
+    if (/^#[0-9a-f]{3}$/i.test(s)) {
+      return { hex: "#" + s.slice(1).split("").map((c) => c + c).join("").toLowerCase(), alphaPct: 100 };
+    }
+    if (/^#[0-9a-f]{8}$/i.test(s)) {
+      return {
+        hex: "#" + s.slice(1, 7).toLowerCase(),
+        alphaPct: Math.max(0, Math.min(100, Math.round((parseInt(s.slice(7, 9), 16) / 255) * 100))),
+      };
+    }
     const m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/i.exec(s);
     if (m) {
       const r = Math.max(0, Math.min(255, Math.round(Number(m[1]) || 0)));
@@ -9442,6 +11705,41 @@ function createStudioPanel(options) {
       }
       const hex = "#" + [r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("");
       return { hex, alphaPct: Math.max(0, Math.min(100, Math.round(a * 100))) };
+    }
+    const srgbM = /^color\(\s*srgb\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)(?:\s*\/\s*([\d.eE+-]+%?))?\s*\)$/i.exec(s);
+    if (srgbM) {
+      const r = Math.max(0, Math.min(255, Math.round((parseFloat(srgbM[1]) || 0) * 255)));
+      const g = Math.max(0, Math.min(255, Math.round((parseFloat(srgbM[2]) || 0) * 255)));
+      const b = Math.max(0, Math.min(255, Math.round((parseFloat(srgbM[3]) || 0) * 255)));
+      let a = 1;
+      if (srgbM[4] !== undefined) {
+        a = srgbM[4].endsWith("%") ? parseFloat(srgbM[4]) / 100 : parseFloat(srgbM[4]);
+        if (!Number.isFinite(a)) a = 1;
+      }
+      const hex = "#" + [r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("");
+      return { hex, alphaPct: Math.max(0, Math.min(100, Math.round(a * 100))) };
+    }
+    // Modern CSS Color 4 (oklch, oklab, color-mix, hsl, display-p3, named colors): convert via 1x1 Canvas 2D
+    const ctx = getCssColorProbeCtx();
+    if (ctx) {
+      try {
+        ctx.fillStyle = "rgba(0, 0, 0, 0)";
+        ctx.fillStyle = s;
+        if (ctx.fillStyle !== "rgba(0, 0, 0, 0)") {
+          ctx.clearRect(0, 0, 1, 1);
+          ctx.fillRect(0, 0, 1, 1);
+          const d = ctx.getImageData(0, 0, 1, 1).data;
+          const a = d[3];
+          if (a === 0) return { hex: fallbackHex || "#262624", alphaPct: 0 };
+          // Unpremultiply RGB for semi-transparent colors
+          const factor = a < 255 ? 255 / a : 1;
+          const r = Math.max(0, Math.min(255, Math.round(d[0] * factor)));
+          const g = Math.max(0, Math.min(255, Math.round(d[1] * factor)));
+          const b = Math.max(0, Math.min(255, Math.round(d[2] * factor)));
+          const hex = "#" + [r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("");
+          return { hex, alphaPct: Math.max(0, Math.min(100, Math.round((a / 255) * 100))) };
+        }
+      } catch (_e) {}
     }
     return { hex: fallbackHex || "#262624", alphaPct: 100 };
   }
@@ -9464,11 +11762,17 @@ function createStudioPanel(options) {
     }
     const defaults = {
       fontSize: 14,
+      fontWeight: 400,
+      lineHeight: 1.45,
       borderRadius: 8,
       padding: 8,
+      paddingY: 8,
+      paddingX: 8,
       borderWidth: 1,
       width: 320,
       minHeight: 36,
+      offsetX: 0,
+      offsetY: 0,
       opacity: 100,
       bgOpacity: 100,
       color: detectAppTheme() === "light" ? "#1b1a18" : "#faf9f5",
@@ -9494,30 +11798,72 @@ function createStudioPanel(options) {
           bg = parseCssColorToHex(cs.backgroundColor, defaults.bgColor);
         }
       }
+      let resolvedBgHex = bg.alphaPct > 0 ? bg.hex : "";
+      if (!resolvedBgHex) {
+        let p = surfaceEl.parentElement;
+        for (let hops = 0; p && hops < 8 && p !== doc; hops += 1) {
+          try {
+            const pCs = win.getComputedStyle(p);
+            if (pCs && pCs.backgroundColor) {
+              const pBg = parseCssColorToHex(pCs.backgroundColor, "");
+              if (pBg.alphaPct > 0 && pBg.hex) {
+                resolvedBgHex = pBg.hex;
+                break;
+              }
+            }
+          } catch (_e) {}
+          p = p.parentElement;
+        }
+      }
       const surfaceRect = surfaceEl === el
         ? rect
         : (typeof surfaceEl.getBoundingClientRect === "function" ? surfaceEl.getBoundingClientRect() : rect);
       const col = parseCssColorToHex(cs.color, defaults.color);
       const brd = parseCssColorToHex(cs.borderTopColor, defaults.borderColor);
       const fs = Math.round(parseFloat(cs.fontSize));
+      const rawFw = parseInt(cs.fontWeight, 10);
+      const fw = Number.isFinite(rawFw) ? Math.max(300, Math.min(900, Math.round(rawFw / 100) * 100)) : defaults.fontWeight;
+      const rawLhPx = parseFloat(cs.lineHeight);
+      const lh = Number.isFinite(rawLhPx) && Number.isFinite(fs) && fs > 0
+        ? Math.max(1.0, Math.min(2.2, Math.round((rawLhPx / fs) * 20) / 20))
+        : defaults.lineHeight;
       const rad = Math.round(parseFloat(cs.borderTopLeftRadius));
       const padT = parseFloat(cs.paddingTop) || 0;
+      const padB = parseFloat(cs.paddingBottom) || 0;
       const padL = parseFloat(cs.paddingLeft) || 0;
+      const padR = parseFloat(cs.paddingRight) || 0;
+      const padY = Math.round((padT + padB) / 2);
+      const padX = Math.round((padL + padR) / 2);
       const pad = Math.round(Math.max(padT, padL) > 0 ? (padT > 0 && padL > 0 ? (padT + padL) / 2 : Math.max(padT, padL)) : 0);
       const bw = Math.round(parseFloat(cs.borderTopWidth) || 0);
       const outerCs = surfaceEl === el ? cs : win.getComputedStyle(el);
       const op = outerCs.opacity !== "" && Number.isFinite(parseFloat(outerCs.opacity)) ? Math.round(parseFloat(outerCs.opacity) * 100) : 100;
+      let offX = 0;
+      let offY = 0;
+      if (typeof outerCs.translate === "string" && outerCs.translate && outerCs.translate !== "none") {
+        const tParts = outerCs.translate.trim().split(/\s+/);
+        const pxX = parseFloat(tParts[0]);
+        const pxY = tParts.length > 1 ? parseFloat(tParts[1]) : 0;
+        if (Number.isFinite(pxX)) offX = Math.round(Math.max(-800, Math.min(800, pxX)));
+        if (Number.isFinite(pxY)) offY = Math.round(Math.max(-800, Math.min(800, pxY)));
+      }
       return {
         fontSize: Number.isFinite(fs) && fs > 0 ? Math.max(8, Math.min(64, fs)) : defaults.fontSize,
+        fontWeight: fw,
+        lineHeight: lh,
         borderRadius: Number.isFinite(rad) && rad >= 0 ? Math.max(0, Math.min(64, rad)) : defaults.borderRadius,
         padding: Number.isFinite(pad) && pad >= 0 ? Math.max(0, Math.min(64, pad)) : defaults.padding,
+        paddingY: Number.isFinite(padY) && padY >= 0 ? Math.max(0, Math.min(64, padY)) : defaults.paddingY,
+        paddingX: Number.isFinite(padX) && padX >= 0 ? Math.max(0, Math.min(64, padX)) : defaults.paddingX,
         borderWidth: Number.isFinite(bw) && bw >= 0 ? Math.max(0, Math.min(8, bw)) : defaults.borderWidth,
         width: rect && rect.width > 0 ? Math.max(24, Math.min(1800, Math.round(rect.width))) : defaults.width,
         minHeight: surfaceRect && surfaceRect.height > 0 ? Math.max(16, Math.min(800, Math.round(surfaceRect.height))) : defaults.minHeight,
-        opacity: Math.max(5, Math.min(100, op)),
+        offsetX: offX,
+        offsetY: offY,
+        opacity: Math.max(0, Math.min(100, op)),
         bgOpacity: bg.alphaPct > 0 ? bg.alphaPct : 100,
         color: col.hex,
-        bgColor: bg.alphaPct > 0 ? bg.hex : defaults.bgColor,
+        bgColor: resolvedBgHex || defaults.bgColor,
         borderColor: brd.alphaPct > 0 ? brd.hex : defaults.borderColor,
       };
     } catch (_e) {
@@ -9531,6 +11877,15 @@ function createStudioPanel(options) {
     state.settings.appearance = spCloneAppearance(nextApp);
     state.appearanceDirty = false;
     invokeIpc("agy-studio:save-settings", { appearance: nextApp });
+  }
+  function flushInspectorPersist() {
+    if (inspSaveTimer) {
+      if (win && typeof win.clearTimeout === "function") win.clearTimeout(inspSaveTimer);
+      inspSaveTimer = null;
+      if (!state.destroyed) {
+        commitInspectorAppearanceQuietly();
+      }
+    }
   }
   function scheduleInspectorPersist() {
     if (!win || typeof win.setTimeout !== "function") {
@@ -9546,14 +11901,156 @@ function createStudioPanel(options) {
     }, 180);
   }
 
-  function startElementPicker() {
-    if (state.pickerActive) {
+  function selectElementForInspector(el, opts) {
+    if (!el || el.nodeType !== 1 || isIgnoredPickerTarget(el)) return;
+    stopInspectorDragMove(true);
+    const isRu = state.locale !== "en";
+    const o = opts && typeof opts === "object" ? opts : {};
+    const origTxt = translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(el) : "";
+    const curTxt = String(el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const exactSel = typeof rv5BuildSmartSelector === "function" ? rv5BuildSmartSelector(el, "exact", doc) : "";
+    const simSel = typeof rv5BuildSmartSelector === "function" ? rv5BuildSmartSelector(el, "similar", doc) : exactSel;
+    const friendly = typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(el, isRu, origTxt) : exactSel;
+    const renameable = typeof rv5IsRenameSafeElement === "function" ? rv5IsRenameSafeElement(el) : false;
+    const isComposerSel = exactSel === '[data-rudex-theme-composer="1"]';
+    const existingPickedOv = (state.appearanceDraft.elementOverrides || []).find(
+      (ov) => (isComposerSel && ov.zone === "composer") || ov.selector === exactSel
+    );
+    const resolvedEl = isComposerSel && doc && typeof doc.querySelector === "function"
+      ? (doc.querySelector('[data-rudex-theme-composer="1"]') || el)
+      : el;
+    const pEl = resolvedEl.parentElement;
+    const canParent = Boolean(pEl && pEl !== doc.body && pEl !== doc.documentElement && !isIgnoredPickerTarget(pEl));
+    const childStack = Array.isArray(o.childStack) ? o.childStack : [];
+    const matchCount = querySelectedElements(exactSel).length || 1;
+    state.pickerSelectedEl = resolvedEl;
+    state.pickerChildStack = childStack;
+    state.pickerSelected = {
+      overrideId: existingPickedOv ? existingPickedOv.id : (isComposerSel ? "zone-composer" : undefined),
+      name: friendly,
+      selector: exactSel,
+      exactSelector: exactSel,
+      similarSelector: simSel,
+      scope: isComposerSel ? "similar" : "exact",
+      canToggleScope: !isComposerSel && exactSel !== simSel,
+      canSelectParent: canParent,
+      canSelectChild: childStack.length > 0,
+      renameable,
+      origText: origTxt || curTxt,
+      currentText: curTxt,
+      zone: isComposerSel ? "composer" : "",
+      groupTargets: [],
+      matchCount,
+      computed: readElementComputedMetrics(resolvedEl),
+    };
+    renderPickerMount();
+  }
+
+  function selectGroupForInspector(rawTargets) {
+    const isRu = state.locale !== "en";
+    const dedup = [];
+    const seenSel = new Set();
+    for (let i = 0; Array.isArray(rawTargets) && i < rawTargets.length && dedup.length < 12; i += 1) {
+      const t = rawTargets[i];
+      if (!t) continue;
+      let sel = String(t.selector || "").trim();
+      let el = t.el && t.el.nodeType === 1 ? t.el : null;
+      if (!sel && el && typeof rv5BuildSmartSelector === "function") {
+        sel = rv5BuildSmartSelector(el, "exact", doc);
+      }
+      if (!sel || seenSel.has(sel)) continue;
+      seenSel.add(sel);
+      if (!el) el = querySelectedElements(sel)[0] || null;
+      const origTxt = el && translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(el) : "";
+      const name = String(t.name || "").trim() || (el && typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(el, isRu, origTxt) : sel);
+      dedup.push({ el, selector: sel, name });
+    }
+    if (dedup.length === 0) return;
+    if (dedup.length === 1) {
+      if (dedup[0].el) {
+        selectElementForInspector(dedup[0].el);
+      } else {
+        stopInspectorDragMove(true);
+        const existingSingle = (state.appearanceDraft.elementOverrides || []).find((o) => o.selector === dedup[0].selector);
+        state.pickerSelectedEl = null;
+        state.pickerChildStack = [];
+        state.pickerSelected = {
+          overrideId: existingSingle ? existingSingle.id : undefined,
+          name: dedup[0].name,
+          selector: dedup[0].selector,
+          exactSelector: dedup[0].selector,
+          similarSelector: dedup[0].selector,
+          scope: "exact",
+          canToggleScope: false,
+          canSelectParent: false,
+          canSelectChild: false,
+          renameable: false,
+          origText: "",
+          currentText: "",
+          zone: "",
+          groupTargets: [],
+          matchCount: querySelectedElements(dedup[0].selector).length || 1,
+          computed: readElementComputedMetrics(dedup[0].selector),
+        };
+        renderPickerMount();
+      }
+      return;
+    }
+    stopInspectorDragMove(true);
+    const combinedSel = dedup.map((t) => t.selector).join(", ");
+    const shortNames = dedup.slice(0, 2).map((t) => t.name).join(" + ") + (dedup.length > 2 ? "…" : "");
+    const groupName = (isRu ? `Группа (${dedup.length}): ` : `Group (${dedup.length}): `) + shortNames;
+    const existingGroupOv = (state.appearanceDraft.elementOverrides || []).find((o) => o.selector === combinedSel);
+    const firstEl = dedup[0].el || querySelectedElements(dedup[0].selector)[0] || null;
+    state.pickerSelectedEl = firstEl;
+    state.pickerChildStack = [];
+    state.pickerSelected = {
+      overrideId: existingGroupOv ? existingGroupOv.id : undefined,
+      name: existingGroupOv ? (existingGroupOv.name || groupName) : groupName,
+      selector: combinedSel,
+      exactSelector: combinedSel,
+      similarSelector: combinedSel,
+      scope: "group",
+      canToggleScope: false,
+      canSelectParent: false,
+      canSelectChild: false,
+      renameable: false,
+      origText: "",
+      currentText: "",
+      zone: "",
+      groupTargets: dedup.map((t) => ({ selector: t.selector, name: t.name })),
+      matchCount: querySelectedElements(combinedSel).length || dedup.length,
+      computed: readElementComputedMetrics(firstEl || dedup[0].selector),
+    };
+    renderPickerMount();
+  }
+
+  function startElementPicker(modeOrOpts) {
+    const opts = typeof modeOrOpts === "string"
+      ? { mode: modeOrOpts }
+      : (modeOrOpts && typeof modeOrOpts === "object" ? modeOrOpts : null);
+    if (state.pickerActive && !opts) {
       stopElementPicker();
+      return;
+    }
+    stopInspectorDragMove(true);
+    const requestedMode = opts && (opts.mode === "region" || opts.mode === "multi" || opts.mode === "single") ? opts.mode : "single";
+    if (state.pickerActive && opts) {
+      state.pickerMode = requestedMode;
+      if (Array.isArray(opts.seedTargets)) {
+        state.pickerMultiItems = opts.seedTargets.slice(0, 12);
+      }
+      renderPickerMount();
       return;
     }
     loadSystemFontsOnce();
     state.pickerActive = true;
-    setPickerCursorStyle(true);
+    state.pickerMode = requestedMode;
+    state.pickerMultiItems = opts && Array.isArray(opts.seedTargets) ? opts.seedTargets.slice(0, 12) : [];
+    state.pickerMarqueeRect = null;
+    pickerMarqueeState = null;
+    suppressNextPickerClickUntil = 0;
+    setPickerCursorStyle(true, "crosshair");
     state.appearanceDraft = spCloneAppearance(state.settings.appearance);
     state.appearanceLivePreview = true;
     // Close modal visually without discarding appearanceLivePreview/appearanceDraft
@@ -9563,23 +12060,66 @@ function createStudioPanel(options) {
       if (modalMountEl) modalMountEl.innerHTML = "";
     }
     const isRu = state.locale !== "en";
-    const flushHover = () => {
-      pickerMoveRafId = 0;
-      const el = pickerPendingEl;
-      pickerPendingEl = null;
+    const toggleMultiTarget = (el) => {
+      if (!el || el.nodeType !== 1 || isIgnoredPickerTarget(el)) return;
+      const sel = typeof rv5BuildSmartSelector === "function" ? rv5BuildSmartSelector(el, "exact", doc) : "";
+      if (!sel) return;
+      const list = Array.isArray(state.pickerMultiItems) ? state.pickerMultiItems.slice() : [];
+      const idx = list.findIndex((x) => x.selector === sel);
+      if (idx >= 0) {
+        list.splice(idx, 1);
+      } else if (list.length < 12) {
+        const origTxt = translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(el) : "";
+        const name = typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(el, isRu, origTxt) : sel;
+        list.push({ el, selector: sel, name });
+      }
+      state.pickerMultiItems = list;
+      state.pickerMode = "multi";
+      renderPickerMount();
+    };
+    const applyHoverTarget = (el, resetStack) => {
       if (!state.pickerActive || !el || isIgnoredPickerTarget(el)) return;
       if (typeof el.getBoundingClientRect !== "function") return;
       const rect = el.getBoundingClientRect();
       if (!rect || rect.width < 4 || rect.height < 4) return;
+      pickerHoverEl = el;
+      if (resetStack) pickerHoverChildStack = [];
       state.pickerHoverRect = rect;
       const origTxt = translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(el) : "";
       state.pickerHoverLabel = typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(el, isRu, origTxt) : (el.tagName || "");
       updatePickerHighlightFast();
     };
+    const flushHover = () => {
+      pickerMoveRafId = 0;
+      const el = pickerPendingEl;
+      pickerPendingEl = null;
+      applyHoverTarget(el, true);
+    };
     pickerMoveHandler = (e) => {
-      if (!state.pickerActive || !e || !e.target) return;
-      if (isIgnoredPickerTarget(e.target)) return;
-      pickerPendingEl = e.target;
+      if (!state.pickerActive || !e) return;
+      if (pickerMarqueeState) {
+        const cx = Number(e.clientX) || 0;
+        const cy = Number(e.clientY) || 0;
+        const dist = Math.hypot(cx - pickerMarqueeState.startX, cy - pickerMarqueeState.startY);
+        if (dist >= 10 || pickerMarqueeState.active) {
+          pickerMarqueeState.active = true;
+          const left = Math.min(pickerMarqueeState.startX, cx);
+          const top = Math.min(pickerMarqueeState.startY, cy);
+          const width = Math.abs(cx - pickerMarqueeState.startX);
+          const height = Math.abs(cy - pickerMarqueeState.startY);
+          const rect = { left, top, right: left + width, bottom: top + height, width, height };
+          state.pickerMarqueeRect = rect;
+          state.pickerHoverRect = null;
+          if (state.pickerMode !== "multi") {
+            state.pickerMultiItems = collectElementsInMarqueeRect(rect);
+          }
+          renderPickerMount();
+          return;
+        }
+      }
+      const resolved = resolvePickerTargetAtPoint(e);
+      if (!resolved) return;
+      pickerPendingEl = resolved;
       if (win && typeof win.requestAnimationFrame === "function") {
         if (!pickerMoveRafId) pickerMoveRafId = win.requestAnimationFrame(flushHover);
       } else {
@@ -9589,50 +12129,135 @@ function createStudioPanel(options) {
     pickerPointerDownHandler = (e) => {
       if (!state.pickerActive || !e || !e.target) return;
       if (isIgnoredPickerTarget(e.target)) return;
+      if (typeof e.button === "number" && e.button !== 0) return;
       if (typeof e.preventDefault === "function") e.preventDefault();
       if (typeof e.stopPropagation === "function") e.stopPropagation();
+      if (typeof e.clientX === "number" && typeof e.clientY === "number") {
+        pickerMarqueeState = { startX: e.clientX, startY: e.clientY, active: false };
+      }
+    };
+    pickerPointerUpHandler = (e) => {
+      if (!state.pickerActive || !pickerMarqueeState) return;
+      const mq = pickerMarqueeState;
+      pickerMarqueeState = null;
+      if (!mq.active) {
+        state.pickerMarqueeRect = null;
+        return;
+      }
+      if (typeof e.preventDefault === "function") e.preventDefault();
+      if (typeof e.stopPropagation === "function") e.stopPropagation();
+      suppressNextPickerClickUntil = Date.now() + 260;
+      const cx = typeof e.clientX === "number" ? e.clientX : mq.startX;
+      const cy = typeof e.clientY === "number" ? e.clientY : mq.startY;
+      const left = Math.min(mq.startX, cx);
+      const top = Math.min(mq.startY, cy);
+      const width = Math.abs(cx - mq.startX);
+      const height = Math.abs(cy - mq.startY);
+      const rect = { left, top, right: left + width, bottom: top + height, width, height };
+      state.pickerMarqueeRect = null;
+      const hits = collectElementsInMarqueeRect(rect);
+      if (state.pickerMode === "multi") {
+        const merged = Array.isArray(state.pickerMultiItems) ? state.pickerMultiItems.slice() : [];
+        const seen = new Set(merged.map((x) => x.selector));
+        for (let hi = 0; hi < hits.length && merged.length < 12; hi += 1) {
+          if (!seen.has(hits[hi].selector)) {
+            seen.add(hits[hi].selector);
+            merged.push(hits[hi]);
+          }
+        }
+        state.pickerMultiItems = merged;
+        renderPickerMount();
+        return;
+      }
+      if (hits.length > 0) {
+        stopElementPicker();
+        selectGroupForInspector(hits);
+      } else {
+        state.pickerMultiItems = [];
+        renderPickerMount();
+        showToast(isRu ? "В выделенной области нет подходящих элементов" : "No elements inside selected region", false);
+      }
     };
     pickerClickHandler = (e) => {
-      if (!state.pickerActive || !e || !e.target) return;
-      const el = e.target;
-      if (isIgnoredPickerTarget(el)) return;
+      if (!state.pickerActive || !e) return;
+      if (e.target && isIgnoredPickerTarget(e.target)) return;
+      if (suppressNextPickerClickUntil && Date.now() < suppressNextPickerClickUntil) {
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        if (typeof e.stopPropagation === "function") e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+        return;
+      }
+      const picked = (pickerHoverEl && pickerHoverChildStack.length > 0)
+        ? pickerHoverEl
+        : (resolvePickerTargetAtPoint(e) || pickerHoverEl || e.target);
+      if (!picked || isIgnoredPickerTarget(picked)) return;
       if (typeof e.preventDefault === "function") e.preventDefault();
       if (typeof e.stopPropagation === "function") e.stopPropagation();
       if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
-      const origTxt = translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(el) : "";
-      const curTxt = String(el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
-      const exactSel = typeof rv5BuildSmartSelector === "function" ? rv5BuildSmartSelector(el, "exact") : "";
-      const simSel = typeof rv5BuildSmartSelector === "function" ? rv5BuildSmartSelector(el, "similar") : exactSel;
-      const friendly = typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(el, isRu, origTxt) : exactSel;
-      const renameable = typeof rv5IsRenameSafeElement === "function" ? rv5IsRenameSafeElement(el) : false;
-      const isComposerSel = exactSel === '[data-rudex-theme-composer="1"]';
-      const existingPickedOv = (state.appearanceDraft.elementOverrides || []).find(
-        (o) => (isComposerSel && o.zone === "composer") || o.selector === exactSel
-      );
-      const resolvedEl = isComposerSel && doc && typeof doc.querySelector === "function"
-        ? (doc.querySelector('[data-rudex-theme-composer="1"]') || el)
-        : el;
-      state.pickerSelected = {
-        overrideId: existingPickedOv ? existingPickedOv.id : (isComposerSel ? "zone-composer" : undefined),
-        name: friendly,
-        selector: exactSel,
-        exactSelector: exactSel,
-        similarSelector: simSel,
-        scope: isComposerSel ? "similar" : "exact",
-        canToggleScope: !isComposerSel && exactSel !== simSel,
-        renameable,
-        origText: origTxt || curTxt,
-        currentText: curTxt,
-        zone: isComposerSel ? "composer" : "",
-        computed: readElementComputedMetrics(resolvedEl),
-      };
+      if (state.pickerMode === "multi" || e.ctrlKey || e.metaKey || e.shiftKey) {
+        toggleMultiTarget(picked);
+        return;
+      }
+      const childStackCopy = pickerHoverChildStack.slice();
       stopElementPicker();
-      renderPickerMount();
+      selectElementForInspector(picked, { childStack: childStackCopy });
+    };
+    pickerKeyHandler = (e) => {
+      if (!state.pickerActive || !e) return;
+      if (e.key === "Enter" && Array.isArray(state.pickerMultiItems) && state.pickerMultiItems.length > 0) {
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        if (typeof e.stopPropagation === "function") e.stopPropagation();
+        const itemsCopy = state.pickerMultiItems.slice();
+        stopElementPicker();
+        selectGroupForInspector(itemsCopy);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        const cur = pickerHoverEl || pickerPendingEl;
+        const p = cur && cur.parentElement;
+        if (p && p !== doc.body && p !== doc.documentElement && !isIgnoredPickerTarget(p)) {
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          if (typeof e.stopPropagation === "function") e.stopPropagation();
+          pickerHoverChildStack.push(cur);
+          applyHoverTarget(p, false);
+        }
+      } else if (e.key === "ArrowDown") {
+        if (pickerHoverChildStack.length > 0) {
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          if (typeof e.stopPropagation === "function") e.stopPropagation();
+          const ch = pickerHoverChildStack.pop();
+          applyHoverTarget(ch, false);
+        }
+      }
+    };
+    pickerWheelHandler = (e) => {
+      if (!state.pickerActive || !e) return;
+      if (e.target && isIgnoredPickerTarget(e.target)) return;
+      const dy = Number(e.deltaY) || 0;
+      if (!dy) return;
+      if (dy < 0) {
+        const cur = pickerHoverEl || pickerPendingEl;
+        const p = cur && cur.parentElement;
+        if (p && p !== doc.body && p !== doc.documentElement && !isIgnoredPickerTarget(p)) {
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          if (typeof e.stopPropagation === "function") e.stopPropagation();
+          pickerHoverChildStack.push(cur);
+          applyHoverTarget(p, false);
+        }
+      } else if (pickerHoverChildStack.length > 0) {
+        if (typeof e.preventDefault === "function") e.preventDefault();
+        if (typeof e.stopPropagation === "function") e.stopPropagation();
+        const ch = pickerHoverChildStack.pop();
+        applyHoverTarget(ch, false);
+      }
     };
     if (doc && typeof doc.addEventListener === "function") {
       doc.addEventListener("mousemove", pickerMoveHandler, true);
       doc.addEventListener("pointerdown", pickerPointerDownHandler, true);
+      doc.addEventListener("pointerup", pickerPointerUpHandler, true);
       doc.addEventListener("click", pickerClickHandler, true);
+      doc.addEventListener("keydown", pickerKeyHandler, true);
+      doc.addEventListener("wheel", pickerWheelHandler, { capture: true, passive: false });
     }
     renderPickerMount();
   }
@@ -9662,7 +12287,7 @@ function createStudioPanel(options) {
       styles: {},
     };
     sel.overrideId = item.id;
-    if (prop === "bgOpacity" && !item.styles.bgColor && rawVal !== 100) {
+    if (prop === "bgOpacity" && !item.styles.bgColor && rawVal > 0 && rawVal < 100) {
       item.styles.bgColor = (sel.computed && sel.computed.bgColor) || (detectAppTheme() === "light" ? "#fbfaf6" : "#262624");
     }
     item.styles[prop] = rawVal;
@@ -9681,19 +12306,68 @@ function createStudioPanel(options) {
     }
     if (!o.preserveDom) {
       renderPickerMount();
+    } else {
+      updateInspectorMatchBoxesFast();
     }
   }
 
   function triggerQuotaSyncClick() {
-    scrapeDomQuotaSnapshot(true);
-    invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__" }).then((qs) => {
+    const scrapedImmediately = scrapeDomQuotaSnapshot(true);
+    invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
       if (!state.destroyed && qs) {
-        state.quotaSummary = qs;
-        renderLimitsWidgetMount();
-        if (state.isOpen) renderStructure();
+        applyQuotaSummary(qs);
       }
     });
-    // Also check if View Usage button exists in DOM to trigger native refresh if user has no snapshot
+    if (scrapedImmediately) {
+      setToast(state.locale !== "en" ? "Лимиты синхронизированы" : "Limits synced", false);
+      return;
+    }
+    // When idle and user explicitly clicks Refresh (↻), briefly open & read the native model-selector popover to sync exact live % from Antigravity
+    if (!quotaSilentSyncInflight && !isAgentRunningNow() && doc && typeof doc.querySelector === "function") {
+      const trig = doc.querySelector('[data-testid="model-selector-trigger"]');
+      const trigDisabled = Boolean(
+        !trig ||
+        trig.disabled ||
+        (typeof trig.getAttribute === "function" && (trig.getAttribute("disabled") !== null || trig.getAttribute("aria-disabled") === "true" || trig.getAttribute("data-disabled") !== null))
+      );
+      const alreadyOpen = Boolean(
+        trig && typeof trig.getAttribute === "function" && (trig.getAttribute("aria-expanded") === "true" || trig.getAttribute("data-state") === "open")
+      );
+      if (!trigDisabled && !alreadyOpen && typeof trig.click === "function") {
+        quotaSilentSyncInflight = true;
+        try { trig.click(); } catch (_e) {}
+        scheduleQuotaDomScrapeBurst();
+        const finishSync = () => {
+          quotaSilentSyncInflight = false;
+          if (state.destroyed) return;
+          const gotIt = scrapeDomQuotaSnapshot(true);
+          try {
+            const KeyEv = (win && win.KeyboardEvent) || (typeof KeyboardEvent !== "undefined" ? KeyboardEvent : null);
+            if (KeyEv && typeof doc.dispatchEvent === "function") {
+              doc.dispatchEvent(new KeyEv("keydown", { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true }));
+            } else if (typeof trig.click === "function") {
+              trig.click();
+            }
+          } catch (_e) {}
+          if (gotIt) {
+            setToast(state.locale !== "en" ? "Лимиты синхронизированы с Antigravity" : "Limits synced with Antigravity", false);
+          }
+        };
+        if (win && typeof win.setTimeout === "function") {
+          win.setTimeout(() => {
+            if (!state.destroyed && scrapeDomQuotaSnapshot(true)) {
+              finishSync();
+            } else {
+              win.setTimeout(finishSync, 260);
+            }
+          }, 220);
+        } else {
+          finishSync();
+        }
+        return;
+      }
+    }
+    // Fallback: check if View Usage button exists in DOM to trigger native refresh if user has no snapshot
     if (doc && typeof doc.querySelectorAll === "function") {
       const qs = state.quotaSummary;
       const fams = qs && qs.families ? qs.families : null;
@@ -9732,6 +12406,16 @@ function createStudioPanel(options) {
     }
     if (action === "openAnnotator") {
       openAnnotator();
+      return;
+    }
+    if (action === "toggleDictation") {
+      const optCtrl = ensureRudexOptimizer();
+      if (optCtrl) {
+        const res = optCtrl.triggerNativeDictation(hostEl);
+        if (!res.triggered) {
+          setToast(state.locale !== "en" ? "Кнопка диктовки не найдена в текущем чате" : "Dictation button not found in current chat", true);
+        }
+      }
       return;
     }
     if (action === "toggleAgentPopover") {
@@ -10023,8 +12707,24 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "start-element-picker") { startElementPicker(); return; }
+    if (action === "start-region-picker") { startElementPicker({ mode: "region" }); return; }
+    if (action === "picker-set-mode" && state.pickerActive) {
+      const m = actionEl.getAttribute("data-val");
+      state.pickerMode = (m === "region" || m === "multi") ? m : "single";
+      if (state.pickerMode !== "multi") state.pickerMultiItems = [];
+      renderPickerMount();
+      return;
+    }
+    if (action === "picker-commit-multi" && state.pickerActive) {
+      const itemsCopy = Array.isArray(state.pickerMultiItems) ? state.pickerMultiItems.slice() : [];
+      stopElementPicker();
+      if (itemsCopy.length > 0) selectGroupForInspector(itemsCopy);
+      return;
+    }
     if (action === "stop-element-picker") { stopElementPicker(); return; }
     if (action === "close-element-inspector") {
+      stopInspectorDragMove(true);
+      flushInspectorPersist();
       state.pickerSelected = null;
       inspectorDragUndoCaptured = false;
       if (!state.isOpen && !state.pickerActive) state.appearanceLivePreview = false;
@@ -10045,6 +12745,22 @@ function createStudioPanel(options) {
       const zone = RUDEX_UI_ZONES.find((z) => z.id === zid);
       if (zone) {
         const existing = (state.appearanceDraft.elementOverrides || []).find((o) => o.zone === zone.id || o.selector === zone.selector);
+        let liveEl = null;
+        if (doc && typeof doc.querySelectorAll === "function") {
+          try {
+            const matches = doc.querySelectorAll(zone.selector);
+            for (let mi = 0; matches && mi < matches.length; mi += 1) {
+              if (matches[mi] && !isIgnoredPickerTarget(matches[mi])) {
+                liveEl = matches[mi];
+                break;
+              }
+            }
+          } catch (_e) {}
+        }
+        const pEl = liveEl ? liveEl.parentElement : null;
+        const matchedEls = querySelectedElements(zone.selector);
+        state.pickerSelectedEl = liveEl;
+        state.pickerChildStack = [];
         state.pickerSelected = {
           overrideId: existing ? existing.id : ("zone-" + zone.id),
           name: state.locale !== "en" ? zone.nameRu : zone.nameEn,
@@ -10052,9 +12768,13 @@ function createStudioPanel(options) {
           zone: zone.id,
           scope: "similar",
           canToggleScope: false,
+          canSelectParent: Boolean(pEl && pEl !== doc.body && pEl !== doc.documentElement && !isIgnoredPickerTarget(pEl)),
+          canSelectChild: false,
           renameable: false,
           origText: "",
-          computed: readElementComputedMetrics(zone.selector),
+          groupTargets: [],
+          matchCount: matchedEls.length || 1,
+          computed: readElementComputedMetrics(liveEl || zone.selector),
         };
         if (state.isOpen && state.activeTab === "appearance" && !state.appearanceDockedRight) {
           state.appearanceDockedRight = true;
@@ -10069,16 +12789,46 @@ function createStudioPanel(options) {
       const oid = actionEl.getAttribute("data-id");
       const ov = (state.appearanceDraft.elementOverrides || []).find((o) => o.id === oid);
       if (ov) {
+        let liveEl = null;
+        if (doc && typeof doc.querySelectorAll === "function") {
+          try {
+            const matches = doc.querySelectorAll(ov.selector);
+            for (let mi = 0; matches && mi < matches.length; mi += 1) {
+              if (matches[mi] && !isIgnoredPickerTarget(matches[mi])) {
+                liveEl = matches[mi];
+                break;
+              }
+            }
+          } catch (_e) {}
+        }
+        const pEl = liveEl ? liveEl.parentElement : null;
+        const isRu = state.locale !== "en";
+        const splitSels = splitTopLevelCssSelectors(ov.selector);
+        const groupTargets = (ov.scope === "group" || splitSels.length >= 2)
+          ? splitSels.map((s) => {
+              const hit = querySelectedElements(s)[0] || null;
+              const origTxt = hit && translator && typeof translator.getOriginalTextForElement === "function" ? translator.getOriginalTextForElement(hit) : "";
+              const lbl = hit && typeof rv5DescribeElementFriendly === "function" ? rv5DescribeElementFriendly(hit, isRu, origTxt) : s;
+              return { selector: s, name: lbl };
+            })
+          : [];
+        const matchedEls = querySelectedElements(ov.selector);
+        state.pickerSelectedEl = liveEl;
+        state.pickerChildStack = [];
         state.pickerSelected = {
           overrideId: ov.id,
           name: ov.name || ov.selector,
           selector: ov.selector,
           zone: ov.zone || "",
-          scope: ov.scope || "exact",
+          scope: groupTargets.length >= 2 ? "group" : (ov.scope || "exact"),
           canToggleScope: false,
+          canSelectParent: groupTargets.length < 2 && Boolean(pEl && pEl !== doc.body && pEl !== doc.documentElement && !isIgnoredPickerTarget(pEl)),
+          canSelectChild: false,
           renameable: false,
           origText: "",
-          computed: readElementComputedMetrics(ov.selector),
+          groupTargets,
+          matchCount: matchedEls.length || (groupTargets.length || 1),
+          computed: readElementComputedMetrics(liveEl || ov.selector),
         };
         if (state.isOpen && state.activeTab === "appearance" && !state.appearanceDockedRight) {
           state.appearanceDockedRight = true;
@@ -10101,13 +12851,17 @@ function createStudioPanel(options) {
       pushAppearanceUndo();
       const oid = actionEl.getAttribute("data-id");
       state.appearanceDraft.elementOverrides = (state.appearanceDraft.elementOverrides || []).filter((o) => o.id !== oid);
-      if (state.pickerSelected && state.pickerSelected.overrideId === oid) state.pickerSelected = null;
+      if (state.pickerSelected && state.pickerSelected.overrideId === oid) {
+        stopInspectorDragMove(true);
+        state.pickerSelected = null;
+      }
       saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
       renderPickerMount();
       return;
     }
     if (action === "clear-all-overrides") {
       pushAppearanceUndo();
+      stopInspectorDragMove(true);
       state.appearanceDraft.elementOverrides = [];
       state.pickerSelected = null;
       saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
@@ -10120,6 +12874,7 @@ function createStudioPanel(options) {
       const oldId = state.pickerSelected.overrideId;
       state.pickerSelected.scope = sc;
       state.pickerSelected.selector = nextSel;
+      state.pickerSelected.matchCount = querySelectedElements(nextSel).length || 1;
       const list = Array.isArray(state.appearanceDraft.elementOverrides) ? state.appearanceDraft.elementOverrides.slice() : [];
       const idx = oldId ? list.findIndex((o) => o.id === oldId) : -1;
       if (idx >= 0 && nextSel) {
@@ -10135,11 +12890,122 @@ function createStudioPanel(options) {
       renderPickerMount();
       return;
     }
+    if (action === "inspector-add-element" && state.pickerSelected) {
+      const sel = state.pickerSelected;
+      const seed = Array.isArray(sel.groupTargets) && sel.groupTargets.length >= 2
+        ? sel.groupTargets.map((gt) => ({ el: querySelectedElements(gt.selector)[0] || null, selector: gt.selector, name: gt.name }))
+        : [{ el: state.pickerSelectedEl || querySelectedElements(sel.selector)[0] || null, selector: sel.selector, name: sel.name }];
+      startElementPicker({ mode: "multi", seedTargets: seed });
+      return;
+    }
+    if (action === "inspector-remove-group-target" && state.pickerSelected && Array.isArray(state.pickerSelected.groupTargets)) {
+      const idxToDrop = parseInt(actionEl.getAttribute("data-idx"), 10);
+      const curTargets = state.pickerSelected.groupTargets.slice();
+      if (Number.isFinite(idxToDrop) && idxToDrop >= 0 && idxToDrop < curTargets.length) {
+        curTargets.splice(idxToDrop, 1);
+        const sel = state.pickerSelected;
+        const isRu = state.locale !== "en";
+        const list = Array.isArray(state.appearanceDraft.elementOverrides) ? state.appearanceDraft.elementOverrides.slice() : [];
+        const ovIdx = list.findIndex((o) => o.id === sel.overrideId || o.selector === sel.selector);
+        if (curTargets.length === 0) {
+          stopInspectorDragMove(true);
+          state.pickerSelected = null;
+          renderPickerMount();
+          return;
+        }
+        const nextSel = curTargets.map((t) => t.selector).join(", ");
+        const nextScope = curTargets.length >= 2 ? "group" : "exact";
+        const nextName = curTargets.length >= 2
+          ? (isRu ? `Группа (${curTargets.length}): ` : `Group (${curTargets.length}): `) + curTargets.slice(0, 2).map((t) => t.name).join(" + ") + (curTargets.length > 2 ? "…" : "")
+          : curTargets[0].name;
+        const nextFirstEl = querySelectedElements(curTargets[0].selector)[0] || null;
+        if (ovIdx >= 0) {
+          pushAppearanceUndo();
+          list[ovIdx] = Object.assign({}, list[ovIdx], { selector: nextSel, scope: nextScope, name: nextName });
+          state.appearanceDraft.elementOverrides = list;
+          applyThemeFastToHost(state.appearanceDraft);
+          saveSettingsPatch({ appearance: spCloneAppearance(state.appearanceDraft) });
+        }
+        state.pickerSelectedEl = nextFirstEl;
+        sel.selector = nextSel;
+        sel.exactSelector = nextSel;
+        sel.similarSelector = nextSel;
+        sel.scope = nextScope;
+        sel.name = nextName;
+        sel.groupTargets = curTargets.length >= 2 ? curTargets : [];
+        sel.matchCount = querySelectedElements(nextSel).length || curTargets.length;
+        sel.computed = readElementComputedMetrics(nextFirstEl || nextSel);
+        renderPickerMount();
+      }
+      return;
+    }
+    if (action === "inspector-set-nudge-step") {
+      const nextStep = Math.round(Number(actionEl.getAttribute("data-val")) || 4);
+      if ([1, 4, 16, 40].includes(nextStep)) {
+        state.pickerNudgeStep = nextStep;
+        renderPickerMount();
+      }
+      return;
+    }
+    if (action === "inspector-set-align" && state.pickerSelected) {
+      const rawAl = actionEl.getAttribute("data-val") || "";
+      const nextAl = rawAl === "left" || rawAl === "center" || rawAl === "right" ? rawAl : "";
+      upsertSelectedElementStyle("align", nextAl);
+      return;
+    }
+    if (action === "inspector-toggle-drag-move" && state.pickerSelected) {
+      if (state.inspectorDragMoveActive) stopInspectorDragMove();
+      else startInspectorDragMove();
+      return;
+    }
+    if (action === "inspector-select-parent" && state.pickerSelectedEl) {
+      const p = state.pickerSelectedEl.parentElement;
+      if (p && p !== doc.body && p !== doc.documentElement && !isIgnoredPickerTarget(p)) {
+        const stack = Array.isArray(state.pickerChildStack) ? state.pickerChildStack.slice() : [];
+        stack.push(state.pickerSelectedEl);
+        selectElementForInspector(p, { childStack: stack });
+      }
+      return;
+    }
+    if (action === "inspector-select-child" && Array.isArray(state.pickerChildStack) && state.pickerChildStack.length > 0) {
+      const stack = state.pickerChildStack.slice();
+      const ch = stack.pop();
+      if (ch && ch.nodeType === 1) {
+        selectElementForInspector(ch, { childStack: stack });
+      }
+      return;
+    }
+    if (action === "inspector-nudge-offset" && state.pickerSelected) {
+      const axis = actionEl.getAttribute("data-axis") || "";
+      const delta = Math.round(Number(actionEl.getAttribute("data-delta")) || 0);
+      const ov = (state.appearanceDraft.elementOverrides || []).find((o) => o.id === state.pickerSelected.overrideId || o.selector === state.pickerSelected.selector);
+      const st = ov && ov.styles ? ov.styles : {};
+      if (axis === "reset") {
+        upsertSelectedElementStyle("offsetX", 0, { preserveDom: true, liveOnly: true });
+        upsertSelectedElementStyle("offsetY", 0);
+      } else if (axis === "offsetX" || axis === "offsetY") {
+        const cur = Number.isFinite(Number(st[axis])) ? Math.round(Number(st[axis])) : 0;
+        const nextVal = Math.max(-800, Math.min(800, cur + delta));
+        upsertSelectedElementStyle(axis, nextVal);
+      }
+      return;
+    }
     if (action === "inspector-clear-style" && state.pickerSelected) {
       const prop = actionEl.getAttribute("data-prop");
       if (prop) {
-        const negOneProps = new Set(["borderWidth", "borderRadius", "padding", "opacity"]);
-        const zeroProps = new Set(["fontSize", "fontWeight", "lineHeight", "width", "minHeight"]);
+        if (prop === "paddingY" || prop === "paddingX") {
+          const ov = (state.appearanceDraft.elementOverrides || []).find((o) => o.id === state.pickerSelected.overrideId || o.selector === state.pickerSelected.selector);
+          const st = ov && ov.styles ? ov.styles : null;
+          if (st && Number(st.padding) >= 0) {
+            const other = prop === "paddingY" ? "paddingX" : "paddingY";
+            if (!(Number(st[other]) >= 0)) {
+              upsertSelectedElementStyle(other, Math.round(Number(st.padding)), { preserveDom: true, liveOnly: true, skipUndo: true });
+            }
+            upsertSelectedElementStyle("padding", -1, { preserveDom: true, liveOnly: true, skipUndo: true });
+          }
+        }
+        const negOneProps = new Set(["borderWidth", "borderRadius", "padding", "paddingY", "paddingX", "opacity"]);
+        const zeroProps = new Set(["fontSize", "fontWeight", "lineHeight", "width", "minHeight", "offsetX", "offsetY"]);
         const resetVal = negOneProps.has(prop) ? -1 : (zeroProps.has(prop) ? 0 : (prop === "bgOpacity" ? 100 : ""));
         upsertSelectedElementStyle(prop, resetVal);
       }
@@ -10172,9 +13038,20 @@ function createStudioPanel(options) {
       const inp = pickerMountEl ? pickerMountEl.querySelector('[data-role="inspectorRenameInput"]') : null;
       const nextLbl = inp ? String(inp.value || "").trim() : "";
       const match = String(state.pickerSelected.origText || "").trim();
-      if (match && nextLbl) {
+      if (match) {
         const cur = (state.settings.customLabels || []).filter((l) => l.match.toLowerCase() !== match.toLowerCase());
-        cur.push({ id: "lbl-" + Date.now(), matchType: "exact", match, label: nextLbl, enabled: true });
+        if (nextLbl && nextLbl !== match) {
+          cur.push({ id: "lbl-" + Date.now(), matchType: "exact", match, label: nextLbl, enabled: true });
+        }
+        saveSettingsPatch({ customLabels: cur });
+        renderPickerMount();
+      }
+      return;
+    }
+    if (action === "inspector-clear-rename" && state.pickerSelected) {
+      const match = String(state.pickerSelected.origText || "").trim();
+      if (match) {
+        const cur = (state.settings.customLabels || []).filter((l) => l.match.toLowerCase() !== match.toLowerCase());
         saveSettingsPatch({ customLabels: cur });
         renderPickerMount();
       }
@@ -10799,6 +13676,7 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "switch-tab") {
+      flushInspectorPersist();
       const prevTab = state.activeTab;
       const tab = actionEl.getAttribute("data-tab") || "appearance";
       if (state.recordingKeybindingId) {
@@ -10815,6 +13693,7 @@ function createStudioPanel(options) {
         state.appearanceDirty = false;
         applyThemeToHost(state.settings.appearance);
         syncTranslatorGreeting(state.settings.greeting);
+        if (state.pickerSelected) renderPickerMount();
       }
       if (tab === "appearance") {
         state.appearanceLivePreview = true;
@@ -10915,6 +13794,17 @@ function createStudioPanel(options) {
       state.appearanceLivePreview = true;
       applyThemeFastToHost(state.appearanceDraft);
       renderStructure();
+      if (state.pickerSelected) renderPickerMount();
+      return;
+    }
+    if (action === "scroll-opt-section") {
+      const secId = actionEl.getAttribute("data-target") || "";
+      if (secId && modalMountEl) {
+        const targetSec = modalMountEl.querySelector(`[data-opt-sec="${secId}"]`);
+        if (targetSec && typeof targetSec.scrollIntoView === "function") {
+          try { targetSec.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (_e) { targetSec.scrollIntoView(); }
+        }
+      }
       return;
     }
     if (action === "set-app-subtab") {
@@ -10926,21 +13816,15 @@ function createStudioPanel(options) {
       return;
     }
     if (action === "set-settings-subtab") {
-      const sub = actionEl.getAttribute("data-val") || "widget";
+      const rawSub = actionEl.getAttribute("data-val") || "system";
+      const sub = ["system", "optimization", "studio", "hotkeys"].indexOf(rawSub) >= 0 ? rawSub : "system";
       state.settingsSubTab = sub;
-      if (sub === "widget") {
-        loadSystemFontsOnce();
-        invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
-          if (!state.destroyed && qs) applyQuotaSummary(qs);
+      if (sub === "system") {
+        invokeIpc("agy-studio:get-update-state").then((upd) => {
+          if (!state.destroyed && upd) applyUpdateStatus(upd);
         });
       }
-      if (sub === "workshop") refreshWorkshopData();
-      if (sub === "history") refreshInputHistory();
-      if (sub === "export") {
-        invokeIpc("agy-studio:get-quota-summary", { chatKey: state.activeChatKey || "__new__", forceFresh: true }).then((qs) => {
-          if (!state.destroyed && qs) applyQuotaSummary(qs);
-        });
-      }
+      if (sub === "optimization") refreshPerfDiagnostics();
       renderStructure();
       return;
     }
@@ -10965,6 +13849,7 @@ function createStudioPanel(options) {
         if (state.destroyed) return;
         lastSavedDraftByChat.clear();
         lastKnownComposerSnapByChat.clear();
+        draftTextCacheByChat.clear();
         draftDataUrlToFileName.clear();
         if (state.inputHistory) state.inputHistory.draftCount = 0;
         setToast(state.locale !== "en" ? "Все черновики чатов очищены" : "All saved drafts cleared", false);
@@ -11071,7 +13956,7 @@ function createStudioPanel(options) {
           isRestoringDraft = true;
           try {
             if (typeof rv5ClearEditableText === "function") rv5ClearEditableText(editable, win);
-            if (atts.length > 0) insertAttachmentsIntoNativeComposer(atts, container, editable);
+            if (atts.length > 0) await insertAttachmentsIntoNativeComposer(atts, container, editable);
             if (found.text) await insertTextIntoNativeComposerRich(editable, found.text);
           } finally {
             isRestoringDraft = false;
@@ -11106,6 +13991,10 @@ function createStudioPanel(options) {
       saveSettingsPatch({ thinkingInRussian: !state.settings.thinkingInRussian });
       return;
     }
+    if (action === "toggle-worklog-ru") {
+      saveSettingsPatch({ workLogInRussian: !state.settings.workLogInRussian });
+      return;
+    }
     if (action === "toggle-auto-updates") {
       saveSettingsPatch({ autoCheckUpdates: state.settings.autoCheckUpdates === false });
       return;
@@ -11117,7 +14006,12 @@ function createStudioPanel(options) {
       state.update.error = "";
       renderStructure();
       invokeIpc("agy-studio:check-updates", { manual: true }).then((res) => {
-        if (!state.destroyed && res) applyUpdateStatus(res);
+        if (state.destroyed) return;
+        if (res && typeof res === "object") {
+          applyUpdateStatus(res);
+        } else {
+          applyUpdateStatus(Object.assign({}, state.update, { status: "error", error: tr.updateStatusError }));
+        }
       });
       return;
     }
@@ -11147,14 +14041,14 @@ function createStudioPanel(options) {
       state.update.error = "";
       state.update.dismissed = false;
       renderUpdateToast();
-      if (state.isOpen && state.activeTab === "settings" && state.settingsSubTab === "system") {
+      if (state.isOpen && state.activeTab === "settings" && (state.settingsSubTab || "system") === "system") {
         renderStructure();
       }
       invokeIpc("agy-studio:install-update", {}).then((res) => {
-        if (state.destroyed || !res) return;
-        if (res.state) applyUpdateStatus(res.state);
-        else if (res.ok === false) {
-          applyUpdateStatus(Object.assign({}, state.update, { status: "error", error: res.error || tr.updateStatusError }));
+        if (state.destroyed) return;
+        if (res && res.state) applyUpdateStatus(res.state);
+        else if (!res || res.ok === false) {
+          applyUpdateStatus(Object.assign({}, state.update, { status: "error", error: (res && res.error) || tr.updateStatusError }));
         }
       });
       return;
@@ -11401,10 +14295,13 @@ function createStudioPanel(options) {
         pushAppearanceUndo();
         state.appearanceDraft.presetId = "native";
         state.appearanceDraft.customAccent = false;
+        state.appearanceDraft.customSidebarBg = false;
+        state.appearanceDraft.customBorderColor = false;
         state.appearanceDraft.accentColor = swNative && swNative.accentColor ? swNative.accentColor : "#7c9bff";
         if (swNative) {
           state.appearanceDraft.canvasBg = swNative.canvasBg;
           state.appearanceDraft.cardBg = swNative.cardBg;
+          if (swNative.sidebarBg) state.appearanceDraft.sidebarBg = swNative.sidebarBg;
         }
         state.appearanceDraft.radius = 12;
         if (state.appearanceDraft.corners) {
@@ -11415,7 +14312,7 @@ function createStudioPanel(options) {
         state.appearanceDraft.typography.uiFont = "system";
         state.appearanceDraft.typography.monoFont = "system";
         state.appearanceDraft.uiStyle = spDefaultUiStyle();
-        const suiPatchNative = { windowTheme: "graphite", widgetTheme: "glass" };
+        const suiPatchNative = { windowTheme: "obsidian", widgetTheme: "glass" };
         state.settings.studioUi = spNormalizeStudioUi(Object.assign({}, state.settings.studioUi, suiPatchNative));
         invokeIpc("agy-studio:save-settings", { studioUi: suiPatchNative });
         markAppearanceDirty();
@@ -11548,6 +14445,12 @@ function createStudioPanel(options) {
         if (!state.appearanceDraft.customAccent) {
           state.appearanceDraft.accentColor = pr.vars.accentColor;
         }
+        if (!state.appearanceDraft.customSidebarBg && pr.vars.sidebarBg) {
+          state.appearanceDraft.sidebarBg = pr.vars.sidebarBg;
+        }
+        if (!state.appearanceDraft.customBorderColor && pr.vars.borderColor && /^#[0-9a-f]{6}$/i.test(pr.vars.borderColor)) {
+          state.appearanceDraft.borderColor = pr.vars.borderColor;
+        }
         state.appearanceDraft.canvasBg = pr.vars.canvasBg;
         state.appearanceDraft.cardBg = pr.vars.cardBg;
       }
@@ -11569,6 +14472,26 @@ function createStudioPanel(options) {
       pushAppearanceUndo();
       state.appearanceDraft.customAccent = false;
       state.appearanceDraft.accentColor = (pr && pr.vars && pr.vars.accentColor) || "#3b82f6";
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "reset-custom-sidebar-bg") {
+      const pr = spFindThemePreset(state.appearanceDraft.presetId || "native");
+      pushAppearanceUndo();
+      state.appearanceDraft.customSidebarBg = false;
+      state.appearanceDraft.sidebarBg = (pr && pr.vars && pr.vars.sidebarBg) || "#0f0f14";
+      markAppearanceDirty();
+      renderStructure();
+      return;
+    }
+    if (action === "reset-custom-border-color") {
+      const pr = spFindThemePreset(state.appearanceDraft.presetId || "native");
+      pushAppearanceUndo();
+      state.appearanceDraft.customBorderColor = false;
+      state.appearanceDraft.borderColor = (pr && pr.vars && pr.vars.borderColor && /^#[0-9a-f]{6}$/i.test(pr.vars.borderColor))
+        ? pr.vars.borderColor
+        : "#262630";
       markAppearanceDirty();
       renderStructure();
       return;
@@ -12018,6 +14941,122 @@ function createStudioPanel(options) {
         updateLiveDom();
         renderStructure();
       });
+      return;
+    }
+    if (action === "toggle-opt") {
+      const key = actionEl.getAttribute("data-key");
+      if (key) {
+        const curOpt = Object.assign({}, state.settings.optimization || {});
+        const nextVal = !curOpt[key];
+        curOpt[key] = nextVal;
+        state.settings.optimization = typeof sanitizeOptimizationSettings === "function" ? sanitizeOptimizationSettings(curOpt) : curOpt;
+        const optCtrl = ensureRudexOptimizer();
+        if (optCtrl) optCtrl.apply(state.settings.optimization, state.locale);
+        saveSettingsPatch({ optimization: { [key]: nextVal } });
+        renderStructure();
+      }
+      return;
+    }
+    if (action === "set-opt-val") {
+      const key = actionEl.getAttribute("data-key");
+      const rawV = actionEl.getAttribute("data-val");
+      if (key && rawV !== null) {
+        const val = (key === "voiceChunkMs" || key === "chromiumCacheCapMb" || key === "lsMaxProcs" || key === "lsFileWatchMaxDirs" || key === "lsMaxTrackedWorkspaces")
+          ? Number(rawV)
+          : rawV;
+        const curOpt = Object.assign({}, state.settings.optimization || {}, { [key]: val });
+        state.settings.optimization = typeof sanitizeOptimizationSettings === "function" ? sanitizeOptimizationSettings(curOpt) : curOpt;
+        const optCtrl = ensureRudexOptimizer();
+        if (optCtrl) optCtrl.apply(state.settings.optimization, state.locale);
+        saveSettingsPatch({ optimization: { [key]: val } });
+        renderStructure();
+      }
+      return;
+    }
+    if (action === "refresh-perf-diag") {
+      refreshPerfDiagnostics();
+      return;
+    }
+    if (action === "select-local-voice-model") {
+      const modelId = actionEl.getAttribute("data-val") || "ru-fast";
+      const curOpt = Object.assign({}, state.settings.optimization || {}, { voiceLocalModel: modelId, voiceEngine: "auto" });
+      state.settings.optimization = typeof sanitizeOptimizationSettings === "function" ? sanitizeOptimizationSettings(curOpt) : curOpt;
+      const optCtrl = ensureRudexOptimizer();
+      if (optCtrl) optCtrl.apply(state.settings.optimization, state.locale);
+      saveSettingsPatch({ optimization: { voiceLocalModel: modelId, voiceEngine: "auto" } });
+      refreshLocalVoiceStatus(modelId);
+      renderStructure();
+      return;
+    }
+    if (action === "install-local-voice") {
+      if (state.localVoice && state.localVoice.installing) return;
+      const modelId = actionEl.getAttribute("data-model") || (state.settings.optimization && state.settings.optimization.voiceLocalModel) || "ru-fast";
+      state.localVoice.installing = true;
+      state.localVoice.progressPct = 2;
+      state.localVoice.progressMsg = state.locale !== "en" ? "Подготовка загрузки..." : "Preparing download...";
+      state.localVoice.error = "";
+      renderStructure();
+      invokeIpc("agy-studio:local-voice-install", { modelId }).then((res) => {
+        if (state.destroyed) return;
+        state.localVoice.installing = false;
+        if (res && res.ok && res.status) {
+          state.localVoice.status = res.status;
+          state.localVoice.progressPct = 100;
+          state.localVoice.progressMsg = "";
+          saveSettingsPatch({ optimization: { voiceLocalModel: modelId, voiceEngine: "auto" } });
+          const optCtrl = ensureRudexOptimizer();
+          if (optCtrl && typeof optCtrl.setLocalVoiceReady === "function") {
+            optCtrl.setLocalVoiceReady(Boolean(res.status.installed));
+          }
+          setToast(state.locale !== "en" ? "Модель установлена и выбрана по умолчанию" : "Model installed and set as default", false);
+        } else {
+          state.localVoice.error = (res && res.error) ? String(res.error) : "Install failed";
+          setToast(state.localVoice.error, true);
+        }
+        renderStructure();
+      });
+      return;
+    }
+    if (action === "clean-caches") {
+      if (state.perfDiag && state.perfDiag.busy) return;
+      state.perfDiag.busy = true;
+      state.perfDiag.lastMsg = "";
+      renderStructure();
+      invokeIpc("agy-studio:clean-caches").then((res) => {
+        if (state.destroyed) return;
+        state.perfDiag.busy = false;
+        if (res && res.ok) {
+          if (res.diagnostics) state.perfDiag.data = res.diagnostics;
+          const mb = (((res.cleaned && res.cleaned.freedBytes) || 0) / (1024 * 1024)).toFixed(1);
+          const cnt = (res.cleaned && res.cleaned.removedFiles) || 0;
+          state.perfDiag.lastMsg = state.locale !== "en"
+            ? `Очищено ${mb} МБ (${cnt} временных файлов)`
+            : `Freed ${mb} MB (${cnt} temp cache files)`;
+          setToast(state.perfDiag.lastMsg, false);
+        }
+        renderStructure();
+      });
+      return;
+    }
+    if (action === "prune-app-storage") {
+      if (state.perfDiag && state.perfDiag.busy) return;
+      state.perfDiag.busy = true;
+      state.perfDiag.lastMsg = "";
+      renderStructure();
+      invokeIpc("agy-studio:prune-app-storage").then((res) => {
+        if (state.destroyed) return;
+        state.perfDiag.busy = false;
+        if (res && res.ok) {
+          if (res.diagnostics) state.perfDiag.data = res.diagnostics;
+          const rk = (res.pruned && res.pruned.removedKeys) || 0;
+          const kb = (((res.pruned && res.pruned.freedBytes) || 0) / 1024).toFixed(1);
+          state.perfDiag.lastMsg = state.locale !== "en"
+            ? (rk > 0 ? `Удалено мёртвых макетов: ${rk} (-${kb} КБ)` : "app_storage.json уже оптимизирован")
+            : (rk > 0 ? `Removed ${rk} stale layout keys (-${kb} KB)` : "app_storage.json is already clean");
+          setToast(state.perfDiag.lastMsg, false);
+        }
+        renderStructure();
+      });
     }
   }
 
@@ -12034,10 +15073,32 @@ function createStudioPanel(options) {
       draft.accentColor = String(rawVal || "#3b82f6").toLowerCase();
       draft.customAccent = true;
       needsRerenderDots = true;
+      if (modalMountEl) {
+        const hEl = modalMountEl.querySelector('[data-app-hex-field="accentColor"]');
+        if (hEl) hEl.value = draft.accentColor;
+      }
     } else if (field === "canvasBg" || field === "cardBg") {
       draft[field] = String(rawVal || "#09090b").toLowerCase();
       draft.presetId = "custom";
       needsRerenderDots = true;
+      if (modalMountEl) {
+        const hEl = modalMountEl.querySelector(`[data-app-hex-field="${field}"]`);
+        if (hEl) hEl.value = draft[field];
+      }
+    } else if (field === "sidebarBg") {
+      draft.sidebarBg = String(rawVal || "#0f0f14").toLowerCase();
+      draft.customSidebarBg = true;
+      if (modalMountEl) {
+        const hEl = modalMountEl.querySelector('[data-app-hex-field="sidebarBg"]');
+        if (hEl) hEl.value = draft.sidebarBg;
+      }
+    } else if (field === "borderColor") {
+      draft.borderColor = String(rawVal || "#262630").toLowerCase();
+      draft.customBorderColor = true;
+      if (modalMountEl) {
+        const hEl = modalMountEl.querySelector('[data-app-hex-field="borderColor"]');
+        if (hEl) hEl.value = draft.borderColor;
+      }
     } else if (field === "glassOpacity" || field === "sidebarOpacity" || field === "glassBlur" || field === "radius" || field === "messageCardOpacity" || field === "borderStrength") {
       const n = Math.round(Number(rawVal) || 0);
       draft[field] = n;
@@ -12716,9 +15777,23 @@ function createStudioPanel(options) {
         if (modalMountEl) {
           const qLow = state.historySearchQuery.trim().toLowerCase();
           const cards = modalMountEl.querySelectorAll('[data-role="historyList"] .rx-hist-card');
+          let visibleCount = 0;
           for (let i = 0; i < cards.length; i += 1) {
             const hay = cards[i].getAttribute("data-hist-search") || "";
-            cards[i].style.display = !qLow || hay.includes(qLow) ? "" : "none";
+            const show = !qLow || hay.includes(qLow);
+            cards[i].style.display = show ? "" : "none";
+            if (show) visibleCount += 1;
+          }
+          const cntEl = modalMountEl.querySelector('[data-role="historyCount"]');
+          if (cntEl) {
+            const total = Number(cntEl.getAttribute("data-total")) || cards.length;
+            cntEl.textContent = state.locale !== "en"
+              ? `Последние сообщения (${visibleCount} / ${total})`
+              : `Recent messages (${visibleCount} / ${total})`;
+          }
+          const emptyEl = modalMountEl.querySelector('[data-role="historyFilterEmpty"]');
+          if (emptyEl) {
+            emptyEl.style.display = cards.length > 0 && visibleCount === 0 ? "" : "none";
           }
         }
         return;
@@ -12735,6 +15810,22 @@ function createStudioPanel(options) {
         for (let b = 0; b < sendBtns.length; b += 1) {
           sendBtns[b].disabled = !canSend;
         }
+      }
+      const optField = target.getAttribute("data-opt-field");
+      if (optField === "voiceCustomLangs") {
+        const curOpt = Object.assign({}, state.settings.optimization || {}, { voiceCustomLangs: target.value || "" });
+        state.settings.optimization = typeof sanitizeOptimizationSettings === "function" ? sanitizeOptimizationSettings(curOpt) : curOpt;
+        const optCtrl = ensureRudexOptimizer();
+        if (optCtrl) optCtrl.apply(state.settings.optimization, state.locale);
+        scheduleDebouncedSettingsSave("optVoiceLangs", { optimization: { voiceCustomLangs: target.value || "" } }, 220);
+        return;
+      }
+      const sysField = target.getAttribute("data-sys-field");
+      if (sysField === "thinkingTranslatorUrl") {
+        const val = String(target.value || "").trim();
+        state.settings.thinkingTranslatorUrl = val;
+        scheduleDebouncedSettingsSave("thinkingTranslatorUrl", { thinkingTranslatorUrl: val }, 260);
+        return;
       }
       const lf = target.getAttribute("data-limits-field");
       if (lf) {
@@ -12776,7 +15867,8 @@ function createStudioPanel(options) {
       }
       const inspRangeProp = target.getAttribute("data-insp-range");
       if (inspRangeProp) {
-        const val = Math.round(Number(target.value));
+        const isFloat = inspRangeProp === "lineHeight";
+        const val = isFloat ? Math.round(Number(target.value) * 100) / 100 : Math.round(Number(target.value));
         if (Number.isFinite(val)) {
           if (pickerMountEl) {
             const pairNum = pickerMountEl.querySelector(`[data-insp-num="${inspRangeProp}"]`);
@@ -12794,7 +15886,8 @@ function createStudioPanel(options) {
       if (inspNumProp) {
         const rawStr = String(target.value || "").trim();
         if (rawStr === "") return; // Wait until user finishes typing or clears on blur/change
-        const val = Math.round(Number(rawStr));
+        const isFloat = inspNumProp === "lineHeight";
+        const val = isFloat ? Math.round(Number(rawStr) * 100) / 100 : Math.round(Number(rawStr));
         if (Number.isFinite(val)) {
           const rawMin = target.getAttribute("min");
           const rawMax = target.getAttribute("max");
@@ -12814,11 +15907,70 @@ function createStudioPanel(options) {
         }
         return;
       }
+      const appHexField = target.getAttribute("data-app-hex-field");
+      if (appHexField === "accentColor" || appHexField === "canvasBg" || appHexField === "cardBg" || appHexField === "sidebarBg" || appHexField === "borderColor") {
+        const parsedHex = parseUserHexInput(target.value);
+        if (parsedHex) {
+          const pickerEl = modalMountEl ? modalMountEl.querySelector(`[data-app-field="${appHexField}"]`) : null;
+          if (pickerEl) pickerEl.value = parsedHex.hex;
+          if (appHexField === "accentColor") {
+            state.appearanceDraft.accentColor = parsedHex.hex;
+            state.appearanceDraft.customAccent = true;
+          } else if (appHexField === "sidebarBg") {
+            state.appearanceDraft.sidebarBg = parsedHex.hex;
+            state.appearanceDraft.customSidebarBg = true;
+          } else if (appHexField === "borderColor") {
+            state.appearanceDraft.borderColor = parsedHex.hex;
+            state.appearanceDraft.customBorderColor = true;
+          } else {
+            state.appearanceDraft[appHexField] = parsedHex.hex;
+            state.appearanceDraft.presetId = "custom";
+          }
+          markAppearanceDirty();
+          syncTheme();
+          if (modalMountEl) {
+            const cards = modalMountEl.querySelectorAll(".theme-card");
+            for (let i = 0; i < cards.length; i += 1) {
+              cards[i].classList.toggle("is-selected", cards[i].getAttribute("data-id") === state.appearanceDraft.presetId);
+            }
+            const dots = modalMountEl.querySelectorAll(".accent-dot-btn");
+            for (let i = 0; i < dots.length; i += 1) {
+              dots[i].classList.toggle("is-selected", dots[i].getAttribute("data-val") === state.appearanceDraft.accentColor);
+            }
+          }
+        }
+        return;
+      }
+      const inspHexProp = target.getAttribute("data-insp-hex-input");
+      if (inspHexProp) {
+        const parsedHex = parseUserHexInput(target.value);
+        if (parsedHex) {
+          if (pickerMountEl) {
+            const pairColor = pickerMountEl.querySelector(`[data-insp-style="${inspHexProp}"]`);
+            if (pairColor) pairColor.value = parsedHex.hex;
+          }
+          upsertSelectedElementStyle(inspHexProp, parsedHex.hex, { preserveDom: true, liveOnly: true, skipUndo: true });
+          if (inspHexProp === "bgColor" && parsedHex.alphaPct !== null) {
+            if (pickerMountEl) {
+              const pairRange = pickerMountEl.querySelector('[data-insp-range="bgOpacity"]');
+              const pairNum = pickerMountEl.querySelector('[data-insp-num="bgOpacity"]');
+              const badge = pickerMountEl.querySelector('[data-insp-badge="bgOpacity"]');
+              if (pairRange) pairRange.value = String(parsedHex.alphaPct);
+              if (pairNum) pairNum.value = String(parsedHex.alphaPct);
+              if (badge) badge.textContent = `${parsedHex.alphaPct}%`;
+            }
+            upsertSelectedElementStyle("bgOpacity", parsedHex.alphaPct, { preserveDom: true, liveOnly: true, skipUndo: true });
+          }
+        }
+        return;
+      }
       const inspProp = target.getAttribute("data-insp-style");
       if (inspProp) {
         const isColor = target.type === "color";
         const isLiveText = target.getAttribute("data-insp-live-text") === "1";
         if (isColor && pickerMountEl) {
+          const hexInp = pickerMountEl.querySelector(`[data-insp-hex-input="${inspProp}"]`);
+          if (hexInp) hexInp.value = String(target.value || "").toLowerCase();
           const hexEl = pickerMountEl.querySelector(`[data-insp-hex="${inspProp}"]`);
           if (hexEl) hexEl.textContent = String(target.value || "").toLowerCase();
         }
@@ -13019,6 +16171,16 @@ function createStudioPanel(options) {
         state.settings.limitsWidget = lw;
         renderLimitsWidgetMount();
         flushDebouncedSettingsSave("limits", { limitsWidget: lw });
+      } else if (target.getAttribute("data-opt-field") === "voiceCustomLangs") {
+        const curOpt = Object.assign({}, state.settings.optimization || {}, { voiceCustomLangs: target.value || "" });
+        state.settings.optimization = typeof sanitizeOptimizationSettings === "function" ? sanitizeOptimizationSettings(curOpt) : curOpt;
+        const optCtrl = ensureRudexOptimizer();
+        if (optCtrl) optCtrl.apply(state.settings.optimization, state.locale);
+        flushDebouncedSettingsSave("optVoiceLangs", { optimization: { voiceCustomLangs: target.value || "" } });
+      } else if (target.getAttribute("data-sys-field") === "thinkingTranslatorUrl") {
+        const val = String(target.value || "").trim();
+        state.settings.thinkingTranslatorUrl = val;
+        flushDebouncedSettingsSave("thinkingTranslatorUrl", { thinkingTranslatorUrl: val });
       } else if (target.getAttribute("data-quota-auto-field")) {
         const qf = target.getAttribute("data-quota-auto-field");
         const qa = typeof rv5NormalizeQuotaAutomation === "function"
@@ -13032,7 +16194,7 @@ function createStudioPanel(options) {
       } else if (target.getAttribute("data-insp-range") || target.getAttribute("data-insp-num")) {
         const prop = target.getAttribute("data-insp-range") || target.getAttribute("data-insp-num");
         const rawStr = String(target.value || "").trim();
-        const negOneProps = new Set(["borderWidth", "borderRadius", "padding", "opacity"]);
+        const negOneProps = new Set(["borderWidth", "borderRadius", "padding", "paddingY", "paddingX", "opacity"]);
         if (rawStr === "") {
           upsertSelectedElementStyle(prop, negOneProps.has(prop) ? -1 : 0);
         } else {
@@ -13040,7 +16202,7 @@ function createStudioPanel(options) {
           const rawMax = target.getAttribute("max");
           const minAttr = rawMin !== null && rawMin !== "" ? Number(rawMin) : NaN;
           const maxAttr = rawMax !== null && rawMax !== "" ? Number(rawMax) : NaN;
-          let val = Math.round(Number(rawStr));
+          let val = prop === "lineHeight" ? Math.round(Number(rawStr) * 100) / 100 : Math.round(Number(rawStr));
           if (Number.isFinite(val)) {
             if (Number.isFinite(minAttr)) val = Math.max(minAttr, val);
             if (Number.isFinite(maxAttr)) val = Math.min(maxAttr, val);
@@ -13049,6 +16211,42 @@ function createStudioPanel(options) {
         }
       } else if (target.type === "color" && target.getAttribute("data-insp-style")) {
         upsertSelectedElementStyle(target.getAttribute("data-insp-style"), target.value || "");
+      } else if (target.getAttribute("data-insp-hex-input")) {
+        const prop = target.getAttribute("data-insp-hex-input");
+        const parsedHex = parseUserHexInput(target.value);
+        if (parsedHex) {
+          target.value = parsedHex.hex;
+          if (prop === "bgColor" && parsedHex.alphaPct !== null) {
+            upsertSelectedElementStyle("bgOpacity", parsedHex.alphaPct, { preserveDom: true, liveOnly: true });
+          }
+          upsertSelectedElementStyle(prop, parsedHex.hex);
+        } else if (String(target.value || "").trim() === "") {
+          upsertSelectedElementStyle(prop, "");
+        }
+      } else if (target.getAttribute("data-app-hex-field")) {
+        const appF = target.getAttribute("data-app-hex-field");
+        const parsedHex = parseUserHexInput(target.value);
+        if (parsedHex) {
+          target.value = parsedHex.hex;
+          const pickerEl = modalMountEl ? modalMountEl.querySelector(`[data-app-field="${appF}"]`) : null;
+          if (pickerEl) pickerEl.value = parsedHex.hex;
+          if (appF === "accentColor") {
+            state.appearanceDraft.accentColor = parsedHex.hex;
+            state.appearanceDraft.customAccent = true;
+          } else if (appF === "sidebarBg") {
+            state.appearanceDraft.sidebarBg = parsedHex.hex;
+            state.appearanceDraft.customSidebarBg = true;
+          } else if (appF === "borderColor") {
+            state.appearanceDraft.borderColor = parsedHex.hex;
+            state.appearanceDraft.customBorderColor = true;
+          } else if (appF === "canvasBg" || appF === "cardBg") {
+            state.appearanceDraft[appF] = parsedHex.hex;
+            state.appearanceDraft.presetId = "custom";
+          }
+          markAppearanceDirty();
+          syncTheme();
+          renderStructure();
+        }
       } else if (target.getAttribute("data-insp-live-text") === "1" && target.getAttribute("data-insp-style")) {
         upsertSelectedElementStyle(target.getAttribute("data-insp-style"), target.value || "");
       } else if (target.getAttribute("data-limits-live-text") === "1" && target.getAttribute("data-limits-field")) {
@@ -13123,9 +16321,86 @@ function createStudioPanel(options) {
       };
       win.addEventListener("beforeunload", beforeUnloadDraftHandler);
       win.addEventListener("pagehide", beforeUnloadDraftHandler);
+      win.addEventListener("blur", beforeUnloadDraftHandler);
+
+      const triggerFastNavSample = () => {
+        if (state.destroyed || !state.mounted) return;
+        if (win && typeof win.clearTimeout === "function") {
+          for (let i = 0; i < navBurstTimers.length; i += 1) win.clearTimeout(navBurstTimers[i]);
+        }
+        navBurstTimers = [];
+        try { sampleStreamTick(); } catch (_e) {}
+        if (win && typeof win.setTimeout === "function") {
+          for (const d of [16, 55]) {
+            navBurstTimers.push(win.setTimeout(() => {
+              if (!state.destroyed && state.mounted) {
+                try { sampleStreamTick(); } catch (_e) {}
+              }
+            }, d));
+          }
+        }
+      };
+
+      quotaRpcMsgHandler = (ev) => {
+        if (state.destroyed || !ev || ev.source !== win || !ev.data || typeof ev.data !== "object") return;
+        const kind = ev.data.__rudexVoice;
+        const p = ev.data.payload;
+        if (!p || typeof p !== "object") return;
+        if (kind === "nav-change") {
+          triggerFastNavSample();
+          return;
+        }
+        if (kind === "quota-rpc") {
+          if (!p.gemini && !p.claudeGpt) return;
+          state.lastRpcQuotaAt = Date.now();
+          invokeIpc("agy-studio:sync-quota-snapshot", {
+            gemini: p.gemini || null,
+            claudeGpt: p.claudeGpt || null,
+            activeChatKey: state.activeChatKey || "__new__",
+            source: "official-rpc",
+          }).then((res) => {
+            if (!state.destroyed && res && res.summary) {
+              applyQuotaSummary(res.summary);
+            }
+          });
+          return;
+        }
+        if (kind === "composer-file" && typeof p.dataUrl === "string" && p.dataUrl.startsWith("data:")) {
+          const mime = String(p.mime || "").toLowerCase();
+          const fname = String(p.name || "").trim() || `file-${Date.now()}`;
+          const isImg = mime.startsWith("image/") || p.dataUrl.startsWith("data:image/") || /\.(?:png|jpe?g|webp|gif|bmp)$/i.test(fname);
+          if (isImg && p.dataUrl.startsWith("data:image/")) {
+            cacheOriginalImageDataUrl(p.dataUrl, fname, mime || "image/png");
+          } else {
+            const exists = composerOrigFiles.some((x) => x && x.name === fname && x.dataUrl === p.dataUrl);
+            if (!exists) {
+              composerOrigFiles.push({ name: fname, mime: mime || "application/octet-stream", size: Number(p.size) || 0, dataUrl: p.dataUrl, ts: Date.now() });
+              if (composerOrigFiles.length > 10) composerOrigFiles.shift();
+            }
+          }
+          if (!isRestoringDraft && Date.now() > draftJustSubmittedUntil) {
+            state.userEditedComposerInChat = true;
+            scheduleComposerDraftSave(220, true);
+          }
+        }
+      };
+      win.addEventListener("message", quotaRpcMsgHandler);
+      navChangeHandler = () => triggerFastNavSample();
+      win.addEventListener("popstate", navChangeHandler, true);
+      win.addEventListener("hashchange", navChangeHandler, true);
     }
 
     if (doc && typeof doc.addEventListener === "function") {
+      sidebarNavClickHandler = (e) => {
+        if (state.destroyed || !state.mounted || !e || !e.target) return;
+        const rawT = e.target.nodeType === 3 ? e.target.parentElement : e.target;
+        if (!rawT || typeof rawT.closest !== "function") return;
+        if (hostEl && (rawT === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(rawT)))) return;
+        if (rawT.closest('aside, nav, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"]')) {
+          if (typeof navChangeHandler === "function") navChangeHandler();
+        }
+      };
+      doc.addEventListener("click", sidebarNavClickHandler, true);
       visChangeHandler = () => {
         if (doc.hidden) {
           flushComposerDraftSync(state.activeChatKey || "__new__", state.activeChatTitle || "");
@@ -13137,7 +16412,8 @@ function createStudioPanel(options) {
       doc.addEventListener("visibilitychange", visChangeHandler);
 
       keydownHandler = (e) => {
-        if (!e) return;
+        if (!e || e.__rudexKeyHandled) return;
+        e.__rudexKeyHandled = true;
         // 0. Screenshot Annotator shortcuts (Esc / Ctrl+Z / Ctrl+Y / Text Enter)
         if (annotatorCtrl && typeof annotatorCtrl.handleKeydown === "function" && annotatorCtrl.handleKeydown(e)) {
           return;
@@ -13187,8 +16463,15 @@ function createStudioPanel(options) {
             stopElementPicker();
             return;
           }
+          if (state.inspectorDragMoveActive) {
+            consumeEsc();
+            stopInspectorDragMove();
+            return;
+          }
           if (state.pickerSelected) {
             consumeEsc();
+            stopInspectorDragMove(true);
+            flushInspectorPersist();
             state.pickerSelected = null;
             inspectorDragUndoCaptured = false;
             if (!state.isOpen) state.appearanceLivePreview = false;
@@ -13248,16 +16531,76 @@ function createStudioPanel(options) {
         // 3. Inline live-edit capture OR normal user prompt submission capture (clears draft & saves to last-20 history)
         const le = state.settings.liveEditInline;
         if (!e.isComposing && e.key === "Enter" && !e.shiftKey && !e.altKey && typeof rv5FindNativeComposer === "function") {
-          const { container, editable } = rv5FindNativeComposer(doc);
-          if (editable && (e.target === editable || (typeof editable.contains === "function" && editable.contains(e.target)))) {
-            // Skip when an autocomplete/mention/slash popup is open in the host DOM
+          const rawTarget = e.target;
+          const targetEl = rawTarget && rawTarget.nodeType === 3 ? rawTarget.parentElement : rawTarget;
+          const activeEl = doc.activeElement && doc.activeElement.nodeType === 3 ? doc.activeElement.parentElement : doc.activeElement;
+          const isNodeInEditable = (ed, node) => Boolean(ed && node && (node === ed || (typeof ed.contains === "function" && ed.contains(node))));
+          let { container, editable } = rv5FindNativeComposer(doc);
+          const pathHasEditable = (ed) => {
+            if (!ed || typeof e.composedPath !== "function") return false;
+            try {
+              const cp = e.composedPath();
+              return Array.isArray(cp) && cp.indexOf(ed) !== -1;
+            } catch (_e) {
+              return false;
+            }
+          };
+          let targetInEditable = isNodeInEditable(editable, targetEl) || isNodeInEditable(editable, activeEl) || pathHasEditable(editable);
+          if (!targetInEditable) {
+            const probeNode = targetEl && typeof targetEl.closest === "function" ? targetEl : (activeEl && typeof activeEl.closest === "function" ? activeEl : null);
+            const directEd = probeNode ? probeNode.closest('textarea, [contenteditable="true"], [role="textbox"]') : null;
+            if (directEd && !directEd.closest('#rudex-studio-host, [data-testid="user-message-content"], [data-testid="agent-response"], .monaco-editor, [role="dialog"], [role="alertdialog"]')) {
+              const cls = typeof directEd.className === "string" ? directEd.className : "";
+              if (!/\b(?:inputarea|ime-text-area)\b/.test(cls)) {
+                editable = directEd;
+                container = directEd.closest('[data-rudex-theme-composer="1"], form, [data-testid="composer"], .composer-container') || directEd.parentElement;
+                targetInEditable = true;
+              }
+            }
+          }
+          if (editable && targetInEditable) {
+            // Skip ONLY when a genuinely visible autocomplete/mention/slash popup attached to the composer is open!
+            // Ignore hidden/collapsed 0x0 menus (even if they have child nodes!), header/sidebar menus, and unrelated popups.
             let hasOpenPopup = false;
             try {
+              const edRect = typeof editable.getBoundingClientRect === "function" ? editable.getBoundingClientRect() : null;
+              const contRect = container && typeof container.getBoundingClientRect === "function" ? container.getBoundingClientRect() : edRect;
+              const hasRealLayout = Boolean(edRect && edRect.width > 0 && edRect.height > 0);
+              const edControlsId = typeof editable.getAttribute === "function" ? (editable.getAttribute("aria-controls") || "") : "";
+              const edActiveDescId = typeof editable.getAttribute === "function" ? (editable.getAttribute("aria-activedescendant") || "") : "";
               const popups = doc.querySelectorAll('[role="listbox"], [role="menu"]');
               for (let pi = 0; popups && pi < popups.length; pi += 1) {
                 const p = popups[pi];
                 if (!p || (hostEl && typeof hostEl.contains === "function" && hostEl.contains(p))) continue;
-                if (!isHiddenAncestor(p, doc.body)) { hasOpenPopup = true; break; }
+                if (typeof p.getAttribute === "function" && (p.getAttribute("aria-hidden") === "true" || p.getAttribute("data-state") === "closed")) continue;
+                if (typeof p.closest === "function" && p.closest('aside, header, nav, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"], [data-rudex-bg-header="1"]')) continue;
+                if (isHiddenAncestor(p, doc.body)) continue;
+                if (win && typeof win.getComputedStyle === "function") {
+                  const pcs = win.getComputedStyle(p);
+                  if (pcs && (pcs.opacity === "0" || pcs.pointerEvents === "none" || pcs.display === "none" || pcs.visibility === "hidden")) continue;
+                }
+                const pr = typeof p.getBoundingClientRect === "function" ? p.getBoundingClientRect() : null;
+                if (hasRealLayout && pr) {
+                  // In real DOM, any collapsed/0x0 popup is NOT open even if it still has childElementCount > 0!
+                  if (pr.width < 24 || pr.height < 16) continue;
+                  const isLinkedToEd = Boolean(
+                    (edControlsId && p.id === edControlsId) ||
+                    (edActiveDescId && typeof p.querySelector === "function" && p.querySelector(`#${edActiveDescId.replace(/[^a-zA-Z0-9_-]/g, "\\$&")}`)) ||
+                    (container && typeof container.contains === "function" && container.contains(p))
+                  );
+                  if (!isLinkedToEd && contRect) {
+                    const horizOverlap = pr.right >= contRect.left - 80 && pr.left <= contRect.right + 80;
+                    const vertNear = pr.bottom >= edRect.top - 360 && pr.top <= edRect.bottom + 140;
+                    const hasSelectableItems = typeof p.querySelector === "function"
+                      ? Boolean(p.querySelector('[role="option"], [role="menuitem"], [aria-selected="true"], [data-highlighted]'))
+                      : true;
+                    if (!horizOverlap || !vertNear || !hasSelectableItems) continue;
+                  }
+                } else if (pr && pr.width === 0 && pr.height === 0 && !p.childElementCount) {
+                  continue;
+                }
+                hasOpenPopup = true;
+                break;
               }
             } catch (_e) {}
             if (hasOpenPopup) return;
@@ -13281,11 +16624,13 @@ function createStudioPanel(options) {
           }
         }
       };
-      doc.addEventListener("keydown", keydownHandler, true);
 
-      composerSendClickHandler = (e) => {
-        if (!e || !e.target || typeof e.target.closest !== "function") return;
-        const btn = e.target.closest("button");
+      const handleComposerSendTrigger = (e, isPointerPhase) => {
+        if (!e || e.__rudexSendHandled || !e.target) return;
+        const rawT = e.target.nodeType === 3 ? e.target.parentElement : e.target;
+        if (!rawT || typeof rawT.closest !== "function") return;
+        if (isPointerPhase && typeof e.button === "number" && e.button !== 0) return;
+        const btn = rawT.closest("button");
         if (!btn) return;
         if (hostEl && (btn === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(btn)))) return;
         if (btn.hasAttribute("data-rudex-img-edit-btn") || btn.hasAttribute("data-rudex-native-entry")) return;
@@ -13296,26 +16641,40 @@ function createStudioPanel(options) {
         const lbl = String(btn.getAttribute("aria-label") || btn.getAttribute("title") || "").toLowerCase();
         const typeAttr = String(btn.getAttribute("type") || "").toLowerCase();
         const meta = tid + " " + lbl;
+        const isCancelBtn = tid === "input-cancel-button" || tid === "cancel-invocation-button" || /^(?:cancel|abort|stop|останов|прерв|отмен)/i.test(lbl);
+        if (isCancelBtn) return;
         const hasSendAttr = btn.getAttribute("data-rudex-comp-send") === "1";
-        const hasSendWord = /send|submit|queue|отправ|очеред/.test(meta);
-        if (!hasSendAttr && /cancel|abort|отмен|model|mode|attach|upload|plus|add|remove|delete|close|удал|закры/.test(meta)) return;
+        const hasSendWord = /\b(?:send|submit|queue|enqueue)\b|отправ|очеред/i.test(meta);
+        if (!hasSendAttr && !hasSendWord && /cancel|abort|отмен|model|mode|attach|upload|plus|add|remove|delete|close|удал|закры/.test(meta)) return;
         if (!hasSendAttr && !hasSendWord && /mic|voice|dictat|record|stop|останов/.test(meta)) return;
         const looksSend = hasSendAttr || typeAttr === "submit" || hasSendWord;
         if (!looksSend) return;
+        if (!isPointerPhase && Date.now() - lastLiveSendInterceptAt < 450) {
+          e.__rudexSendHandled = true;
+          if (typeof e.preventDefault === "function") e.preventDefault();
+          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+          if (typeof e.stopPropagation === "function") e.stopPropagation();
+          return;
+        }
         const txt = typeof rv5ReadEditableText === "function" ? rv5ReadEditableText(editable) : "";
         const hasAtt = hasComposerAttachments(container, editable);
         if (!txt && !hasAtt) return;
         const le = state.settings.liveEditInline;
-        if (le && le.enabled && isAgentRunningNow()) {
+        const runningNow = isAgentRunningNow();
+        if (le && le.enabled && runningNow) {
+          e.__rudexSendHandled = true;
+          lastLiveSendInterceptAt = Date.now();
           if (typeof e.preventDefault === "function") e.preventDefault();
           if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
           if (typeof e.stopPropagation === "function") e.stopPropagation();
           sendInlineLiveEditFromComposer();
-        } else if (!isAgentRunningNow()) {
+        } else if (!isPointerPhase && !runningNow) {
+          e.__rudexSendHandled = true;
           captureAndRecordUserSubmission(container, editable, "chat");
         }
       };
-      doc.addEventListener("click", composerSendClickHandler, true);
+      composerSendPointerHandler = (e) => handleComposerSendTrigger(e, true);
+      composerSendClickHandler = (e) => handleComposerSendTrigger(e, false);
 
       cancelClickHandler = (e) => {
         const tEl = e && e.target;
@@ -13327,24 +16686,57 @@ function createStudioPanel(options) {
       doc.addEventListener("click", cancelClickHandler, true);
 
       docPasteHandler = (e) => {
+        if (!e || e.__rudexPasteHandled) return;
+        e.__rudexPasteHandled = true;
         if (annotatorCtrl && typeof annotatorCtrl.isOpen === "function" && annotatorCtrl.isOpen()) {
           annotatorCtrl.handlePaste(e);
           return;
         }
         // Passively cache full-resolution pasted images & files before Antigravity downscales thumbnails
         const items = e && e.clipboardData && e.clipboardData.items;
+        let sawImage = false;
+        let sawFile = false;
         if (items && items.length) {
-          let sawFile = false;
           for (let i = 0; i < items.length; i += 1) {
             if (items[i] && items[i].kind === "file" && typeof items[i].getAsFile === "function") {
-              cacheOriginalComposerFile(items[i].getAsFile());
-              sawFile = true;
+              const f = items[i].getAsFile();
+              if (f) {
+                const fMime = String(f.type || "").toLowerCase();
+                if (fMime.startsWith("image/") || /\.(?:png|jpe?g|webp|gif|bmp)$/i.test(String(f.name || ""))) sawImage = true;
+                cacheOriginalComposerFile(f);
+                sawFile = true;
+              }
             }
           }
-          if (sawFile && !isRestoringDraft) scheduleComposerDraftSave(450);
+          if (sawFile && !isRestoringDraft) {
+            state.userEditedComposerInChat = true;
+            scheduleComposerDraftSave(240, true);
+          }
+        }
+        // Electron native clipboard fallback: if browser clipboardData didn't expose the image file, grab full-res PNG via main process IPC
+        if (!sawImage && ipc && typeof rv5FindNativeComposer === "function") {
+          const rawT = e.target && e.target.nodeType === 3 ? e.target.parentElement : e.target;
+          const { container, editable } = rv5FindNativeComposer(doc);
+          const inComp = Boolean(
+            (editable && (rawT === editable || (typeof editable.contains === "function" && editable.contains(rawT)))) ||
+            (container && (rawT === container || (typeof container.contains === "function" && container.contains(rawT))))
+          );
+          if (inComp) {
+            invokeIpc("agy-studio:read-clipboard-image").then((res) => {
+              if (!state.destroyed && res && res.ok && res.dataUrl && res.dataUrl.startsWith("data:image/")) {
+                cacheOriginalImageDataUrl(res.dataUrl, `clipboard-${Date.now()}.png`, "image/png");
+                if (!isRestoringDraft && Date.now() > draftJustSubmittedUntil) {
+                  state.userEditedComposerInChat = true;
+                  scheduleComposerDraftSave(240, true);
+                }
+              }
+            });
+          }
         }
       };
-      doc.addEventListener("paste", docPasteHandler, true);
+
+      // Ensure early capture handlers are attached (already attached in init() BEFORE React/Lexical loaded; attach here if mountStudioUi was called directly)
+      attachEarlyCaptureHandlers();
 
       docDropHandler = (e) => {
         const files = e && e.dataTransfer && e.dataTransfer.files;
@@ -13352,7 +16744,10 @@ function createStudioPanel(options) {
           for (let i = 0; i < files.length; i += 1) {
             if (files[i]) cacheOriginalComposerFile(files[i]);
           }
-          if (!isRestoringDraft) scheduleComposerDraftSave(450);
+          if (!isRestoringDraft) {
+            state.userEditedComposerInChat = true;
+            scheduleComposerDraftSave(240, true);
+          }
         }
       };
       doc.addEventListener("drop", docDropHandler, true);
@@ -13364,22 +16759,36 @@ function createStudioPanel(options) {
         for (let i = 0; i < inp.files.length; i += 1) {
           if (inp.files[i]) cacheOriginalComposerFile(inp.files[i]);
         }
-        if (inp.files.length > 0 && !isRestoringDraft) scheduleComposerDraftSave(450);
+        if (inp.files.length > 0 && !isRestoringDraft) {
+          state.userEditedComposerInChat = true;
+          scheduleComposerDraftSave(240, true);
+        }
       };
       doc.addEventListener("change", docFileChangeHandler, true);
 
       docInputHandler = (e) => {
         if (state.destroyed || isRestoringDraft || state.settings.composerDraftsEnabled === false) return;
+        if (Date.now() < draftJustSubmittedUntil) return;
         const tEl = e && e.target;
         if (!tEl || (hostEl && (tEl === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(tEl))))) return;
         if (typeof rv5FindNativeComposer === "function") {
-          const { editable } = rv5FindNativeComposer(doc);
+          const { container, editable } = rv5FindNativeComposer(doc);
           if (editable && (tEl === editable || (typeof editable.contains === "function" && editable.contains(tEl)))) {
-            scheduleComposerDraftSave(isVoiceDictationActive() ? 1400 : 550);
+            state.userEditedComposerInChat = true;
+            // Cache snapshot immediately on every keystroke so rapid chat switching or sudden force-close NEVER loses text!
+            const curKey = state.activeChatKey || "__new__";
+            const snap = collectComposerSnapshotSync(container, editable);
+            const hasContent = Boolean(String(snap.text || "").trim() || (snap.items && snap.items.length > 0));
+            if (String(snap.text || "").trim()) draftTextCacheByChat.set(curKey, snap.text);
+            else draftTextCacheByChat.delete(curKey);
+            lastKnownComposerSnapByChat.set(curKey, Object.assign(snap, { cleared: !hasContent }));
+            scheduleComposerDraftSave(isVoiceDictationActive() ? 1200 : 180);
           }
         }
       };
       doc.addEventListener("input", docInputHandler, true);
+      docCompEndHandler = (e) => docInputHandler(e);
+      doc.addEventListener("compositionend", docCompEndHandler, true);
 
       outsidePopoverHandler = (e) => {
         if (!e) return;
@@ -13635,6 +17044,8 @@ function createStudioPanel(options) {
     attachDomEvents();
     state.mounted = true;
     state.hydrationIgnoreUntil = nowHiRes() + 2500;
+    const bootOpt = ensureRudexOptimizer();
+    if (bootOpt) bootOpt.apply(state.settings.optimization, state.locale);
     renderStructure();
     refreshLiveEdits();
     pollStream();
@@ -13680,8 +17091,35 @@ function createStudioPanel(options) {
             }
             if (!hasExternal) return;
           }
-          scheduleStreamSample();
-          if (state.settings.thinkingInRussian) scheduleThinkingScan(160);
+          const obsUrlSig = win && win.location ? `${win.location.pathname || ""}${win.location.search || ""}${win.location.hash || ""}` : "";
+          if (obsUrlSig && obsUrlSig !== state.lastObservedUrlSig) {
+            state.lastObservedUrlSig = obsUrlSig;
+            try { sampleStreamTick(); } catch (_e) {}
+          } else {
+            scheduleStreamSample();
+          }
+          if (state.settings.thinkingInRussian || state.settings.workLogInRussian) scheduleThinkingScan(160);
+          if (Array.isArray(muts)) {
+            for (let mi = 0; mi < muts.length; mi += 1) {
+              const added = muts[mi] && muts[mi].addedNodes;
+              if (!added || !added.length) continue;
+              let hitOverlay = false;
+              for (let ai = 0; ai < added.length; ai += 1) {
+                const an = added[ai];
+                if (!an || an.nodeType !== 1) continue;
+                if (hostEl && (an === hostEl || (typeof hostEl.contains === "function" && hostEl.contains(an)))) continue;
+                const role = typeof an.getAttribute === "function" ? (an.getAttribute("role") || "") : "";
+                if (role === "dialog" || role === "menu" || role === "listbox" || (typeof an.hasAttribute === "function" && an.hasAttribute("data-radix-popper-content-wrapper")) || (typeof an.querySelector === "function" && an.querySelector('[data-testid="quota-progress-circle"], [data-radix-popper-content-wrapper], [role="dialog"]'))) {
+                  hitOverlay = true;
+                  break;
+                }
+              }
+              if (hitOverlay) {
+                scheduleQuotaDomScrapeBurst();
+                break;
+              }
+            }
+          }
         });
         domObserver.observe(doc.body, { childList: true, subtree: true, characterData: true });
       } catch (_e) {}
@@ -13713,16 +17151,105 @@ function createStudioPanel(options) {
     }
   }
 
+  let earlyThemeBooted = false;
+  if (opts.initialBoot && typeof opts.initialBoot === "object") {
+    const ib = opts.initialBoot;
+    if (ib.appearance && typeof ib.appearance === "object") {
+      state.settings.appearance = spCloneAppearance(ib.appearance);
+      state.appearanceDraft = spCloneAppearance(state.settings.appearance);
+    }
+    if (ib.greeting && typeof ib.greeting === "object") {
+      state.settings.greeting = spCloneGreeting(ib.greeting);
+      state.greetingDraft = spCloneGreeting(state.settings.greeting);
+    }
+    if (Array.isArray(ib.customLabels)) {
+      state.settings.customLabels = ib.customLabels.slice(0, 120);
+    }
+    if (ib.studioUi && typeof ib.studioUi === "object") {
+      state.settings.studioUi = spNormalizeStudioUi(ib.studioUi);
+    }
+    if (ib.optimization && typeof ib.optimization === "object") {
+      state.settings.optimization = typeof sanitizeOptimizationSettings === "function"
+        ? sanitizeOptimizationSettings(ib.optimization)
+        : Object.assign({}, state.settings.optimization, ib.optimization);
+    }
+    if (typeof ib.zenMode === "boolean") {
+      state.settings.zenMode = ib.zenMode;
+    }
+    if (typeof ib.composerDraftsEnabled === "boolean") {
+      state.settings.composerDraftsEnabled = ib.composerDraftsEnabled;
+    }
+    if (ib.draftTexts && typeof ib.draftTexts === "object") {
+      for (const [dk, dv] of Object.entries(ib.draftTexts)) {
+        if (dk && typeof dv === "string" && dv.trim()) {
+          draftTextCacheByChat.set(dk, dv);
+        }
+      }
+    }
+  }
+
+  function bootEarlyTheme() {
+    if (state.destroyed || !doc) return;
+    try {
+      const proto = win && win.location && typeof win.location.protocol === "string" ? win.location.protocol : "";
+      if (/^(data:|about:)$/i.test(proto)) return;
+    } catch (_e) {}
+    earlyThemeBooted = true;
+    try {
+      const appScale = state.settings.studioUi && Number(state.settings.studioUi.appScale);
+      if (webFrame && typeof webFrame.setZoomFactor === "function" && Number.isFinite(appScale) && appScale >= 70 && appScale <= 150 && appScale !== 100) {
+        webFrame.setZoomFactor(appScale / 100);
+      }
+    } catch (_e) {}
+    if (translator) {
+      try {
+        if (typeof translator.setCustomLabels === "function" && Array.isArray(state.settings.customLabels) && state.settings.customLabels.length > 0) {
+          translator.setCustomLabels(state.settings.customLabels);
+        }
+        if (typeof translator.setGreetingConfig === "function" && state.settings.greeting) {
+          translator.setGreetingConfig(state.settings.greeting);
+        }
+      } catch (_e) {}
+    }
+    applyThemeToHost(state.settings.appearance);
+    try {
+      const optCtrl = ensureRudexOptimizer();
+      if (optCtrl) optCtrl.apply(state.settings.optimization, state.locale);
+    } catch (_e) {}
+  }
+
   function scheduleMountAfterSettle() {
     if (state.mounted || state.destroyed || settleTimer) return;
     clearReadinessWatchers();
-    if (win && typeof win.setTimeout === "function") {
-      settleTimer = win.setTimeout(() => {
-        settleTimer = null;
-        mountStudioUi();
-      }, 150);
-    } else {
-      mountStudioUi();
+    mountStudioUi();
+  }
+
+  function attachEarlyCaptureHandlers() {
+    if (earlyCaptureAttached || state.destroyed) return;
+    earlyCaptureAttached = true;
+    earlyKeydownCapture = (e) => {
+      if (!state.destroyed && typeof keydownHandler === "function") keydownHandler(e);
+    };
+    earlyPointerDownCapture = (e) => {
+      if (!state.destroyed && typeof composerSendPointerHandler === "function") composerSendPointerHandler(e);
+    };
+    earlyClickCapture = (e) => {
+      if (!state.destroyed && typeof composerSendClickHandler === "function") composerSendClickHandler(e);
+    };
+    earlyPasteCapture = (e) => {
+      if (!state.destroyed && typeof docPasteHandler === "function") docPasteHandler(e);
+    };
+    if (win && typeof win.addEventListener === "function") {
+      win.addEventListener("keydown", earlyKeydownCapture, true);
+      win.addEventListener("pointerdown", earlyPointerDownCapture, true);
+      win.addEventListener("click", earlyClickCapture, true);
+      win.addEventListener("paste", earlyPasteCapture, true);
+    }
+    if (doc && typeof doc.addEventListener === "function") {
+      doc.addEventListener("keydown", earlyKeydownCapture, true);
+      doc.addEventListener("pointerdown", earlyPointerDownCapture, true);
+      doc.addEventListener("click", earlyClickCapture, true);
+      doc.addEventListener("paste", earlyPasteCapture, true);
     }
   }
 
@@ -13734,6 +17261,12 @@ function createStudioPanel(options) {
     } catch (_e) {}
 
     state.initialized = true;
+    if (opts.initialBoot && !earlyThemeBooted) {
+      bootEarlyTheme();
+    }
+    // CRITICAL: Register window/document capture listeners IMMEDIATELY at preload init() — BEFORE React/Lexical mounts!
+    // Guarantees Rudex live-edit Enter/Send and full-res Paste interception ALWAYS run first in capture order.
+    attachEarlyCaptureHandlers();
     if (isAntigravityUiReady()) {
       mountStudioUi();
       return;
@@ -13819,6 +17352,10 @@ function createStudioPanel(options) {
       state.recordingKeybindingId = "";
       invokeIpc("agy-studio:set-recording-keybinding", { active: false });
     }
+    if (!next) {
+      flushInspectorPersist();
+      flushAllDebouncedSettingsSaves();
+    }
     if (!next && (state.appearanceLivePreview || state.activeTab === "appearance")) {
       cleanupTempUploadedMedia();
       state.appearanceLivePreview = false;
@@ -13828,6 +17365,7 @@ function createStudioPanel(options) {
       state.appearanceDirty = false;
       applyThemeToHost(state.settings.appearance);
       syncTranslatorGreeting(state.settings.greeting);
+      if (state.pickerSelected) renderPickerMount();
     } else if (!next) {
       state.appearanceDockedRight = false;
     }
@@ -13895,11 +17433,16 @@ function createStudioPanel(options) {
 
   function setLocale(nextLocale) {
     state.locale = nextLocale === "en" ? "en" : "ru";
+    if (rudexOptimizer) rudexOptimizer.apply(state.settings.optimization, state.locale);
     renderStructure();
   }
 
   function destroy() {
     state.destroyed = true;
+    if (rudexOptimizer) {
+      try { rudexOptimizer.destroy(); } catch (_e) {}
+      rudexOptimizer = null;
+    }
     clearReadinessWatchers();
     if (widgetResizeState) {
       cancelPendingResizeHold(widgetResizeState, widgetMountEl);
@@ -13910,14 +17453,18 @@ function createStudioPanel(options) {
       cancelPendingResizeHold(studioResizeState, sh);
       studioResizeState = null;
     }
-    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftRestoreTimer, titleBarBootTimer, inspSaveTimer, limitsSaveTimer, studioUiSaveTimer, quotaAutoSaveTimer]) {
+    const extraDebouncedTimers = Object.keys(debouncedSaveTimers).map((k) => debouncedSaveTimers[k]);
+    for (const k of Object.keys(debouncedSaveTimers)) delete debouncedSaveTimers[k];
+    for (const k of Object.keys(debouncedSavePending)) delete debouncedSavePending[k];
+    for (const timer of [settleTimer, repaintTimer, streamSampleTimer, turnSyncTimer, toastTimer, thinkingScanTimer, draftSaveTimer, draftFollowupTimer, draftRestoreTimer, draftEarlyTextTimer, titleBarBootTimer, inspSaveTimer, limitsSaveTimer, studioUiSaveTimer, quotaAutoSaveTimer].concat(extraDebouncedTimers)) {
       if (timer && win && typeof win.clearTimeout === "function") win.clearTimeout(timer);
     }
-    for (const qt of quotaScrapeTimers) {
+    for (const qt of quotaScrapeTimers.concat(navBurstTimers)) {
       if (qt && win && typeof win.clearTimeout === "function") win.clearTimeout(qt);
     }
     quotaScrapeTimers = [];
-    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftRestoreTimer = titleBarBootTimer = inspSaveTimer = limitsSaveTimer = studioUiSaveTimer = quotaAutoSaveTimer = null;
+    navBurstTimers = [];
+    settleTimer = repaintTimer = streamSampleTimer = turnSyncTimer = toastTimer = thinkingScanTimer = draftSaveTimer = draftFollowupTimer = draftRestoreTimer = draftEarlyTextTimer = titleBarBootTimer = inspSaveTimer = limitsSaveTimer = studioUiSaveTimer = quotaAutoSaveTimer = null;
     limitsResizeState = null;
     if (dockComposerObserver && typeof dockComposerObserver.disconnect === "function") {
       try { dockComposerObserver.disconnect(); } catch (_e) {}
@@ -13937,6 +17484,7 @@ function createStudioPanel(options) {
     }
     if (domObserver && typeof domObserver.disconnect === "function") { domObserver.disconnect(); domObserver = null; }
     if (themeObserver && typeof themeObserver.disconnect === "function") { themeObserver.disconnect(); themeObserver = null; }
+    clearDraftRestoreVerifyTimers();
     if (win && typeof win.removeEventListener === "function") {
       if (pointerMoveHandler) {
         win.removeEventListener("pointermove", pointerMoveHandler);
@@ -13953,23 +17501,46 @@ function createStudioPanel(options) {
       if (beforeUnloadDraftHandler) {
         win.removeEventListener("beforeunload", beforeUnloadDraftHandler);
         win.removeEventListener("pagehide", beforeUnloadDraftHandler);
+        win.removeEventListener("blur", beforeUnloadDraftHandler);
       }
+      if (quotaRpcMsgHandler) win.removeEventListener("message", quotaRpcMsgHandler);
+      if (navChangeHandler) {
+        win.removeEventListener("popstate", navChangeHandler, true);
+        win.removeEventListener("hashchange", navChangeHandler, true);
+      }
+      if (earlyKeydownCapture) win.removeEventListener("keydown", earlyKeydownCapture, true);
+      if (earlyPointerDownCapture) win.removeEventListener("pointerdown", earlyPointerDownCapture, true);
+      if (earlyClickCapture) win.removeEventListener("click", earlyClickCapture, true);
+      if (earlyPasteCapture) win.removeEventListener("paste", earlyPasteCapture, true);
+      if (keydownHandler) win.removeEventListener("keydown", keydownHandler, true);
+      if (composerSendPointerHandler) win.removeEventListener("pointerdown", composerSendPointerHandler, true);
+      if (composerSendClickHandler) win.removeEventListener("click", composerSendClickHandler, true);
     }
     if (doc && typeof doc.removeEventListener === "function") {
       if (visChangeHandler) doc.removeEventListener("visibilitychange", visChangeHandler);
+      if (earlyKeydownCapture) doc.removeEventListener("keydown", earlyKeydownCapture, true);
+      if (earlyPointerDownCapture) doc.removeEventListener("pointerdown", earlyPointerDownCapture, true);
+      if (earlyClickCapture) doc.removeEventListener("click", earlyClickCapture, true);
+      if (earlyPasteCapture) doc.removeEventListener("paste", earlyPasteCapture, true);
       if (keydownHandler) doc.removeEventListener("keydown", keydownHandler, true);
+      if (composerSendPointerHandler) doc.removeEventListener("pointerdown", composerSendPointerHandler, true);
       if (composerSendClickHandler) doc.removeEventListener("click", composerSendClickHandler, true);
       if (cancelClickHandler) doc.removeEventListener("click", cancelClickHandler, true);
+      if (sidebarNavClickHandler) doc.removeEventListener("click", sidebarNavClickHandler, true);
       if (docPasteHandler) doc.removeEventListener("paste", docPasteHandler, true);
       if (docDropHandler) doc.removeEventListener("drop", docDropHandler, true);
       if (docFileChangeHandler) doc.removeEventListener("change", docFileChangeHandler, true);
       if (docInputHandler) doc.removeEventListener("input", docInputHandler, true);
+      if (docCompEndHandler) doc.removeEventListener("compositionend", docCompEndHandler, true);
       if (outsidePopoverHandler) doc.removeEventListener("pointerdown", outsidePopoverHandler, true);
       if (modelTriggerClickHandler) doc.removeEventListener("pointerdown", modelTriggerClickHandler, true);
       if (modelTriggerSuppressClickHandler) doc.removeEventListener("click", modelTriggerSuppressClickHandler, true);
     }
+    earlyCaptureAttached = false;
+    earlyKeydownCapture = earlyPointerDownCapture = earlyClickCapture = earlyPasteCapture = null;
     revokeCachedMedia("");
     mediaLoadInflight.clear();
+    stopInspectorDragMove(true);
     stopElementPicker();
     setPickerCursorStyle(false);
     setUsagePopTooltipGuard(false);
@@ -14277,6 +17848,7 @@ function createStudioPanel(options) {
 
   return {
     init,
+    bootEarlyTheme,
     destroy,
     setOpen,
     toggleOpen,
@@ -14290,12 +17862,18 @@ function createStudioPanel(options) {
     handleQuotaRestored,
     handleNotificationClicked,
     applyUpdateStatus,
+    applyLocalVoiceProgress,
     setViewMode,
     setLocale,
     applyRemoteState,
     estimateTokens: spTokenEst,
     pollStream,
     resolveMediaUrl: resolveStudioMediaUrl,
+    parseCssColorToHex,
+    parseUserHexInput,
+    resolvePickerTargetAtPoint,
+    collectElementsInMarqueeRect,
+    splitTopLevelCssSelectors,
   };
 }
 

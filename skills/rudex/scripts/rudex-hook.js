@@ -3,11 +3,21 @@
 // Disable Electron's virtual ASAR fs wrapper so fs.existsSync/statSync treat app.asar as a regular file
 process.noAsar = true;
 
-const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { spawn } = require("child_process");
+
+// Lazy-loaded modules keep PreToolUse fast-path startup minimal on Windows
+let _cryptoMod = null;
+function getCrypto() {
+  if (!_cryptoMod) _cryptoMod = require("crypto");
+  return _cryptoMod;
+}
+let _cpMod = null;
+function getChildProcess() {
+  if (!_cpMod) _cpMod = require("child_process");
+  return _cpMod;
+}
 
 const MAX_ITEM_AGE_MS = 10 * 60 * 1000;
 const FALLBACK_MAX_AGE_MS = 90 * 1000;
@@ -172,7 +182,7 @@ function runPersonaEngine(userDataDir, payload, injectSteps) {
   const text = enabled ? rec.personaText.trim() : "";
   const strict = rec ? rec.personaStrict !== false : true;
   const curHash = enabled
-    ? crypto.createHash("sha1").update((strict ? "1:" : "0:") + text).digest("hex").slice(0, 16)
+    ? getCrypto().createHash("sha1").update((strict ? "1:" : "0:") + text).digest("hex").slice(0, 16)
     : "OFF";
 
   const prev = convId ? (anchors[convId] || null) : null;
@@ -671,7 +681,7 @@ function runAutoRepatchGuard(userDataDir, payload, injectSteps) {
       } catch {}
     }
     if (!launched) {
-      const child = spawn(process.execPath, [installJsPath, "--no-sync-plugin", "--on-exit-activate"], {
+      const child = getChildProcess().spawn(process.execPath, [installJsPath, "--no-sync-plugin", "--on-exit-activate"], {
         detached: true,
         stdio: "ignore",
         windowsHide: true,
@@ -814,7 +824,7 @@ function runAgentProfileEngine(userDataDir, payload, injectSteps) {
 
   if (prof) {
     const directive = buildAgentProfileDirective(prof);
-    const curHash = crypto.createHash("sha1").update(directive).digest("hex").slice(0, 16);
+    const curHash = getCrypto().createHash("sha1").update(directive).digest("hex").slice(0, 16);
     if (!prev || prev.hash !== curHash) {
       injectSteps.push({
         systemMessage: {
@@ -999,6 +1009,29 @@ function runPreToolUseEngine(userDataDir, payload) {
   return null;
 }
 
+/**
+ * Compact cache-stable SessionStart operational protocol for Gemini agents (~100 tokens):
+ * Injected ONCE at turn 0 (never mid-conversation so Prompt Cache prefix stays intact).
+ */
+const GEMINI_FILE_CACHE_PROTOCOL = [
+  "[Rudex · File I/O & Prompt Cache Protocol]",
+  "1. Batch independent read_file/search calls in parallel; avoid re-reading unchanged files already in context.",
+  "2. Preserve Prompt Cache: prefer surgical edit_file over full rewrites; cap noisy shell output; exclude node_modules, .git, dist, build, target, .venv, __pycache__ in recursive scans.",
+  "3. OS-safe I/O: use built-in read_file/edit_file/write_file for text files, preserve UTF-8/line endings, quote paths with spaces/Cyrillic.",
+].join("\n");
+
+function runGeminiFileCacheOptimizer(userDataDir, payload, injectSteps) {
+  const eventName = String(payload && payload.hookEventName ? payload.hookEventName : "");
+  if (eventName !== "SessionStart") return;
+  const perfFlagPath = path.join(userDataDir, "agy_studio_perf_agent.flag");
+  if (!fs.existsSync(perfFlagPath)) return;
+  injectSteps.push({
+    systemMessage: {
+      systemMessage: GEMINI_FILE_CACHE_PROTOCOL,
+    },
+  });
+}
+
 let currentHookEventName = "";
 
 function main() {
@@ -1008,6 +1041,7 @@ function main() {
   const thinkingFlagPath = path.join(userDataDir, "agy_studio_thinking_ru.flag");
   const agentFlagPath = path.join(userDataDir, "agy_studio_agent_profile.flag");
   const toolPolicyFlagPath = path.join(userDataDir, "agy_studio_tool_policy.flag");
+  const perfAgentFlagPath = path.join(userDataDir, "agy_studio_perf_agent.flag");
 
   const payload = readStdinSyncSafe();
   const eventName = String(payload.hookEventName || "");
@@ -1036,13 +1070,15 @@ function main() {
 
   const injectSteps = [];
   runAutoRepatchGuard(userDataDir, payload, injectSteps);
+  runGeminiFileCacheOptimizer(userDataDir, payload, injectSteps);
 
   if (
     injectSteps.length === 0 &&
     !fs.existsSync(leFlagPath) &&
     !fs.existsSync(personaFlagPath) &&
     !fs.existsSync(thinkingFlagPath) &&
-    !fs.existsSync(agentFlagPath)
+    !fs.existsSync(agentFlagPath) &&
+    !fs.existsSync(perfAgentFlagPath)
   ) {
     outAndExit({});
   }

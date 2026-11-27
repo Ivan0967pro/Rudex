@@ -171,6 +171,10 @@ const DEFAULT_APPEARANCE = {
   accentColor: "#3b82f6",
   canvasBg: "#070708",
   cardBg: "#15151a",
+  customSidebarBg: false,
+  sidebarBg: "#0f0f14",
+  customBorderColor: false,
+  borderColor: "#262630",
   glassOpacity: 78,
   sidebarOpacity: 72,
   glassBlur: 12,
@@ -325,15 +329,17 @@ function sanitizeElementOverrides(raw) {
   for (let i = 0; i < raw.length && out.length < 80; i += 1) {
     const it = raw[i];
     if (!it || typeof it !== "object") continue;
-    const selector = typeof it.selector === "string" ? it.selector.trim().slice(0, 260) : "";
+    const selector = typeof it.selector === "string" ? it.selector.trim().slice(0, 1600) : "";
     if (!selector || /[{}<\\;]|\/\*/.test(selector) || /url\s*\(|expression\s*\(|@import/i.test(selector)) continue;
     const st = it.styles && typeof it.styles === "object" ? it.styles : {};
+    const validScope = it.scope === "similar" || it.scope === "group" ? it.scope : "exact";
+    const validAlign = st.align === "left" || st.align === "center" || st.align === "right" ? st.align : "";
     out.push({
       id: typeof it.id === "string" && it.id ? it.id.slice(0, 64) : "ov-" + i,
       name: typeof it.name === "string" ? it.name.trim().slice(0, 80) : selector.slice(0, 48),
       selector,
       zone: typeof it.zone === "string" ? it.zone.trim().slice(0, 48) : "",
-      scope: it.scope === "similar" ? "similar" : "exact",
+      scope: validScope,
       enabled: it.enabled !== false,
       styles: {
         fontFamily: typeof st.fontFamily === "string" ? st.fontFamily.trim().slice(0, 64) : "",
@@ -344,11 +350,16 @@ function sanitizeElementOverrides(raw) {
         color: sanitizeHexColor(st.color, ""),
         bgColor: sanitizeHexColor(st.bgColor, ""),
         bgOpacity: hasNum(st.bgOpacity) ? Math.round(clampNum(st.bgOpacity, 0, 100, 100)) : 100,
-        opacity: hasNum(st.opacity) && Number(st.opacity) >= 0 ? Math.round(clampNum(st.opacity, 5, 100, -1)) : -1,
+        opacity: hasNum(st.opacity) && Number(st.opacity) >= 0 ? Math.round(clampNum(st.opacity, 0, 100, -1)) : -1,
         borderColor: sanitizeHexColor(st.borderColor, ""),
         borderWidth: hasNum(st.borderWidth) && Number(st.borderWidth) >= 0 ? Math.round(clampNum(st.borderWidth, 0, 8, -1)) : -1,
         borderRadius: hasNum(st.borderRadius) && Number(st.borderRadius) >= 0 ? Math.round(clampNum(st.borderRadius, 0, 64, -1)) : -1,
         padding: hasNum(st.padding) && Number(st.padding) >= 0 ? Math.round(clampNum(st.padding, 0, 64, -1)) : -1,
+        paddingY: hasNum(st.paddingY) && Number(st.paddingY) >= 0 ? Math.round(clampNum(st.paddingY, 0, 64, -1)) : -1,
+        paddingX: hasNum(st.paddingX) && Number(st.paddingX) >= 0 ? Math.round(clampNum(st.paddingX, 0, 64, -1)) : -1,
+        offsetX: hasNum(st.offsetX) ? Math.round(clampNum(st.offsetX, -800, 800, 0)) : 0,
+        offsetY: hasNum(st.offsetY) ? Math.round(clampNum(st.offsetY, -800, 800, 0)) : 0,
+        align: validAlign,
         width: hasNum(st.width) && Number(st.width) > 0 ? Math.round(clampNum(st.width, 24, 1800, 0)) : 0,
         minHeight: hasNum(st.minHeight) && Number(st.minHeight) > 0 ? Math.round(clampNum(st.minHeight, 16, 800, 0)) : 0,
         hidden: Boolean(st.hidden),
@@ -471,6 +482,10 @@ function sanitizeAppearance(raw) {
     accentColor: sanitizeHexColor(src.accentColor, DEFAULT_APPEARANCE.accentColor),
     canvasBg: sanitizeHexColor(src.canvasBg, DEFAULT_APPEARANCE.canvasBg),
     cardBg: sanitizeHexColor(src.cardBg, DEFAULT_APPEARANCE.cardBg),
+    customSidebarBg: Boolean(src.customSidebarBg),
+    sidebarBg: sanitizeHexColor(src.sidebarBg, DEFAULT_APPEARANCE.sidebarBg),
+    customBorderColor: Boolean(src.customBorderColor),
+    borderColor: sanitizeHexColor(src.borderColor, DEFAULT_APPEARANCE.borderColor),
     glassOpacity: Math.round(clampNum(src.glassOpacity, 15, 100, DEFAULT_APPEARANCE.glassOpacity)),
     sidebarOpacity: Math.round(clampNum(src.sidebarOpacity, 15, 100, DEFAULT_APPEARANCE.sidebarOpacity)),
     glassBlur: Math.round(clampNum(src.glassBlur, 0, 36, DEFAULT_APPEARANCE.glassBlur)),
@@ -651,16 +666,36 @@ const PRESET_TITLEBAR_CHROME = {
 
 function resolveTitleBarChromeForAppearance(appearanceCfg) {
   const appCfg = sanitizeAppearance(appearanceCfg);
+  const hasWallpaper = Boolean(appCfg.wallpaper && appCfg.wallpaper.type && appCfg.wallpaper.type !== "none");
+  const isGlassPreset = appCfg.presetId === "liquid-glass" || appCfg.presetId === "obsidian-glass" || appCfg.presetId === "midnight-neon";
+  const calcIsLightHex = (hex) => {
+    const clean = String(hex || "").replace(/^#/, "");
+    if (clean.length !== 6) return false;
+    const r = parseInt(clean.slice(0, 2), 16) || 0;
+    const g = parseInt(clean.slice(2, 4), 16) || 0;
+    const b = parseInt(clean.slice(4, 6), 16) || 0;
+    return (r * 299 + g * 587 + b * 114) / 1000 > 145;
+  };
+  let baseChrome;
   if (appCfg.presetId === "custom") {
-    const bg = appCfg.canvasBg || "#09090b";
-    const h = bg.slice(1);
-    const r = parseInt(h.slice(0, 2), 16) || 0;
-    const g = parseInt(h.slice(2, 4), 16) || 0;
-    const b = parseInt(h.slice(4, 6), 16) || 0;
-    const isLight = (r * 299 + g * 587 + b * 114) / 1000 > 145;
-    return { color: bg, symbolColor: isLight ? "#141418" : "#f1f2f6" };
+    const bg = (appCfg.customSidebarBg && appCfg.sidebarBg) ? appCfg.sidebarBg : (appCfg.canvasBg || "#09090b");
+    const isLight = calcIsLightHex(bg);
+    baseChrome = { color: bg, symbolColor: isLight ? "#141418" : "#f1f2f6" };
+  } else {
+    const presetChrome = PRESET_TITLEBAR_CHROME[appCfg.presetId] || PRESET_TITLEBAR_CHROME.native;
+    if (appCfg.customSidebarBg && appCfg.sidebarBg) {
+      const isLight = calcIsLightHex(appCfg.sidebarBg);
+      baseChrome = { color: appCfg.sidebarBg, symbolColor: isLight ? "#141418" : "#f1f2f6" };
+    } else {
+      baseChrome = { color: presetChrome.color, symbolColor: presetChrome.symbolColor };
+    }
   }
-  return PRESET_TITLEBAR_CHROME[appCfg.presetId] || PRESET_TITLEBAR_CHROME.native;
+  // With wallpaper or optical glass themes the top bar is translucent over the backdrop,
+  // so use transparent titleBarOverlay (#00000000) instead of an opaque dark box behind — □ ×.
+  if (hasWallpaper || isGlassPreset) {
+    return { color: "#00000000", symbolColor: baseChrome.symbolColor };
+  }
+  return baseChrome;
 }
 
 function applyThemeCurtainToWindows(appearanceCfg) {
@@ -826,8 +861,168 @@ const DEFAULT_KEYBINDINGS = {
   openTabLimits: "",
   openTabWorkshop: "",
   openAnnotator: "Ctrl+Alt+S",
+  toggleDictation: "Ctrl+Alt+V",
   emergencyResetOverrides: "Ctrl+Alt+Shift+R",
 };
+
+const DEFAULT_OPTIMIZATION = {
+  voiceEnabled: true,
+  voiceEngine: "auto",
+  voiceLocalModel: "ru-fast",
+  voiceLangPreset: "auto",
+  voiceCustomLangs: "",
+  voiceExplicitLang: true,
+  voiceChunkMs: 80,
+  voiceDspFilter: true,
+  voiceDisableWinIsolation: true,
+  voiceAutoGain: true,
+  voicePauseHeavyUi: true,
+  voiceTextCleanup: true,
+  voiceShowBadge: true,
+  animMode: "smooth",
+  animFixTransitionAll: true,
+  animContainChat: true,
+  animFreezeHidden: true,
+  gpuAccel: false,
+  lsTuningEnabled: false,
+  lsMaxProcs: 0,
+  lsFileWatchMaxDirs: 32768,
+  lsMaxTrackedWorkspaces: 24,
+  storageRamCache: false,
+  chromiumCacheCapMb: 0,
+  geminiFileCacheProtocol: false,
+};
+const VALID_OPT_VOICE_PRESETS = new Set(["auto", "ru-en", "ru", "en-ru", "en", "uk-ru-en", "custom"]);
+const VALID_OPT_VOICE_ENGINES = new Set(["auto", "local", "cloud"]);
+const VALID_OPT_VOICE_LOCAL_MODELS = new Set(["ru-tone", "ru-fast", "ru-hq", "multi-ru-en", "en-fast"]);
+const VALID_OPT_ANIM_MODES = new Set(["smooth", "snappy", "reduced", "native"]);
+const VALID_OPT_CHUNK_MS = new Set([40, 64, 80, 100]);
+const OPT_BCP47_RE = /^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*$/;
+
+function sanitizeOptimization(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const chunkRaw = Math.round(clampNum(src.voiceChunkMs, 40, 100, DEFAULT_OPTIMIZATION.voiceChunkMs));
+  const voiceChunkMs = VALID_OPT_CHUNK_MS.has(chunkRaw) ? chunkRaw : (chunkRaw <= 52 ? 40 : (chunkRaw <= 72 ? 64 : (chunkRaw >= 90 ? 100 : 80)));
+  const customLangs = typeof src.voiceCustomLangs === "string"
+    ? src.voiceCustomLangs
+        .split(/[,;\s]+/)
+        .map((s) => s.trim())
+        .filter((s) => OPT_BCP47_RE.test(s))
+        .slice(0, 6)
+        .join(", ")
+    : "";
+  const rawMaxProcs = Number(src.lsMaxProcs);
+  const lsMaxProcs = Number.isFinite(rawMaxProcs) && rawMaxProcs > 0
+    ? Math.round(clampNum(rawMaxProcs, 2, 32, 0))
+    : 0;
+  const rawCapMb = src.chromiumCacheCapMb;
+  const chromiumCacheCapMb =
+    rawCapMb === undefined || rawCapMb === null || rawCapMb === "" || Number(rawCapMb) === 0
+      ? 0
+      : Math.round(clampNum(rawCapMb, 50, 512, 100));
+  return {
+    voiceEnabled: src.voiceEnabled !== false,
+    voiceEngine: VALID_OPT_VOICE_ENGINES.has(src.voiceEngine) ? src.voiceEngine : DEFAULT_OPTIMIZATION.voiceEngine,
+    voiceLocalModel: VALID_OPT_VOICE_LOCAL_MODELS.has(src.voiceLocalModel) ? src.voiceLocalModel : DEFAULT_OPTIMIZATION.voiceLocalModel,
+    voiceLangPreset: VALID_OPT_VOICE_PRESETS.has(src.voiceLangPreset) ? src.voiceLangPreset : DEFAULT_OPTIMIZATION.voiceLangPreset,
+    voiceCustomLangs: customLangs,
+    voiceExplicitLang: src.voiceExplicitLang !== false,
+    voiceChunkMs,
+    voiceDspFilter: src.voiceDspFilter !== false,
+    voiceDisableWinIsolation: src.voiceDisableWinIsolation !== false,
+    voiceAutoGain: src.voiceAutoGain !== false,
+    voicePauseHeavyUi: src.voicePauseHeavyUi !== false,
+    voiceTextCleanup: src.voiceTextCleanup !== false,
+    voiceShowBadge: src.voiceShowBadge !== false,
+    animMode: VALID_OPT_ANIM_MODES.has(src.animMode) ? src.animMode : DEFAULT_OPTIMIZATION.animMode,
+    animFixTransitionAll: src.animFixTransitionAll !== false,
+    animContainChat: src.animContainChat !== false,
+    animFreezeHidden: src.animFreezeHidden !== false,
+    gpuAccel: src.gpuAccel === true,
+    lsTuningEnabled: src.lsTuningEnabled === true,
+    lsMaxProcs,
+    lsFileWatchMaxDirs: Math.round(clampNum(src.lsFileWatchMaxDirs, 4096, 131072, DEFAULT_OPTIMIZATION.lsFileWatchMaxDirs)),
+    lsMaxTrackedWorkspaces: Math.round(clampNum(src.lsMaxTrackedWorkspaces, 10, 64, DEFAULT_OPTIMIZATION.lsMaxTrackedWorkspaces)),
+    storageRamCache: src.storageRamCache === true,
+    chromiumCacheCapMb,
+    geminiFileCacheProtocol: src.geminiFileCacheProtocol === true,
+  };
+}
+
+let cachedPerfCacheMod = null;
+function loadPerfCacheMod() {
+  if (cachedPerfCacheMod) return cachedPerfCacheMod;
+  const candidates = [
+    path.join(__dirname, "i18nData", "perf-cache-engine.js"),
+    path.join(__dirname, "perf-cache-engine.js"),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) {
+        cachedPerfCacheMod = require(p);
+        return cachedPerfCacheMod;
+      }
+    } catch {}
+  }
+  return null;
+}
+
+let cachedLocalVoiceMod = null;
+let localVoiceMgr = null;
+let localVoiceQuitHooked = false;
+function loadLocalVoiceMod() {
+  if (cachedLocalVoiceMod) return cachedLocalVoiceMod;
+  const candidates = [
+    path.join(__dirname, "i18nData", "local-voice-engine.js"),
+    path.join(__dirname, "local-voice-engine.js"),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) {
+        cachedLocalVoiceMod = require(p);
+        return cachedLocalVoiceMod;
+      }
+    } catch {}
+  }
+  return null;
+}
+
+function stopLocalVoiceServer() {
+  try {
+    if (localVoiceMgr && typeof localVoiceMgr.stopServer === "function") {
+      localVoiceMgr.stopServer();
+    }
+  } catch {}
+}
+
+function getLocalVoiceManager() {
+  if (localVoiceMgr) return localVoiceMgr;
+  const mod = loadLocalVoiceMod();
+  if (!mod || typeof mod.createLocalVoiceManager !== "function") return null;
+  localVoiceMgr = mod.createLocalVoiceManager({
+    getUserDataDir: () => app.getPath("userData"),
+  });
+  if (!localVoiceQuitHooked && app && typeof app.on === "function") {
+    localVoiceQuitHooked = true;
+    app.on("before-quit", stopLocalVoiceServer);
+    app.on("will-quit", stopLocalVoiceServer);
+  }
+  return localVoiceMgr;
+}
+
+function syncPerfAgentFlag(settingsArg) {
+  try {
+    const s = settingsArg || loadStudioSettings();
+    const opt = s && s.optimization ? s.optimization : DEFAULT_OPTIMIZATION;
+    globalThis.__RUDEX_STORAGE_CACHE__ = opt.storageRamCache === true;
+    const flagPath = path.join(app.getPath("userData"), "agy_studio_perf_agent.flag");
+    if (opt.geminiFileCacheProtocol === true) {
+      if (!fs.existsSync(flagPath)) writeFileAtomic(flagPath, "1\n");
+    } else if (fs.existsSync(flagPath)) {
+      try { fs.unlinkSync(flagPath); } catch {}
+    }
+  } catch {}
+}
 
 const DEFAULT_LIVE_EDIT_INLINE = {
   enabled: true,
@@ -861,7 +1056,7 @@ const DEFAULT_AGENT_PROFILE = {
 
 const DEFAULT_QUOTA_AUTOMATION = {
   notifyOnReset: true,
-  notifyWhenClosed: true,
+  notifyWhenClosed: false,
   notifySound: true,
   autoContinueEnabled: false,
   autoContinueScope: "all", // "all" | "selected" | "current"
@@ -887,7 +1082,7 @@ function sanitizeQuotaAutomation(raw) {
   const curKey = typeof src.autoContinueCurrentKey === "string" ? src.autoContinueCurrentKey.trim().toLowerCase().slice(0, 80) : "";
   return {
     notifyOnReset: src.notifyOnReset !== false,
-    notifyWhenClosed: src.notifyWhenClosed !== false,
+    notifyWhenClosed: src.notifyWhenClosed === true,
     notifySound: src.notifySound !== false,
     autoContinueEnabled: Boolean(src.autoContinueEnabled),
     autoContinueScope: scope,
@@ -1071,6 +1266,68 @@ function profileHasToolPolicy(prof) {
   );
 }
 
+const PRE_TOOL_USE_MATCHER = "search_web|read_url_content|web_search|invoke_subagent|browser_.*|call_mcp_tool|write_file|edit_file|replace_file_content|multi_replace_file_content|write_to_file";
+
+function shouldEnablePreToolUseHook(settingsArg, userDataDirArg) {
+  try {
+    const userDataDir = userDataDirArg || app.getPath("userData");
+    const policyFlag = path.join(userDataDir, "agy_studio_tool_policy.flag");
+    if (fs.existsSync(policyFlag)) return true;
+    const s = settingsArg || loadStudioSettings();
+    if (s && s.liveEditInline && s.liveEditInline.urgentIntercept === true) return true;
+    const leFlag = path.join(userDataDir, "studio_live_edits", "pending.flag");
+    const leQueue = path.join(userDataDir, "studio_live_edits", "queue");
+    if (fs.existsSync(leFlag) && fs.existsSync(leQueue)) {
+      const files = fs.readdirSync(leQueue).filter((n) => n.endsWith(".json") && !n.includes(".tmp-"));
+      for (let i = 0; i < files.length; i += 1) {
+        try {
+          const obj = JSON.parse(fs.readFileSync(path.join(leQueue, files[i]), "utf8"));
+          if (obj && obj.urgent === true && (!obj.status || obj.status === "pending")) return true;
+        } catch {}
+      }
+    }
+  } catch {}
+  return false;
+}
+
+function syncDynamicPreToolUseHook(active, customHooksPath) {
+  try {
+    const hooksPath = customHooksPath || path.join(getPluginsBaseDir(), "rudex", "hooks.json");
+    if (!fs.existsSync(hooksPath)) return false;
+    const parsed = JSON.parse(fs.readFileSync(hooksPath, "utf8"));
+    if (!parsed || typeof parsed !== "object") return false;
+    const group = parsed["rudex-studio"];
+    if (!group || typeof group !== "object") return false;
+    const hasPre = Array.isArray(group.PreToolUse) && group.PreToolUse.length > 0;
+    const wantPre = Boolean(active);
+    if (wantPre === hasPre) return true;
+    if (wantPre) {
+      const baseCmd =
+        (Array.isArray(group.SessionStart) && group.SessionStart[0] && typeof group.SessionStart[0].command === "string" && group.SessionStart[0].command) ||
+        (Array.isArray(group.PreInvocation) && group.PreInvocation[0] && typeof group.PreInvocation[0].command === "string" && group.PreInvocation[0].command) ||
+        "node ./skills/rudex/scripts/rudex-hook.js";
+      group.PreToolUse = [
+        {
+          matcher: PRE_TOOL_USE_MATCHER,
+          hooks: [
+            {
+              type: "command",
+              command: baseCmd,
+              timeout: 5,
+            },
+          ],
+        },
+      ];
+    } else {
+      delete group.PreToolUse;
+    }
+    writeJsonAtomic(hooksPath, parsed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function syncAgentProfileFlags(settingsArg, chatsArg, storeArg) {
   try {
     const userDataDir = app.getPath("userData");
@@ -1103,6 +1360,7 @@ function syncAgentProfileFlags(settingsArg, chatsArg, storeArg) {
     else if (fs.existsSync(agentFlag)) try { fs.unlinkSync(agentFlag); } catch {}
     if (needPolicy) writeFileAtomic(policyFlag, "1\n");
     else if (fs.existsSync(policyFlag)) try { fs.unlinkSync(policyFlag); } catch {}
+    syncDynamicPreToolUseHook(needPolicy || shouldEnablePreToolUseHook(s, userDataDir));
   } catch {}
 }
 
@@ -1122,6 +1380,21 @@ function loadWorkshopMod() {
     } catch {}
   }
   return null;
+}
+
+function sanitizeLocalTranslatorUrl(raw) {
+  if (typeof raw !== "string") return "";
+  const s = raw.trim();
+  if (!s || s.length > 300) return "";
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+    const host = String(u.hostname || "").toLowerCase();
+    if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1" && host !== "[::1]") return "";
+    return u.toString();
+  } catch {
+    return "";
+  }
 }
 
 function sanitizeStudioSettings(raw) {
@@ -1177,7 +1450,9 @@ function sanitizeStudioSettings(raw) {
     personaActivePreset: typeof src.personaActivePreset === "string" && src.personaActivePreset ? src.personaActivePreset : "custom",
     personaText: typeof src.personaText === "string" ? src.personaText : "",
     personaStrictMode: src.personaStrictMode !== false,
-    thinkingInRussian: src.thinkingInRussian !== false,
+    thinkingInRussian: src.thinkingInRussian === true,
+    workLogInRussian: src.workLogInRussian === true,
+    thinkingTranslatorUrl: sanitizeLocalTranslatorUrl(src.thinkingTranslatorUrl),
     composerDraftsEnabled: src.composerDraftsEnabled !== false,
     inputHistoryEnabled: src.inputHistoryEnabled !== false,
     autoCheckUpdates: src.autoCheckUpdates !== false,
@@ -1194,6 +1469,7 @@ function sanitizeStudioSettings(raw) {
     agentProfileDefault: sanitizeAgentProfile(src.agentProfileDefault),
     customAgentPresets: sanitizeCustomAgentPresets(src.customAgentPresets),
     quotaAutomation: sanitizeQuotaAutomation(src.quotaAutomation),
+    optimization: sanitizeOptimization(src.optimization),
   };
 }
 
@@ -1228,6 +1504,9 @@ function saveStudioSettings(patch) {
   }
   if (pObj.quotaAutomation && typeof pObj.quotaAutomation === "object") {
     pObj.quotaAutomation = Object.assign({}, current.quotaAutomation || DEFAULT_QUOTA_AUTOMATION, pObj.quotaAutomation);
+  }
+  if (pObj.optimization && typeof pObj.optimization === "object") {
+    pObj.optimization = Object.assign({}, current.optimization || DEFAULT_OPTIMIZATION, pObj.optimization);
   }
   if (pObj.keybindings && typeof pObj.keybindings === "object") {
     pObj.keybindings = Object.assign({}, current.keybindings || DEFAULT_KEYBINDINGS, pObj.keybindings);
@@ -1272,6 +1551,15 @@ function saveStudioSettings(patch) {
   }
   if (pObj.agentProfileDefault) {
     syncAgentProfileFlags(next, loadStudioChats());
+  }
+  if (pObj.liveEditInline) {
+    syncDynamicPreToolUseHook(shouldEnablePreToolUseHook(next));
+  }
+  if (Object.prototype.hasOwnProperty.call(pObj, "thinkingTranslatorUrl")) {
+    thinkingTranslatorInstance = null;
+  }
+  if (pObj.optimization) {
+    syncPerfAgentFlag(next);
   }
   if (pObj.studioUi && Object.prototype.hasOwnProperty.call(pObj.studioUi, "appScale")) {
     applyAppScaleToWindows(next.studioUi.appScale);
@@ -1772,6 +2060,7 @@ function defaultQuotaFamilyState(famId) {
     weeklyReset: "",
     fiveHourReset: "",
     updatedAt: 0,
+    lastRpcSyncAt: 0,
     resetAt: 0,
     calibrated: false,
     tokensPer1Pct5h: isClaude ? 45000 : 60000,
@@ -1805,16 +2094,23 @@ function sanitizeQuotaFamilyState(famId, raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   const t5 = Number(src.tokensPer1Pct5h);
   const tw = Number(src.tokensPer1PctWeekly);
+  const safeTw = Number.isFinite(tw) && tw >= 100000 && tw <= 6000000 ? Math.round(tw) : def.tokensPer1PctWeekly;
+  let safeT5 = Number.isFinite(t5) && t5 >= 25000 && t5 <= 1500000 ? Math.round(t5) : def.tokensPer1Pct5h;
+  // Auto-heal historically poisoned low 5h rates (e.g. 32k caused by missing cross-device transcripts when weekly rate is >= 250k)
+  if (safeT5 < 60000 && safeTw >= 250000 && Number.isFinite(tw) && tw >= 250000) {
+    safeT5 = Math.round(clampNum(safeTw * 0.25, 75000, 1500000, def.tokensPer1Pct5h));
+  }
   return {
     weeklyRem: toNullableRemPct(src.weeklyRem),
     fiveHourRem: toNullableRemPct(src.fiveHourRem),
     weeklyReset: typeof src.weeklyReset === "string" ? src.weeklyReset.slice(0, 80) : "",
     fiveHourReset: typeof src.fiveHourReset === "string" ? src.fiveHourReset.slice(0, 80) : "",
     updatedAt: toNonNegInt(src.updatedAt),
+    lastRpcSyncAt: toNonNegInt(src.lastRpcSyncAt),
     resetAt: toNonNegInt(src.resetAt),
     calibrated: Boolean(src.calibrated),
-    tokensPer1Pct5h: Number.isFinite(t5) && t5 >= 25000 && t5 <= 1500000 ? Math.round(t5) : def.tokensPer1Pct5h,
-    tokensPer1PctWeekly: Number.isFinite(tw) && tw >= 100000 && tw <= 6000000 ? Math.round(tw) : def.tokensPer1PctWeekly,
+    tokensPer1Pct5h: safeT5,
+    tokensPer1PctWeekly: safeTw,
     pending5hByChat: sanitizePendingMap(src.pending5hByChat),
     pendingWeeklyByChat: sanitizePendingMap(src.pendingWeeklyByChat),
   };
@@ -2063,13 +2359,13 @@ function readTranscriptStepsCached(lp, mtimeMs, size) {
       const hasRealCache = typeof o.cache_read_tokens === "number" && o.cache_read_tokens > 0;
       let stepUnits;
       if (hasRealIn || hasRealCache) {
-        // Realistic billing weight: output 1.0x, uncached input 0.20x, prompt cache read 0.02x
+        // Realistic billing weight: output 1.0x, uncached input 0.12x, prompt cache read 0.005x (heavily discounted by server)
         const inTok = hasRealIn ? o.input_tokens : 0;
         const cacheTok = hasRealCache ? o.cache_read_tokens : 0;
-        stepUnits = Math.round(outTok + inTok * 0.20 + cacheTok * 0.02);
+        stepUnits = Math.round(outTok + inTok * 0.12 + cacheTok * 0.005);
       } else {
         const ctxTok = Math.min(120000, 10000 + runningCtxTok);
-        stepUnits = Math.round(outTok + ctxTok * 0.04);
+        stepUnits = Math.round(outTok + ctxTok * 0.02);
       }
       const stepWeight = Math.max(0.35, getModelQuotaWeight(stepModel || ""));
       const fam = classifyModelFamily(stepModel || "");
@@ -2447,31 +2743,24 @@ function buildQuotaSummary(activeChatKey, forceFresh, opts) {
     const r = rates[famId];
     const lr5 = liveResetInfo[famId].fiveHour;
     const lrW = liveResetInfo[famId].weekly;
-    const pend5 = sumPending(fam.pending5hByChat);
-    const pendW = sumPending(fam.pendingWeeklyByChat);
-    const diskSince5 = familyTotals[famId].units5hSinceSnap || 0;
-    const diskSinceW = familyTotals[famId].unitsWeeklySinceSnap || 0;
 
-    const base5 = fam.fiveHourRem !== null ? (lr5.expired ? 100 : fam.fiveHourRem) : null;
-    const baseW = fam.weeklyRem !== null ? (lrW.expired ? 100 : fam.weeklyRem) : null;
-    // Prefer same-scale transcript.jsonl delta when available; only fall back to DOM pending turns when disk has no steps yet
-    const effPend5 = lr5.expired ? diskSince5 : (diskSince5 > 0 ? diskSince5 : pend5);
-    const effPendW = lrW.expired ? diskSinceW : (diskSinceW > 0 ? diskSinceW : pendW);
-
-    const estDrop5 = base5 !== null && effPend5 > 0 ? effPend5 / Math.max(25000, r.unitsPer1Pct5h) : 0;
-    const estDropW = baseW !== null && effPendW > 0 ? effPendW / Math.max(100000, r.unitsPer1PctWeekly) : 0;
-    // Never falsely drop an *estimated* value all the way to 0% while the last official snapshot was > 0%
-    const minEst5 = base5 !== null && base5 > 0 && estDrop5 > 0 ? 1 : 0;
-    const minEstW = baseW !== null && baseW > 0 && estDropW > 0 ? 1 : 0;
-    const live5 = base5 !== null ? Math.max(minEst5, Math.min(100, Math.round(base5 - estDrop5))) : null;
-    const liveW = baseW !== null ? Math.max(minEstW, Math.min(100, Math.round(baseW - estDropW))) : null;
+    // Strictly display REAL official Antigravity percentages — ZERO local guesses or synthetic decrements.
+    // Only auto-reset to 100% when the official Antigravity countdown timer genuinely expires.
+    const live5 = fam.fiveHourRem !== null
+      ? Math.max(0, Math.min(100, Math.round(lr5.expired ? 100 : fam.fiveHourRem)))
+      : null;
+    const liveW = fam.weeklyRem !== null
+      ? Math.max(0, Math.min(100, Math.round(lrW.expired ? 100 : fam.weeklyRem)))
+      : null;
+    const rpcFresh = Boolean(fam.lastRpcSyncAt > 0 && nowMs - fam.lastRpcSyncAt < 30 * 60 * 1000);
     return {
       weeklyRem: liveW,
       fiveHourRem: live5,
       weeklyRawRem: fam.weeklyRem,
       fiveHourRawRem: fam.fiveHourRem,
-      weeklyEstimated: (estDropW >= 0.5 && liveW !== fam.weeklyRem) || (lrW.expired && liveW !== fam.weeklyRem),
-      fiveHourEstimated: (estDrop5 >= 0.5 && live5 !== fam.fiveHourRem) || (lr5.expired && live5 !== fam.fiveHourRem),
+      weeklyEstimated: false,
+      fiveHourEstimated: false,
+      liveRpcSynced: rpcFresh,
       weeklyReset: lrW.text,
       fiveHourReset: lr5.text,
       fiveHourWindowResetDetected: Boolean(lr5.expired),
@@ -2740,8 +3029,10 @@ function loadUpdaterCore() {
 }
 
 let thinkingTranslatorInstance = null;
+let thinkingTranslatorUrlUsed = "";
 function loadThinkingTranslator() {
-  if (thinkingTranslatorInstance) return thinkingTranslatorInstance;
+  const localUrl = sanitizeLocalTranslatorUrl(loadStudioSettings().thinkingTranslatorUrl);
+  if (thinkingTranslatorInstance && thinkingTranslatorUrlUsed === localUrl) return thinkingTranslatorInstance;
   const candidates = [
     path.join(__dirname, "i18nData", "thinking-translator.js"),
     path.join(__dirname, "thinking-translator.js"),
@@ -2749,7 +3040,8 @@ function loadThinkingTranslator() {
   for (const p of candidates) {
     if (fs.existsSync(p)) {
       const mod = require(p);
-      thinkingTranslatorInstance = mod.createThinkingTranslator();
+      thinkingTranslatorInstance = mod.createThinkingTranslator(localUrl ? { localUrl } : {});
+      thinkingTranslatorUrlUsed = localUrl;
       return thinkingTranslatorInstance;
     }
   }
@@ -2801,11 +3093,16 @@ function getInstalledRudexMeta() {
     if (fs.existsSync(pp)) pluginJson = JSON.parse(fs.readFileSync(pp, "utf8")) || {};
   } catch {}
 
-  const version = String(installMeta.version || pluginJson.version || patchMeta.version || "5.0.3");
-  const commitSha = String(installMeta.commitSha || patchMeta.commitSha || "");
-  const commitShort = String(installMeta.commitShort || patchMeta.commitShort || (commitSha ? commitSha.slice(0, 7) : ""));
-  const commitDate = String(installMeta.commitDate || patchMeta.commitDate || "");
-  const patchedAt = String(installMeta.installedAt || patchMeta.patchedAt || "");
+  const version = String(patchMeta.version || installMeta.version || pluginJson.version || "5.5.0");
+  const patchMatchesInstall = !patchMeta.version || !installMeta.version || patchMeta.version === installMeta.version;
+  const commitSha = String(
+    patchMeta.commitSha || (patchMatchesInstall ? installMeta.commitSha : "") || ""
+  );
+  const commitShort = String(
+    patchMeta.commitShort || (patchMatchesInstall ? installMeta.commitShort : "") || (commitSha ? commitSha.slice(0, 7) : "")
+  );
+  const commitDate = String(patchMeta.commitDate || (patchMatchesInstall ? installMeta.commitDate : "") || "");
+  const patchedAt = String(patchMeta.patchedAt || installMeta.installedAt || "");
   return { version, commitSha, commitShort, commitDate, patchedAt };
 }
 
@@ -3028,6 +3325,7 @@ function writePostAppUpdateWatcherScript(opts = {}) {
     'if not exist "!AGY_EXE!" goto done',
     'set "ELECTRON_RUN_AS_NODE=1"',
     'set "ELECTRON_NO_ASAR=1"',
+    'set "ANTIGRAVITY_RESOURCES_DIR=!RES_DIR!"',
     '"!AGY_EXE!" "!INSTALL_JS!" --no-sync-plugin > "!LOG_FILE!" 2>&1',
     'set "ACT_PATH="',
     'if exist "!LOG_FILE!" (',
@@ -3109,6 +3407,7 @@ function writePostAppUpdateWatcherWsh(opts = {}) {
     "    var env = sh.Environment('Process');",
     "    env('ELECTRON_RUN_AS_NODE') = '1';",
     "    env('ELECTRON_NO_ASAR') = '1';",
+    "    env('ANTIGRAVITY_RESOURCES_DIR') = resDir;",
     "    var runner = (agyExe && fso.FileExists(agyExe)) ? ('\"' + agyExe + '\"') : 'node';",
     "    try { sh.Run(runner + ' \"' + installJs + '\" --no-sync-plugin --on-exit-activate', 0, true); } catch (e) {}",
     "  }",
@@ -3182,9 +3481,19 @@ function writePostAppUpdateWatcherPosix(opts = {}) {
     "  i=$((i + 1))",
     "done",
     'if [ "$stable" -ge 2 ] && [ -f "$ASAR_PATH" ] && [ -f "$INSTALL_JS" ]; then',
-    '  RUNNER="node"',
-    '  if [ -x "$AGY_EXE" ]; then RUNNER="$AGY_EXE"; fi',
-    '  ELECTRON_RUN_AS_NODE=1 ELECTRON_NO_ASAR=1 ANTIGRAVITY_RESOURCES_DIR="$RES_DIR" "$RUNNER" "$INSTALL_JS" --no-sync-plugin --on-exit-activate >/dev/null 2>&1 || true',
+    '  RUNNER=""',
+    '  if [ -x "$AGY_EXE" ]; then',
+    '    RUNNER="$AGY_EXE"',
+    '  elif command -v node >/dev/null 2>&1; then',
+    '    RUNNER="$(command -v node)"',
+    '  else',
+    '    for cand in /opt/homebrew/bin/node /usr/local/bin/node /usr/bin/node "$HOME/.volta/bin/node" "$HOME/.asdf/shims/node" "$HOME/.mise/shims/node" "$HOME"/.nvm/versions/node/*/bin/node; do',
+    '      if [ -x "$cand" ]; then RUNNER="$cand"; fi',
+    '    done',
+    '  fi',
+    '  if [ -n "$RUNNER" ]; then',
+    '    ELECTRON_RUN_AS_NODE=1 ELECTRON_NO_ASAR=1 ANTIGRAVITY_RESOURCES_DIR="$RES_DIR" "$RUNNER" "$INSTALL_JS" --no-sync-plugin --on-exit-activate >/dev/null 2>&1 || true',
+    '  fi',
     "fi",
     "",
   ];
@@ -3198,6 +3507,7 @@ function writePostAppUpdateWatcherPosix(opts = {}) {
 }
 
 function schedulePostAppUpdateRepatch() {
+  stopLocalVoiceServer();
   if (postAppUpdateScheduled || globalThis.__RUDEX_DISABLED__) return false;
   const installJs = path.join(getPluginsBaseDir(), "rudex", "skills", "rudex", "scripts", "install.js");
   if (!fs.existsSync(installJs)) return false;
@@ -3609,6 +3919,9 @@ function syncWindowsOfflineQuotaTask(forceRemove = false) {
     if (process.platform === "darwin") {
       const plistPath = path.join(os.homedir(), "Library", "LaunchAgents", "com.rudex.quota-notify.plist");
       if (!nextReset) {
+        if (!forceRemove && !fs.existsSync(notifyShPath) && !fs.existsSync(plistPath)) {
+          return true;
+        }
         try { if (fs.existsSync(notifyShPath)) fs.unlinkSync(notifyShPath); } catch {}
         try {
           if (fs.existsSync(plistPath)) {
@@ -3664,6 +3977,9 @@ function syncWindowsOfflineQuotaTask(forceRemove = false) {
 
     // Linux: schedule via systemd-run --user if available
     if (!nextReset) {
+      if (!forceRemove && !fs.existsSync(notifyShPath)) {
+        return true;
+      }
       try { if (fs.existsSync(notifyShPath)) fs.unlinkSync(notifyShPath); } catch {}
       try { execFileSync("systemctl", ["--user", "stop", "rudex-quota-notify.timer", "rudex-quota-notify.service"], { stdio: "ignore", timeout: 2000 }); } catch {}
       return true;
@@ -3693,12 +4009,6 @@ function syncWindowsOfflineQuotaTask(forceRemove = false) {
       return false;
     }
   }
-  let updaterCore = null;
-  try { updaterCore = loadUpdaterCore(); } catch {}
-  if (!updaterCore || typeof updaterCore.resolveWscriptExe !== "function" || !updaterCore.resolveWscriptExe()) return false;
-  const wscriptExe = updaterCore.resolveWscriptExe();
-  const wshEsc = updaterCore.wshEscapeJsString;
-
   const settings = loadStudioSettings();
   const qa = sanitizeQuotaAutomation(settings.quotaAutomation);
   const nextReset = (!forceRemove && qa.notifyOnReset && qa.notifyWhenClosed)
@@ -3710,6 +4020,16 @@ function syncWindowsOfflineQuotaTask(forceRemove = false) {
 
   const userDataDir = app.getPath("userData");
   const notifyScriptPath = path.join(userDataDir, "rudex-quota-notify.js");
+  // Strictly avoid spawning wscript.exe / Schedule.Service when opt-in notifyWhenClosed is OFF and no prior task exists
+  if (!nextReset && !forceRemove && !fs.existsSync(notifyScriptPath)) {
+    return true;
+  }
+
+  let updaterCore = null;
+  try { updaterCore = loadUpdaterCore(); } catch {}
+  if (!updaterCore || typeof updaterCore.resolveWscriptExe !== "function" || !updaterCore.resolveWscriptExe()) return false;
+  const wscriptExe = updaterCore.resolveWscriptExe();
+  const wshEsc = updaterCore.wshEscapeJsString;
   const regScriptPath = path.join(os.tmpdir(), `rudex-sync-task-${process.pid}-${Date.now()}.js`);
 
   if (!nextReset) {
@@ -4010,6 +4330,7 @@ function syncLiveEditsPendingFlag(hasPending) {
     } else if (fs.existsSync(flagPath)) {
       fs.unlinkSync(flagPath);
     }
+    syncDynamicPreToolUseHook(shouldEnablePreToolUseHook());
   } catch {}
 }
 
@@ -4307,11 +4628,11 @@ function saveLiveEditFilePayload(fileObj, idx) {
   return null;
 }
 
-const MAX_COMPOSER_DRAFTS = 40;
+const MAX_COMPOSER_DRAFTS = 500;
 const MAX_DRAFT_ATTACHMENTS = 8;
 const MAX_INPUT_HISTORY_ITEMS = 20;
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-const DRAFT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const DRAFT_TTL_MS = 0; // Permanent: saved drafts never expire by age until sent or manually cleared
 
 function getComposerDraftsPath() {
   return path.join(app.getPath("userData"), "agy_studio_drafts.json");
@@ -4452,7 +4773,7 @@ function persistComposerDraftsStore(store) {
     const hasTxt = typeof v.text === "string" && v.text.trim().length > 0;
     const hasAtt = Array.isArray(v.attachments) && v.attachments.length > 0;
     if (!hasTxt && !hasAtt) return false;
-    if (v.updatedAt && now - v.updatedAt > DRAFT_TTL_MS) return false;
+    if (DRAFT_TTL_MS > 0 && v.updatedAt && now - v.updatedAt > DRAFT_TTL_MS) return false;
     return true;
   });
   entries.sort((a, b) => (Number(b[1].updatedAt) || 0) - (Number(a[1].updatedAt) || 0));
@@ -4508,6 +4829,21 @@ function saveComposerDraft(payload) {
   store.drafts[key] = draft;
   persistComposerDraftsStore(store);
   return { ok: true, draft };
+}
+
+function migrateComposerDraftKey(fromKey, toKey) {
+  const fk = normalizeChatKey(fromKey);
+  const tk = normalizeChatKey(toKey);
+  if (!fk || !tk || fk === tk || fk === "__new__" || tk === "__new__") return false;
+  const store = loadComposerDraftsStore();
+  if (!store.drafts[fk]) return false;
+  const existingTo = store.drafts[tk];
+  if (!existingTo || (store.drafts[fk].updatedAt || 0) > (existingTo.updatedAt || 0)) {
+    store.drafts[tk] = Object.assign({}, store.drafts[fk], { chatKey: tk });
+  }
+  delete store.drafts[fk];
+  persistComposerDraftsStore(store);
+  return true;
 }
 
 function getComposerDraftWithData(chatKey) {
@@ -4996,8 +5332,17 @@ function registerI18nIpc() {
   } catch {}
   const bootSettings = loadStudioSettings();
   syncAgentProfileFlags(bootSettings);
+  const needsCurtainForAppearance = (appCfg) => Boolean(
+    appCfg && (
+      (appCfg.presetId && appCfg.presetId !== "native") ||
+      (appCfg.wallpaper && appCfg.wallpaper.type && appCfg.wallpaper.type !== "none") ||
+      appCfg.customAccent ||
+      appCfg.customSidebarBg ||
+      (appCfg.uiStyle && appCfg.uiStyle.preset && appCfg.uiStyle.preset !== "antigravity")
+    )
+  );
   const bootAppScale = bootSettings.studioUi.appScale;
-  if (bootSettings.appearance && bootSettings.appearance.presetId !== "native") {
+  if (needsCurtainForAppearance(bootSettings.appearance)) {
     applyThemeCurtainToWindows(bootSettings.appearance);
   }
   if (bootAppScale !== 100) {
@@ -5019,12 +5364,12 @@ function registerI18nIpc() {
             if (win.__isWebviewPopupWindow) return;
             const curS = loadStudioSettings();
             if (curS.studioUi.appScale !== 100) applyAppScaleToWindows(curS.studioUi.appScale, win.webContents);
-            if (curS.appearance && curS.appearance.presetId !== "native") {
+            if (needsCurtainForAppearance(curS.appearance)) {
               applyThemeCurtainToWindows(curS.appearance);
               setTimeout(() => {
                 try {
                   const latestS = loadStudioSettings();
-                  if (latestS.appearance && latestS.appearance.presetId !== "native") {
+                  if (needsCurtainForAppearance(latestS.appearance)) {
                     applyThemeCurtainToWindows(latestS.appearance);
                   }
                 } catch {}
@@ -5032,6 +5377,8 @@ function registerI18nIpc() {
             }
           } catch {}
         };
+        // Apply immediately on window creation so the native window backing color & titleBarOverlay match before frame 0!
+        applyCur();
         win.webContents.on("dom-ready", applyCur);
         win.webContents.on("did-finish-load", applyCur);
       } catch {}
@@ -5045,6 +5392,36 @@ function registerI18nIpc() {
   ipcMain.on("agy-i18n:get-locale-sync", (event) => {
     event.returnValue = getLocale();
   });
+  ipcMain.on("agy-studio:get-boot-state-sync", (event) => {
+    try {
+      const s = loadStudioSettings();
+      const draftTexts = {};
+      if (s.composerDraftsEnabled !== false) {
+        try {
+          const dStore = loadComposerDraftsStore();
+          const entries = Object.entries((dStore && dStore.drafts) || {});
+          for (let i = 0; i < entries.length && i < 120; i += 1) {
+            const [k, v] = entries[i];
+            if (k && v && typeof v.text === "string" && v.text.trim()) {
+              draftTexts[k] = v.text;
+            }
+          }
+        } catch (_de) {}
+      }
+      event.returnValue = {
+        appearance: s.appearance,
+        greeting: s.greeting,
+        customLabels: s.customLabels,
+        studioUi: s.studioUi,
+        optimization: s.optimization,
+        zenMode: Boolean(s.zenMode),
+        composerDraftsEnabled: s.composerDraftsEnabled !== false,
+        draftTexts,
+      };
+    } catch (_e) {
+      event.returnValue = null;
+    }
+  });
   ipcMain.handle("agy-i18n:get-locale", () => getLocale());
   ipcMain.handle("agy-i18n:set-locale", (_event, next) => setLocale(next));
   ipcMain.handle("agy-i18n:toggle-locale", () => toggleLocale());
@@ -5057,8 +5434,14 @@ function registerI18nIpc() {
     if (patch && patch.quotaAutomation) {
       try { syncWindowsOfflineQuotaTask(false); } catch {}
     }
+    if (patch && patch.limitsWidget) {
+      quotaSummaryCache.at = 0;
+    }
     const state = getStudioState(lastActiveChatKey);
     broadcastStudioSettings(state);
+    if (patch && patch.limitsWidget && state && state.quotaSummary) {
+      broadcastQuotaSummary(state.quotaSummary);
+    }
     return state;
   });
   ipcMain.handle("agy-studio:sync-titlebar-overlay", (_event, payload) => {
@@ -5118,6 +5501,9 @@ function registerI18nIpc() {
     let changed = false;
     const migrateKey = normalizeChatKey(p.migrateFromKey);
     const fb = p.fallbackPersona && typeof p.fallbackPersona === "object" ? p.fallbackPersona : null;
+    if (migrateKey !== "__new__" && migrateKey !== key && migrateKey.startsWith("chat-")) {
+      try { migrateComposerDraftKey(migrateKey, key); } catch {}
+    }
     if (!chats[key] && migrateKey !== "__new__" && migrateKey !== key && migrateKey.startsWith("chat-") && chats[migrateKey]) {
       chats[key] = sanitizeChatRecord(Object.assign({}, chats[migrateKey], {
         title: titleStr || chats[migrateKey].title || "",
@@ -5452,7 +5838,7 @@ function registerI18nIpc() {
         includeThinking: Boolean(p.includeThinking),
         includeFullLog: Boolean(p.includeFullLog),
         locale: getLocale(),
-        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "5.0.3",
+        pluginVersion: (meta && (meta.version || meta.pluginVersion)) || "5.5.0",
         outPath,
       });
       return res;
@@ -5602,10 +5988,10 @@ function registerI18nIpc() {
         if (famState.fiveHourRem !== null && next5h < famState.fiveHourRem) {
           const drop5h = Math.round((famState.fiveHourRem - next5h) * 100) / 100;
           applyQuotaDropForWindow(famId, drop5h, famState.pending5hByChat, chats, activeKey, false);
-          if (drop5h >= 2 && ds.sincePrev5h >= 15000) {
+          if (drop5h >= 3 && ds.sincePrev5h >= 60000) {
             const obs5 = ds.sincePrev5h / drop5h;
-            if (obs5 >= 22000) {
-              famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * 0.5 + obs5 * 0.5, 25000, 1500000, famState.tokensPer1Pct5h));
+            if (obs5 >= 65000) {
+              famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * 0.75 + obs5 * 0.25, 65000, 1500000, famState.tokensPer1Pct5h));
               famState.calibrated = true;
               deltaCal5 = true;
             }
@@ -5623,16 +6009,17 @@ function registerI18nIpc() {
         } else {
           famState.pending5hByChat = {};
         }
-        if ((100 - next5h) >= 5 && ds.in5h >= 100000) {
+        // Full-window calibration only adjusts upward (never downward below 85% of prior, because other devices/IDEs/subagents omit local transcripts!)
+        if ((100 - next5h) >= 5 && ds.in5h >= 150000) {
           const win5 = ds.in5h / (100 - next5h);
-          if (win5 >= 22000) {
-            const wOld = deltaCal5 ? 0.75 : 0.4;
-            famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * wOld + win5 * (1 - wOld), 25000, 1500000, famState.tokensPer1Pct5h));
+          if (win5 >= Math.max(75000, famState.tokensPer1Pct5h * 0.85)) {
+            const wOld = deltaCal5 ? 0.8 : 0.65;
+            famState.tokensPer1Pct5h = Math.round(clampNum(famState.tokensPer1Pct5h * wOld + win5 * (1 - wOld), 65000, 1500000, famState.tokensPer1Pct5h));
             famState.calibrated = true;
           }
         }
         famState.fiveHourRem = next5h;
-      } else if (nextWeek !== null) {
+      } else if (nextWeek !== null && p.source !== "official-rpc") {
         // Antigravity rendered this family in 1-bucket mode (weekly only, no active 5h bucket): clear stale 5h value so it never shows fake 100%
         famState.fiveHourRem = null;
         famState.fiveHourReset = "";
@@ -5644,10 +6031,10 @@ function registerI18nIpc() {
         if (famState.weeklyRem !== null && nextWeek < famState.weeklyRem) {
           const dropWeek = Math.round((famState.weeklyRem - nextWeek) * 100) / 100;
           applyQuotaDropForWindow(famId, dropWeek, famState.pendingWeeklyByChat, chats, activeKey, true);
-          if (dropWeek >= 2 && ds.sincePrevWk >= 30000) {
+          if (dropWeek >= 2 && ds.sincePrevWk >= 80000) {
             const obsW = ds.sincePrevWk / dropWeek;
-            if (obsW >= 90000) {
-              famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * 0.5 + obsW * 0.5, 100000, 6000000, famState.tokensPer1PctWeekly));
+            if (obsW >= 180000) {
+              famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * 0.75 + obsW * 0.25, 180000, 6000000, famState.tokensPer1PctWeekly));
               famState.calibrated = true;
               deltaCalW = true;
             }
@@ -5665,11 +6052,11 @@ function registerI18nIpc() {
         } else {
           famState.pendingWeeklyByChat = {};
         }
-        if ((100 - nextWeek) >= 5 && ds.inWk >= 250000) {
+        if ((100 - nextWeek) >= 5 && ds.inWk >= 350000) {
           const winW = ds.inWk / (100 - nextWeek);
-          if (winW >= 90000) {
-            const wOldW = deltaCalW ? 0.75 : 0.4;
-            famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * wOldW + winW * (1 - wOldW), 100000, 6000000, famState.tokensPer1PctWeekly));
+          if (winW >= Math.max(200000, famState.tokensPer1PctWeekly * 0.85)) {
+            const wOldW = deltaCalW ? 0.8 : 0.65;
+            famState.tokensPer1PctWeekly = Math.round(clampNum(famState.tokensPer1PctWeekly * wOldW + winW * (1 - wOldW), 180000, 6000000, famState.tokensPer1PctWeekly));
             famState.calibrated = true;
           }
         }
@@ -5685,6 +6072,9 @@ function registerI18nIpc() {
         famState.weeklyReset = snapFam.weeklyReset.trim().slice(0, 80);
       } else if (nextWeek === 100) {
         famState.weeklyReset = "";
+      }
+      if (p.source === "official-rpc") {
+        famState.lastRpcSyncAt = now;
       }
       famState.updatedAt = now;
     }
@@ -5955,6 +6345,8 @@ function registerI18nIpc() {
         const remote = updateStatusState.remote || (loadUpdateCache().lastKnownRemote) || null;
         const res = await updaterCore.installUpdateFromZip({
           remote,
+          archiveUrl: remote && remote.archiveUrl ? remote.archiveUrl : undefined,
+          expectedSha256: remote && remote.sha256 ? remote.sha256 : "",
           resourcesDir: process.resourcesPath || path.resolve(__dirname, "..", ".."),
           onProgress: (stage) => {
             updateStatusState.status = stage;
@@ -5971,6 +6363,7 @@ function registerI18nIpc() {
         updateStatusState.status = "restarting";
         updateStatusState.error = "";
         broadcastUpdateStatus();
+        stopLocalVoiceServer();
 
         if (process.platform === "win32") {
           const exePath = res.exePath || process.execPath;
@@ -6034,7 +6427,8 @@ function registerI18nIpc() {
     return updateInstallInflight;
   });
   ipcMain.handle("agy-studio:translate-thinking-batch", async (_event, payload) => {
-    if (!loadStudioSettings().thinkingInRussian) {
+    const curSet = loadStudioSettings();
+    if (!curSet.thinkingInRussian && !curSet.workLogInRussian) {
       return { ok: true, disabled: true, translations: {} };
     }
     const p = payload && typeof payload === "object" ? payload : {};
@@ -6497,6 +6891,145 @@ function registerI18nIpc() {
       return { ok: false, error: err && err.message ? err.message : "IMPORT_FAILED" };
     }
   });
+  syncPerfAgentFlag();
+  ipcMain.handle("agy-studio:get-cache-diagnostics", () => {
+    try {
+      const mod = loadPerfCacheMod();
+      if (!mod || typeof mod.inspectCacheDiagnostics !== "function") return { ok: false, error: "PERF_MOD_UNAVAILABLE" };
+      const s = loadStudioSettings();
+      const diag = mod.inspectCacheDiagnostics({
+        userDataDir: app.getPath("userData"),
+        optimization: s.optimization,
+      });
+      return { ok: true, diagnostics: diag };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "DIAG_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:clean-caches", () => {
+    try {
+      const mod = loadPerfCacheMod();
+      if (!mod || typeof mod.cleanSafeCaches !== "function") return { ok: false, error: "PERF_MOD_UNAVAILABLE" };
+      const userDataDir = app.getPath("userData");
+      const cleaned = mod.cleanSafeCaches({ userDataDir, includeChromium: true, includePartitions: true, includeRudexTemp: true });
+      const s = loadStudioSettings();
+      const diagnostics = mod.inspectCacheDiagnostics({ userDataDir, optimization: s.optimization });
+      return { ok: true, cleaned, diagnostics };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "CLEAN_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:prune-app-storage", () => {
+    try {
+      const mod = loadPerfCacheMod();
+      if (!mod || typeof mod.pruneStaleAppStorage !== "function") return { ok: false, error: "PERF_MOD_UNAVAILABLE" };
+      const userDataDir = app.getPath("userData");
+      const pruned = mod.pruneStaleAppStorage({ userDataDir, dryRun: false });
+      const s = loadStudioSettings();
+      const diagnostics = mod.inspectCacheDiagnostics({ userDataDir, optimization: s.optimization });
+      return { ok: true, pruned, diagnostics };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "PRUNE_FAILED" };
+    }
+  });
+  if (typeof ipcMain.on === "function") {
+    ipcMain.on("agy-studio:get-voice-boot-sync", (event) => {
+      try {
+        const s = loadStudioSettings();
+        const opt = sanitizeOptimization(s.optimization);
+        const mgr = getLocalVoiceManager();
+        const status = mgr ? mgr.getStatus(opt.voiceLocalModel) : null;
+        const localInstalled = Boolean(status && status.installed);
+        if (mgr && localInstalled && opt.voiceEnabled && opt.voiceEngine !== "cloud") {
+          // Pre-warm local sherpa-onnx streaming server in background so first mic click is <5ms
+          mgr.ensureServer(opt.voiceLocalModel).catch(() => {});
+        }
+        event.returnValue = {
+          optimization: opt,
+          localVoiceInstalled: localInstalled,
+          localVoiceStatus: status,
+        };
+      } catch {
+        event.returnValue = { optimization: DEFAULT_OPTIMIZATION, localVoiceInstalled: false, localVoiceStatus: null };
+      }
+    });
+
+    ipcMain.on("agy-studio:local-voice-cmd", (event, cmdPayload) => {
+      try {
+        const mgr = getLocalVoiceManager();
+        if (!mgr || !cmdPayload || typeof cmdPayload !== "object") return;
+        const sender = event && event.sender ? event.sender : null;
+        const sendEvent = (data) => {
+          try {
+            if (sender && !sender.isDestroyed()) {
+              sender.send("agy-studio:local-voice-event", data);
+            }
+          } catch {}
+        };
+        if (cmdPayload.cmd === "start") {
+          const s = loadStudioSettings();
+          const opt = sanitizeOptimization(s.optimization);
+          const modelId = cmdPayload.modelId || opt.voiceLocalModel || "ru-fast";
+          mgr.startSession({
+            sessionId: cmdPayload.sessionId,
+            streamId: cmdPayload.streamId,
+            modelId,
+            onPartial: (text) => sendEvent({ streamId: cmdPayload.streamId, sessionId: cmdPayload.sessionId, type: "partial", text }),
+            onFinal: (text) => sendEvent({ streamId: cmdPayload.streamId, sessionId: cmdPayload.sessionId, type: "final", text }),
+            onError: (error) => sendEvent({ streamId: cmdPayload.streamId, sessionId: cmdPayload.sessionId, type: "error", error }),
+          }).catch((err) => {
+            sendEvent({ streamId: cmdPayload.streamId, sessionId: cmdPayload.sessionId, type: "error", error: err && err.message ? err.message : String(err) });
+          });
+        } else if (cmdPayload.cmd === "chunk") {
+          mgr.pushChunk(cmdPayload.sessionId, cmdPayload.data);
+        } else if (cmdPayload.cmd === "end") {
+          mgr.endSession(cmdPayload.sessionId);
+        } else if (cmdPayload.cmd === "cancel") {
+          mgr.cancelSession(cmdPayload.sessionId);
+        }
+      } catch {}
+    });
+  }
+  ipcMain.handle("agy-studio:local-voice-status", (_event, payload) => {
+    try {
+      const mgr = getLocalVoiceManager();
+      if (!mgr) return { ok: false, error: "LOCAL_VOICE_MOD_UNAVAILABLE" };
+      const s = loadStudioSettings();
+      const opt = sanitizeOptimization(s.optimization);
+      const modelId = (payload && payload.modelId) || opt.voiceLocalModel || "ru-fast";
+      const status = mgr.getStatus(modelId);
+      if (status.installed && opt.voiceEnabled && opt.voiceEngine !== "cloud" && (!status.running || status.runningModelId !== modelId)) {
+        mgr.ensureServer(modelId).catch(() => {});
+      }
+      return { ok: true, status };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "LOCAL_VOICE_STATUS_FAILED" };
+    }
+  });
+  ipcMain.handle("agy-studio:local-voice-install", async (_event, payload) => {
+    try {
+      const mgr = getLocalVoiceManager();
+      if (!mgr) return { ok: false, error: "LOCAL_VOICE_MOD_UNAVAILABLE" };
+      const s = loadStudioSettings();
+      const opt = sanitizeOptimization(s.optimization);
+      const modelId = (payload && payload.modelId) || opt.voiceLocalModel || "ru-fast";
+      const broadcastProgress = (prog) => {
+        try {
+          const all = webContents.getAllWebContents();
+          for (let i = 0; i < all.length; i += 1) {
+            if (all[i] && !all[i].isDestroyed()) all[i].send("agy-studio:local-voice-progress", prog);
+          }
+        } catch {}
+      };
+      await mgr.install(modelId, broadcastProgress);
+      // Pre-warm the newly installed default model immediately so switching works without restart
+      mgr.ensureServer(modelId).catch(() => {});
+      const status = mgr.getStatus(modelId);
+      return { ok: true, status };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : "LOCAL_VOICE_INSTALL_FAILED" };
+    }
+  });
 }
 
 exports.getLocale = getLocale;
@@ -6516,6 +7049,15 @@ exports.DEFAULT_KEYBINDINGS = DEFAULT_KEYBINDINGS;
 exports.DEFAULT_AGENT_PROFILE = DEFAULT_AGENT_PROFILE;
 exports.DEFAULT_QUOTA_AUTOMATION = DEFAULT_QUOTA_AUTOMATION;
 exports.sanitizeQuotaAutomation = sanitizeQuotaAutomation;
+exports.DEFAULT_OPTIMIZATION = DEFAULT_OPTIMIZATION;
+exports.sanitizeOptimization = sanitizeOptimization;
+exports.loadStudioSettings = loadStudioSettings;
+exports.saveStudioSettings = saveStudioSettings;
+exports.syncPerfAgentFlag = syncPerfAgentFlag;
+exports.PRE_TOOL_USE_MATCHER = PRE_TOOL_USE_MATCHER;
+exports.shouldEnablePreToolUseHook = shouldEnablePreToolUseHook;
+exports.syncDynamicPreToolUseHook = syncDynamicPreToolUseHook;
+exports.sanitizeLocalTranslatorUrl = sanitizeLocalTranslatorUrl;
 exports.focusAntigravityWindow = focusAntigravityWindow;
 exports.showDesktopNotification = showDesktopNotification;
 exports.evaluateQuotaResetTransitions = evaluateQuotaResetTransitions;
@@ -6531,7 +7073,9 @@ exports.registerStudioMediaProtocol = registerStudioMediaProtocol;
 exports.handleStudioMediaProtocolRequest = handleStudioMediaProtocolRequest;
 exports.translateUiString = translateUiString;
 exports.schedulePostAppUpdateRepatch = schedulePostAppUpdateRepatch;
+exports.stopLocalVoiceServer = stopLocalVoiceServer;
 exports.writePostAppUpdateWatcherScript = writePostAppUpdateWatcherScript;
+exports.writePostAppUpdateWatcherWsh = writePostAppUpdateWatcherWsh;
 exports.writePostAppUpdateWatcherPosix = writePostAppUpdateWatcherPosix;
 exports.sanitizeStudioUi = sanitizeStudioUi;
 exports.sanitizeStudioSettings = sanitizeStudioSettings;

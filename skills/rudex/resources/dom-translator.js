@@ -832,9 +832,14 @@ function createDomTranslator(options) {
   function isInsideFastIgnoredSubtree(node) {
     let cur = node && node.nodeType === 1 ? node : (node && (node.parentElement || node.parentNode));
     let depth = 0;
-    while (cur && depth < 10) {
+    while (cur && depth < 20) {
       if (cur.nodeType === 1) {
-        if (cur.id === "rudex-studio-host" || cur.id === "agy-ru-studio-host") return true;
+        const cid = cur.id || "";
+        if (cid === "rudex-studio-host" || cid === "agy-ru-studio-host" || cid === "rudex-voice-badge") return true;
+        if (getAttrSafe(cur, "data-rudex-ignore") === "1" || getAttrSafe(cur, "data-agy-ru-ignore") === "1") return true;
+        const tid = getAttrSafe(cur, "data-testid");
+        if (tid === "user-message-content" || tid === "live-transcript") return true;
+        if (getAttrSafe(cur, "data-lexical-editor") === "true" || getAttrSafe(cur, "data-rudex-comp-mic-active") === "1") return true;
         const tag = cur.tagName ? cur.tagName.toUpperCase() : "";
         if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SVG" || tag === "CANVAS" || tag === "CODE" || tag === "PRE" || tag === "SCRIPT" || tag === "STYLE") {
           return true;

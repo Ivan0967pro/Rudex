@@ -14,18 +14,6 @@
         "timeout": 5
       }
     ],
-    "PreToolUse": [
-      {
-        "matcher": "search_web|read_url_content|web_search|invoke_subagent|browser_.*|call_mcp_tool|write_file|edit_file|replace_file_content|multi_replace_file_content|write_to_file",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./skills/rudex/scripts/rudex-hook.js",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "type": "command",

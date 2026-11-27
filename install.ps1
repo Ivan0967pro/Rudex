@@ -235,7 +235,7 @@ function Test-InsideAntigravityProcess {
   return $false
 }
 
-Write-Host "Rudex v5.0.3 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
+Write-Host "Rudex v5.5.0 -- Skill & UI Installer for Antigravity" -ForegroundColor Cyan
 
 if ($IsLocalRepo) {
   $InstallJs = Join-Path $LocalRepoRoot "skills\rudex\scripts\install.js"
@@ -261,6 +261,7 @@ if ($IsLocalRepo) {
   $agyExe = Find-AntigravityExe
 
   if ($Uninstall) {
+    Stop-Process -Name "sherpa-onnx-online-websocket-server" -Force -ErrorAction SilentlyContinue
     if ($wasRunning -and $RestartApp) {
       Stop-Process -Name "Antigravity", "antigravity" -Force -ErrorAction SilentlyContinue
       [void](Wait-AntigravityExit)
@@ -276,6 +277,7 @@ if ($IsLocalRepo) {
 
   if ($wasRunning -and $RestartApp) {
     Write-Host "[Rudex] Closing Antigravity briefly..." -ForegroundColor Yellow
+    Stop-Process -Name "sherpa-onnx-online-websocket-server" -Force -ErrorAction SilentlyContinue
     Stop-Process -Name "Antigravity", "antigravity" -Force -ErrorAction SilentlyContinue
     [void](Wait-AntigravityExit)
   }
@@ -349,6 +351,7 @@ try {
   $wasRunningRemote = [bool](Get-Process -Name "Antigravity", "antigravity" -ErrorAction SilentlyContinue)
   if ((-not $NoRestart) -and $wasRunningRemote -and (-not (Test-InsideAntigravityProcess))) {
     Write-Host "[Rudex] Closing Antigravity briefly so Windows releases file locks..." -ForegroundColor Yellow
+    Stop-Process -Name "sherpa-onnx-online-websocket-server" -Force -ErrorAction SilentlyContinue
     Stop-Process -Name "Antigravity", "antigravity" -Force -ErrorAction SilentlyContinue
     [void](Wait-AntigravityExit)
     Start-Sleep -Milliseconds 500

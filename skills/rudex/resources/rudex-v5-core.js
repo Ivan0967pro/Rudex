@@ -162,13 +162,17 @@ const RUDEX_AGENT_PRESETS = [
 const RUDEX_UI_ZONES = [
   { id: "header", nameRu: "Верхняя шапка", nameEn: "Top Header", selector: 'header:not(#rudex-studio-host *), [data-rudex-bg-header="1"]', area: "top" },
   { id: "sidebar", nameRu: "Боковая панель", nameEn: "Left Sidebar", selector: 'aside:not(#rudex-studio-host *), [data-testid="sidebar"], [data-rudex-bg-sidebar="1"]', area: "left" },
-  { id: "sidebar-items", nameRu: "Пункты и чаты сайдбара", nameEn: "Sidebar Items & Chats", selector: ':where(aside, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"]) :where(a, button, [role="listitem"])', area: "left-list" },
+  { id: "sidebar-panels", nameRu: "Блоки боковой панели", nameEn: "Sidebar Panels", selector: ':where(aside, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"]) :where([data-rudex-sidebar-surface="panel"], section, [data-slot="sidebar-group"])', area: "left-panel" },
+  { id: "sidebar-items", nameRu: "Пункты и чаты сайдбара", nameEn: "Sidebar Items & Chats", selector: ':where(aside, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"]) :where(a, button, [role="listitem"], [role="treeitem"], [data-rudex-sidebar-surface="item"])', area: "left-list" },
+  { id: "sidebar-active", nameRu: "Активный пункт сайдбара", nameEn: "Active Sidebar Item", selector: ':where(aside, [data-testid="sidebar"], [data-rudex-bg-sidebar="1"]) :where([aria-current="page"], [aria-current="true"], [aria-selected="true"], [data-active="true"], [data-selected="true"], [data-state="active"], [data-rudex-sidebar-surface="active"])', area: "left-active" },
   { id: "user-bubble", nameRu: "Мои сообщения", nameEn: "User Messages", selector: '[data-testid="user-message-bubble"], [data-testid="user-message-content"]:not([data-testid="user-message-bubble"] *)', area: "chat-user" },
   { id: "agent-reply", nameRu: "Ответы агента", nameEn: "Agent Replies", selector: '[data-testid="agent-response"]', area: "chat-agent" },
   { id: "thinking", nameRu: "Мысли и шаги агента", nameEn: "Agent Thoughts & Steps", selector: 'main :where([data-testid*="thought"], [data-testid*="thinking"], [data-rudex-zone="steps"], [data-rudex-zone="thinking"]):not([data-testid="agent-response"])', area: "chat-steps" },
   { id: "code", nameRu: "Блоки кода", nameEn: "Code Blocks", selector: ':where([data-testid="agent-response"], [data-markdown-root], main) pre:not(#rudex-studio-host *)', area: "chat-code" },
   { id: "composer", nameRu: "Поле ввода (Композер)", nameEn: "Input Composer", selector: '[data-rudex-theme-composer="1"]', area: "bottom" },
   { id: "composer-bar", nameRu: "Нижняя строка ввода", nameEn: "Composer Toolbar", selector: '[data-rudex-theme-composer="1"] :where(button, [role="button"])', area: "bottom-bar" },
+  { id: "dividers", nameRu: "Линии и разделители", nameEn: "Lines & Dividers", selector: ':where(hr, [role="separator"], [data-slot="separator"]):not(#rudex-studio-host):not(#rudex-studio-host *)', area: "dividers" },
+  { id: "buttons", nameRu: "Кнопки интерфейса", nameEn: "UI Buttons", selector: ':where(main, header, aside) button:not(#rudex-studio-host *):not([role="switch"]):not([data-rudex-comp-send="1"])', area: "buttons" },
   { id: "overlays", nameRu: "Меню и всплывающие окна", nameEn: "Menus & Tooltips", selector: ':where([role="menu"], [role="listbox"], [role="tooltip"], [role="dialog"]):not(#rudex-studio-host):not(#rudex-studio-host *)', area: "overlay" },
 ];
 
@@ -188,6 +192,7 @@ const RUDEX_KEYBINDING_DEFS = [
   { id: "emergencyResetOverrides", group: "design", nameRu: "Пауза / сброс правок элементов", nameEn: "Pause / resume element overrides", def: "Ctrl+Alt+Shift+R" },
   { id: "toggleLimitsWidget", group: "widgets", nameRu: "Показать / скрыть окно «Только лимиты»", nameEn: "Show / hide Limits widget", def: "Ctrl+Alt+Q" },
   { id: "openAnnotator", group: "widgets", nameRu: "Правки на скриншоте карандашом", nameEn: "Screenshot Pencil Annotator", def: "Ctrl+Alt+S" },
+  { id: "toggleDictation", group: "agent", nameRu: "Старт / стоп голосового ввода (диктовки)", nameEn: "Start / stop voice dictation", def: "Ctrl+Alt+V" },
   { id: "toggleAgentPopover", group: "agent", nameRu: "Открыть быстрые тумблеры агента", nameEn: "Toggle Quick Agent Toggles", def: "Ctrl+Alt+A" },
   { id: "cycleAgentPreset", group: "agent", nameRu: "Переключить профиль агента", nameEn: "Cycle Agent Profile", def: "Ctrl+Alt+Shift+A" },
 ];
@@ -243,7 +248,7 @@ const RUDEX_LIVE_EDIT_DEFAULTS = {
 
 const RUDEX_QUOTA_AUTOMATION_DEFAULTS = {
   notifyOnReset: true,
-  notifyWhenClosed: true,
+  notifyWhenClosed: false,
   notifySound: true,
   autoContinueEnabled: false,
   autoContinueScope: "all",
@@ -258,7 +263,7 @@ function rv5NormalizeQuotaAutomation(raw) {
   const validScopes = { all: 1, selected: 1, current: 1 };
   return {
     notifyOnReset: src.notifyOnReset !== false,
-    notifyWhenClosed: src.notifyWhenClosed !== false,
+    notifyWhenClosed: src.notifyWhenClosed === true,
     notifySound: src.notifySound !== false,
     autoContinueEnabled: Boolean(src.autoContinueEnabled),
     autoContinueScope: validScopes[src.autoContinueScope] ? src.autoContinueScope : "all",
@@ -524,10 +529,10 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
     rows.push({ id: "claudeGpt", label: "Claude / GPT", data: cl });
   }
 
-  const fmtVal = (rem, isEst) => {
+  const fmtVal = (rem) => {
     if (typeof rem !== "number" || !Number.isFinite(rem)) return "—";
     const v = cfg.displayMode === "used" ? Math.max(0, Math.min(100, Math.round(100 - rem))) : Math.max(0, Math.min(100, Math.round(rem)));
-    return `${isEst ? "~" : ""}${v}%`;
+    return `${v}%`;
   };
   const barPct = (rem) => {
     if (typeof rem !== "number" || !Number.isFinite(rem)) return 0;
@@ -560,9 +565,7 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
 
   const label5h = isRu ? "5ч" : "5h";
   const labelWk = isRu ? "Нед" : "Wk";
-  const estHint = rv5EscapeHtml(isRu
-    ? "Оценка расхода с последнего снимка. Откройте «Модели и использование» в Antigravity для точной синхронизации."
-    : "Estimated since last official snapshot. Open Models & Usage in Antigravity to sync exact %.");
+  const estHint = "";
   const hasAnyValues = rows.some((r) => typeof r.data.fiveHourRem === "number" || typeof r.data.weeklyRem === "number");
   const titleHint = isRu ? "Лимиты Antigravity" : "Antigravity Limits";
   const pinTitle = isDockedUi
@@ -656,17 +659,29 @@ function rv5BuildLimitsWidgetHtml(cfgRaw, quotaSummary, activeModelName, isRu, i
 /**
  * Build smart, React-safe CSS selector for any element clicked in Element Picker.
  */
-function rv5BuildSmartSelector(el, scope) {
+function rv5BuildSmartSelector(el, scope, rootDoc) {
   if (!el || el.nodeType !== 1) return "";
   const safeAttrVal = (v) => String(v || "").replace(/["\\;{}<>]/g, "").trim();
-  const testId = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("data-testid")) : "";
-  if (testId) {
-    return `[data-testid="${testId}"]`;
-  }
-  const zone = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("data-rudex-zone")) : "";
-  if (zone) {
-    return `[data-rudex-zone="${zone}"]`;
-  }
+  const ownerDoc = rootDoc || el.ownerDocument || (typeof document !== "undefined" ? document : null);
+  const canVerifyUnique = Boolean(
+    scope !== "similar" &&
+    ownerDoc &&
+    typeof ownerDoc.querySelectorAll === "function" &&
+    ownerDoc.body &&
+    typeof ownerDoc.body.contains === "function" &&
+    ownerDoc.body.contains(el)
+  );
+  const isUniqueSelectorFor = (sel, targetEl) => {
+    if (!canVerifyUnique) return true;
+    if (!sel) return false;
+    try {
+      const list = ownerDoc.querySelectorAll(sel);
+      return Boolean(list && list.length === 1 && list[0] === targetEl);
+    } catch (_e) {
+      return false;
+    }
+  };
+  const isUniqueMatch = (sel) => isUniqueSelectorFor(sel, el);
   const tag = (el.tagName || "div").toLowerCase();
   if (
     el.getAttribute("data-rudex-theme-composer") === "1" ||
@@ -677,19 +692,36 @@ function rv5BuildSmartSelector(el, scope) {
   ) {
     return '[data-rudex-theme-composer="1"]';
   }
+  const testId = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("data-testid")) : "";
+  if (testId) {
+    const sel = `[data-testid="${testId}"]`;
+    if (scope === "similar" || isUniqueMatch(sel)) return sel;
+  }
+  const zone = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("data-rudex-zone")) : "";
+  if (zone) {
+    const sel = `[data-rudex-zone="${zone}"]`;
+    if (scope === "similar" || isUniqueMatch(sel)) return sel;
+  }
   if (typeof el.getAttribute === "function" && el.getAttribute("data-rudex-bg-sidebar") === "1") {
-    return '[data-rudex-bg-sidebar="1"]';
+    const sel = '[data-rudex-bg-sidebar="1"]';
+    if (scope === "similar" || isUniqueMatch(sel)) return sel;
   }
   if (typeof el.getAttribute === "function" && el.getAttribute("data-rudex-bg-header") === "1") {
-    return '[data-rudex-bg-header="1"]';
+    const sel = '[data-rudex-bg-header="1"]';
+    if (scope === "similar" || isUniqueMatch(sel)) return sel;
   }
   const aria = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("aria-label")) : "";
   // Avoid translated Cyrillic aria-labels so selectors survive RU <-> EN switching cleanly
   if (scope !== "similar" && aria && aria.length <= 64 && /^[\x20-\x7E]+$/.test(aria)) {
-    return `${tag}[aria-label="${aria}"]`;
+    const sel = `${tag}[aria-label="${aria}"]`;
+    if (isUniqueMatch(sel)) return sel;
   }
   const role = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("role")) : "";
+  const sideSurf = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("data-rudex-sidebar-surface")) : "";
+  const slotAttr = typeof el.getAttribute === "function" ? safeAttrVal(el.getAttribute("data-slot")) : "";
   if (scope === "similar") {
+    if (sideSurf) return `[data-rudex-sidebar-surface="${sideSurf}"]:not(#rudex-studio-host *)`;
+    if (slotAttr) return `[data-slot="${slotAttr}"]:not(#rudex-studio-host *)`;
     if (role) return `${tag}[role="${role}"]:not(#rudex-studio-host *)`;
     const parent = el.parentElement;
     const pTest = parent && typeof parent.getAttribute === "function" ? safeAttrVal(parent.getAttribute("data-testid")) : "";
@@ -701,23 +733,58 @@ function rv5BuildSmartSelector(el, scope) {
   const segs = [];
   let cur = el;
   let depth = 0;
-  while (cur && cur.nodeType === 1 && depth < 4) {
+  let anchored = false;
+  while (cur && cur.nodeType === 1 && depth < 40) {
     const t = (cur.tagName || "div").toLowerCase();
-    if (t === "body" || t === "html") break;
-    const tid = typeof cur.getAttribute === "function" ? safeAttrVal(cur.getAttribute("data-testid")) : "";
-    if (tid) {
-      segs.unshift(`[data-testid="${tid}"]`);
+    if (t === "body" || t === "html") {
+      if (t === "body" && segs.length > 0 && !anchored) {
+        segs.unshift("body");
+        anchored = true;
+      }
       break;
+    }
+    const tryAnchor = (anchorSel) => {
+      if (scope === "similar") {
+        segs.unshift(anchorSel);
+        anchored = true;
+        return true;
+      }
+      const cand = segs.length > 0 ? `${anchorSel} > ${segs.join(" > ")}` : anchorSel;
+      if (isUniqueSelectorFor(anchorSel, cur) || isUniqueSelectorFor(cand, el)) {
+        segs.unshift(anchorSel);
+        anchored = true;
+        return true;
+      }
+      return false;
+    };
+    const tid = typeof cur.getAttribute === "function" ? safeAttrVal(cur.getAttribute("data-testid")) : "";
+    if (tid && tryAnchor(`[data-testid="${tid}"]`)) break;
+    if (depth > 0 && typeof cur.getAttribute === "function") {
+      if (cur.getAttribute("data-rudex-bg-sidebar") === "1" && tryAnchor('[data-rudex-bg-sidebar="1"]')) break;
+      if (cur.getAttribute("data-rudex-bg-header") === "1" && tryAnchor('[data-rudex-bg-header="1"]')) break;
+      if (cur.getAttribute("data-rudex-theme-composer") === "1" && tryAnchor('[data-rudex-theme-composer="1"]')) break;
+      const cSlot = safeAttrVal(cur.getAttribute("data-slot"));
+      if (cSlot && cSlot.length <= 42 && tryAnchor(`[data-slot="${cSlot}"]`)) break;
     }
     if (cur.id && /^[a-zA-Z][a-zA-Z0-9_-]{1,40}$/.test(cur.id) && !cur.id.startsWith("radix-")) {
-      segs.unshift(`#${cur.id}`);
-      break;
+      if (tryAnchor(`#${cur.id}`)) break;
+    }
+    if (depth > 0 && (t === "main" || t === "aside" || t === "header" || t === "nav")) {
+      if (tryAnchor(t)) break;
     }
     let idx = 1;
-    let sib = cur.previousElementSibling;
-    while (sib) {
-      if ((sib.tagName || "").toLowerCase() === t) idx += 1;
-      sib = sib.previousElementSibling;
+    if (cur.previousElementSibling) {
+      let sib = cur.previousElementSibling;
+      while (sib) {
+        if ((sib.tagName || "").toLowerCase() === t) idx += 1;
+        sib = sib.previousElementSibling;
+      }
+    } else if (cur.parentElement && cur.parentElement.children) {
+      const ch = cur.parentElement.children;
+      for (let ci = 0; ci < ch.length; ci += 1) {
+        if (ch[ci] === cur) break;
+        if (ch[ci] && (ch[ci].tagName || "").toLowerCase() === t) idx += 1;
+      }
     }
     segs.unshift(scope === "similar" && depth === 0 ? t : `${t}:nth-of-type(${idx})`);
     cur = cur.parentElement;
@@ -729,10 +796,14 @@ function rv5BuildSmartSelector(el, scope) {
 function rv5DescribeElementFriendly(el, isRu, origText) {
   if (!el || el.nodeType !== 1) return isRu ? "Элемент" : "Element";
   const tid = typeof el.getAttribute === "function" ? (el.getAttribute("data-testid") || "") : "";
+  const sideSurf = typeof el.getAttribute === "function" ? (el.getAttribute("data-rudex-sidebar-surface") || "") : "";
   const tag = (el.tagName || "").toLowerCase();
   if (tid === "user-message-bubble" || tid === "user-message-content") return isRu ? "Сообщение пользователя" : "User Message";
   if (tid === "agent-response") return isRu ? "Ответ агента" : "Agent Response";
   if (tid === "sidebar" || tag === "aside" || el.getAttribute("data-rudex-bg-sidebar") === "1") return isRu ? "Боковая панель" : "Sidebar";
+  if (sideSurf === "panel") return isRu ? "Блок боковой панели" : "Sidebar Panel";
+  if (sideSurf === "active") return isRu ? "Активный пункт сайдбара" : "Active Sidebar Item";
+  if (sideSurf === "item") return isRu ? "Строка сайдбара" : "Sidebar Row";
   if (tag === "header" || el.getAttribute("data-rudex-bg-header") === "1") return isRu ? "Верхняя шапка" : "Top Header";
   if (
     el.getAttribute("data-rudex-theme-composer") === "1" ||
@@ -773,39 +844,105 @@ function rv5IsRenameSafeElement(el) {
  */
 function rv5FindNativeComposer(doc) {
   if (!doc || typeof doc.querySelector !== "function") return { container: null, editable: null };
-  let container = doc.querySelector('[data-rudex-theme-composer="1"]');
-  let editable = container ? container.querySelector('textarea, [contenteditable="true"], [role="textbox"]') : null;
-  if (!editable) {
-    const cands = doc.querySelectorAll('main textarea, main [contenteditable="true"], form textarea, form [contenteditable="true"]');
-    for (let i = cands.length - 1; i >= 0; i -= 1) {
-      const c = cands[i];
-      if (!c) continue;
-      if (typeof c.closest === "function" && c.closest('#rudex-studio-host, [data-testid="user-message-content"], [data-testid="agent-response"], .monaco-editor')) continue;
-      const cls = typeof c.className === "string" ? c.className : "";
-      if (/\b(?:inputarea|ime-text-area)\b/.test(cls)) continue;
-      editable = c;
-      container = typeof c.closest === "function"
-        ? c.closest('[data-rudex-theme-composer="1"], form, [data-testid="composer"], .composer-container')
-        : null;
-      if (!container) {
-        // Walk up to find the outer composer wrapper that contains the model selector / send bar (critical on native theme!)
-        let cur = c.parentElement;
-        let best = c.parentElement;
-        let d = 0;
-        while (cur && cur.nodeType === 1 && cur !== doc.body && cur.tagName !== "MAIN" && d < 6) {
-          if (typeof cur.querySelector === "function") {
-            if (cur.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"]')) break;
-            if (cur.querySelector('[data-testid="model-selector-trigger"], button[type="submit"], [data-testid="input-cancel-button"]')) {
-              best = cur;
-              break;
-            }
-          }
-          cur = cur.parentElement;
-          d += 1;
+  const isSkippedEditable = (c) => {
+    if (!c) return true;
+    if (typeof c.closest === "function" && c.closest('#rudex-studio-host, [data-testid="user-message-content"], [data-testid="agent-response"], .monaco-editor, [role="dialog"], [role="alertdialog"]')) return true;
+    const cls = typeof c.className === "string" ? c.className : "";
+    if (/\b(?:inputarea|ime-text-area)\b/.test(cls)) return true;
+    return false;
+  };
+  const isVisibleRect = (el) => {
+    if (!el || typeof el.getBoundingClientRect !== "function") return true;
+    const r = el.getBoundingClientRect();
+    if (!r) return true;
+    // Allow mock DOM rects (0x0 default in tests without layout), reject explicitly collapsed hidden nodes only when other visible ones exist
+    return r.width > 0 && r.height > 0;
+  };
+  const walkToComposerContainer = (editableNode) => {
+    if (!editableNode) return null;
+    const direct = typeof editableNode.closest === "function"
+      ? editableNode.closest('[data-rudex-theme-composer="1"], form, [data-testid="composer"], .composer-container')
+      : null;
+    if (direct) return direct;
+    let cur = editableNode.parentElement;
+    let best = editableNode.parentElement;
+    let d = 0;
+    while (cur && cur.nodeType === 1 && cur !== doc.body && cur.tagName !== "MAIN" && d < 6) {
+      if (typeof cur.querySelector === "function") {
+        if (cur.querySelector('[data-testid="agent-response"], [data-testid="user-message-content"]')) break;
+        if (cur.querySelector('[data-testid="model-selector-trigger"], button[type="submit"], [data-testid="input-cancel-button"], [data-testid="cancel-invocation-button"]')) {
+          best = cur;
+          break;
         }
-        container = best;
       }
-      break;
+      cur = cur.parentElement;
+      d += 1;
+    }
+    return best;
+  };
+
+  // 1) Prefer the composer that currently holds focus (critical when multiple tabs/panes or stale hidden composers exist!)
+  const activeEl = doc.activeElement;
+  if (activeEl && typeof activeEl.closest === "function") {
+    const activeEd = activeEl.closest('textarea, [contenteditable="true"], [role="textbox"]');
+    if (activeEd && !isSkippedEditable(activeEd)) {
+      const activeCont = walkToComposerContainer(activeEd);
+      if (activeCont) return { container: activeCont, editable: activeEd };
+    }
+  }
+
+  // 2) Scan all tagged composers, preferring visible ones
+  let container = null;
+  let editable = null;
+  if (typeof doc.querySelectorAll === "function") {
+    const tagged = doc.querySelectorAll('[data-rudex-theme-composer="1"]');
+    let fallbackTagged = null;
+    let fallbackContOnly = null;
+    for (let i = tagged.length - 1; i >= 0; i -= 1) {
+      const candCont = tagged[i];
+      if (!candCont || typeof candCont.querySelector !== "function") continue;
+      if (!fallbackContOnly) fallbackContOnly = candCont;
+      const candEd = candCont.querySelector('textarea, [contenteditable="true"], [role="textbox"]');
+      if (!candEd || isSkippedEditable(candEd)) continue;
+      if (!fallbackTagged) fallbackTagged = { container: candCont, editable: candEd };
+      if (isVisibleRect(candCont) && isVisibleRect(candEd)) {
+        container = candCont;
+        editable = candEd;
+        break;
+      }
+    }
+    if (!editable && fallbackTagged) {
+      container = fallbackTagged.container;
+      editable = fallbackTagged.editable;
+    } else if (!container && fallbackContOnly) {
+      container = fallbackContOnly;
+    }
+  } else {
+    container = doc.querySelector('[data-rudex-theme-composer="1"]');
+    editable = container ? container.querySelector('textarea, [contenteditable="true"], [role="textbox"]') : null;
+  }
+
+  // 3) Fallback scan across main/form and then whole document for untagged chat composers
+  if (!editable && typeof doc.querySelectorAll === "function") {
+    const primaryCands = doc.querySelectorAll('main textarea, main [contenteditable="true"], form textarea, form [contenteditable="true"]');
+    const allCands = primaryCands && primaryCands.length > 0
+      ? primaryCands
+      : doc.querySelectorAll('textarea, [contenteditable="true"], [role="textbox"]');
+    let fallbackUn = null;
+    for (let i = allCands.length - 1; i >= 0; i -= 1) {
+      const c = allCands[i];
+      if (isSkippedEditable(c)) continue;
+      const cont = walkToComposerContainer(c);
+      if (!fallbackUn) fallbackUn = { container: cont, editable: c };
+      if (isVisibleRect(c)) {
+        editable = c;
+        container = cont;
+        break;
+      }
+    }
+    if (!editable && fallbackUn) {
+      editable = fallbackUn.editable;
+      container = fallbackUn.container;
     }
   }
   return { container, editable };
@@ -814,9 +951,9 @@ function rv5FindNativeComposer(doc) {
 function rv5ReadEditableText(editable) {
   if (!editable) return "";
   if (editable.tagName === "TEXTAREA" || editable.tagName === "INPUT") {
-    return String(editable.value || "").trim();
+    return String(editable.value || "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
   }
-  return String(editable.innerText || editable.textContent || "").trim();
+  return String(editable.innerText || editable.textContent || "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
 }
 
 function rv5ClearEditableText(editable, win, opts) {
@@ -1333,7 +1470,7 @@ function rv5BuildExtraShadowCss() {
   cursor: pointer;
   min-width: 68px;
   text-align: center;
-  transition: all 0.12s ease;
+  transition: color 0.12s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.12s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.12s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .rx-pop-pill:hover { color: var(--rx-theme-fg-strong, var(--rx-fg-strong)); border-color: color-mix(in srgb, var(--rx-theme-fg-strong, var(--rx-fg)) 28%, transparent); }
 .rx-pop-pill.is-on {
@@ -1507,7 +1644,8 @@ function rv5BuildExtraShadowCss() {
   border: 2px solid var(--rx-accent);
   background: var(--rx-accent-soft);
   border-radius: var(--rx-r-sm, 5px);
-  transition: all 0.06s ease-out;
+  transition: top 0.06s ease-out, left 0.06s ease-out, width 0.06s ease-out, height 0.06s ease-out, opacity 0.08s ease-out;
+  will-change: top, left, width, height;
 }
 .rx-picker-tag {
   position: absolute;
@@ -1523,6 +1661,208 @@ function rv5BuildExtraShadowCss() {
 }
 .rx-picker-highlight.is-tag-below .rx-picker-tag {
   top: calc(100% + 4px);
+}
+.rx-picker-marquee {
+  position: fixed;
+  z-index: 2147483638;
+  pointer-events: none;
+  border: 1.5px dashed var(--rx-accent);
+  background: color-mix(in srgb, var(--rx-accent) 14%, transparent);
+  border-radius: 4px;
+}
+.rx-picker-match-box {
+  position: fixed;
+  z-index: 2147483634;
+  pointer-events: none;
+  border: 1.5px dashed color-mix(in srgb, var(--rx-accent) 88%, #fff);
+  background: color-mix(in srgb, var(--rx-accent) 9%, transparent);
+  border-radius: 4px;
+  transition: top 0.06s ease-out, left 0.06s ease-out, width 0.06s ease-out, height 0.06s ease-out;
+}
+.rx-picker-match-num {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 3px 0 4px 0;
+  background: var(--rx-accent);
+  color: var(--rx-accent-fg);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+.rx-picker-mode-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--rx-surface);
+  border: 1px solid var(--rx-border);
+}
+.rx-picker-mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--rx-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 550;
+  padding: 3px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rx-picker-mode-btn:hover {
+  color: var(--rx-fg-strong);
+}
+.rx-picker-mode-btn.is-active {
+  background: var(--rx-accent);
+  color: var(--rx-accent-fg);
+}
+.rx-insp-match-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--rx-accent-soft);
+  color: var(--rx-accent);
+  border: 1px solid var(--rx-accent-border);
+  white-space: nowrap;
+}
+.rx-insp-match-badge.is-warn {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+.rx-insp-group-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 8px;
+  border-radius: var(--rx-r-md, 9px);
+  border: 1px solid var(--rx-accent-border);
+  background: var(--rx-surface);
+}
+.rx-insp-group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.rx-insp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 165px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  background: var(--rx-surface-2);
+  border: 1px solid var(--rx-border);
+  color: var(--rx-fg);
+}
+.rx-insp-chip-lbl {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rx-insp-chip-x {
+  border: none;
+  background: transparent;
+  color: var(--rx-muted);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.rx-insp-chip-x:hover {
+  color: var(--rx-danger);
+}
+.rx-insp-pos-box {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  border-radius: var(--rx-r-md, 9px);
+  border: 1px solid var(--rx-border);
+  background: var(--rx-surface);
+}
+.rx-insp-pos-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rx-insp-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 28px);
+  grid-template-rows: repeat(3, 24px);
+  gap: 3px;
+  flex-shrink: 0;
+}
+.rx-insp-dpad-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rx-border-strong);
+  background: var(--rx-surface-2);
+  color: var(--rx-fg-strong);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 0;
+}
+.rx-insp-dpad-btn:hover {
+  border-color: var(--rx-accent-border);
+  color: var(--rx-accent);
+}
+.rx-insp-dpad-btn.is-zero {
+  font-size: 10px;
+  color: var(--rx-muted);
+}
+.rx-insp-pos-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.rx-insp-step-pills {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+.rx-insp-step-pill {
+  border: 1px solid var(--rx-border);
+  background: transparent;
+  color: var(--rx-muted);
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  font-family: var(--rx-font-mono);
+  cursor: pointer;
+}
+.rx-insp-step-pill.is-active {
+  background: var(--rx-accent-soft);
+  border-color: var(--rx-accent-border);
+  color: var(--rx-accent);
+  font-weight: 650;
+}
+.rx-insp-drag-btn {
+  width: 100%;
+  justify-content: center;
+}
+.rx-insp-drag-btn.is-active {
+  background: var(--rx-accent) !important;
+  color: var(--rx-accent-fg) !important;
+  border-color: var(--rx-accent) !important;
 }
 .rx-inspector-card {
   position: fixed;
@@ -1544,6 +1884,17 @@ function rv5BuildExtraShadowCss() {
   flex-direction: column;
   gap: 7px;
   pointer-events: auto;
+  transition: right 0.16s ease, left 0.16s ease;
+}
+.rx-inspector-card.is-drawer-open {
+  right: calc(min(478px, 100vw - 28px) + 28px);
+}
+@media (max-width: 960px) {
+  .rx-inspector-card.is-drawer-open {
+    right: auto;
+    left: 14px;
+    width: min(360px, calc(100vw - 28px));
+  }
 }
 .rx-insp-sec-title {
   font-size: 10px;
@@ -1613,6 +1964,48 @@ function rv5BuildExtraShadowCss() {
   font-family: var(--rx-font-mono);
   color: var(--rx-muted);
   white-space: nowrap;
+}
+.rx-insp-hex-input {
+  width: 72px !important;
+  min-width: 64px;
+  padding: 2px 5px !important;
+  font-size: 11px !important;
+  font-family: var(--rx-font-mono);
+  text-transform: lowercase;
+  flex-shrink: 0;
+}
+.rx-insp-tree-btn {
+  min-width: 24px;
+  padding: 2px 6px !important;
+  font-size: 11px !important;
+  font-weight: 600;
+}
+.rx-insp-tree-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+.rx-insp-nudge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--rx-r-md, 9px);
+  border: 1px solid var(--rx-border);
+  background: var(--rx-surface);
+  font-size: 11px;
+  color: var(--rx-muted);
+}
+.rx-insp-nudge-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rx-insp-nudge-btn {
+  min-width: 24px;
+  padding: 2px 6px !important;
+  font-size: 11px !important;
+  font-family: var(--rx-font-mono);
 }
 .rx-insp-footer {
   position: sticky;

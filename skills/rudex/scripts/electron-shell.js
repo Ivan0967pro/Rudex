@@ -73,9 +73,9 @@ function patchMainJs(src, stampVersion, warnings) {
         if (_fs.existsSync(_metaPath)) {
             try { _meta = JSON.parse(_fs.readFileSync(_metaPath, "utf8")); } catch {}
         }
-        const _STAMP = ${safeStamp};
+        const _STAMP = String(${safeStamp} || "").trim().split(/\\s+/)[0];
         let _needsRepatch = false;
-        if (_fs.existsSync(_appDir) && _fs.existsSync(_asarPath)) {
+        if (!(process.env && process.env.RUDEX_REPATCH_ATTEMPT === "1") && _fs.existsSync(_appDir) && _fs.existsSync(_asarPath)) {
             if (_cur && _cur !== _STAMP) {
                 _needsRepatch = true;
             } else if (_meta) {
@@ -101,20 +101,23 @@ function patchMainJs(src, stampVersion, warnings) {
             if (_fs.existsSync(_installJs)) {
                 try {
                     const _r = require("child_process").spawnSync(process.execPath, [_installJs, "--no-sync-plugin"], {
-                        env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1", ANTIGRAVITY_RESOURCES_DIR: _resDir }),
+                        env: Object.assign({}, process.env || {}, { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ASAR: "1", ANTIGRAVITY_RESOURCES_DIR: _resDir }),
+                        encoding: "utf8",
                         timeout: 30000,
                         windowsHide: true,
                     });
-                    if (_r && _r.status === 0) _repatched = true;
+                    if (_r && _r.status === 0 && !String(_r.stdout || "").includes("LOCKED_NEEDS_ACTIVATOR")) _repatched = true;
                 } catch {}
             }
             if (_repatched) {
+                if (process.env) process.env.RUDEX_REPATCH_ATTEMPT = "1";
                 _app.relaunch();
                 _app.exit(0);
                 return;
             }
             try {
                 _fs.renameSync(_appDir, _appDir + ".rudex-outdated-" + _STAMP);
+                if (process.env) process.env.RUDEX_REPATCH_ATTEMPT = "1";
                 _app.relaunch();
                 _app.exit(0);
                 return;
@@ -135,6 +138,7 @@ function patchMainJs(src, stampVersion, warnings) {
                     _userDataDir ? _path.join(_userDataDir, "agy_studio_thinking_ru.flag") : "",
                     _userDataDir ? _path.join(_userDataDir, "agy_studio_agent_profile.flag") : "",
                     _userDataDir ? _path.join(_userDataDir, "agy_studio_tool_policy.flag") : "",
+                    _userDataDir ? _path.join(_userDataDir, "agy_studio_perf_agent.flag") : "",
                     _userDataDir ? _path.join(_userDataDir, "studio_live_edits", "pending.flag") : "",
                     _userDataDir ? _path.join(_userDataDir, "rudex-quota-notify.js") : "",
                     _userDataDir ? _path.join(_userDataDir, "rudex-quota-notify-payload.json") : "",
@@ -236,6 +240,34 @@ function patchMainJs(src, stampVersion, warnings) {
     `    i18nMain_1.registerI18nIpc();\n    const ipc = (0, ipcHandlers_1.registerIpcHandlers)(storageManager, {`,
     "main.js registerI18nIpc"
   );
+
+  src = tryReplaceExact(
+    src,
+    `electron_1.app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');`,
+    `electron_1.app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+if (!HEADLESS && !globalThis.__RUDEX_DISABLED__) {
+    try {
+        const _perfMod = require("./i18nData/perf-cache-engine.js");
+        let _optCfg = {};
+        try {
+            const _sp = path.join(electron_1.app.getPath('userData'), 'agy_studio_settings.json');
+            if (fs.existsSync(_sp)) {
+                const _raw = JSON.parse(fs.readFileSync(_sp, 'utf8'));
+                if (_raw && _raw.optimization && typeof _raw.optimization === 'object') _optCfg = _raw.optimization;
+            }
+        } catch {}
+        globalThis.__RUDEX_STORAGE_CACHE__ = _optCfg.storageRamCache === true;
+        const _switches = _perfMod.computeChromiumPerfSwitches(_optCfg);
+        for (let _si = 0; _si < _switches.length; _si += 1) {
+            const _sw = _switches[_si];
+            if (_sw.length >= 2) electron_1.app.commandLine.appendSwitch(_sw[0], _sw[1]);
+            else electron_1.app.commandLine.appendSwitch(_sw[0]);
+        }
+    } catch {}
+}`,
+    "main.js Chromium perf switches",
+    warnings
+  ).text;
 
   src = tryReplaceExact(
     src,
@@ -1725,6 +1757,175 @@ function patchRemoteManagerJs(src, warnings) {
   );
 }
 
+function patchLanguageServerJs(src, warnings) {
+  if (src.includes("RUDEX_LS_TUNING")) return src;
+  return tryReplaceExact(
+    src,
+    `        // Disable implicit cd4a.config.json discovery/watch, usage telemetry, and
+        // detached npm update checks in Hub-spawned chrome-devtools-mcp processes.
+        env['CHROME_DEVTOOLS_MCP_NO_CONFIG_DISCOVERY'] = '1';
+        env['CHROME_DEVTOOLS_MCP_NO_USAGE_STATISTICS'] = '1';
+        env['CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS'] = '1';`,
+    `        // Disable implicit cd4a.config.json discovery/watch, usage telemetry, and
+        // detached npm update checks in Hub-spawned chrome-devtools-mcp processes.
+        env['CHROME_DEVTOOLS_MCP_NO_CONFIG_DISCOVERY'] = '1';
+        env['CHROME_DEVTOOLS_MCP_NO_USAGE_STATISTICS'] = '1';
+        env['CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS'] = '1';
+        // RUDEX_LS_TUNING: lift GOMAXPROCS=4 cap, widen file watcher & workspace cache, tune Go GC + libuv I/O
+        if (!globalThis.__RUDEX_DISABLED__ && !wsl) {
+            try {
+                const _perfMod = require("./i18nData/perf-cache-engine.js");
+                let _optCfg = {};
+                try {
+                    const _sp = path_1.default.join(electron_1.app.getPath('userData'), 'agy_studio_settings.json');
+                    if (fs.existsSync(_sp)) {
+                        const _raw = JSON.parse(fs.readFileSync(_sp, 'utf8'));
+                        if (_raw && _raw.optimization && typeof _raw.optimization === 'object') _optCfg = _raw.optimization;
+                    }
+                } catch {}
+                const _lsTune = _perfMod.computeOptimalLsTuning(_optCfg);
+                if (_lsTune && _lsTune.enabled) {
+                    for (let _ti = 0; _ti < _lsTune.args.length; _ti += 1) {
+                        const _flag = _lsTune.args[_ti];
+                        const _flagKey = _flag.split('=')[0];
+                        if (!args.some((a) => typeof a === 'string' && a.startsWith(_flagKey))) {
+                            args.push(_flag);
+                        }
+                    }
+                    for (const [_ek, _ev] of Object.entries(_lsTune.env || {})) {
+                        if (!env[_ek]) env[_ek] = _ev;
+                    }
+                }
+            } catch {}
+        }`,
+    "languageServer.js Rudex LS performance tuning",
+    warnings
+  ).text;
+}
+
+function patchStorageJs(src, warnings) {
+  if (src.includes("RUDEX_STORAGE_RAM_CACHE")) return src;
+  let out = src;
+  const ctorStep = tryReplaceExact(
+    out,
+    `        /** The last rename stayed refused through its retries. */
+        this.renameRefused = false;`,
+    `        /** The last rename stayed refused through its retries. */
+        this.renameRefused = false;
+        // RUDEX_STORAGE_RAM_CACHE
+        this._rudexCache = null;`,
+    "storage.js init RAM cache",
+    warnings
+  );
+  if (!ctorStep.applied) return src;
+  out = ctorStep.text;
+
+  out = tryReplaceExact(
+    out,
+    `    getItemsSync() {
+        try {
+            const s = (0, fs_1.existsSync)(this.storagePath)
+                ? (0, fs_1.readFileSync)(this.storagePath, 'utf-8').trim()
+                : '';
+            const p = s ? JSON.parse(s) : null;
+            return this.withDefaults(p && typeof p === 'object' && !Array.isArray(p)
+                ? p
+                : {});
+        }
+        catch (e) {
+            console.error('Error reading storage items synchronously:', e);
+            return this.withDefaults({});
+        }
+    }`,
+    `    getItemsSync() {
+        try {
+            if (!(0, fs_1.existsSync)(this.storagePath)) {
+                this._rudexCache = null;
+                return this.withDefaults({});
+            }
+            let _st = null;
+            if (globalThis.__RUDEX_STORAGE_CACHE__ === true) {
+                try { _st = (0, fs_1.statSync)(this.storagePath); } catch {}
+                if (_st && this._rudexCache && this._rudexCache.mtimeMs === _st.mtimeMs && this._rudexCache.ctimeMs === _st.ctimeMs && this._rudexCache.size === _st.size && this._rudexCache.ino === _st.ino) {
+                    return this.withDefaults(this._rudexCache.items);
+                }
+            }
+            const s = (0, fs_1.readFileSync)(this.storagePath, 'utf-8').trim();
+            const p = s ? JSON.parse(s) : null;
+            const obj = p && typeof p === 'object' && !Array.isArray(p) ? p : {};
+            if (_st && globalThis.__RUDEX_STORAGE_CACHE__ === true) {
+                this._rudexCache = { mtimeMs: _st.mtimeMs, ctimeMs: _st.ctimeMs, size: _st.size, ino: _st.ino, items: obj };
+            }
+            return this.withDefaults(obj);
+        }
+        catch (e) {
+            console.error('Error reading storage items synchronously:', e);
+            return this.withDefaults({});
+        }
+    }`,
+    "storage.js getItemsSync RAM cache",
+    warnings
+  ).text;
+
+  out = tryReplaceExact(
+    out,
+    `    async readRawItems() {
+        if (!(0, fs_1.existsSync)(this.storagePath)) {
+            return { items: {}, corrupt: false };
+        }
+        let content;`,
+    `    async readRawItems() {
+        if (!(0, fs_1.existsSync)(this.storagePath)) {
+            this._rudexCache = null;
+            return { items: {}, corrupt: false };
+        }
+        let _st = null;
+        if (globalThis.__RUDEX_STORAGE_CACHE__ === true) {
+            try {
+                _st = (0, fs_1.statSync)(this.storagePath);
+                if (_st && this._rudexCache && this._rudexCache.mtimeMs === _st.mtimeMs && this._rudexCache.ctimeMs === _st.ctimeMs && this._rudexCache.size === _st.size && this._rudexCache.ino === _st.ino) {
+                    return { items: { ...this._rudexCache.items }, corrupt: false };
+                }
+            } catch {}
+        }
+        let content;`,
+    "storage.js readRawItems RAM cache",
+    warnings
+  ).text;
+
+  out = tryReplaceExact(
+    out,
+    `            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                return { items: parsed, corrupt: false };
+            }`,
+    `            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                if (_st && globalThis.__RUDEX_STORAGE_CACHE__ === true) {
+                    this._rudexCache = { mtimeMs: _st.mtimeMs, ctimeMs: _st.ctimeMs, size: _st.size, ino: _st.ino, items: parsed };
+                }
+                return { items: { ...parsed }, corrupt: false };
+            }`,
+    "storage.js readRawItems store RAM cache",
+    warnings
+  ).text;
+
+  out = tryReplaceExact(
+    out,
+    `            this.emitter.emit('changed', changes);`,
+    `            this._rudexCache = null;
+            try {
+                if (globalThis.__RUDEX_STORAGE_CACHE__ === true) {
+                    const _wst = (0, fs_1.statSync)(this.storagePath);
+                    this._rudexCache = { mtimeMs: _wst.mtimeMs, ctimeMs: _wst.ctimeMs, size: _wst.size, ino: _wst.ino, items: { ...currentItems } };
+                }
+            } catch {}
+            this.emitter.emit('changed', changes);`,
+    "storage.js invalidate/refresh RAM cache on write",
+    warnings
+  ).text;
+
+  return out;
+}
+
 function patchCustomSchemeJs(src, warnings) {
   return tryReplaceExact(
     src,
@@ -1795,6 +1996,8 @@ function patchElectronShell(appDir, preloadSnippet, options = {}) {
 
   const secondaryPatches = [
     ["customScheme.js", patchCustomSchemeJs],
+    ["languageServer.js", patchLanguageServerJs],
+    ["storage.js", patchStorageJs],
     ["tray.js", patchTrayJs],
     ["updater.js", patchUpdaterJs],
     ["menu.js", patchMenuJs],
@@ -1828,6 +2031,8 @@ module.exports = {
   I18N_MAIN_SOURCE,
   patchElectronShell,
   patchMainJs,
+  patchLanguageServerJs,
+  patchStorageJs,
   patchUpdaterJs,
   patchIpcHandlersJs,
 };

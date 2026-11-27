@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Rudex v5.0.3 -- Cross-Platform Installer & Antigravity Patcher (macOS / Linux)
+# Rudex v5.5.0 -- Cross-Platform Installer & Antigravity Patcher (macOS / Linux)
 # Local usage:  ./install.sh [--dry-run|--status|--plugin-only|--uninstall|--no-restart|--force]
 # Remote usage: curl -fsSL https://raw.githubusercontent.com/Ivan0967pro/Rudex/main/install.sh | bash
 # =============================================================================
@@ -11,7 +11,7 @@ REPO_NAME="Rudex"
 BRANCH="${RUDEX_BRANCH:-main}"
 
 echo "========================================================"
-echo "  Rudex v5.0.3 -- Installer & Antigravity Patcher"
+echo "  Rudex v5.5.0 -- Installer & Antigravity Patcher"
 echo "========================================================"
 echo ""
 
@@ -180,6 +180,7 @@ is_antigravity_running() {
 }
 
 close_antigravity() {
+  pkill -TERM -x "sherpa-onnx-online-websocket-server" 2>/dev/null || true
   if [ "$OS_TYPE" = "Darwin" ]; then
     osascript -e 'tell application "Antigravity" to quit' 2>/dev/null || true
     osascript -e 'tell application "Google Antigravity" to quit' 2>/dev/null || true
@@ -294,8 +295,13 @@ if [ "$DO_DRY_RUN" -eq 1 ]; then
 fi
 
 if [ "$DO_UNINSTALL" -eq 1 ]; then
-  if [ "$IS_LOCAL_REPO" -eq 1 ] && [ -f "$SOURCE_DIR/uninstall.sh" ]; then
-    exec bash "$SOURCE_DIR/uninstall.sh" "$@"
+  if [ -f "$SOURCE_DIR/uninstall.sh" ]; then
+    if [ "$IS_LOCAL_REPO" -eq 1 ]; then
+      exec bash "$SOURCE_DIR/uninstall.sh" "$@"
+    else
+      bash "$SOURCE_DIR/uninstall.sh" "$@"
+      exit $?
+    fi
   fi
   u_args=()
   [ "$DO_REMOVE_PLUGIN" -eq 1 ] && u_args+=(--remove-plugin)
@@ -382,7 +388,7 @@ else
 fi
 
 echo ""
-echo "[Rudex] Rudex v5.0.3 installed cleanly!"
+echo "[Rudex] Rudex v5.5.0 installed cleanly!"
 
 if [ "$WAS_RUNNING" -eq 1 ] && [ "$NO_RESTART" -eq 0 ] && ! is_inside_antigravity; then
   echo "[Rudex] Relaunching Antigravity..."

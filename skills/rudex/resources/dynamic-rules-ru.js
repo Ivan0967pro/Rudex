@@ -172,6 +172,146 @@ function capitalize(str) {
   return str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 }
 
+const SHORT_EN_MONTH_GEN_RU = {
+  jan: "янв",
+  january: "января",
+  feb: "фев",
+  february: "февраля",
+  mar: "мар",
+  march: "марта",
+  apr: "апр",
+  april: "апреля",
+  may: "мая",
+  jun: "июн",
+  june: "июня",
+  jul: "июл",
+  july: "июля",
+  aug: "авг",
+  august: "августа",
+  sep: "сен",
+  sept: "сен",
+  september: "сентября",
+  oct: "окт",
+  october: "октября",
+  nov: "нояб",
+  november: "ноября",
+  dec: "дек",
+  december: "декабря",
+};
+
+function translateEnglishMonthDateRu(rawDate) {
+  const m = /^([A-Za-z]+)\.?\s+(\d{1,2})(?:,\s*(\d{4}))?$/.exec(String(rawDate || "").trim());
+  if (!m) return String(rawDate || "").trim();
+  const monKey = m[1].toLowerCase();
+  const monRu = SHORT_EN_MONTH_GEN_RU[monKey];
+  if (!monRu) return String(rawDate || "").trim();
+  const shortDot = monKey.length <= 4 && monKey !== "may" && !monRu.endsWith(".") ? "." : "";
+  return m[3] ? `${m[2]} ${monRu}${shortDot} ${m[3]}` : `${m[2]} ${monRu}${shortDot}`;
+}
+
+function translateWorkActivityClauseRu(rawClause) {
+  const s = String(rawClause || "").trim();
+  if (!s) return null;
+  let m;
+  if ((m = /^(?:explored|examined|inspected)\s+(\d+)\s+files?$/i.exec(s))) {
+    return `изучено ${m[1]} ${ruPlural(m[1], "файл", "файла", "файлов")}`;
+  }
+  if (/^(?:explored|examined|inspected)\s+files$/i.test(s)) return "изучены файлы";
+  if (/^(?:explored|examined|inspected)\s+(?:a\s+)?file$/i.test(s)) return "изучен файл";
+  if (/^(?:explored|examined|inspected)\s+(?:the\s+)?(?:codebase|project|workspace)$/i.test(s)) return "изучен проект";
+
+  if ((m = /^ran\s+(\d+)\s+commands?$/i.exec(s))) {
+    return `выполнено ${m[1]} ${ruPlural(m[1], "команда", "команды", "команд")}`;
+  }
+  if (/^ran\s+commands$/i.test(s)) return "выполнены команды";
+  if (/^ran\s+(?:a\s+)?command$/i.test(s)) return "выполнена команда";
+
+  if ((m = /^edited\s+(\d+)\s+files?$/i.exec(s))) {
+    return `изменено ${m[1]} ${ruPlural(m[1], "файл", "файла", "файлов")}`;
+  }
+  if (/^edited\s+files$/i.test(s)) return "изменены файлы";
+  if (/^edited\s+(?:a\s+)?file$/i.test(s)) return "изменён файл";
+
+  if ((m = /^read\s+(\d+)\s+files?$/i.exec(s))) {
+    return `прочитано ${m[1]} ${ruPlural(m[1], "файл", "файла", "файлов")}`;
+  }
+  if (/^read\s+files$/i.test(s)) return "прочитаны файлы";
+  if (/^read\s+(?:a\s+)?file$/i.test(s)) return "прочитан файл";
+
+  if ((m = /^(?:viewed|checked)\s+(\d+)\s+files?$/i.exec(s))) {
+    return `просмотрено ${m[1]} ${ruPlural(m[1], "файл", "файла", "файлов")}`;
+  }
+  if (/^(?:viewed|checked)\s+files$/i.test(s)) return "просмотрены файлы";
+  if (/^(?:viewed|checked)\s+(?:a\s+)?file$/i.test(s)) return "просмотрен файл";
+
+  if ((m = /^(?:created|added)\s+(\d+)\s+files?$/i.exec(s))) {
+    return `создано ${m[1]} ${ruPlural(m[1], "файл", "файла", "файлов")}`;
+  }
+  if (/^(?:created|added)\s+files$/i.test(s)) return "созданы файлы";
+  if (/^(?:created|added)\s+(?:a\s+)?file$/i.test(s)) return "создан файл";
+
+  if ((m = /^(?:wrote|written)\s+(\d+)\s+files?$/i.exec(s))) {
+    return `записано ${m[1]} ${ruPlural(m[1], "файл", "файла", "файлов")}`;
+  }
+  if (/^wrote\s+files$/i.test(s)) return "записаны файлы";
+  if (/^wrote\s+(?:a\s+)?file$/i.test(s)) return "записан файл";
+
+  if ((m = /^updated\s+(\d+)\s+files?$/i.exec(s))) {
+    return `обновлено ${m[1]} ${ruPlural(m[1], "файл", "файла", "файлов")}`;
+  }
+  if (/^updated\s+files$/i.test(s)) return "обновлены файлы";
+  if (/^updated\s+(?:a\s+)?file$/i.test(s)) return "обновлён файл";
+
+  if ((m = /^(?:deleted|removed)\s+(\d+)\s+files?$/i.exec(s))) {
+    return `удалено ${m[1]} ${ruPlural(m[1], "файл", "файла", "файлов")}`;
+  }
+  if (/^(?:deleted|removed)\s+files$/i.test(s)) return "удалены файлы";
+  if (/^(?:deleted|removed)\s+(?:a\s+)?file$/i.test(s)) return "удалён файл";
+
+  if ((m = /^analyzed\s+(\d+)\s+files?$/i.exec(s))) {
+    return `проанализировано ${m[1]} ${ruPlural(m[1], "файл", "файла", "файлов")}`;
+  }
+  if (/^analyzed\s+files$/i.test(s)) return "проанализированы файлы";
+  if (/^analyzed\s+(?:a\s+)?file$/i.test(s)) return "проанализирован файл";
+
+  if (/^searched\s+(?:the\s+)?web$/i.test(s)) return "поиск в сети";
+  if (/^searched\s+(?:files|code|codebase|project)$/i.test(s)) return "поиск по файлам";
+  if ((m = /^searched\s+(\d+)\s+(?:files|queries|times)$/i.exec(s))) return `поиск (${m[1]})`;
+
+  if ((m = /^(?:ran|used|called)\s+(\d+)\s+tools?$/i.exec(s))) {
+    return `выполнено ${m[1]} ${ruPlural(m[1], "инструмент", "инструмента", "инструментов")}`;
+  }
+  if (/^(?:ran|used|called)\s+tools$/i.test(s)) return "выполнены инструменты";
+  if (/^(?:ran|used|called)\s+(?:a\s+)?tool$/i.test(s)) return "выполнен инструмент";
+
+  if ((m = /^ran\s+(\d+)\s+tests?$/i.exec(s))) {
+    return `выполнено ${m[1]} ${ruPlural(m[1], "тест", "теста", "тестов")}`;
+  }
+  if (/^ran\s+tests$/i.test(s)) return "выполнены тесты";
+  if (/^ran\s+(?:a\s+)?test$/i.test(s)) return "выполнен тест";
+
+  if (/^(?:browsed\s+(?:the\s+)?web|used\s+(?:the\s+)?browser)$/i.test(s)) return "работа в браузере";
+  if (/^listed\s+files$/i.test(s)) return "просмотрен список файлов";
+  if (/^(?:ran|executed)\s+workflows?$/i.test(s)) return /workflows$/i.test(s) ? "выполнены воркфлоу" : "выполнен воркфлоу";
+  if (/^(?:ran|invoked|used)\s+subagents?$/i.test(s)) return /subagents$/i.test(s) ? "запущены субагенты" : "запущен субагент";
+  return null;
+}
+
+function translateWorkActivitySummaryRu(rawText) {
+  const parts = String(rawText || "")
+    .split(/\s*(?:,\s*(?:and\s+)?|\band\s+)\s*/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0 || parts.length > 6) return null;
+  const translated = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    const tr = translateWorkActivityClauseRu(parts[i]);
+    if (!tr) return null;
+    translated.push(tr);
+  }
+  return capitalize(translated.join(", "));
+}
+
 const EFFORT_RU = {
   "extra high": "Сверхвысокий",
   extra: "Сверхвыс.",
@@ -206,7 +346,10 @@ const DYNAMIC_RULES = [
   },
   {
     re: /^Worked for ([0-9d hms<>]+?) · (.+)$/,
-    fn: (_, dur, rest) => `Работал ${translateCompactDuration(dur)} · ${rest}`,
+    fn: (_, dur, rest) => {
+      const trRest = translateWorkActivitySummaryRu(rest) || rest;
+      return `Работал ${translateCompactDuration(dur)} · ${trRest}`;
+    },
   },
   {
     re: /^Worked for ([0-9d hms<>]+)$/,
@@ -2248,6 +2391,45 @@ const DYNAMIC_RULES = [
     re: /^(.+?)\s+(\d+h\s+\d+m(?:\s+\d+s)?|\d+m\s+\d+s)$/i,
     fn: (_, head, d) => `${head} ${translateCompactDuration(d)}`,
   },
+  // 15. Model deprecation/notice tooltips & comma-joined agent work-step summaries
+  {
+    re: /^Use (.+?) for better quality with lower quota usage\.\s*Leaving on ([A-Za-z]+\.?\s+\d{1,2}(?:,\s*\d{4})?)\.?$/i,
+    fn: (_, model, dateStr) => {
+      const d = translateEnglishMonthDateRu(dateStr);
+      return `Используйте ${model} — выше качество при меньшем расходе квоты. Будет убрана ${d.endsWith(".") ? d : d + "."}`;
+    },
+  },
+  {
+    re: /^Use (.+?) for better quality with lower quota usage\.?$/i,
+    fn: (_, model) => `Используйте ${model} — выше качество при меньшем расходе квоты.`,
+  },
+  {
+    re: /^Use (.+?) for better (quality|performance|results|speed)(?: with lower quota usage)?\.?(?:\s*Leaving on ([A-Za-z]+\.?\s+\d{1,2}(?:,\s*\d{4})?)\.?)?$/i,
+    fn: (_, model, what, dateStr) => {
+      const wMap = { quality: "выше качество", performance: "выше производительность", results: "лучше результаты", speed: "выше скорость" };
+      const d = dateStr ? translateEnglishMonthDateRu(dateStr) : "";
+      const tail = d ? ` Будет убрана ${d.endsWith(".") ? d : d + "."}` : "";
+      return `Используйте ${model} — ${wMap[String(what || "").toLowerCase()] || "лучше результаты"}.${tail}`;
+    },
+  },
+  {
+    re: /^(?:Leaving|Retiring|Deprecating|Removing) on ([A-Za-z]+\.?\s+\d{1,2}(?:,\s*\d{4})?)\.?$/i,
+    fn: (_, dateStr) => {
+      const d = translateEnglishMonthDateRu(dateStr);
+      return `Будет убрана ${d.endsWith(".") ? d : d + "."}`;
+    },
+  },
+  {
+    re: /^Available until ([A-Za-z]+\.?\s+\d{1,2}(?:,\s*\d{4})?)\.?$/i,
+    fn: (_, dateStr) => {
+      const d = translateEnglishMonthDateRu(dateStr);
+      return `Доступна до ${d.endsWith(".") ? d : d + "."}`;
+    },
+  },
+  {
+    re: /^(?:(?:Explored|Examined|Inspected|Ran|Edited|Read|Viewed|Checked|Created|Added|Wrote|Updated|Deleted|Removed|Analyzed|Searched|Used|Called|Browsed|Listed|Executed|Invoked)\s+[a-z0-9 ]+)(?:\s*(?:,\s*(?:and\s+)?|\band\s+)\s*(?:explored|examined|inspected|ran|edited|read|viewed|checked|created|added|wrote|updated|deleted|removed|analyzed|searched|used|called|browsed|listed|executed|invoked)\s+[a-z0-9 ]+)*$/i,
+    fn: (full) => translateWorkActivitySummaryRu(full),
+  },
 ];
 
 function applyDynamicRules(text) {
@@ -2255,7 +2437,8 @@ function applyDynamicRules(text) {
     const rule = DYNAMIC_RULES[i];
     const m = rule.re.exec(text);
     if (m) {
-      return rule.fn(...m);
+      const res = rule.fn(...m);
+      if (res) return res;
     }
   }
   return null;

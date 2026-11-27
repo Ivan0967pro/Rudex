@@ -5,7 +5,22 @@ const https = require("https");
 const { URL } = require("url");
 
 const CLIENTS5_URL = "https://clients5.google.com/translate_a/t";
-const MYMEMORY_URL = "https://api.mymemory.translated.net/get";
+
+function isLoopbackUrl(urlStr) {
+  const s = String(urlStr || "").trim();
+  if (!s || s.length > 300) return "";
+  try {
+    const parsed = new URL(s);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    const host = String(parsed.hostname || "").toLowerCase();
+    if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1" && host !== "[::1]") {
+      return "";
+    }
+    return parsed.toString();
+  } catch (_e) {
+    return "";
+  }
+}
 
 const TOKEN_PROTECT_RE =
   /`[^`\n]{1,160}`|https?:\/\/[^\s<>)\]]+|[A-Za-z]:\\[^\s"'<>|)\],;]+|(?:^|(?<=[\s(\["']))(?:\.{0,2}\/)?(?:[a-zA-Z0-9._-]+\/){1,}[a-zA-Z0-9._-]+|(?:^|(?<=[\s(\["']))--[a-zA-Z0-9][a-zA-Z0-9_-]*|\b[a-z]+(?:_[a-z0-9]+)+\b|\b[a-z]+[A-Z][A-Za-z0-9]*\b/g;
@@ -216,24 +231,89 @@ async function translateChunkClients5(chunk, opts = {}) {
   return parts.join(chunk.includes("\n") ? "\n" : " ");
 }
 
-async function translateChunkMyMemory(chunk, opts = {}) {
-  const base = opts.myMemoryUrl || MYMEMORY_URL;
-  const sep = base.includes("?") ? "&" : "?";
-  const subChunks = splitForTranslation(chunk, 480);
-  const parts = [];
-  for (let i = 0; i < subChunks.length; i += 1) {
-    const urlStr = `${base}${sep}q=${encodeURIComponent(subChunks[i])}&langpair=en%7Cru`;
-    const data = await httpJsonGet(urlStr, opts.timeoutMs || 8000);
-    const status = data && Number(data.responseStatus);
-    const txt = data && data.responseData && typeof data.responseData.translatedText === "string"
-      ? data.responseData.translatedText
-      : "";
-    if (status !== 200 || !txt || /MYMEMORY WARNING/i.test(txt)) {
-      throw new Error(`MyMemory translation failed (${status || "unknown"})`);
+function httpJsonPost(urlStr, payloadObj, timeoutMs = 8000) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (err, val) => {
+      if (settled) return;
+      settled = true;
+      if (err) reject(err);
+      else resolve(val);
+    };
+
+    let parsed;
+    try {
+      parsed = new URL(urlStr);
+    } catch (_e) {
+      done(new Error(`Invalid URL: ${urlStr}`));
+      return;
     }
-    parts.push(txt);
+
+    const bodyBuf = Buffer.from(JSON.stringify(payloadObj || {}), "utf8");
+    const client = parsed.protocol === "http:" ? http : https;
+    const req = client.request(
+      parsed,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": bodyBuf.length,
+          Accept: "application/json, text/plain, */*",
+        },
+      },
+      (res) => {
+        const status = res.statusCode || 0;
+        const chunks = [];
+        let total = 0;
+        res.on("data", (chunk) => {
+          total += chunk.length;
+          if (total > 2 * 1024 * 1024) {
+            req.destroy();
+            res.destroy();
+            done(new Error("Translation response exceeded 2MB"));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        res.on("end", () => {
+          const body = Buffer.concat(chunks).toString("utf8");
+          if (status < 200 || status >= 300) {
+            done(new Error(`HTTP ${status}`));
+            return;
+          }
+          try {
+            done(null, JSON.parse(body));
+          } catch (err) {
+            done(new Error(`Invalid JSON from local translator: ${err && err.message ? err.message : err}`));
+          }
+        });
+        res.on("error", (err) => done(err));
+      }
+    );
+
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Local translation timeout after ${timeoutMs}ms`));
+    });
+    req.on("error", (err) => done(err));
+    req.write(bodyBuf);
+    req.end();
+  });
+}
+
+async function translateChunkLocal(chunk, opts = {}) {
+  const safeUrl = isLoopbackUrl(opts.localUrl);
+  if (!safeUrl) {
+    throw new Error("Local translator URL must target localhost or 127.0.0.1");
   }
-  return parts.join(" ");
+  const data = await httpJsonPost(
+    safeUrl,
+    { q: chunk, source: "en", target: "ru", format: "text" },
+    opts.timeoutMs || 8000
+  );
+  if (data && typeof data.translatedText === "string") return data.translatedText;
+  if (data && typeof data.translation === "string") return data.translation;
+  if (Array.isArray(data) && typeof data[0] === "string") return data[0];
+  throw new Error("Unexpected local translator response format");
 }
 
 function createThinkingTranslator(opts = {}) {
@@ -298,18 +378,16 @@ function createThinkingTranslator(opts = {}) {
         }
         if (acc) units.push({ joinWith: "\n", parts: [acc] });
 
+        const useLocalOnly = Boolean(opts.localUrl && String(opts.localUrl).trim());
         const outUnits = [];
         for (let u = 0; u < units.length; u += 1) {
           const unit = units[u];
           const outParts = [];
           for (let i = 0; i < unit.parts.length; i += 1) {
             const piece = unit.parts[i];
-            let translatedPiece = "";
-            try {
-              translatedPiece = await translateChunkClients5(piece, opts);
-            } catch (_err1) {
-              translatedPiece = await translateChunkMyMemory(piece, opts);
-            }
+            const translatedPiece = useLocalOnly
+              ? await translateChunkLocal(piece, opts)
+              : await translateChunkClients5(piece, opts);
             outParts.push(translatedPiece);
           }
           outUnits.push(outParts.join(unit.joinWith));
@@ -385,13 +463,14 @@ function createThinkingTranslator(opts = {}) {
 
 module.exports = {
   CLIENTS5_URL,
-  MYMEMORY_URL,
+  isLoopbackUrl,
   needsRussianTranslation,
   protectInlineTokens,
   restoreInlineTokens,
   splitForTranslation,
   httpJsonGet,
+  httpJsonPost,
   translateChunkClients5,
-  translateChunkMyMemory,
+  translateChunkLocal,
   createThinkingTranslator,
 };

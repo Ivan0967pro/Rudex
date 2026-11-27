@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Rudex v5.0.3 -- Uninstaller for macOS & Linux (Restores Stock English UI)
+# Rudex v5.5.0 -- Uninstaller for macOS & Linux (Restores Stock English UI)
 # =============================================================================
 set -e
 
 echo "========================================================"
-echo "  Rudex v5.0.3 -- Uninstaller (Restore English UI)"
+echo "  Rudex v5.5.0 -- Uninstaller (Restore English UI)"
 echo "========================================================"
 echo ""
 
@@ -183,6 +183,7 @@ is_antigravity_running() {
 }
 
 close_antigravity() {
+  pkill -TERM -x "sherpa-onnx-online-websocket-server" 2>/dev/null || true
   if [ "$OS_TYPE" = "Darwin" ]; then
     osascript -e 'tell application "Antigravity" to quit' 2>/dev/null || true
     osascript -e 'tell application "Google Antigravity" to quit' 2>/dev/null || true

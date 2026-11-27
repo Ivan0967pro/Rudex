@@ -170,11 +170,12 @@ function rv5RenderElementsBuilderHtml(ctx) {
       <div class="card">
         <div class="row-item">
           <div class="row-info">
-            <span class="row-title">${isRu ? "Прицел — настроить любой элемент" : "Live Element Picker"}</span>
-            <span class="row-desc">${isRu ? "Кликни по любому элементу Antigravity, чтобы поменять размер, шрифт, цвета, скрыть или переименовать его." : "Click any element to change its size, font, colors, border, visibility or label."}</span>
+            <span class="row-title">${isRu ? "Прицел и выделение области" : "Live Element & Region Picker"}</span>
+            <span class="row-desc">${isRu ? "Клик — 1 элемент, протяжка рамкой — сразу несколько окон синхронно. Настройка положения, размеров, цветов, прозрачности и скрытия." : "Click 1 element or drag a box to edit multiple windows synchronously — position, size, colors, opacity and visibility."}</span>
           </div>
           <div style="display:flex;gap:5px;flex-shrink:0">
             <button type="button" class="btn btn-sm btn-primary" data-action="start-element-picker">${pickerActive ? (isRu ? "Стоп" : "Stop") : `${rv5UiIcon("crosshair", 12)}<span>${isRu ? "Выбрать" : "Pick"}</span>`}</button>
+            <button type="button" class="btn btn-sm" data-action="start-region-picker" title="${isRu ? "Выделить область рамкой (сразу 2+ окна)" : "Drag region to select 2+ windows"}">▢ ${isRu ? "Область" : "Region"}</button>
             <button type="button" class="btn btn-sm" ${canUndo ? "" : "disabled"} data-action="undo-appearance" title="${isRu ? "Отменить" : "Undo"}">${rv5UiIcon("undo", 12)}</button>
             <button type="button" class="btn btn-sm" ${canRedo ? "" : "disabled"} data-action="redo-appearance" title="${isRu ? "Повторить" : "Redo"}">${rv5UiIcon("redo", 12)}</button>
           </div>
@@ -253,8 +254,9 @@ function rv5RenderElementsBuilderHtml(ctx) {
 /**
  * Floating Mini-Inspector Card when an element is selected in Live Picker or Zone Map.
  */
-function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isRu) {
+function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isRu, opts) {
   if (!sel || !sel.selector) return "";
+  const drawerOpen = Boolean(opts && opts.drawerOpen);
   const ovs = Array.isArray(draft && draft.elementOverrides) ? draft.elementOverrides : [];
   const existing = ovs.find((o) => o.id === sel.overrideId || o.selector === sel.selector) || {
     id: sel.overrideId || ("ov-" + Date.now()),
@@ -271,16 +273,32 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
     ? (customLabels || []).find((l) => l.match.toLowerCase() === sel.origText.toLowerCase())
     : null;
 
-  const isCustomNum = (prop, allowZero) => {
-    const v = st[prop];
+  const isCustomNum = (prop, allowZero, allowNeg) => {
+    let v = st[prop];
+    if ((prop === "paddingY" || prop === "paddingX") && (v === "" || v === null || v === undefined || Number(v) < 0)) {
+      v = st.padding;
+    }
     if (v === "" || v === null || v === undefined) return false;
     const n = Number(v);
-    return Number.isFinite(n) && (allowZero ? n >= 0 : n > 0);
+    if (!Number.isFinite(n)) return false;
+    if (allowNeg) return n !== 0;
+    return allowZero ? n >= 0 : n > 0;
   };
-  const numSlider = (prop, label, unit, min, max, fallbackDef, allowZero) => {
-    const custom = isCustomNum(prop, allowZero);
-    const baseVal = Number.isFinite(Number(cmp[prop])) ? Math.round(Number(cmp[prop])) : fallbackDef;
-    const val = custom ? Math.round(Number(st[prop])) : baseVal;
+  const numSlider = (prop, label, unit, min, max, fallbackDef, allowZero, allowNeg, stepVal) => {
+    const step = stepVal || 1;
+    const isFloat = step < 1;
+    const fmt = (n) => (isFloat ? Math.round(Number(n) * 100) / 100 : Math.round(Number(n)));
+    const custom = isCustomNum(prop, allowZero, allowNeg);
+    let rawCmp = cmp[prop];
+    if ((prop === "paddingY" || prop === "paddingX") && !Number.isFinite(Number(rawCmp))) {
+      rawCmp = cmp.padding;
+    }
+    const baseVal = Number.isFinite(Number(rawCmp)) ? fmt(rawCmp) : fallbackDef;
+    let effectiveVal = st[prop];
+    if ((prop === "paddingY" || prop === "paddingX") && (effectiveVal === "" || effectiveVal === null || effectiveVal === undefined || Number(effectiveVal) < 0)) {
+      effectiveVal = st.padding;
+    }
+    const val = custom ? fmt(effectiveVal) : baseVal;
     const clampedRange = Math.max(min, Math.min(max, val));
     return `
       <div class="rx-insp-slider-item${custom ? " is-custom" : ""}" data-insp-wrap="${prop}">
@@ -292,8 +310,8 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
           </div>
         </div>
         <div class="rx-insp-slider-row">
-          <input type="range" class="range-input" min="${min}" max="${max}" step="1" data-insp-range="${prop}" value="${clampedRange}"/>
-          <input type="number" class="text-input rx-insp-num" min="${min}" max="${max}" step="1" data-insp-num="${prop}" value="${val}"/>
+          <input type="range" class="range-input" min="${min}" max="${max}" step="${step}" data-insp-range="${prop}" value="${clampedRange}"/>
+          <input type="number" class="text-input rx-insp-num" min="${min}" max="${max}" step="${step}" data-insp-num="${prop}" value="${val}"/>
           <span class="rx-insp-unit">${unit}</span>
         </div>
       </div>
@@ -303,23 +321,62 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
   const curColor = st.color || cmp.color || "#faf9f5";
   const curBg = st.bgColor || cmp.bgColor || "#262624";
   const curBorder = st.borderColor || cmp.borderColor || "#d97757";
-  const curBgOp = st.bgColor && Number.isFinite(Number(st.bgOpacity)) ? Math.round(Number(st.bgOpacity)) : (Number.isFinite(Number(cmp.bgOpacity)) ? Math.round(Number(cmp.bgOpacity)) : 100);
+  const hasCustomBgOp = st.bgOpacity === 0 || (Number.isFinite(Number(st.bgOpacity)) && Number(st.bgOpacity) < 100);
+  const curBgOp = (st.bgColor || hasCustomBgOp) && Number.isFinite(Number(st.bgOpacity))
+    ? Math.round(Number(st.bgOpacity))
+    : (Number.isFinite(Number(cmp.bgOpacity)) ? Math.round(Number(cmp.bgOpacity)) : 100);
   const hasAnyOverride = ovs.some((o) => o.id === existing.id || o.selector === sel.selector) || Boolean(existingLabel);
+  const groupTargets = Array.isArray(sel.groupTargets) ? sel.groupTargets : [];
+  const isGroup = groupTargets.length >= 2;
+  const matchCount = Number.isFinite(Number(sel.matchCount)) && Number(sel.matchCount) > 0 ? Math.round(Number(sel.matchCount)) : (isGroup ? groupTargets.length : 1);
+  const canParent = !isGroup && Boolean(sel.canSelectParent);
+  const canChild = !isGroup && Boolean(sel.canSelectChild);
+  const nudgeStep = [1, 4, 16, 40].includes(Number(opts && opts.nudgeStep)) ? Number(opts.nudgeStep) : 4;
+  const dragMoveActive = Boolean(opts && opts.dragMoveActive);
+  const curAlign = st.align === "left" || st.align === "center" || st.align === "right" ? st.align : "";
+  const warnMultiExact = !isGroup && sel.scope === "exact" && matchCount > 1;
+  const matchBadgeText = isGroup
+    ? (isRu ? `Синхронно: ${groupTargets.length}` : `Sync: ${groupTargets.length}`)
+    : (isRu ? `${matchCount} эл.` : `${matchCount} match${matchCount === 1 ? "" : "es"}`);
 
   return `
-    <div class="rx-inspector-card" data-role="elementInspectorCard">
+    <div class="rx-inspector-card${drawerOpen ? " is-drawer-open" : ""}" data-role="elementInspectorCard"${drawerOpen ? ' data-inspector-drawer-open="1"' : ""}>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <div style="min-width:0">
-          <div style="font-weight:650;font-size:13px;color:var(--rx-fg-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${rv5EscapeHtml(existing.name || sel.name)}</div>
-          <div style="font-size:10.5px;color:var(--rx-muted);font-family:var(--rx-font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${rv5EscapeHtml(sel.selector)}</div>
+          <div style="display:flex;align-items:center;gap:6px;min-width:0">
+            <div style="font-weight:650;font-size:13px;color:var(--rx-fg-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${rv5EscapeHtml(existing.name || sel.name)}</div>
+            <span class="rx-insp-match-badge${warnMultiExact ? " is-warn" : ""}" data-role="inspectorMatchBadge">${rv5EscapeHtml(matchBadgeText)}</span>
+          </div>
+          <div style="font-size:10.5px;color:var(--rx-muted);font-family:var(--rx-font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${rv5EscapeHtml(sel.selector)}">${rv5EscapeHtml(sel.selector)}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:3px;flex-shrink:0">
+          <button type="button" class="btn btn-sm btn-ghost rx-insp-tree-btn" data-action="inspector-select-parent"${canParent ? "" : " disabled"} title="${isRu ? "Родительский блок (шире)" : "Select parent block"}">↑</button>
+          <button type="button" class="btn btn-sm btn-ghost rx-insp-tree-btn" data-action="inspector-select-child"${canChild ? "" : " disabled"} title="${isRu ? "Вложенный элемент (уже)" : "Return to child element"}">↓</button>
+          <button type="button" class="btn btn-sm btn-ghost rx-insp-tree-btn" data-action="inspector-add-element" title="${isRu ? "Добавить ещё элемент (синхронная настройка)" : "Add element to sync group"}">+</button>
+          <button type="button" class="btn btn-sm btn-ghost rx-insp-tree-btn" data-action="start-region-picker" title="${isRu ? "Выделить область рамкой (2+ окна сразу)" : "Drag region to select multiple windows"}">▢</button>
           <button type="button" class="btn btn-sm btn-ghost" data-action="start-element-picker" title="${isRu ? "Выбрать другой элемент" : "Pick another element"}">${rv5UiIcon("crosshair", 12)}</button>
           <button type="button" class="icon-btn" data-action="close-element-inspector" title="${isRu ? "Закрыть" : "Close"}">${rv5UiIcon("close", 13)}</button>
         </div>
       </div>
 
-      ${sel.canToggleScope ? `
+      ${isGroup ? `
+        <div class="rx-insp-group-bar" data-role="inspectorGroupBar">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+            <span class="rx-insp-sec-title" style="margin:0">${isRu ? "Выбранная область (синхронно)" : "Selected group (synced)"}</span>
+            <button type="button" class="btn btn-sm btn-ghost rx-insp-reset-btn" data-action="inspector-add-element">+ ${isRu ? "Добавить" : "Add"}</button>
+          </div>
+          <div class="rx-insp-group-chips">
+            ${groupTargets.map((gt, gi) => `
+              <span class="rx-insp-chip" title="${rv5EscapeHtml(gt.selector || "")}">
+                <span class="rx-insp-chip-lbl">${gi + 1}. ${rv5EscapeHtml(gt.name || gt.selector || "")}</span>
+                <button type="button" class="rx-insp-chip-x" data-action="inspector-remove-group-target" data-idx="${gi}" title="${isRu ? "Убрать из группы" : "Remove from group"}">×</button>
+              </span>
+            `).join("")}
+          </div>
+        </div>
+      ` : ""}
+
+      ${!isGroup && sel.canToggleScope ? `
         <div class="subtab-bar is-segmented">
           <button type="button" class="subtab-btn${sel.scope !== "similar" ? " is-active" : ""}" data-action="inspector-set-scope" data-val="exact">${isRu ? "Этот элемент" : "This element"}</button>
           <button type="button" class="subtab-btn${sel.scope === "similar" ? " is-active" : ""}" data-action="inspector-set-scope" data-val="similar">${isRu ? "Все похожие" : "All similar"}</button>
@@ -332,6 +389,7 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
           <div style="display:flex;gap:6px">
             <input type="text" class="text-input" data-role="inspectorRenameInput" value="${rv5EscapeHtml(existingLabel ? existingLabel.label : (sel.currentText || sel.origText))}" placeholder="${rv5EscapeHtml(sel.origText)}"/>
             <button type="button" class="btn btn-sm btn-primary" data-action="inspector-save-rename">${isRu ? "Ок" : "Set"}</button>
+            ${existingLabel ? `<button type="button" class="btn btn-sm btn-ghost" data-action="inspector-clear-rename" title="${isRu ? "Вернуть исходное название" : "Restore original label"}">↺</button>` : ""}
           </div>
         </div>
       ` : ""}
@@ -350,11 +408,14 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
       </div>
 
       <div class="rx-insp-slider-grid">
-        ${numSlider("fontSize", isRu ? "Шрифт" : "Font Size", "px", 8, 48, 14, false)}
+        ${numSlider("fontSize", isRu ? "Размер шрифта" : "Font Size", "px", 8, 48, 14, false)}
+        ${numSlider("fontWeight", isRu ? "Жирность" : "Font Weight", "", 300, 900, 400, false, false, 100)}
+        ${numSlider("lineHeight", isRu ? "Межстрочный" : "Line Height", "", 1.0, 2.2, 1.45, false, false, 0.05)}
         ${numSlider("borderRadius", isRu ? "Скругление" : "Radius", "px", 0, 48, 8, true)}
-        ${numSlider("padding", isRu ? "Отступ" : "Padding", "px", 0, 48, 8, true)}
-        ${numSlider("borderWidth", isRu ? "Рамка" : "Border", "px", 0, 6, 1, true)}
+        ${numSlider("paddingY", isRu ? "Отступ ↕" : "Padding Y", "px", 0, 64, 8, true)}
+        ${numSlider("paddingX", isRu ? "Отступ ↔" : "Padding X", "px", 0, 64, 8, true)}
       </div>
+      ${numSlider("borderWidth", isRu ? "Рамка" : "Border", "px", 0, 6, 1, true)}
 
       <span class="rx-insp-sec-title">${isRu ? "Цвета и прозрачность" : "Colors & Opacity"}</span>
       <div class="control-grid-2">
@@ -362,7 +423,7 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
           <span>${isRu ? "Текст" : "Text"}</span>
           <div class="rx-color-row">
             <input type="color" class="color-input" data-insp-style="color" value="${rv5EscapeHtml(curColor)}"/>
-            <span class="rx-insp-hex" data-insp-hex="color">${rv5EscapeHtml(curColor)}</span>
+            <input type="text" class="text-input rx-insp-hex-input" data-insp-hex-input="color" value="${rv5EscapeHtml(curColor)}" placeholder="#rrggbb" maxlength="9" spellcheck="false" autocomplete="off"/>
             ${st.color ? `<button type="button" class="btn btn-sm btn-ghost rx-insp-reset-btn" data-action="inspector-clear-style" data-prop="color" title="${isRu ? "Сбросить цвет" : "Reset color"}">↺</button>` : ""}
           </div>
         </div>
@@ -370,7 +431,7 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
           <span>${isRu ? "Фон" : "Background"}</span>
           <div class="rx-color-row">
             <input type="color" class="color-input" data-insp-style="bgColor" value="${rv5EscapeHtml(curBg)}"/>
-            <span class="rx-insp-hex" data-insp-hex="bgColor">${rv5EscapeHtml(curBg)}</span>
+            <input type="text" class="text-input rx-insp-hex-input" data-insp-hex-input="bgColor" value="${rv5EscapeHtml(curBg)}" placeholder="#rrggbb" maxlength="9" spellcheck="false" autocomplete="off"/>
             ${st.bgColor ? `<button type="button" class="btn btn-sm btn-ghost rx-insp-reset-btn" data-action="inspector-clear-style" data-prop="bgColor" title="${isRu ? "Сбросить фон" : "Reset bg"}">↺</button>` : ""}
           </div>
         </div>
@@ -380,14 +441,14 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
         <span>${isRu ? "Цвет рамки" : "Border Color"}</span>
         <div class="rx-color-row">
           <input type="color" class="color-input" data-insp-style="borderColor" value="${rv5EscapeHtml(curBorder)}"/>
-          <span class="rx-insp-hex" data-insp-hex="borderColor">${rv5EscapeHtml(curBorder)}</span>
+          <input type="text" class="text-input rx-insp-hex-input" data-insp-hex-input="borderColor" value="${rv5EscapeHtml(curBorder)}" placeholder="#rrggbb" maxlength="9" spellcheck="false" autocomplete="off"/>
           ${st.borderColor ? `<button type="button" class="btn btn-sm btn-ghost rx-insp-reset-btn" data-action="inspector-clear-style" data-prop="borderColor" title="${isRu ? "Сбросить цвет рамки" : "Reset border color"}">↺</button>` : ""}
         </div>
       </div>
 
-      <div class="rx-insp-slider-item${st.bgColor ? " is-custom" : ""}" data-insp-wrap="bgOpacity">
+      <div class="rx-insp-slider-item${st.bgColor || hasCustomBgOp ? " is-custom" : ""}" data-insp-wrap="bgOpacity">
         <div class="rx-insp-slider-head">
-          <span>${isRu ? "Прозрачность фона" : "Background Opacity"}</span>
+          <span>${isRu ? "Прозрачность фона (без иконок)" : "Background Opacity (keep icons)"}</span>
           <span class="rx-insp-hex" data-insp-badge="bgOpacity">${curBgOp}%</span>
         </div>
         <div class="rx-insp-slider-row">
@@ -397,12 +458,46 @@ function rv5BuildElementInspectorHtml(sel, draft, customLabels, systemFonts, isR
         </div>
       </div>
 
+      <span class="rx-insp-sec-title">${isRu ? "Расположение (вверх / вниз / влево / вправо)" : "Position (Up / Down / Left / Right)"}</span>
+      <div class="rx-insp-pos-box" data-role="inspectorPositionBox">
+        <div class="rx-insp-pos-top">
+          <div class="rx-insp-dpad" aria-label="${isRu ? "Сдвиг элемента" : "Move element"}">
+            <span></span>
+            <button type="button" class="rx-insp-dpad-btn" data-action="inspector-nudge-offset" data-axis="offsetY" data-delta="${-nudgeStep}" title="${isRu ? `Поднять вверх на ${nudgeStep}px` : `Move up ${nudgeStep}px`}">↑</button>
+            <span></span>
+            <button type="button" class="rx-insp-dpad-btn" data-action="inspector-nudge-offset" data-axis="offsetX" data-delta="${-nudgeStep}" title="${isRu ? `Сдвинуть влево на ${nudgeStep}px` : `Move left ${nudgeStep}px`}">←</button>
+            <button type="button" class="rx-insp-dpad-btn is-zero" data-action="inspector-nudge-offset" data-axis="reset" data-delta="0" title="${isRu ? "Вернуть на место (0, 0)" : "Reset position (0, 0)"}">0</button>
+            <button type="button" class="rx-insp-dpad-btn" data-action="inspector-nudge-offset" data-axis="offsetX" data-delta="${nudgeStep}" title="${isRu ? `Сдвинуть вправо на ${nudgeStep}px` : `Move right ${nudgeStep}px`}">→</button>
+            <span></span>
+            <button type="button" class="rx-insp-dpad-btn" data-action="inspector-nudge-offset" data-axis="offsetY" data-delta="${nudgeStep}" title="${isRu ? `Опустить вниз на ${nudgeStep}px` : `Move down ${nudgeStep}px`}">↓</button>
+            <span></span>
+          </div>
+          <div class="rx-insp-pos-meta">
+            <span style="font-size:10.5px;color:var(--rx-muted)">${isRu ? "Шаг сдвига:" : "Move step:"}</span>
+            <div class="rx-insp-step-pills">
+              ${[1, 4, 16, 40].map((sp) => `<button type="button" class="rx-insp-step-pill${nudgeStep === sp ? " is-active" : ""}" data-action="inspector-set-nudge-step" data-val="${sp}">${sp}px</button>`).join("")}
+            </div>
+            <button type="button" class="btn btn-sm rx-insp-drag-btn${dragMoveActive ? " is-active" : ""}" data-action="inspector-toggle-drag-move">${dragMoveActive ? (isRu ? "Перетаскивание активно (Esc — стоп)" : "Dragging active (Esc to stop)") : (isRu ? "Двигать мышкой на экране" : "Drag on screen")}</button>
+          </div>
+        </div>
+        <div class="rx-insp-slider-grid">
+          ${numSlider("offsetX", isRu ? "Влево / Вправо (X)" : "Left / Right (X)", "px", -800, 800, 0, true, true)}
+          ${numSlider("offsetY", isRu ? "Вверх / Вниз (Y)" : "Up / Down (Y)", "px", -800, 800, 0, true, true)}
+        </div>
+        <div class="subtab-bar is-segmented" data-role="inspectorAlignBar">
+          <button type="button" class="subtab-btn${!curAlign ? " is-active" : ""}" data-action="inspector-set-align" data-val="">${isRu ? "Авто" : "Auto"}</button>
+          <button type="button" class="subtab-btn${curAlign === "left" ? " is-active" : ""}" data-action="inspector-set-align" data-val="left">${isRu ? "Слева" : "Left"}</button>
+          <button type="button" class="subtab-btn${curAlign === "center" ? " is-active" : ""}" data-action="inspector-set-align" data-val="center">${isRu ? "Центр" : "Center"}</button>
+          <button type="button" class="subtab-btn${curAlign === "right" ? " is-active" : ""}" data-action="inspector-set-align" data-val="right">${isRu ? "Справа" : "Right"}</button>
+        </div>
+      </div>
+
       <span class="rx-insp-sec-title">${isRu ? "Размеры и видимость" : "Dimensions & Visibility"}</span>
       <div class="rx-insp-slider-grid">
         ${numSlider("width", isRu ? "Ширина" : "Width", "px", 24, 1600, 320, false)}
         ${numSlider("minHeight", isRu ? "Мин. высота" : "Min Height", "px", 16, 600, 36, false)}
       </div>
-      ${numSlider("opacity", isRu ? "Непрозрачность" : "Opacity", "%", 10, 100, 100, true)}
+      ${numSlider("opacity", isRu ? "Непрозрачность (весь элемент)" : "Element Opacity (all)", "%", 0, 100, 100, true)}
 
       <div class="card">
         <div class="row-item">
@@ -687,7 +782,7 @@ function rv5RenderLimitsTabHtml(ctx) {
   const lw = rv5NormalizeLimitsWidget(limitsWidget);
   const qa = typeof rv5NormalizeQuotaAutomation === "function"
     ? rv5NormalizeQuotaAutomation(quotaAutomation)
-    : Object.assign({ notifyOnReset: true, notifyWhenClosed: true, notifySound: true, autoContinueEnabled: false, autoContinueScope: "all", autoContinueChatKeys: [], autoContinueCurrentKey: "", autoContinuePrompt: "", autoContinueRetryFirst: true }, quotaAutomation || {});
+    : Object.assign({ notifyOnReset: true, notifyWhenClosed: false, notifySound: true, autoContinueEnabled: false, autoContinueScope: "all", autoContinueChatKeys: [], autoContinueCurrentKey: "", autoContinuePrompt: "", autoContinueRetryFirst: true }, quotaAutomation || {});
   const waitingMap = (quotaAlerts && quotaAlerts.waitingChats && typeof quotaAlerts.waitingChats === "object") ? quotaAlerts.waitingChats : {};
   const waitingList = Object.values(waitingMap).filter(Boolean);
   const curKey = typeof activeChatKey === "string" && activeChatKey && activeChatKey !== "__new__" ? activeChatKey : "";
@@ -754,7 +849,7 @@ function rv5RenderLimitsTabHtml(ctx) {
         <div class="row-item">
           <div class="row-info">
             <span class="row-title">${isRu ? "Вывести лимиты Antigravity в интерфейс" : "Show Antigravity Limits in UI"}</span>
-            <span class="row-desc">${isRu ? "Живые квоты (Неделя / 5ч и таймер сброса). Автоматически подстраивается под активную тему." : "Live weekly / 5h quotas and reset timer. Adapts automatically to your active theme."}</span>
+            <span class="row-desc">${isRu ? "Только реальные квоты из Antigravity (Неделя / 5ч и таймер сброса) без локальных догадок." : "Strictly real quotas from Antigravity (Weekly / 5h and reset timer) with zero local guesses."}</span>
           </div>
           <button type="button" class="switch${lw.enabled ? " is-on" : ""}" role="switch" data-action="toggle-limits-bool" data-field="enabled"><span class="switch-thumb"></span></button>
         </div>
@@ -898,7 +993,7 @@ function rv5RenderLimitsTabHtml(ctx) {
           <div class="row-item">
             <div class="row-info">
               <span class="row-title">${isRu ? "Присылать уведомление, даже если Antigravity закрыт" : "Notify even when Antigravity is closed"}</span>
-              <span class="row-desc">${isRu ? "Тихое системное напоминание (Windows / macOS / Linux) без всплывающих консольных окон." : "Silent OS scheduled notification (Windows / macOS / Linux) with zero console popups."}</span>
+              <span class="row-desc">${isRu ? "Выкл. по умолчанию. При включении создаёт локальную задачу Планировщика ОС (Windows Task Scheduler / macOS LaunchAgent / Linux systemd) без консольных окон." : "Off by default. When enabled, creates a local OS scheduled task (Windows Task Scheduler / macOS LaunchAgent / Linux systemd) with zero console popups."}</span>
             </div>
             <button type="button" class="switch${qa.notifyWhenClosed ? " is-on" : ""}" role="switch" aria-checked="${qa.notifyWhenClosed ? "true" : "false"}" data-action="toggle-quota-auto-bool" data-field="notifyWhenClosed"><span class="switch-thumb"></span></button>
           </div>
@@ -1045,7 +1140,8 @@ function rv5RenderKeybindingsHtml(keybindings, recordingId, isRu) {
 /**
  * AGY Customization Workshop (Visual Rules, Skills, MCP Servers, Plugins & Hooks manager).
  */
-function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills) {
+function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills, opts) {
+  const hideSubTabs = Boolean(opts && opts.hideSubTabs);
   const data = wsState && wsState.data ? wsState.data : null;
   const scope = (wsState && wsState.scope) || "global";
   const sub = (wsState && wsState.sub) || "rules";
@@ -1184,12 +1280,14 @@ function rv5RenderWorkshopHtml(wsState, isRu, pinnedSkills) {
       </div>
       <button type="button" class="btn btn-sm" data-action="ws-refresh">${rv5UiIcon("refresh", 12)}<span>${isRu ? "Обновить" : "Refresh"}</span></button>
     </div>
-    <div class="subtab-bar">
-      <button type="button" class="subtab-btn${sub === "rules" ? " is-active" : ""}" data-action="ws-set-sub" data-val="rules">${isRu ? "Правила" : "Rules"} (${rules.length})</button>
-      <button type="button" class="subtab-btn${sub === "skills" ? " is-active" : ""}" data-action="ws-set-sub" data-val="skills">${isRu ? "Скиллы" : "Skills"} (${skills.length})</button>
-      <button type="button" class="subtab-btn${sub === "mcp" ? " is-active" : ""}" data-action="ws-set-sub" data-val="mcp">MCP (${mcps.length})</button>
-      <button type="button" class="subtab-btn${sub === "hooks" ? " is-active" : ""}" data-action="ws-set-sub" data-val="hooks">${isRu ? "Плагины и Хуки" : "Plugins & Hooks"}</button>
-    </div>
+    ${hideSubTabs ? "" : `
+      <div class="subtab-bar">
+        <button type="button" class="subtab-btn${sub === "rules" ? " is-active" : ""}" data-action="ws-set-sub" data-val="rules">${isRu ? "Правила" : "Rules"} (${rules.length})</button>
+        <button type="button" class="subtab-btn${sub === "skills" ? " is-active" : ""}" data-action="ws-set-sub" data-val="skills">${isRu ? "Скиллы" : "Skills"} (${skills.length})</button>
+        <button type="button" class="subtab-btn${sub === "mcp" ? " is-active" : ""}" data-action="ws-set-sub" data-val="mcp">MCP (${mcps.length})</button>
+        <button type="button" class="subtab-btn${sub === "hooks" ? " is-active" : ""}" data-action="ws-set-sub" data-val="hooks">${isRu ? "Плагины и Хуки" : "Plugins & Hooks"}</button>
+      </div>
+    `}
     ${contentHtml}
   `;
 }
@@ -1459,7 +1557,8 @@ function rv5InjectImageEditTriggers(doc, isRu, onEditImage) {
         tBtn.addEventListener("click", (ev) => {
           if (ev && typeof ev.preventDefault === "function") ev.preventDefault();
           if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation();
-          onEditImage({ imgEl: im, fromLightbox: false, thumbWrapper: wrap });
+          const liveIm = (wrap && typeof wrap.querySelector === "function" && wrap.querySelector("img")) || im;
+          onEditImage({ imgEl: liveIm, fromLightbox: false, thumbWrapper: wrap });
         });
         wrap.appendChild(tBtn);
       }
@@ -2099,8 +2198,8 @@ function rv5RenderInputHistoryHtml(ctx) {
           <div class="row-info">
             <span class="row-title">${isRu ? "Автосохранение черновиков (текст и файлы)" : "Auto-save chat drafts (text & files)"}</span>
             <span class="row-desc">${isRu
-              ? "Сохраняет введённый текст и прикреплённые файлы отдельно для каждого чата и Нового чата. Восстанавливает их после перезапуска или завершения Antigravity."
-              : "Automatically preserves typed text & attached files per chat (including New Chat) across restarts or forced close."}</span>
+              ? "Бессрочно сохраняет введённый текст и прикреплённые файлы отдельно для каждого чата и Нового чата. Моментально восстанавливает их после перезапуска или принудительного закрытия Antigravity."
+              : "Permanently preserves typed text & attached files per chat (including New Chat) and restores them instantaneously after restarts or forced close."}</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             ${draftCount > 0 ? `<button type="button" class="btn btn-sm btn-ghost" data-action="clear-all-drafts" title="${isRu ? "Очистить сохранённые черновики" : "Clear saved drafts"}">${isRu ? `Очистить (${draftCount})` : `Clear (${draftCount})`}</button>` : ""}
@@ -2121,7 +2220,7 @@ function rv5RenderInputHistoryHtml(ctx) {
 
     <div class="section-group">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-        <span class="section-label">${isRu ? `Последние сообщения (${filteredItems.length} / ${items.length})` : `Recent messages (${filteredItems.length} / ${items.length})`}</span>
+        <span class="section-label" data-role="historyCount" data-total="${items.length}">${isRu ? `Последние сообщения (${filteredItems.length} / ${items.length})` : `Recent messages (${filteredItems.length} / ${items.length})`}</span>
         <div style="display:flex;gap:6px;align-items:center">
           <input type="text" class="text-input" style="width:170px;padding:4px 8px;font-size:11.5px" data-role="historySearch" value="${rv5EscapeHtml(c.searchQuery || "")}" placeholder="${isRu ? "Фильтр по тексту…" : "Filter messages…"}"/>
           <button type="button" class="btn btn-sm btn-ghost" data-action="refresh-input-history">${isRu ? "Обновить" : "Refresh"}</button>
@@ -2140,14 +2239,16 @@ function rv5RenderInputHistoryHtml(ctx) {
       ` : ""}
 
       ${filteredItems.length > 0 ? `
-        <div class="rx-hist-list">
+        <div class="empty-msg" data-role="historyFilterEmpty" style="display:none">${isRu ? "По этому запросу ничего не найдено." : "No messages match your filter."}</div>
+        <div class="rx-hist-list" data-role="historyList">
           ${filteredItems.map((it) => {
             const atts = Array.isArray(it.attachments) ? it.attachments : [];
             const hasText = Boolean(it.text && String(it.text).trim());
             const chatLabel = it.chatTitle || (it.chatKey === "__new__" ? (isRu ? "Новый чат" : "New chat") : (isRu ? "Чат" : "Chat"));
             const timeLabel = rv5FormatHistTime(it.createdAt, isRu);
+            const searchHay = [String(it.text || ""), String(chatLabel || "")].concat(atts.map((a) => String((a && a.name) || ""))).join(" ").toLowerCase();
             return `
-              <div class="rx-hist-card" data-history-id="${rv5EscapeHtml(it.id)}">
+              <div class="rx-hist-card" data-history-id="${rv5EscapeHtml(it.id)}" data-hist-search="${rv5EscapeHtml(searchHay)}">
                 <div class="rx-hist-head">
                   <div class="rx-hist-meta">
                     <span class="rx-hist-chat" title="${rv5EscapeHtml(chatLabel)}">${rv5EscapeHtml(chatLabel)}</span>

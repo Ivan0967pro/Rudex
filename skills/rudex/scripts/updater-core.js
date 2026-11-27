@@ -3,6 +3,8 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const zlib = require("zlib");
+const crypto = require("crypto");
 const http = require("http");
 const https = require("https");
 const { execFileSync, spawn, spawnSync } = require("child_process");
@@ -11,6 +13,7 @@ const { URL } = require("url");
 const REPO_OWNER = "Ivan0967pro";
 const REPO_NAME = "Rudex";
 const DEFAULT_BRANCH = "main";
+const API_LATEST_RELEASE_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`;
 const RAW_MANIFEST_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${DEFAULT_BRANCH}/plugin.json`;
 const API_COMMIT_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits/${DEFAULT_BRANCH}`;
 const ATOM_FEED_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/commits/${DEFAULT_BRANCH}.atom`;
@@ -49,6 +52,54 @@ function compareSemver(a, b) {
 function extractCommitShaFromText(str) {
   const m = /\b([0-9a-f]{40})\b/i.exec(String(str || ""));
   return m ? m[1].toLowerCase() : "";
+}
+
+function computeFileSha256(filePath) {
+  const hash = crypto.createHash("sha256");
+  const fd = fs.openSync(filePath, "r");
+  try {
+    const buf = Buffer.allocUnsafe(256 * 1024);
+    while (true) {
+      const n = fs.readSync(fd, buf, 0, buf.length, null);
+      if (n <= 0) break;
+      hash.update(n === buf.length ? buf : buf.subarray(0, n));
+    }
+    return hash.digest("hex").toLowerCase();
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function parseSha256Sums(text) {
+  const map = {};
+  const lines = String(text || "").split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith("#")) continue;
+    const m = /^([0-9a-f]{64})\s+\*?(.+)$/i.exec(line);
+    if (!m) continue;
+    const hex = m[1].toLowerCase();
+    const rawName = m[2].trim();
+    const baseName = path.basename(rawName.replace(/\\/g, "/"));
+    if (baseName) {
+      map[baseName] = hex;
+      map[baseName.toLowerCase()] = hex;
+    }
+  }
+  return map;
+}
+
+function verifyFileSha256(filePath, expectedHex) {
+  const exp = String(expectedHex || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(exp)) {
+    return { ok: false, actual: "", expected: exp, reason: "INVALID_EXPECTED_SHA256" };
+  }
+  const actual = computeFileSha256(filePath);
+  return {
+    ok: actual === exp,
+    actual,
+    expected: exp,
+  };
 }
 
 function readZipEocdComment(zipPath) {
@@ -437,6 +488,86 @@ function parseGithubAtomFeed(xmlText) {
 
 async function checkRemoteRelease(opts = {}) {
   const bypassCache = Boolean(opts.bypassCache);
+  const timeoutMs = typeof opts.timeoutMs === "number" ? opts.timeoutMs : 15000;
+  const tryReleaseApi =
+    Boolean(opts.releaseApiUrl) ||
+    (!opts.manifestUrl && !opts.commitApiUrl && opts.channel !== "dev");
+
+  if (tryReleaseApi) {
+    const relUrl = opts.releaseApiUrl || API_LATEST_RELEASE_URL;
+    try {
+      const relRes = await httpGetBuffer(relUrl, {
+        timeoutMs,
+        accept: "application/vnd.github+json",
+        maxBytes: 2 * 1024 * 1024,
+      });
+      if (relRes && relRes.status >= 200 && relRes.status < 300) {
+        const data = JSON.parse(relRes.body.toString("utf8"));
+        if (data && !data.draft && typeof data.tag_name === "string" && data.tag_name.trim()) {
+          const tagName = data.tag_name.trim();
+          const relVersion = tagName.replace(/^v/i, "").trim();
+          const assets = Array.isArray(data.assets) ? data.assets : [];
+          const zipAsset = assets.find(
+            (a) => a && typeof a.name === "string" && /\.zip$/i.test(a.name) && typeof a.browser_download_url === "string"
+          );
+          const sumAsset = assets.find(
+            (a) =>
+              a &&
+              typeof a.name === "string" &&
+              /^(sha256sums|checksums)(\.txt)?$|\.sha256(\.txt)?$/i.test(a.name) &&
+              typeof a.browser_download_url === "string"
+          );
+          const archiveUrl =
+            (zipAsset && zipAsset.browser_download_url) ||
+            (typeof data.zipball_url === "string" && data.zipball_url) ||
+            `https://github.com/${REPO_OWNER}/${REPO_NAME}/archive/refs/tags/${encodeURIComponent(tagName)}.zip`;
+
+          let sha256 = "";
+          let checksumUrl = "";
+          if (sumAsset && sumAsset.browser_download_url) {
+            checksumUrl = sumAsset.browser_download_url;
+            try {
+              const sumRes = await httpGetBuffer(checksumUrl, {
+                timeoutMs: Math.min(timeoutMs, 10000),
+                accept: "text/plain, */*",
+                maxBytes: 256 * 1024,
+              });
+              if (sumRes && sumRes.status >= 200 && sumRes.status < 300) {
+                const sums = parseSha256Sums(sumRes.body.toString("utf8"));
+                if (zipAsset && zipAsset.name) {
+                  sha256 = sums[zipAsset.name] || sums[zipAsset.name.toLowerCase()] || "";
+                } else {
+                  const zipKeys = Object.keys(sums).filter((k) => /\.zip$/i.test(k));
+                  if (zipKeys.length === 1 || (zipKeys.length === 2 && zipKeys[0].toLowerCase() === zipKeys[1].toLowerCase())) {
+                    sha256 = sums[zipKeys[0]] || "";
+                  }
+                }
+              }
+            } catch (_sumErr) {}
+          }
+
+          return {
+            ok: true,
+            etag: (relRes.headers && relRes.headers.etag) || "",
+            remote: {
+              version: relVersion,
+              tagName,
+              commitSha: "",
+              commitShort: "",
+              commitDate: String(data.published_at || data.created_at || ""),
+              commitMessage: String(data.name || tagName).slice(0, 120),
+              htmlUrl: typeof data.html_url === "string" ? data.html_url : "",
+              archiveUrl,
+              sha256,
+              checksumUrl,
+              source: "release",
+            },
+          };
+        }
+      }
+    } catch (_relErr) {}
+  }
+
   const rawManifestUrl = opts.manifestUrl || RAW_MANIFEST_URL;
   const manifestUrl = bypassCache
     ? `${rawManifestUrl}${rawManifestUrl.includes("?") ? "&" : "?"}t=${Date.now()}`
@@ -447,7 +578,6 @@ async function checkRemoteRelease(opts = {}) {
     : (commitApiUrl === API_COMMIT_URL ? ATOM_FEED_URL : "");
   const prevEtag = !bypassCache && typeof opts.prevEtag === "string" ? opts.prevEtag : "";
   const prevRemote = opts.prevRemote && typeof opts.prevRemote === "object" ? opts.prevRemote : null;
-  const timeoutMs = typeof opts.timeoutMs === "number" ? opts.timeoutMs : 15000;
 
   const [manSettled, apiSettled] = await Promise.allSettled([
     httpGetBuffer(manifestUrl, { timeoutMs, accept: "application/json", maxBytes: 1024 * 1024 }),
@@ -601,6 +731,122 @@ function findPluginRootInDir(rootDir, maxDepth = 2) {
   return null;
 }
 
+/**
+ * Zero-dependency pure Node.js ZIP extractor (STORE & DEFLATE) via built-in zlib.
+ * Avoids spawning powershell.exe / cmd.exe / unzip / python3 during in-app skill updates
+ * across Windows 10/11, macOS, and minimal Linux environments, and enforces Zip-Slip protection.
+ */
+function extractZipPureNode(zipPath, destDir) {
+  const st = fs.statSync(zipPath);
+  if (!st.isFile() || st.size < 22 || st.size > MAX_ZIP_BYTES) {
+    throw new Error("Invalid ZIP archive size");
+  }
+  const buf = fs.readFileSync(zipPath);
+  let eocdPos = -1;
+  const minPos = Math.max(0, buf.length - 65560);
+  for (let pos = buf.length - 22; pos >= minPos; pos -= 1) {
+    if (
+      buf[pos] === 0x50 &&
+      buf[pos + 1] === 0x4b &&
+      buf[pos + 2] === 0x05 &&
+      buf[pos + 3] === 0x06
+    ) {
+      const commentLen = buf.readUInt16LE(pos + 20);
+      if (pos + 22 + commentLen <= buf.length) {
+        eocdPos = pos;
+        break;
+      }
+    }
+  }
+  if (eocdPos === -1) {
+    throw new Error("ZIP End-of-Central-Directory record not found");
+  }
+
+  const totalEntries = buf.readUInt16LE(eocdPos + 10);
+  const cdSize = buf.readUInt32LE(eocdPos + 12);
+  const cdOffset = buf.readUInt32LE(eocdPos + 16);
+  if (totalEntries === 0xffff || cdSize === 0xffffffff || cdOffset === 0xffffffff) {
+    throw new Error("ZIP64 archive requires external extractor");
+  }
+  if (cdOffset + cdSize > buf.length) {
+    throw new Error("Corrupted ZIP central directory bounds");
+  }
+
+  const resolvedDest = path.resolve(destDir);
+  fs.mkdirSync(resolvedDest, { recursive: true });
+
+  const MAX_UNCOMPRESSED_BYTES = 250 * 1024 * 1024;
+  let totalUncompressed = 0;
+  let offset = cdOffset;
+  let extractedCount = 0;
+
+  for (let i = 0; i < totalEntries; i += 1) {
+    if (offset + 46 > buf.length || buf.readUInt32LE(offset) !== 0x02014b50) {
+      throw new Error("Corrupted ZIP central directory entry");
+    }
+    const flags = buf.readUInt16LE(offset + 8);
+    if ((flags & 1) !== 0) {
+      throw new Error("Encrypted ZIP entry not supported");
+    }
+    const method = buf.readUInt16LE(offset + 10);
+    if (method !== 0 && method !== 8) {
+      throw new Error(`Unsupported ZIP compression method: ${method}`);
+    }
+    const compSize = buf.readUInt32LE(offset + 20);
+    const uncompSize = buf.readUInt32LE(offset + 24);
+    const nameLen = buf.readUInt16LE(offset + 28);
+    const extraLen = buf.readUInt16LE(offset + 30);
+    const commentLen = buf.readUInt16LE(offset + 32);
+    const extAttrs = buf.readUInt32LE(offset + 38);
+    const localHeaderOffset = buf.readUInt32LE(offset + 42);
+
+    const rawName = buf.subarray(offset + 46, offset + 46 + nameLen).toString("utf8");
+    const normName = rawName.replace(/\\/g, "/");
+    offset += 46 + nameLen + extraLen + commentLen;
+
+    if (!normName || normName.startsWith("/") || /^[a-zA-Z]:/.test(normName)) {
+      throw new Error(`Unsafe absolute ZIP entry blocked: ${rawName}`);
+    }
+    const target = path.resolve(resolvedDest, normName);
+    if (target !== resolvedDest && !target.startsWith(resolvedDest + path.sep)) {
+      throw new Error(`Unsafe ZIP path traversal blocked: ${rawName}`);
+    }
+
+    const unixMode = (extAttrs >>> 16) & 0o177777;
+    const isDir = normName.endsWith("/") || (unixMode & 0o170000) === 0o040000;
+    if (isDir) {
+      fs.mkdirSync(target, { recursive: true });
+      continue;
+    }
+
+    totalUncompressed += uncompSize;
+    if (totalUncompressed > MAX_UNCOMPRESSED_BYTES) {
+      throw new Error("ZIP archive exceeds maximum allowed uncompressed size");
+    }
+
+    if (localHeaderOffset + 30 > buf.length || buf.readUInt32LE(localHeaderOffset) !== 0x04034b50) {
+      throw new Error("Corrupted ZIP local file header");
+    }
+    const lhNameLen = buf.readUInt16LE(localHeaderOffset + 26);
+    const lhExtraLen = buf.readUInt16LE(localHeaderOffset + 28);
+    const dataStart = localHeaderOffset + 30 + lhNameLen + lhExtraLen;
+    if (dataStart + compSize > buf.length) {
+      throw new Error("Truncated ZIP file payload");
+    }
+    const compSlice = buf.subarray(dataStart, dataStart + compSize);
+    const data = method === 0 ? compSlice : zlib.inflateRawSync(compSlice);
+
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, data);
+    if (process.platform !== "win32" && (unixMode & 0o111) !== 0) {
+      try { fs.chmodSync(target, 0o755); } catch (_e) {}
+    }
+    extractedCount += 1;
+  }
+
+  return extractedCount;
+}
+
 function extractZipArchive(zipPath, destDir) {
   if (!zipPath || !fs.existsSync(zipPath)) {
     throw new Error("Update archive file not found");
@@ -623,51 +869,64 @@ function extractZipArchive(zipPath, destDir) {
   }
   fs.mkdirSync(path.dirname(resolvedDest), { recursive: true });
 
-  if (process.platform === "win32") {
-    const psCmd =
-      "Add-Type -AssemblyName System.IO.Compression.FileSystem; " +
-      "[System.IO.Compression.ZipFile]::ExtractToDirectory($env:RUDEX_ZIP, $env:RUDEX_DEST)";
-    const res = spawnSync(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", psCmd],
-      {
-        env: Object.assign({}, process.env, { RUDEX_ZIP: resolvedZip, RUDEX_DEST: resolvedDest }),
-        encoding: "utf8",
-        timeout: 60000,
-        windowsHide: true,
+  // Prefer zero-subprocess pure Node extraction (no PowerShell/Terminal popups on Windows, no unzip/python3 needed on Linux)
+  let extractedPure = false;
+  try {
+    extractZipPureNode(resolvedZip, resolvedDest);
+    extractedPure = true;
+  } catch (_pureErr) {
+    try {
+      if (fs.existsSync(resolvedDest)) fs.rmSync(resolvedDest, { recursive: true, force: true });
+    } catch (_c) {}
+  }
+
+  if (!extractedPure) {
+    if (process.platform === "win32") {
+      const psCmd =
+        "Add-Type -AssemblyName System.IO.Compression.FileSystem; " +
+        "[System.IO.Compression.ZipFile]::ExtractToDirectory($env:RUDEX_ZIP, $env:RUDEX_DEST)";
+      const res = spawnSync(
+        "powershell.exe",
+        ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", psCmd],
+        {
+          env: Object.assign({}, process.env, { RUDEX_ZIP: resolvedZip, RUDEX_DEST: resolvedDest }),
+          encoding: "utf8",
+          timeout: 60000,
+          windowsHide: true,
+        }
+      );
+      if (res.status !== 0) {
+        const msg = (res.stderr || res.stdout || "").trim() || `PowerShell exit ${res.status}`;
+        throw new Error(`Failed to extract update ZIP: ${msg}`);
       }
-    );
-    if (res.status !== 0) {
-      const msg = (res.stderr || res.stdout || "").trim() || `PowerShell exit ${res.status}`;
-      throw new Error(`Failed to extract update ZIP: ${msg}`);
-    }
-  } else {
-    fs.mkdirSync(resolvedDest, { recursive: true });
-    let res = spawnSync("unzip", ["-qo", resolvedZip, "-d", resolvedDest], {
-      encoding: "utf8",
-      timeout: 60000,
-    });
-    if ((res.error || res.status !== 0) && process.platform === "darwin") {
-      res = spawnSync("ditto", ["-xk", resolvedZip, resolvedDest], {
+    } else {
+      fs.mkdirSync(resolvedDest, { recursive: true });
+      let res = spawnSync("unzip", ["-qo", resolvedZip, "-d", resolvedDest], {
         encoding: "utf8",
         timeout: 60000,
       });
-    }
-    if (res.error || res.status !== 0) {
-      res = spawnSync("python3", ["-m", "zipfile", "-e", resolvedZip, resolvedDest], {
-        encoding: "utf8",
-        timeout: 60000,
-      });
-    }
-    if (res.error || res.status !== 0) {
-      res = spawnSync("tar", ["-xf", resolvedZip, "-C", resolvedDest], {
-        encoding: "utf8",
-        timeout: 60000,
-      });
-    }
-    if (res.error || res.status !== 0) {
-      const msg = (res.stderr || res.stdout || (res.error && res.error.message) || "").trim() || `Extractor exit ${res.status}`;
-      throw new Error(`Failed to extract update ZIP: ${msg}`);
+      if ((res.error || res.status !== 0) && process.platform === "darwin") {
+        res = spawnSync("ditto", ["-xk", resolvedZip, resolvedDest], {
+          encoding: "utf8",
+          timeout: 60000,
+        });
+      }
+      if (res.error || res.status !== 0) {
+        res = spawnSync("python3", ["-m", "zipfile", "-e", resolvedZip, resolvedDest], {
+          encoding: "utf8",
+          timeout: 60000,
+        });
+      }
+      if (res.error || res.status !== 0) {
+        res = spawnSync("tar", ["-xf", resolvedZip, "-C", resolvedDest], {
+          encoding: "utf8",
+          timeout: 60000,
+        });
+      }
+      if (res.error || res.status !== 0) {
+        const msg = (res.stderr || res.stdout || (res.error && res.error.message) || "").trim() || `Extractor exit ${res.status}`;
+        throw new Error(`Failed to extract update ZIP: ${msg}`);
+      }
     }
   }
 
@@ -696,6 +955,7 @@ function writeUpdaterRestartScript(exePath, opts = {}) {
     "taskkill /IM Antigravity.exe >nul 2>&1",
     "ping -n 3 127.0.0.1 >nul",
     "taskkill /F /IM Antigravity.exe >nul 2>&1",
+    "taskkill /F /IM sherpa-onnx-online-websocket-server.exe >nul 2>&1",
     "for /L %%I in (1,1,12) do (",
     '  tasklist /FI "IMAGENAME eq Antigravity.exe" 2>nul | find /I "Antigravity.exe" >nul',
     "  if errorlevel 1 goto launch",
@@ -889,6 +1149,7 @@ function writeUpdaterRestartWsh(exePath, opts = {}) {
     "  if (countAgy() > 0) {",
     "    try { sh.Run('taskkill /F /IM Antigravity.exe', 0, true); } catch (e) {}",
     "  }",
+    "  try { sh.Run('taskkill /F /IM sherpa-onnx-online-websocket-server.exe', 0, true); } catch (e) {}",
     "  for (var i = 0; i < 15; i++) {",
     "    if (countAgy() === 0) break;",
     "    WScript.Sleep(1000);",
@@ -934,7 +1195,10 @@ function parseInstallerKeyValues(stdoutText) {
 }
 
 async function installUpdateFromZip(opts = {}) {
-  const archiveUrl = opts.archiveUrl || ARCHIVE_ZIP_URL;
+  const remoteMeta = opts.remote && typeof opts.remote === "object" ? opts.remote : {};
+  const archiveUrl = opts.archiveUrl || remoteMeta.archiveUrl || ARCHIVE_ZIP_URL;
+  const expectedSha256 = String(opts.expectedSha256 || remoteMeta.sha256 || "").trim().toLowerCase();
+  const requireChecksum = Boolean(opts.requireChecksum);
   const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : () => {};
   const tempRoot = path.join(os.tmpdir(), `rudex-update-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
   const zipPath = path.join(tempRoot, "rudex-update.zip");
@@ -948,7 +1212,19 @@ async function installUpdateFromZip(opts = {}) {
       maxBytes: MAX_ZIP_BYTES,
     });
 
-    const remoteMeta = opts.remote && typeof opts.remote === "object" ? opts.remote : {};
+    const archiveSha256 = computeFileSha256(zipPath);
+    let verifiedSha256 = false;
+    if (expectedSha256) {
+      onProgress("verifying");
+      const check = verifyFileSha256(zipPath, expectedSha256);
+      if (!check.ok) {
+        throw new Error(`Update archive SHA-256 checksum mismatch (expected ${check.expected}, got ${check.actual})`);
+      }
+      verifiedSha256 = true;
+    } else if (requireChecksum) {
+      throw new Error("Missing SHA-256 checksum for required verified update");
+    }
+
     const zipSha = extractCommitShaFromText(readZipEocdComment(zipPath)) || String(remoteMeta.commitSha || "");
 
     onProgress("extracting");
@@ -986,6 +1262,8 @@ async function installUpdateFromZip(opts = {}) {
       exePath: parsed.exePath,
       installedVersion: String((pluginJson && pluginJson.version) || remoteMeta.version || ""),
       installedCommitSha: zipSha,
+      verifiedSha256,
+      archiveSha256,
     };
   } finally {
     try {
@@ -1000,6 +1278,7 @@ module.exports = {
   REPO_OWNER,
   REPO_NAME,
   DEFAULT_BRANCH,
+  API_LATEST_RELEASE_URL,
   RAW_MANIFEST_URL,
   API_COMMIT_URL,
   ATOM_FEED_URL,
@@ -1009,6 +1288,9 @@ module.exports = {
   MAX_ZIP_BYTES,
   compareSemver,
   extractCommitShaFromText,
+  computeFileSha256,
+  parseSha256Sums,
+  verifyFileSha256,
   parseGithubAtomFeed,
   readZipEocdComment,
   readGitHeadMeta,
@@ -1016,6 +1298,7 @@ module.exports = {
   httpGetBuffer,
   httpDownloadToFile,
   checkRemoteRelease,
+  extractZipPureNode,
   extractZipArchive,
   writeUpdaterRestartScript,
   writeUpdaterRestartWsh,

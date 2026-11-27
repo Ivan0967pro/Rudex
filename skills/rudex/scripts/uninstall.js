@@ -74,12 +74,23 @@ function runUninstall(options = {}) {
     console.warn("Antigravity installation directory not detected; cleaning flags & rules only.");
   }
 
+  // Stop any running local Sherpa-ONNX dictation server silently before cleanup
+  try {
+    const { spawnSync } = require("child_process");
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/F", "/IM", "sherpa-onnx-online-websocket-server.exe"], { stdio: "ignore", windowsHide: true, timeout: 4000 });
+    } else {
+      spawnSync("pkill", ["-x", "sherpa-onnx-online-websocket-server"], { stdio: "ignore", timeout: 4000 });
+    }
+  } catch (_e) {}
+
   // Clean transient persona, agent-profile, tool-policy, pending live-edit flags & offline quota alerts
   const runtimeFlags = [
     path.join(userDataDir, "agy_studio_persona_active.flag"),
     path.join(userDataDir, "agy_studio_thinking_ru.flag"),
     path.join(userDataDir, "agy_studio_agent_profile.flag"),
     path.join(userDataDir, "agy_studio_tool_policy.flag"),
+    path.join(userDataDir, "agy_studio_perf_agent.flag"),
     path.join(userDataDir, "studio_live_edits", "pending.flag"),
     path.join(userDataDir, "rudex-quota-notify.js"),
     path.join(userDataDir, "rudex-quota-notify-payload.json"),

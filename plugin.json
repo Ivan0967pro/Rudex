@@ -2,8 +2,8 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "rudex",
   "displayName": "Rudex",
-  "version": "5.0.3",
-  "description": "Студия кастомизации и русификатор для Google Antigravity 2.0 (Windows, macOS, Linux): стили интерфейса (Claude Code, Codex, OpenCode), темы и обои, живые лимиты моделей, правки на лету и перевод интерфейса и мыслей.",
+  "version": "5.5.0",
+  "description": "Студия кастомизации и русификатор Google Antigravity 2.0 (Windows, macOS, Linux): стили UI (Claude Code, Codex, OpenCode), 15 тем, «Прицел» с областью и сдвигом, реальные лимиты, бессрочные черновики, голос Sherpa-ONNX и перевод мыслей.",
   "logo": "assets/logo.svg",
   "author": {
     "name": "Ivan0967pro",

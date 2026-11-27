@@ -44,6 +44,7 @@ const {
   teBuildWebFontUrl,
   detectHostIsLight,
   buildThemeCss,
+  teBuildElementOverridesCss,
   createThemeEngine,
 } = require(path.join(RES_DIR, "theme-engine.js"));
 const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
@@ -135,10 +136,28 @@ function createMockDom() {
     return true;
   }
 
+  function splitSelectorTokens(str) {
+    const tokens = [];
+    let cur = "";
+    let inBracket = 0;
+    for (let i = 0; i < str.length; i += 1) {
+      const ch = str[i];
+      if (ch === "[") inBracket += 1;
+      else if (ch === "]" && inBracket > 0) inBracket -= 1;
+      if (inBracket === 0 && /\s/.test(ch)) {
+        if (cur) { tokens.push(cur); cur = ""; }
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur) tokens.push(cur);
+    return tokens;
+  }
+
   function matchesSelectorList(el, selector) {
     const parts = String(selector || "").split(",");
     for (const part of parts) {
-      const tokens = part.trim().split(/\s+/).filter(Boolean);
+      const tokens = splitSelectorTokens(part.trim());
       if (tokens.length === 0) continue;
       if (tokens.length === 1) {
         if (matchSingleSelector(el, tokens[0])) return true;
@@ -403,24 +422,21 @@ test("Manifest & hooks.json follow Rudex v5.0 safe hook architecture (no global 
   const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
   assert.equal(pkg.name, "rudex");
   assert.equal(pkg.displayName, "Rudex");
-  assert.equal(pkg.version, "5.0.3");
+  assert.equal(pkg.version, "5.5.0");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "updater-core.js")), "updater-core.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "thinking-translator.js")), "thinking-translator.js must exist");
   assert.ok(fs.existsSync(path.join(SCRIPTS_DIR, "agy-workshop.js")), "agy-workshop.js must exist");
   assert.ok(fs.existsSync(path.join(RES_DIR, "rudex-annotator.js")), "rudex-annotator.js must exist");
   assert.equal(typeof dictionary, "object");
   assert.ok(Object.keys(dictionary).length >= 4000);
-  assert.equal(DYNAMIC_RULES.length, 479);
+  assert.equal(DYNAMIC_RULES.length, 485);
 
   const hooks = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "hooks.json"), "utf8"));
   const group = hooks["rudex-studio"];
   assert.ok(group, "rudex-studio hook group missing");
   assert.ok(Array.isArray(group.SessionStart) && group.SessionStart.length === 1);
   assert.ok(Array.isArray(group.PreInvocation) && group.PreInvocation.length === 1);
-  assert.ok(Array.isArray(group.PreToolUse) && group.PreToolUse.length === 1);
-  assert.notEqual(group.PreToolUse[0].matcher, "*", "PreToolUse must use a targeted matcher, never global '*'");
-  assert.ok(group.PreToolUse[0].matcher.includes("search_web"), "Targeted PreToolUse matcher must gate search_web");
-  assert.equal(group.PreToolUse[0].matcher.includes("run_command"), false, "PreToolUse matcher must NOT intercept native run_command prompts");
+  assert.equal(group.PreToolUse, undefined, "Stock hooks.json must omit PreToolUse by default (added dynamically only on demand)");
   assert.ok(Array.isArray(group.Stop) && group.Stop.length === 1);
   assert.equal(group.PostInvocation, undefined, "PostInvocation must NOT exist (causes silent live-edit loss)");
 
@@ -1999,10 +2015,14 @@ test("Thinking translator protects inline code/paths, skips Russian, falls back 
       res.end(JSON.stringify([`RU:${q}`]));
       return;
     }
-    if (u.pathname === "/mymemory") {
-      const q = u.searchParams.get("q") || "";
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ responseStatus: 200, responseData: { translatedText: `MM:${q}` } }));
+    if (u.pathname === "/local-translate" && req.method === "POST") {
+      const bodyChunks = [];
+      req.on("data", (c) => bodyChunks.push(c));
+      req.on("end", () => {
+        const parsed = JSON.parse(Buffer.concat(bodyChunks).toString("utf8"));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ translatedText: `LOCAL:${parsed.q || ""}` }));
+      });
       return;
     }
     res.writeHead(404);
@@ -2014,7 +2034,6 @@ test("Thinking translator protects inline code/paths, skips Russian, falls back 
     const port = srv.address().port;
     const tt = createThinkingTranslator({
       clients5Url: `http://127.0.0.1:${port}/clients5`,
-      myMemoryUrl: `http://127.0.0.1:${port}/mymemory`,
     });
 
     const b1 = await tt.translateBatch(["Inspect `studio-panel.js` first.", "Уже на русском языке."]);
@@ -2028,10 +2047,18 @@ test("Thinking translator protects inline code/paths, skips Russian, falls back 
     assert.equal(hits, hitsAfterFirst);
     assert.equal(b2.translations["Inspect `studio-panel.js` first."], b1.translations["Inspect `studio-panel.js` first."]);
 
-    // When clients5 returns 500, translator falls back seamlessly to MyMemory
+    // When clients5 returns 500, translator fails cleanly without leaking to third-party public APIs (MyMemory removed)
     mode = "fallback";
     const b3 = await tt.translateBatch(["Fallback test sentence."]);
-    assert.equal(b3.translations["Fallback test sentence."], "MM:Fallback test sentence.");
+    assert.equal(b3.translations["Fallback test sentence."], undefined);
+    assert.equal(b3.results[0].ok, false);
+
+    // Optional 100% local loopback translator works offline without hitting clients5
+    const ttLocal = createThinkingTranslator({
+      localUrl: `http://127.0.0.1:${port}/local-translate`,
+    });
+    const bLocal = await ttLocal.translateBatch(["Analyze `app.asar` layout."]);
+    assert.equal(bLocal.translations["Analyze `app.asar` layout."], "LOCAL:Analyze `app.asar` layout.");
   } finally {
     await new Promise((resolve) => srv.close(resolve));
   }
@@ -3086,7 +3113,7 @@ test("Installer syncs plugin in-place (Win10 EPERM fix), never uses timeout /t i
   assert.ok(i18nMainText.includes('if exist "!RES_DIR!\\\\app.asar" goto repatch'), "Post-update watcher must trigger on app.asar presence alone");
   assert.equal(i18nMainText.includes('if not exist "!RES_DIR!\\\\app\\\\rudex-patch-meta.json" goto repatch'), false);
 
-  assert.ok(ps1Text.includes("Rudex v5.0.3"), "install.ps1 banner must show v5.0.3");
+  assert.ok(ps1Text.includes("Rudex v5.5.0"), "install.ps1 banner must show v5.5.0");
   assert.ok(ps1Text.includes("Test-InsideAntigravityProcess"), "install.ps1 must detect if running inside Antigravity");
   assert.ok(ps1Text.includes("Closing Antigravity briefly so Windows releases file locks"), "Remote PS1 mode must stop Antigravity before --sync-plugin when safe");
 
@@ -4345,7 +4372,7 @@ test("Docked-by-default mini-widget & limits widget, floating switch, corner/fon
     assert.ok(dockedLimHtml.includes("var(--rx-theme-surface"), "Limits widget must adapt background to active theme surface");
     assert.ok(dockedLimHtml.includes('data-action="toggle-limits-pin"'), "Limits widget must expose quick dock/float pin button");
     assert.equal(dockedLimHtml.includes('data-action="sync-limits-now"'), false, "Limits widget must NOT show manual refresh button (auto-syncs)");
-    assert.ok(dockedLimHtml.includes("~74%"), "Estimated live 5h drop must render with ~ prefix");
+    assert.ok(dockedLimHtml.includes("74%") && !dockedLimHtml.includes("~74%"), "Limits widget must display strictly real 74% with zero ~ guess prefix");
     assert.ok(dockedLimHtml.includes("68%") && !dockedLimHtml.includes("100%"), "1-bucket family must not render fake 100% for absent 5h bucket");
 
     // 3. Limits settings UI exposes docked/floating mode switcher, safe corners (no sidebar-bottom), font, size, width & auto-sync badge
@@ -4410,7 +4437,7 @@ test("Docked-by-default mini-widget & limits widget, floating switch, corner/fon
       assert.equal(s1.summary.families.gemini.fiveHourRem, 100);
       assert.ok(sentMessages.some((m) => m.ch === "agy-studio:quota-updated"), "Quota sync must broadcast agy-studio:quota-updated");
 
-      // Record heavy turn -> displayed 5h remaining must drop below 100% live without waiting for manual refresh
+      // Record heavy turn -> official 5h remaining must stay strictly real (100%, zero local guesses) until next official Antigravity sync
       const afterTurn = ipcHandlers["agy-studio:record-quota-turn"]({}, {
         chatKey: "chat-q1",
         title: "Heavy chat",
@@ -4418,8 +4445,8 @@ test("Docked-by-default mini-widget & limits widget, floating switch, corner/fon
         outputTokens: 60000,
         contextTokens: 200000,
       });
-      assert.ok(afterTurn.summary.families.gemini.fiveHourRem < 100, `Expected live 5h remaining < 100 after turn, got ${afterTurn.summary.families.gemini.fiveHourRem}`);
-      assert.equal(afterTurn.summary.families.gemini.fiveHourEstimated, true);
+      assert.equal(afterTurn.summary.families.gemini.fiveHourRem, 100, `Official 5h remaining must stay strictly real 100% without guesses, got ${afterTurn.summary.families.gemini.fiveHourRem}`);
+      assert.equal(afterTurn.summary.families.gemini.fiveHourEstimated, false);
 
       // 1-bucket snapshot (only weekly, fiveHourRem: null) must clear stale 5h bucket instead of keeping 100%
       const s2 = ipcHandlers["agy-studio:sync-quota-snapshot"]({}, {
@@ -4811,18 +4838,19 @@ test("Dynamic auto-updating limits: post-snapshot transcript steps decrement rem
     ]);
 
     const liveSum = i18nMain.buildQuotaSummary(chatUuid, true, { nowMs: t0 + 30 * 60 * 1000, diskByChat: diskMap });
-    assert.ok(liveSum.families.gemini.fiveHourRem < 70, `Expected live 5h remaining to drop below 70 after post-snapshot transcript steps, got ${liveSum.families.gemini.fiveHourRem}`);
-    assert.equal(liveSum.families.gemini.fiveHourEstimated, true);
+    assert.equal(liveSum.families.gemini.fiveHourRem, 70, `Official 5h remaining must stay strictly real (70%, zero local guesses), got ${liveSum.families.gemini.fiveHourRem}`);
+    assert.equal(liveSum.families.gemini.fiveHourEstimated, false, "Must NEVER emit fake ~estimated quota guesses");
     assert.equal(liveSum.families.gemini.fiveHourReset, "2 ч 30 мин", "Reset timer must dynamically tick down from 3h 0m -> 2h 30m");
-    assert.ok(liveSum.families.gemini.weeklyRem < 20, `Expected live weekly remaining to drop below 20, got ${liveSum.families.gemini.weeklyRem}`);
+    assert.equal(liveSum.families.gemini.weeklyRem, 20, `Official weekly remaining must stay strictly real (20%, zero local guesses), got ${liveSum.families.gemini.weeklyRem}`);
+    assert.equal(liveSum.families.gemini.weeklyEstimated, false);
 
-    // 4) Once 5h timer expires (t0 + 3h 10m), 5h window auto-resets toward 100% (counting only steps after resetAtMs)
+    // 4) Once 5h timer expires (t0 + 3h 10m), 5h window genuinely resets to 100%
     const afterResetSum = i18nMain.buildQuotaSummary(chatUuid, true, { nowMs: t0 + 190 * 60 * 1000, diskByChat: diskMap });
     assert.equal(afterResetSum.families.gemini.fiveHourWindowResetDetected, true);
-    assert.equal(afterResetSum.families.gemini.fiveHourRem, 100, "Expired 5h window with no post-reset steps must auto-reset to 100%");
+    assert.equal(afterResetSum.families.gemini.fiveHourRem, 100, "Expired 5h window must auto-reset to 100%");
     assert.equal(afterResetSum.families.gemini.fiveHourReset, "");
 
-    // 5) Estimated drop must NEVER falsely floor a >0% snapshot all the way down to 0%
+    // 5) Even massive local transcript volume NEVER invents fake drops below real Antigravity percentages
     const hugeMap = new Map([
       [
         chatUuid,
@@ -4839,8 +4867,8 @@ test("Dynamic auto-updating limits: post-snapshot transcript steps decrement rem
       ],
     ]);
     const heavySum = i18nMain.buildQuotaSummary(chatUuid, true, { nowMs: t0 + 30 * 60 * 1000, diskByChat: hugeMap });
-    assert.equal(heavySum.families.gemini.fiveHourRem, 1, "Estimated drop from >0% official snapshot must stop at ~1% instead of lying ~0%");
-    assert.equal(heavySum.families.gemini.weeklyRem, 1, "Estimated weekly drop from >0% official snapshot must stop at ~1% instead of lying ~0%");
+    assert.equal(heavySum.families.gemini.fiveHourRem, 70, "Official 5h % must stay exact 70% with zero heuristic guesses");
+    assert.equal(heavySum.families.gemini.weeklyRem, 20, "Official weekly % must stay exact 20% with zero heuristic guesses");
   } finally {
     Module._load = origLoad;
     fs.rmSync(tmpUserData, { recursive: true, force: true });
@@ -5823,9 +5851,9 @@ test("Hideable Tools chip, clickable task/quota notifications (including offline
   const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
   const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
 
-  // 1) Defaults: notifyOnReset=true, notifyWhenClosed=true, autoContinueEnabled=false
+  // 1) Defaults: notifyOnReset=true, notifyWhenClosed=false (opt-in OS scheduler), autoContinueEnabled=false
   assert.equal(v5Core.RUDEX_QUOTA_AUTOMATION_DEFAULTS.notifyOnReset, true, "Quota reset notification must be ON by default");
-  assert.equal(v5Core.RUDEX_QUOTA_AUTOMATION_DEFAULTS.notifyWhenClosed, true, "Offline quota notification must be ON by default");
+  assert.equal(v5Core.RUDEX_QUOTA_AUTOMATION_DEFAULTS.notifyWhenClosed, false, "Offline quota OS task must be OFF by default (opt-in)");
   assert.equal(v5Core.RUDEX_QUOTA_AUTOMATION_DEFAULTS.autoContinueEnabled, false, "Auto-continue must be OFF by default");
 
   // 2) Hiding Tools chip (showChatDock=false) hides .rx-agent-chip while keeping independent context meter & waiting badge
@@ -5937,7 +5965,7 @@ test("Hideable Tools chip, clickable task/quota notifications (including offline
     const i18nMain = require(i18nMainPath);
     const san = i18nMain.sanitizeQuotaAutomation({});
     assert.equal(san.notifyOnReset, true);
-    assert.equal(san.notifyWhenClosed, true);
+    assert.equal(san.notifyWhenClosed, false);
     assert.equal(san.autoContinueEnabled, false);
 
     // Offline WSH script is pure ASCII, valid JS, checks Antigravity.exe running, and uses Antigravity AUMID
@@ -7008,9 +7036,9 @@ test("Quota calibration bugfix: immune to DOM-scale poisoning, per-step weights,
     }]]);
     const postOnlySum = i18nMain.buildQuotaSummary(mixUuid, true, { nowMs: t0 + 6 * 60 * 1000, diskByChat: postOnlyMap });
     assert.equal(postOnlySum.families.gemini.tokensPer1Pct5h, 60000, "Tiny pre-snapshot history must keep prior 60000 instead of collapsing");
-    assert.equal(postOnlySum.families.gemini.fiveHourRem, 15, "With prior 60000 and 80k post-snap, 16% must become ~15% instead of ~1%");
+    assert.equal(postOnlySum.families.gemini.fiveHourRem, 16, "Official 16% must stay strictly real (zero local guess subtraction)");
 
-    // Also zero pre-snapshot steps + large post-snapshot steps must NOT fall back to tot5 for implied5
+    // Also zero pre-snapshot steps + large post-snapshot steps must NOT fall back to tot5 for implied5 or invent fake drops
     const zeroPreMap = new Map([[mixUuid, {
       chatKey: mixUuid,
       titleGuess: "Zero pre-snap",
@@ -7022,9 +7050,9 @@ test("Quota calibration bugfix: immune to DOM-scale poisoning, per-step weights,
     }]]);
     const zeroPreSum = i18nMain.buildQuotaSummary(mixUuid, true, { nowMs: t0 + 6 * 60 * 1000, diskByChat: zeroPreMap });
     assert.equal(zeroPreSum.families.gemini.tokensPer1Pct5h, 60000, "Zero pre-snapshot steps must NOT calibrate against tot5");
-    assert.equal(zeroPreSum.families.gemini.fiveHourRem, 14, "16% - 120k/60k = 14%");
+    assert.equal(zeroPreSum.families.gemini.fiveHourRem, 16, "Official 16% must stay strictly 16% without guesses");
 
-    // 5) Realistic heavy session (used5=84, cal5=3,261,449, post-snap=44,143 -> ~15%, rate ~38,827)
+    // 5) Realistic heavy session (used5=84, cal5=3,261,449 -> rate converges accurately to 38,827 while displayed % stays strictly official 16%)
     const heavyRealMap = new Map([[mixUuid, {
       chatKey: mixUuid,
       titleGuess: "Real heavy session",
@@ -7037,15 +7065,15 @@ test("Quota calibration bugfix: immune to DOM-scale poisoning, per-step weights,
     }]]);
     const heavyRealSum = i18nMain.buildQuotaSummary(mixUuid, true, { nowMs: t0 + 6 * 60 * 1000, diskByChat: heavyRealMap });
     assert.equal(heavyRealSum.families.gemini.tokensPer1Pct5h, 38827, "Heavy session (conf5=1) must converge accurately to 38827 units per 1%");
-    assert.equal(heavyRealSum.families.gemini.fiveHourRem, 15, "Heavy session after 44,143 post-snap units must show ~15%, never ~1%");
+    assert.equal(heavyRealSum.families.gemini.fiveHourRem, 16, "Displayed 5h % must stay strictly official 16% (zero local guesses)");
 
-    // 6) parseResetDurationMs("1 день 5 часов") via formatLiveResetRemaining + estimated value tooltip in widget HTML
+    // 6) parseResetDurationMs("1 день 5 часов") via formatLiveResetRemaining + clean exact value in widget HTML (no ~ tilde)
     const reset1d = i18nMain.formatLiveResetRemaining("1 день 5 часов", t0, t0 + 3600 * 1000, "ru");
     assert.equal(reset1d.remainingMs, 28 * 3600 * 1000, "1 день must be parsed as 24h via parseResetDurationMs");
     assert.equal(reset1d.text, "1 д 4 ч");
     const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
     const estHtml = v5Core.rv5BuildLimitsWidgetHtml({}, heavyRealSum, "gemini-4-neon-xhigh", true, false);
-    assert.ok(estHtml.includes("~15%") && estHtml.includes("Оценка расхода с последнего снимка"), "Estimated widget value must show ~15% and explanatory tooltip");
+    assert.ok(estHtml.includes("16%") && !estHtml.includes("~16%") && !estHtml.includes("~15%"), "Widget must show strictly real 16% with zero ~ guesses");
   } finally {
     Module._load = origLoad;
     fs.rmSync(tmpUserData, { recursive: true, force: true });
@@ -7249,5 +7277,4464 @@ test("Element Inspector overrides survive > combinators, Claude Code split compo
     }
   } finally {
     fs.rmSync(tmpUserData, { recursive: true, force: true });
+  }
+});
+
+test("Inspector v5.0.4: split paddingY/X, offset move/nudge, CSS Color 4/srgb, editable #hex, parent/child tree, slim-rail hit, and 0ms Claude toolbar flash fix", async () => {
+  const Module = require("module");
+  const origLoad = Module._load;
+  const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-insp-v504-"));
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+
+  const fakeElectron = {
+    app: { getPath: () => tmpUserData, isReady: () => true, on: () => {}, whenReady: () => Promise.resolve() },
+    ipcMain: { handle: () => {}, removeHandler: () => {} },
+    webContents: { getAllWebContents: () => [] },
+    dialog: {},
+    shell: {},
+    protocol: {},
+    BrowserWindow: { getAllWindows: () => [] },
+    clipboard: { writeText: () => {}, writeImage: () => {} },
+    nativeImage: { createFromPath: () => ({ isEmpty: () => true }) },
+  };
+  let i18nMain;
+  try {
+    Module._load = function (req) {
+      if (req === "electron") return fakeElectron;
+      return origLoad.apply(this, arguments);
+    };
+    const mainModPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainModPath)];
+    i18nMain = require(mainModPath);
+  } finally {
+    Module._load = origLoad;
+  }
+
+  try {
+    // 1) paddingY, paddingX, offsetX, offsetY normalization in both theme-engine & i18n-main + CSS emission
+    const ovSpec = [{
+      id: "ov-rail",
+      name: "Timeline Rail",
+      selector: "main > div:nth-of-type(1) > div:nth-of-type(1)",
+      styles: { paddingY: "14", paddingX: "6", offsetX: "-12", offsetY: "28" },
+    }];
+    const normTe = te.normalizeAppearance({ elementOverrides: ovSpec });
+    const normMain = i18nMain.sanitizeAppearance({ elementOverrides: ovSpec });
+    for (const s of [normTe.elementOverrides[0].styles, normMain.elementOverrides[0].styles]) {
+      assert.equal(s.paddingY, 14);
+      assert.equal(s.paddingX, 6);
+      assert.equal(s.offsetX, -12);
+      assert.equal(s.offsetY, 28);
+    }
+    const ovCss = te.buildThemeCss({ presetId: "claude-code-dark", elementOverrides: normTe.elementOverrides });
+    assert.ok(ovCss.includes("padding-top: 14px !important;") && ovCss.includes("padding-bottom: 14px !important;"));
+    assert.ok(ovCss.includes("padding-left: 6px !important;") && ovCss.includes("padding-right: 6px !important;"));
+    assert.ok(ovCss.includes("translate: -12px 28px !important;"));
+
+    // 2) Inspector HTML shows editable #hex inputs + paddingY/X + offsetY/X + nudge + parent/child buttons
+    const inspHtml = v5Ui.rv5BuildElementInspectorHtml(
+      { name: "Блок", selector: "main > div", canSelectParent: true, canSelectChild: false, computed: { padding: 10, paddingY: 12, paddingX: 6 } },
+      { elementOverrides: [] },
+      [],
+      [],
+      true
+    );
+    assert.ok(inspHtml.includes('data-insp-hex-input="bgColor"') && inspHtml.includes('data-insp-hex-input="color"') && inspHtml.includes('data-insp-hex-input="borderColor"'));
+    assert.ok(inspHtml.includes('data-insp-range="paddingY"') && inspHtml.includes('data-insp-range="paddingX"'));
+    assert.ok(inspHtml.includes('data-insp-range="offsetY"') && inspHtml.includes('data-insp-range="offsetX"'));
+    assert.ok(inspHtml.includes('data-action="inspector-nudge-offset"') && inspHtml.includes('data-action="inspector-select-parent"') && inspHtml.includes('data-action="inspector-select-child"'));
+
+    // 3) Claude Code CSS: 0ms zero-delay voice & send matchers + voice excluded from bg-white accent rule
+    const ccCss = te.buildThemeCss({ presetId: "claude-code-dark", uiStyle: { preset: "claude-code" } });
+    assert.ok(ccCss.includes('[aria-label*="голосов" i]') && ccCss.includes('button:where([type="submit"]'), "0ms CSS matchers must cover untagged Voice & Send buttons before mutation scan");
+
+    // 4) Studio panel: parseCssColorToHex (srgb + #abc + #rrggbbaa), editable #hex paste, nudge, parent/child tree, slim-rail hit
+    const { doc, win } = createMockDom();
+    const prevV5 = {
+      rv5BuildElementInspectorHtml: globalThis.rv5BuildElementInspectorHtml,
+      rv5BuildSmartSelector: globalThis.rv5BuildSmartSelector,
+      rv5DescribeElementFriendly: globalThis.rv5DescribeElementFriendly,
+      rv5IsRenameSafeElement: globalThis.rv5IsRenameSafeElement,
+      teBuildElementOverridesCss: globalThis.teBuildElementOverridesCss,
+      normalizeAppearance: globalThis.normalizeAppearance,
+      teResolveFontStack: globalThis.teResolveFontStack,
+    };
+    globalThis.rv5BuildElementInspectorHtml = v5Ui.rv5BuildElementInspectorHtml;
+    globalThis.rv5BuildSmartSelector = v5Core.rv5BuildSmartSelector;
+    globalThis.rv5DescribeElementFriendly = v5Core.rv5DescribeElementFriendly;
+    globalThis.rv5IsRenameSafeElement = v5Core.rv5IsRenameSafeElement;
+    globalThis.teBuildElementOverridesCss = te.teBuildElementOverridesCss;
+    globalThis.normalizeAppearance = te.normalizeAppearance;
+    globalThis.teResolveFontStack = te.teResolveFontStack;
+
+    // Build chat container + slim left vertical rail child (simulating pointer-events: none timeline rail)
+    const chatMain = doc.createElement("main");
+    const scrollBox = doc.createElement("div");
+    scrollBox.getBoundingClientRect = () => ({ left: 220, top: 40, width: 1000, height: 800, right: 1220, bottom: 840 });
+    const slimRail = doc.createElement("aside");
+    slimRail.setAttribute("data-testid", "chat-timeline-rail");
+    slimRail.getBoundingClientRect = () => ({ left: 228, top: 50, width: 32, height: 700, right: 260, bottom: 750 });
+    const railDot = doc.createElement("div");
+    railDot.getBoundingClientRect = () => ({ left: 238, top: 200, width: 12, height: 12, right: 250, bottom: 212 });
+    slimRail.appendChild(railDot);
+    scrollBox.appendChild(slimRail);
+    chatMain.appendChild(scrollBox);
+    doc.body.appendChild(chatMain);
+
+    const translator = createDomTranslator({ document: doc });
+    const themeEngine = te.createThemeEngine({ document: doc, window: win });
+    let savedPatch = null;
+    const panel = createStudioPanel({
+      document: doc,
+      window: win,
+      translator,
+      telemetryEngine: createTelemetryEngine(),
+      themeEngine,
+      buildStudioStyles,
+      ipcRenderer: {
+        invoke: async (ch, arg) => {
+          if (ch === "agy-studio:save-settings") { savedPatch = arg; return { ok: true, settings: arg }; }
+          if (ch === "agy-studio:get-state") return { locale: "ru", settings: { viewMode: "mini", panelEnabled: true, appearance: { presetId: "claude-code-dark" } } };
+          if (ch === "agy-studio:list-system-fonts") return { ok: true, fonts: [] };
+          return { ok: true };
+        },
+        on: () => {},
+        removeListener: () => {},
+      },
+    });
+    try {
+      panel.init();
+      const shadow = doc.getElementById("rudex-studio-host").shadowRoot;
+      const rootEl = shadow.querySelector(".studio-root");
+      const pickerMount = shadow.querySelector(".rx-picker-mount");
+      const dispatchClick = (attrs) => {
+        const btn = doc.createElement("button");
+        for (const [k, v] of Object.entries(attrs)) btn.setAttribute(`data-${k}`, String(v));
+        rootEl.appendChild(btn);
+        try { rootEl.dispatchEvent({ type: "click", target: btn }); } finally { btn.remove(); }
+      };
+
+      // Color parsing
+      assert.deepEqual(panel.parseCssColorToHex("color(srgb 0.2 0.4 0.6 / 0.5)"), { hex: "#336699", alphaPct: 50 });
+      assert.deepEqual(panel.parseCssColorToHex("#abc"), { hex: "#aabbcc", alphaPct: 100 });
+      assert.deepEqual(panel.parseUserHexInput("ff00aa80"), { hex: "#ff00aa", alphaPct: 50 });
+
+      // Slim rail hit resolution inside huge scrollBox
+      const hitRail = panel.resolvePickerTargetAtPoint({ target: scrollBox, clientX: 244, clientY: 120 });
+      assert.equal(hitRail, slimRail, "Picker must resolve slim vertical rail inside huge parent scrollBox");
+
+      // Parent/child stepping & hex paste & offset nudge via Picker click on railDot
+      panel.startElementPicker();
+      for (const fn of (doc.listeners.get("click") || [])) {
+        fn({ type: "click", target: railDot, clientX: 244, clientY: 205 });
+      }
+      assert.ok(pickerMount.innerHTML.includes("chat-timeline-rail") && pickerMount.innerHTML.includes("div:nth-of-type(1)"), "Initial click must select railDot");
+      dispatchClick({ action: "inspector-select-parent" });
+      assert.ok(pickerMount.innerHTML.includes("chat-timeline-rail") && !pickerMount.innerHTML.includes("div:nth-of-type(1)"), "Selecting parent must step up from dot to slimRail");
+      dispatchClick({ action: "inspector-select-child" });
+      assert.ok(pickerMount.innerHTML.includes("div:nth-of-type(1)") && pickerMount.innerHTML.includes('data-action="inspector-select-child" disabled'), "Selecting child must return back down");
+      dispatchClick({ action: "inspector-select-parent" });
+
+      // Paste #11223380 into bgColor hex input
+      const hexInp = doc.createElement("input");
+      hexInp.setAttribute("data-insp-hex-input", "bgColor");
+      hexInp.value = "#11223380";
+      rootEl.appendChild(hexInp);
+      rootEl.dispatchEvent({ type: "change", target: hexInp });
+      hexInp.remove();
+      let ov = savedPatch.appearance.elementOverrides[0];
+      assert.equal(ov.styles.bgColor, "#112233");
+      assert.equal(ov.styles.bgOpacity, 50);
+
+      // Nudge Y -4 twice -> -8, then reset -> 0
+      dispatchClick({ action: "inspector-nudge-offset", axis: "offsetY", delta: "-4" });
+      dispatchClick({ action: "inspector-nudge-offset", axis: "offsetY", delta: "-4" });
+      ov = savedPatch.appearance.elementOverrides[0];
+      assert.equal(ov.styles.offsetY, -8);
+      dispatchClick({ action: "inspector-nudge-offset", axis: "reset", delta: "0" });
+      ov = savedPatch.appearance.elementOverrides[0];
+      assert.equal(ov.styles.offsetY, 0);
+    } finally {
+      panel.destroy();
+      translator.destroy();
+      Object.assign(globalThis, prevV5);
+    }
+  } finally {
+    fs.rmSync(tmpUserData, { recursive: true, force: true });
+  }
+});
+
+// =============================================================================
+// 45–48. Voice Dictation Pro, Gemini File/Cache Engine & GPU Animation Optimizer
+// =============================================================================
+test("Voice Dictation Pro & GPU Animation Optimizer: language hints, DSP AudioWorklet, WS/gRPC patching, text cleanup, and animation CSS", () => {
+  const vm = require("vm");
+  const opt = require(path.join(RES_DIR, "rudex-optimizer.js"));
+
+  // 1) Sanitization & BCP-47 language resolution (experimental cache/LS/Chromium opts default OFF)
+  const def = opt.sanitizeOptimizationSettings({});
+  assert.equal(def.voiceEnabled, true);
+  assert.equal(def.voiceLangPreset, "auto");
+  assert.equal(def.animMode, "smooth");
+  assert.equal(def.lsTuningEnabled, false);
+  assert.equal(def.geminiFileCacheProtocol, false);
+  assert.equal(def.storageRamCache, false);
+  assert.equal(def.chromiumCacheCapMb, 0);
+  assert.equal(def.gpuAccel, false);
+  assert.equal(def.voiceChunkMs, 80);
+
+  assert.deepEqual(opt.resolveVoiceLanguageCodes({ voiceLangPreset: "auto" }, "ru"), ["ru-RU", "en-US"]);
+  assert.deepEqual(opt.resolveVoiceLanguageCodes({ voiceLangPreset: "auto" }, "en"), ["en-US", "ru-RU"]);
+  assert.deepEqual(opt.resolveVoiceLanguageCodes({ voiceLangPreset: "ru-en" }, "en"), ["ru-RU", "en-US"]);
+  assert.deepEqual(opt.resolveVoiceLanguageCodes({ voiceLangPreset: "ru" }, "en"), ["ru-RU"]);
+  assert.deepEqual(opt.resolveVoiceLanguageCodes({ voiceLangPreset: "uk-ru-en" }, "ru"), ["uk-UA", "ru-RU", "en-US"]);
+  assert.deepEqual(
+    opt.resolveVoiceLanguageCodes({ voiceLangPreset: "custom", voiceCustomLangs: "de-DE, EN-us, bad!!, fr-FR" }, "ru"),
+    ["de-DE", "en-US", "fr-FR"]
+  );
+
+  // 2) Dictation text cleanup
+  assert.equal(opt.cleanDictationText("  привет ,   мир !   как   дела ?  "), " привет, мир! как дела? ");
+  assert.equal(opt.cleanDictationText("давай давай проверим"), "давай проверим");
+  assert.equal(opt.cleanDictationText("привет , мир ."), "привет, мир.");
+
+  // 3) Upgraded AudioWorklet DSP source & main-world injection script syntax validity
+  const workletDsp = opt.buildUpgradedAudioWorkletSource(1280, true);
+  assert.doesNotThrow(() => new vm.Script(workletDsp), "Upgraded AudioWorklet DSP code must be valid JS");
+  assert.ok(workletDsp.includes("CHUNK_SAMPLES = 1280"), "80ms chunking must batch 1280 samples to halve RPC overhead");
+  assert.ok(workletDsp.includes("initLpf") && workletDsp.includes("hpY1"), "AudioWorklet must include DC/HPF + Butterworth anti-aliasing LPF");
+
+  const workletStock = opt.buildUpgradedAudioWorkletSource(640, false);
+  assert.doesNotThrow(() => new vm.Script(workletStock));
+  assert.ok(workletStock.includes("CHUNK_SAMPLES = 640") && workletStock.includes("USE_DSP = false"));
+
+  const mainWorldSrc = opt.buildMainWorldVoicePatchScript({
+    voiceEnabled: true,
+    languages: ["ru-RU", "en-US"],
+    voiceExplicitLang: true,
+    voiceChunkMs: 80,
+    voiceDspFilter: true,
+    voiceDisableWinIsolation: true,
+    voiceAutoGain: true,
+    voiceTextCleanup: true,
+    isWindows: true,
+    workletSource: workletDsp,
+  });
+  assert.doesNotThrow(() => new vm.Script(mainWorldSrc), "Main-world voice patch script must parse cleanly");
+  assert.ok(mainWorldSrc.includes("rudex:voice-stream-state") && mainWorldSrc.includes("voiceIsolation") && mainWorldSrc.includes("StreamAudioTranscription"));
+
+  // 4) WebSocket StreamAudioTranscription start-frame patching & incoming transcript cleanup
+  const startFrame = JSON.stringify({
+    streamId: "s-1",
+    type: "start",
+    procedure: "/exa.language_server_pb.LanguageServerService/StreamAudioTranscription",
+    payload: { sampleRate: 16000 },
+  });
+  const wsRes = opt.patchWsStreamAudioFrame(startFrame, { voiceEnabled: true, voiceLangPreset: "ru-en" }, "ru");
+  assert.equal(wsRes.patched, true);
+  const patchedWs = JSON.parse(wsRes.data);
+  assert.deepEqual(patchedWs.payload.languageCodes, ["ru-RU", "en-US"]);
+  assert.equal(patchedWs.payload.languageCodesExplicit, true);
+
+  // Must preserve caller-supplied explicit languageCodes
+  const explicitFrame = JSON.stringify({
+    streamId: "s-2",
+    type: "start",
+    procedure: "/exa.language_server_pb.LanguageServerService/StreamAudioTranscription",
+    payload: { languageCodes: ["ja-JP"], languageCodesExplicit: true },
+  });
+  const preservedWs = opt.patchWsStreamAudioFrame(explicitFrame, { voiceEnabled: true, voiceLangPreset: "ru-en" }, "ru");
+  assert.equal(preservedWs.patched, false);
+  assert.deepEqual(JSON.parse(preservedWs.data).payload.languageCodes, ["ja-JP"]);
+
+  // Unrelated WS procedure stays untouched
+  const otherFrame = JSON.stringify({ streamId: "s-3", type: "start", procedure: "/exa.language_server_pb.LanguageServerService/Heartbeat", payload: {} });
+  assert.equal(opt.patchWsStreamAudioFrame(otherFrame, { voiceEnabled: true, voiceLangPreset: "ru-en" }, "ru").patched, false);
+
+  // Incoming transcription frame cleanup
+  const incomingMsg = JSON.stringify({
+    streamId: "s-1",
+    type: "data",
+    payload: { transcription: { text: "проверка ,  связи  связи !" } },
+  });
+  const cleanedIncoming = JSON.parse(opt.cleanIncomingWsTranscriptionFrame(incomingMsg, true));
+  assert.equal(cleanedIncoming.payload.transcription.text, "проверка, связи!");
+  assert.equal(opt.cleanIncomingWsTranscriptionFrame(incomingMsg, false), incomingMsg);
+
+  // 5) gRPC-Web 5-byte framed JSON body patching
+  const rawBodyJson = Buffer.from(JSON.stringify({ sampleRate: 16000 }), "utf8");
+  const framed = new Uint8Array(5 + rawBodyJson.length);
+  framed[0] = 0;
+  new DataView(framed.buffer).setUint32(1, rawBodyJson.length, false);
+  framed.set(rawBodyJson, 5);
+  const grpcRes = opt.patchGrpcWebStreamAudioBody(framed, { voiceEnabled: true, voiceLangPreset: "en-ru" }, "en");
+  assert.equal(grpcRes.patched, true);
+  assert.ok(grpcRes.body instanceof Uint8Array);
+  const outLen = new DataView(grpcRes.body.buffer, grpcRes.body.byteOffset, grpcRes.body.byteLength).getUint32(1, false);
+  assert.equal(outLen, grpcRes.body.byteLength - 5);
+  const outObj = JSON.parse(Buffer.from(grpcRes.body.subarray(5)).toString("utf8"));
+  assert.deepEqual(outObj.languageCodes, ["en-US", "ru-RU"]);
+  assert.equal(outObj.languageCodesExplicit, true);
+
+  // 6) Animation Polish CSS across modes
+  const smoothCss = opt.buildAnimationPolishCss(def);
+  assert.ok(smoothCss.includes("--sdk-transition-fast: 115ms"), "Smooth mode must upgrade Jetbox transitions");
+  assert.ok(smoothCss.includes(".transition-all"), "Must narrow .transition-all away from layout properties");
+  assert.ok(smoothCss.includes('[data-rudex-dictating="1"]'), "Must pause heavy composer blur during dictation");
+  assert.ok(smoothCss.includes('[data-rudex-window-hidden="1"]'), "Must freeze animations in hidden windows");
+  assert.ok(smoothCss.includes("contain: layout style"), "Must apply CSS layout containment");
+
+  const snappyCss = opt.buildAnimationPolishCss({ animMode: "snappy" });
+  assert.ok(snappyCss.includes("--sdk-transition-fast: 70ms"));
+  const reducedCss = opt.buildAnimationPolishCss({ animMode: "reduced" });
+  assert.ok(reducedCss.includes("animation-duration: 1ms !important;"));
+
+  // 7) Native dictation button detector & optimizer controller lifecycle
+  const { doc, win } = createMockDom();
+  const stopMicBtn = doc.createElement("button");
+  stopMicBtn.setAttribute("aria-label", "Stop recording");
+  stopMicBtn.className = "rounded-full bg-red-500 text-white";
+  doc.body.appendChild(stopMicBtn);
+  const detected = opt.findNativeDictationButton(doc);
+  assert.ok(detected && detected.active === true && detected.button === stopMicBtn, "Must detect Antigravity native GJ Stop recording button");
+
+  const ctrl = opt.createRudexOptimizer({ document: doc, window: win });
+  try {
+    ctrl.apply(def, "ru");
+    assert.ok(doc.getElementById("rudex-anim-polish"), "Optimizer must mount animation CSS style tag");
+    ctrl.setDictating(true);
+    assert.equal(doc.documentElement.getAttribute("data-rudex-dictating"), "1");
+    const badge = doc.getElementById("rudex-voice-badge");
+    assert.ok(badge && /0:0\d/.test(badge.textContent), "Inline voice timer pill must display elapsed timer");
+    assert.equal(badge.querySelector("button"), null, "Inline voice pill must NOT render any extra clickable button");
+    assert.equal(/[\u{1F300}-\u{1FAFF}]/u.test(badge.textContent), false, "Voice pill must contain zero emojis");
+    ctrl.setDictating(false);
+    assert.equal(doc.documentElement.getAttribute("data-rudex-dictating"), null);
+    assert.equal(doc.getElementById("rudex-voice-badge"), null);
+  } finally {
+    ctrl.destroy();
+  }
+  assert.equal(doc.getElementById("rudex-anim-polish"), null, "destroy() must remove injected animation style");
+});
+
+test("Perf & Cache Engine: optimal LS tuning, prompt cache metrics, safe cache cleanup (preserves cookies/settings), and app_storage pruning", () => {
+  const perf = require(path.join(SCRIPTS_DIR, "perf-cache-engine.js"));
+
+  // 1) Hardware-adaptive LS tuning & Chromium switches
+  const tuning12 = perf.computeOptimalLsTuning({ lsTuningEnabled: true }, { cpuCount: 12, totalMemBytes: 32 * 1024 ** 3 });
+  assert.equal(tuning12.enabled, true);
+  assert.equal(tuning12.summary.maxProcs, 10);
+  assert.equal(tuning12.summary.fileWatchMaxDirs, 32768);
+  assert.equal(tuning12.summary.maxTrackedWorkspaces, 24);
+  assert.equal(tuning12.summary.goMemLimit, "6144MiB");
+  assert.equal(tuning12.env.GOGC, "150");
+  assert.ok(tuning12.args.includes("--limit_go_max_procs=10"));
+
+  const tuning4 = perf.computeOptimalLsTuning({ lsTuningEnabled: true }, { cpuCount: 4, totalMemBytes: 8 * 1024 ** 3 });
+  assert.equal(tuning4.summary.maxProcs, 4);
+  assert.equal(tuning4.summary.goMemLimit, "2048MiB");
+
+  const tuningOff = perf.computeOptimalLsTuning({ lsTuningEnabled: false }, { cpuCount: 12, totalMemBytes: 32 * 1024 ** 3 });
+  assert.equal(tuningOff.enabled, false);
+  assert.deepEqual(tuningOff.args, []);
+  assert.equal(perf.computeOptimalLsTuning({}).enabled, false, "LS tuning must default to OFF when omitted");
+
+  const tuningLinuxLowInotify = perf.computeOptimalLsTuning({ lsTuningEnabled: true, lsFileWatchMaxDirs: 32768 }, { cpuCount: 8, totalMemBytes: 16 * 1024 ** 3, platform: "linux", linuxMaxUserWatches: 8192 });
+  assert.equal(tuningLinuxLowInotify.summary.fileWatchMaxDirs, 4096, "Linux low inotify limit must cap fileWatchMaxDirs to <=50%");
+
+  assert.deepEqual(perf.computeChromiumPerfSwitches({}), [], "Chromium perf switches must default to empty when opt-in flags are OFF");
+  const swOn = perf.computeChromiumPerfSwitches({ gpuAccel: true, chromiumCacheCapMb: 100 });
+  assert.ok(swOn.some(([k]) => k === "disk-cache-size") && swOn.some(([k]) => k === "enable-smooth-scrolling"));
+  assert.equal(swOn.some(([k]) => k === "enable-zero-copy" || k === "enable-gpu-rasterization"), false, "Must never force risky zero-copy/gpu-rasterization switches that can break Linux/VM/RDP GPUs");
+  const swNoGpu = perf.computeChromiumPerfSwitches({ gpuAccel: false, chromiumCacheCapMb: 100 });
+  assert.equal(swNoGpu.some(([k]) => k === "enable-smooth-scrolling"), false);
+
+  // 2) Safe cache cleanup, prompt cache sampling, and app_storage.json stale layout pruning
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-perf-cache-"));
+  try {
+    const userDataDir = path.join(tmpRoot, "Antigravity");
+    const geminiDir = path.join(tmpRoot, "gemini-agy");
+    const aliveId = "11111111-1111-4111-8111-111111111111";
+    const deadId = "22222222-2222-4222-8222-222222222222";
+
+    // Create regenerable caches + critical user data that MUST NOT be deleted
+    fs.mkdirSync(path.join(userDataDir, "Cache", "Cache_Data"), { recursive: true });
+    fs.mkdirSync(path.join(userDataDir, "Code Cache", "js"), { recursive: true });
+    fs.mkdirSync(path.join(userDataDir, "Partitions", "browser_1", "Cache"), { recursive: true });
+    fs.mkdirSync(path.join(userDataDir, "studio_live_edits", "expired"), { recursive: true });
+    fs.mkdirSync(path.join(userDataDir, "studio_live_edits", "queue"), { recursive: true });
+    fs.writeFileSync(path.join(userDataDir, "Cache", "Cache_Data", "f_001"), "x".repeat(4096));
+    fs.writeFileSync(path.join(userDataDir, "Code Cache", "js", "bundle.bin"), "y".repeat(2048));
+    fs.writeFileSync(path.join(userDataDir, "Partitions", "browser_1", "Cache", "part_01"), "z".repeat(1024));
+    fs.writeFileSync(path.join(userDataDir, "Cookies"), "PROTECTED_COOKIES");
+    fs.writeFileSync(path.join(userDataDir, "agy_studio_settings.json"), '{"keep":true}');
+    const orphanTmp = path.join(userDataDir, "agy_studio_settings.json.tmp-99999");
+    fs.writeFileSync(orphanTmp, "orphan-tmp");
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+    fs.utimesSync(orphanTmp, tenMinAgo, tenMinAgo);
+    const expiredEdit = path.join(userDataDir, "studio_live_edits", "expired", "old.json");
+    fs.writeFileSync(expiredEdit, '{"old":1}');
+    const activeQueued = path.join(userDataDir, "studio_live_edits", "queue", "live.json");
+    fs.writeFileSync(activeQueued, '{"active":1}');
+
+    // Create brain transcript with prompt cache hit rate 80% (800 / (200 + 800))
+    const logDir = path.join(geminiDir, "brain", aliveId, ".system_generated", "logs");
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(logDir, "transcript.jsonl"),
+      [
+        JSON.stringify({ input_tokens: 200, cache_read_tokens: 800, output_tokens: 120 }),
+        JSON.stringify({ input_tokens: 100, cache_read_tokens: 400, output_tokens: 60 }),
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    // Create app_storage.json with 1 alive layout, 1 dead layout, 1 index, and 1 regular key
+    const storagePath = path.join(userDataDir, "app_storage.json");
+    fs.writeFileSync(
+      storagePath,
+      JSON.stringify({
+        [`antigravity-multi-conversation-layout-v3-${aliveId}`]: '{"open":true}',
+        [`antigravity-multi-conversation-layout-v3-${deadId}`]: '{"stale":true}',
+        "antigravity-multi-conversation-layout-v3-index": '[]',
+        "antigravity-user-theme": "dark",
+      }),
+      "utf8"
+    );
+
+    const diagBefore = perf.inspectCacheDiagnostics({ userDataDir, geminiDir });
+    assert.equal(diagBefore.promptCache.cacheHitRatePct, 80);
+    assert.equal(diagBefore.promptCache.turnsSampled, 2);
+    assert.equal(diagBefore.appStorage.staleLayoutKeys.length, 1);
+    assert.ok(diagBefore.buckets.chromiumCache.bytes >= 6144);
+    assert.ok(diagBefore.buckets.partitionsCache.bytes >= 1024);
+
+    // Run safe cache cleanup
+    const cleanRes = perf.cleanSafeCaches({ userDataDir });
+    assert.ok(cleanRes.ok && cleanRes.removedFiles >= 5 && cleanRes.freedBytes >= 7168);
+    assert.equal(fs.existsSync(path.join(userDataDir, "Cookies")), true, "Cookies MUST NEVER be deleted");
+    assert.equal(fs.existsSync(path.join(userDataDir, "agy_studio_settings.json")), true, "Studio settings MUST NEVER be deleted");
+    assert.equal(fs.existsSync(activeQueued), true, "Active queued live edit MUST NOT be deleted");
+    assert.equal(fs.existsSync(expiredEdit), false, "Expired live edit must be purged");
+    assert.equal(fs.existsSync(orphanTmp), false, "Orphaned .tmp file must be purged");
+
+    // Run stale app_storage.json pruning
+    const pruneRes = perf.pruneStaleAppStorage({ userDataDir, geminiDir });
+    assert.equal(pruneRes.ok, true);
+    assert.equal(pruneRes.removedKeys, 1);
+    assert.equal(fs.existsSync(`${storagePath}.rudex-bak`), true, "Pruner must write .rudex-bak before modifying app_storage.json");
+    const afterStorage = JSON.parse(fs.readFileSync(storagePath, "utf8"));
+    assert.ok(afterStorage[`antigravity-multi-conversation-layout-v3-${aliveId}`], "Active chat layout key must be preserved");
+    assert.equal(afterStorage[`antigravity-multi-conversation-layout-v3-${deadId}`], undefined, "Dead chat layout key must be removed");
+    assert.equal(afterStorage["antigravity-multi-conversation-layout-v3-index"], "[]", "Layout index key must be preserved");
+    assert.equal(afterStorage["antigravity-user-theme"], "dark", "Unrelated app_storage keys must be preserved");
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("Electron shell perf patches (languageServer.js, storage.js RAM cache, main.js GPU switches) and rudex-hook.js SessionStart File/Cache protocol", () => {
+  const vm = require("vm");
+  const { patchMainJs, patchLanguageServerJs, patchStorageJs } = require(path.join(SCRIPTS_DIR, "electron-shell.js"));
+
+  // 1) patchMainJs injects Chromium GPU/cache switches cleanly & compiles
+  const sampleMain = [
+    `"use strict";`,
+    `const electron_1 = require("electron");`,
+    `const menu_1 = require("./menu");`,
+    `const HEADLESS = false;`,
+    `electron_1.app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');`,
+    `function boot(storageManager) {`,
+    `    const ipc = (0, ipcHandlers_1.registerIpcHandlers)(storageManager, {});`,
+    `    return ipc;`,
+    `}`,
+  ].join("\n");
+  const mainWarnings = [];
+  const mainP1 = patchMainJs(sampleMain, "44.9.1", mainWarnings);
+  assert.ok(mainP1.includes("computeChromiumPerfSwitches") && mainP1.includes("__RUDEX_STORAGE_CACHE__"));
+  assert.doesNotThrow(() => new vm.Script(mainP1));
+
+  // 2) patchLanguageServerJs injects RUDEX_LS_TUNING cleanly & idempotently
+  const sampleLs = [
+    `"use strict";`,
+    `function buildEnv(args, env, wsl) {`,
+    `        // Disable implicit cd4a.config.json discovery/watch, usage telemetry, and`,
+    `        // detached npm update checks in Hub-spawned chrome-devtools-mcp processes.`,
+    `        env['CHROME_DEVTOOLS_MCP_NO_CONFIG_DISCOVERY'] = '1';`,
+    `        env['CHROME_DEVTOOLS_MCP_NO_USAGE_STATISTICS'] = '1';`,
+    `        env['CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS'] = '1';`,
+    `}`,
+  ].join("\n");
+  const lsWarns = [];
+  const lsP1 = patchLanguageServerJs(sampleLs, lsWarns);
+  assert.equal(lsWarns.length, 0);
+  assert.ok(lsP1.includes("RUDEX_LS_TUNING") && lsP1.includes("computeOptimalLsTuning"));
+  assert.doesNotThrow(() => new vm.Script(lsP1));
+  assert.equal(patchLanguageServerJs(lsP1, lsWarns), lsP1, "patchLanguageServerJs must be idempotent");
+
+  // 3) patchStorageJs adds mtime+size RAM cache to StorageManager & invalidates on write
+  const sampleStorage = [
+    `"use strict";`,
+    `const fs_1 = require("fs");`,
+    `class StorageManager {`,
+    `    constructor(storagePath) {`,
+    `        this.storagePath = storagePath;`,
+    `        this.emitter = { emit() {} };`,
+    `        /** The last rename stayed refused through its retries. */`,
+    `        this.renameRefused = false;`,
+    `    }`,
+    `    withDefaults(o) { return Object.assign({}, o); }`,
+    `    getItemsSync() {`,
+    `        try {`,
+    `            const s = (0, fs_1.existsSync)(this.storagePath)`,
+    `                ? (0, fs_1.readFileSync)(this.storagePath, 'utf-8').trim()`,
+    `                : '';`,
+    `            const p = s ? JSON.parse(s) : null;`,
+    `            return this.withDefaults(p && typeof p === 'object' && !Array.isArray(p)`,
+    `                ? p`,
+    `                : {});`,
+    `        }`,
+    `        catch (e) {`,
+    `            console.error('Error reading storage items synchronously:', e);`,
+    `            return this.withDefaults({});`,
+    `        }`,
+    `    }`,
+    `    async readRawItems() {`,
+    `        if (!(0, fs_1.existsSync)(this.storagePath)) {`,
+    `            return { items: {}, corrupt: false };`,
+    `        }`,
+    `        let content;`,
+    `        try {`,
+    `            content = (0, fs_1.readFileSync)(this.storagePath, 'utf-8').trim();`,
+    `            const parsed = content ? JSON.parse(content) : null;`,
+    `            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {`,
+    `                return { items: parsed, corrupt: false };`,
+    `            }`,
+    `        } catch {}`,
+    `        return { items: {}, corrupt: false };`,
+    `    }`,
+    `    writeItems(nextItems) {`,
+    `        const currentItems = nextItems;`,
+    `        const changes = nextItems;`,
+    `        (0, fs_1.writeFileSync)(this.storagePath, JSON.stringify(currentItems), 'utf-8');`,
+    `            this.emitter.emit('changed', changes);`,
+    `    }`,
+    `}`,
+    `module.exports = { StorageManager };`,
+  ].join("\n");
+  const stWarns = [];
+  const stP1 = patchStorageJs(sampleStorage, stWarns);
+  assert.equal(stWarns.length, 0, `Unexpected storage warnings: ${stWarns.join(", ")}`);
+  assert.ok(stP1.includes("RUDEX_STORAGE_RAM_CACHE"));
+  assert.doesNotThrow(() => new vm.Script(stP1));
+  assert.equal(patchStorageJs(stP1, stWarns), stP1, "patchStorageJs must be idempotent");
+
+  // Execute patched StorageManager with instrumented fs to verify opt-in OFF vs RAM cache hits + invalidation
+  const tmpStDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-storage-cache-"));
+  const prevStorageCacheFlag = globalThis.__RUDEX_STORAGE_CACHE__;
+  try {
+    const stFile = path.join(tmpStDir, "app_storage.json");
+    fs.writeFileSync(stFile, JSON.stringify({ a: 1 }), "utf-8");
+    let readCount = 0;
+    const wrappedFs = Object.assign({}, fs, {
+      readFileSync: (...args) => { readCount += 1; return fs.readFileSync(...args); },
+    });
+    const mod = { exports: {} };
+    const fn = new Function("require", "module", "exports", stP1);
+    fn((id) => (id === "fs" ? wrappedFs : require(id)), mod, mod.exports);
+    const mgr = new mod.exports.StorageManager(stFile);
+
+    // Default/OFF -> stock uncached disk reads
+    globalThis.__RUDEX_STORAGE_CACHE__ = false;
+    assert.deepEqual(mgr.getItemsSync(), { a: 1 });
+    assert.deepEqual(mgr.getItemsSync(), { a: 1 });
+    assert.equal(readCount, 2, "When opt-in RAM cache is OFF, StorageManager must perform stock disk reads");
+
+    // Opt-in ON -> hits RAM cache + refreshes immediately on write
+    readCount = 0;
+    globalThis.__RUDEX_STORAGE_CACHE__ = true;
+    assert.deepEqual(mgr.getItemsSync(), { a: 1 });
+    assert.deepEqual(mgr.getItemsSync(), { a: 1 });
+    assert.deepEqual(mgr.getItemsSync(), { a: 1 });
+    assert.equal(readCount, 1, "Repeated getItemsSync() calls with unchanged file must hit RAM cache (only 1 disk read)");
+    mgr.writeItems({ a: 1, b: 2 });
+    assert.deepEqual(mgr.getItemsSync(), { a: 1, b: 2 }, "Writing storage must immediately refresh RAM cache");
+  } finally {
+    globalThis.__RUDEX_STORAGE_CACHE__ = prevStorageCacheFlag;
+    fs.rmSync(tmpStDir, { recursive: true, force: true });
+  }
+
+  // 4) rudex-hook.js SessionStart injects Gemini File & Prompt Cache Protocol only when flag exists
+  const tmpHookDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-hook-perf-"));
+  try {
+    const baseEnv = Object.assign({}, process.env, { AGY_STUDIO_USER_DATA: tmpHookDir, RUDEX_SKIP_AUTO_REPATCH: "1" });
+    // Flag OFF -> no injection
+    const rOff = spawnSync(process.execPath, [path.join(SCRIPTS_DIR, "rudex-hook.js")], {
+      input: JSON.stringify({ hookEventName: "SessionStart", conversationId: "33333333-3333-4333-8333-333333333333" }),
+      env: baseEnv,
+      encoding: "utf8",
+    });
+    assert.equal(rOff.status, 0, rOff.stderr);
+    assert.equal((rOff.stdout || "").includes("File I/O & Prompt Cache Protocol"), false, "Must not inject protocol when perf flag is absent");
+
+    // Flag ON -> injects once at SessionStart via injectSteps, NOT on PreInvocation
+    fs.writeFileSync(path.join(tmpHookDir, "agy_studio_perf_agent.flag"), "1\n", "utf8");
+    const rOn = spawnSync(process.execPath, [path.join(SCRIPTS_DIR, "rudex-hook.js")], {
+      input: JSON.stringify({ hookEventName: "SessionStart", conversationId: "33333333-3333-4333-8333-333333333333" }),
+      env: baseEnv,
+      encoding: "utf8",
+    });
+    assert.equal(rOn.status, 0, rOn.stderr);
+    const parsedOn = JSON.parse(rOn.stdout.trim());
+    const injectedMsg = Array.isArray(parsedOn.injectSteps)
+      ? parsedOn.injectSteps.map((st) => st && st.systemMessage && String(st.systemMessage.systemMessage || "")).find((s) => s && s.includes("File I/O & Prompt Cache Protocol"))
+      : "";
+    assert.ok(injectedMsg && Buffer.byteLength(injectedMsg, "utf8") < 600, "SessionStart must inject ultra-compact (<600B) Gemini File & Prompt Cache Protocol when flag exists");
+
+    const rPre = spawnSync(process.execPath, [path.join(SCRIPTS_DIR, "rudex-hook.js")], {
+      input: JSON.stringify({ hookEventName: "PreInvocation", conversationId: "33333333-3333-4333-8333-333333333333" }),
+      env: baseEnv,
+      encoding: "utf8",
+    });
+    assert.equal(rPre.status, 0, rPre.stderr);
+    assert.equal((rPre.stdout || "").includes("Протокол быстрой работы с файлами"), false, "PreInvocation must NEVER re-inject the SessionStart protocol");
+  } finally {
+    fs.rmSync(tmpHookDir, { recursive: true, force: true });
+  }
+});
+
+test("Studio Panel Optimization & Voice subtab, toggleDictation hotkey, backend flag sync, and zero-emoji UI", async () => {
+  const Module = require("module");
+  const origLoad = Module._load;
+  const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-opt-studio-"));
+  const optMod = require(path.join(RES_DIR, "rudex-optimizer.js"));
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+
+  const fakeElectron = {
+    app: { getPath: () => tmpUserData, isReady: () => true, on: () => {}, whenReady: () => Promise.resolve() },
+    ipcMain: { handle: () => {}, removeHandler: () => {} },
+    webContents: { getAllWebContents: () => [] },
+    dialog: {},
+    shell: {},
+    protocol: {},
+    BrowserWindow: { getAllWindows: () => [] },
+    clipboard: { writeText: () => {}, writeImage: () => {} },
+    nativeImage: { createFromPath: () => ({ isEmpty: () => true }) },
+  };
+  let i18nMain;
+  try {
+    Module._load = function (req) {
+      if (req === "electron") return fakeElectron;
+      return origLoad.apply(this, arguments);
+    };
+    const mainModPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainModPath)];
+    i18nMain = require(mainModPath);
+  } finally {
+    Module._load = origLoad;
+  }
+
+  try {
+    // 1) Backend DEFAULT_KEYBINDINGS, sanitizeOptimization, and perf agent flag sync
+    assert.equal(i18nMain.DEFAULT_KEYBINDINGS.toggleDictation, "Ctrl+Alt+V");
+    const cleanOpt = i18nMain.sanitizeOptimization({ voiceLangPreset: "ru-en", animMode: "snappy", geminiFileCacheProtocol: false });
+    assert.equal(cleanOpt.voiceLangPreset, "ru-en");
+    assert.equal(cleanOpt.animMode, "snappy");
+    assert.equal(cleanOpt.geminiFileCacheProtocol, false);
+
+    const perfFlag = path.join(tmpUserData, "agy_studio_perf_agent.flag");
+    i18nMain.saveStudioSettings({ optimization: { geminiFileCacheProtocol: true } });
+    assert.equal(fs.existsSync(perfFlag), true, "Saving geminiFileCacheProtocol=true must create agy_studio_perf_agent.flag");
+    i18nMain.saveStudioSettings({ optimization: { geminiFileCacheProtocol: false } });
+    assert.equal(fs.existsSync(perfFlag), false, "Saving geminiFileCacheProtocol=false must remove agy_studio_perf_agent.flag");
+
+    // 2) Studio Panel Optimization & Voice subtab + IPC actions + toggleDictation hotkey
+    const { doc, win } = createMockDom();
+    const prevGlobals = {
+      DEFAULT_OPTIMIZATION_SETTINGS: globalThis.DEFAULT_OPTIMIZATION_SETTINGS,
+      sanitizeOptimizationSettings: globalThis.sanitizeOptimizationSettings,
+      createRudexOptimizer: globalThis.createRudexOptimizer,
+      findNativeDictationButton: globalThis.findNativeDictationButton,
+    };
+    globalThis.DEFAULT_OPTIMIZATION_SETTINGS = optMod.DEFAULT_OPTIMIZATION_SETTINGS;
+    globalThis.sanitizeOptimizationSettings = optMod.sanitizeOptimizationSettings;
+    globalThis.createRudexOptimizer = optMod.createRudexOptimizer;
+    globalThis.findNativeDictationButton = optMod.findNativeDictationButton;
+
+    let micClicked = 0;
+    const micBtn = doc.createElement("button");
+    micBtn.setAttribute("aria-label", "Record voice memo");
+    micBtn.click = () => { micClicked += 1; };
+    doc.body.appendChild(micBtn);
+
+    const ipcCalls = [];
+    let hotkeyListener = null;
+    const translator = createDomTranslator({ document: doc });
+    const themeEngine = te.createThemeEngine({ document: doc, window: win });
+    const panel = createStudioPanel({
+      document: doc,
+      window: win,
+      translator,
+      telemetryEngine: createTelemetryEngine(),
+      themeEngine,
+      buildStudioStyles,
+      ipcRenderer: {
+        invoke: async (ch, arg) => {
+          ipcCalls.push({ ch, arg });
+          if (ch === "agy-studio:get-state") return { locale: "ru", settings: { viewMode: "mini", panelEnabled: true, optimization: optMod.DEFAULT_OPTIMIZATION_SETTINGS } };
+          if (ch === "agy-studio:get-cache-diagnostics") {
+            return {
+              ok: true,
+              cleanableTotalBytes: 157286400,
+              lsTuning: { maxProcs: 10, cpuCount: 12, fileWatchMaxDirs: 32768, maxTrackedWorkspaces: 24, goMemLimit: "6144MiB" },
+              promptCache: { cacheHitRatePct: 91.5, turnsSampled: 42, chatsSampled: 5 },
+              buckets: { chromiumCache: { bytes: 104857600, files: 120 }, partitionsCache: { bytes: 52428800, files: 60 }, rudexTemp: { bytes: 0, files: 0 } },
+              appStorage: { bytes: 60000, staleLayoutKeys: ["dead-1", "dead-2"] },
+            };
+          }
+          if (ch === "agy-studio:clean-caches") return { ok: true, freedBytes: 157286400, removedFiles: 180 };
+          if (ch === "agy-studio:prune-app-storage") return { ok: true, removedKeys: 2, freedBytes: 4096 };
+          return { ok: true, settings: arg };
+        },
+        on: (ch, fn) => { if (ch === "agy-studio:hotkey-action") hotkeyListener = fn; },
+        removeListener: () => {},
+      },
+    });
+
+    try {
+      panel.init();
+      const shadow = doc.getElementById("rudex-studio-host").shadowRoot;
+      const rootEl = shadow.querySelector(".studio-root");
+      const modalMount = shadow.querySelector(".modal-mount");
+      const dispatchClick = (attrs) => {
+        const btn = doc.createElement("button");
+        for (const [k, v] of Object.entries(attrs)) btn.setAttribute(`data-${k}`, String(v));
+        rootEl.appendChild(btn);
+        try { rootEl.dispatchEvent({ type: "click", target: btn }); } finally { btn.remove(); }
+      };
+
+      // Open Settings -> Optimization & Voice
+      panel.setOpen(true, { tab: "settings", subTab: "optimization" });
+      await new Promise((r) => setTimeout(r, 20));
+      const optHtml = modalMount.innerHTML;
+      assert.ok(optHtml.includes("Voice Dictation Pro"), "Optimization subtab must render Voice Dictation Pro section");
+      assert.ok(optHtml.includes("Агенты Gemini, файлы ПК и кэш"), "Optimization subtab must render Gemini Files & Cache section");
+      assert.ok(optHtml.includes("Анимации и плавность интерфейса"), "Optimization subtab must render GPU Animations section");
+      assert.ok(optHtml.includes("Экспериментально"), "Cache & LS section must clearly badge experimental opt-in status");
+      assert.equal(optHtml.includes("toggle-row") || optHtml.includes("seg-btn"), false, "Optimization subtab must use real Studio CSS classes (zero legacy nonexistent .toggle-row/.seg-btn)");
+      const switchButtons = optHtml.match(/<button[^>]*class="switch[^"]*"[^>]*>[\s\S]*?<\/button>/g) || [];
+      assert.ok(switchButtons.length >= 10, "Optimization subtab must render styled switch controls");
+      for (const swHtml of switchButtons) {
+        assert.ok(swHtml.includes('class="switch-thumb"'), `Every .switch button must include .switch-thumb: ${swHtml}`);
+      }
+      assert.ok(optHtml.includes("opt-model-card") && optHtml.includes("RU T-one Pro"), "Voice model selector must render structured .opt-model-card tiles");
+      assert.equal(/[\u{1F300}-\u{1FAFF}]/u.test(optHtml), false, "Optimization subtab HTML must contain zero emojis");
+
+      // Toggle voiceDspFilter & switch animMode to snappy
+      dispatchClick({ action: "toggle-opt", key: "voiceDspFilter" });
+      dispatchClick({ action: "set-opt-val", key: "animMode", val: "snappy" });
+      assert.ok(ipcCalls.some((c) => c.ch === "agy-studio:save-settings" && c.arg.optimization && c.arg.optimization.voiceDspFilter === false));
+      assert.ok(ipcCalls.some((c) => c.ch === "agy-studio:save-settings" && c.arg.optimization && c.arg.optimization.animMode === "snappy"));
+
+      // Trigger cache cleanup and app_storage pruning actions sequentially (respecting busy guard)
+      dispatchClick({ action: "clean-caches" });
+      await new Promise((r) => setTimeout(r, 20));
+      dispatchClick({ action: "prune-app-storage" });
+      await new Promise((r) => setTimeout(r, 20));
+      assert.ok(ipcCalls.some((c) => c.ch === "agy-studio:clean-caches"), "clean-caches button must invoke agy-studio:clean-caches");
+      assert.ok(ipcCalls.some((c) => c.ch === "agy-studio:prune-app-storage"), "prune-app-storage button must invoke agy-studio:prune-app-storage");
+
+      // Hotkey toggleDictation clicks native mic button (dispatched via preload.js -> panel.handleHotkeyAction)
+      assert.equal(typeof panel.handleHotkeyAction, "function", "Studio panel must expose handleHotkeyAction");
+      panel.handleHotkeyAction("toggleDictation");
+      assert.equal(micClicked, 1, "toggleDictation hotkey must click native Antigravity voice dictation button");
+
+      // DOM translator ignores #rudex-voice-badge and [data-rudex-ignore='1']
+      const badgeEl = doc.createElement("div");
+      badgeEl.id = "rudex-voice-badge";
+      badgeEl.textContent = "Settings";
+      doc.body.appendChild(badgeEl);
+      translator.init();
+      assert.equal(badgeEl.textContent, "Settings", "DOM translator must fast-skip #rudex-voice-badge");
+    } finally {
+      panel.destroy();
+      translator.destroy();
+      Object.assign(globalThis, prevGlobals);
+    }
+  } finally {
+    fs.rmSync(tmpUserData, { recursive: true, force: true });
+  }
+});
+
+test("Local Instant Voice Engine (Sherpa-ONNX): PCM conversion, segment accumulator, RFC6455 loopback WS, and E2E virtual StreamAudioTranscription bridge", async () => {
+  const vm = require("vm");
+  const net = require("net");
+  const crypto = require("crypto");
+  const lv = require(path.join(SCRIPTS_DIR, "local-voice-engine.js"));
+  const opt = require(path.join(RES_DIR, "rudex-optimizer.js"));
+
+  // 1) Int16 LE base64 -> Float32 LE conversion
+  const pcm16 = Buffer.alloc(6);
+  pcm16.writeInt16LE(0, 0);
+  pcm16.writeInt16LE(16384, 2);
+  pcm16.writeInt16LE(-32768, 4);
+  const f32 = lv.pcm16Base64ToFloat32Buffer(pcm16.toString("base64"));
+  assert.equal(f32.length, 12);
+  assert.equal(f32.readFloatLE(0), 0);
+  assert.equal(f32.readFloatLE(4), 0.5);
+  assert.equal(f32.readFloatLE(8), -1);
+
+  // 2) Multi-segment Russian accumulator + capitalization + Cyrillic stutter dedup
+  const segs = new Map([
+    [1, "тебя тебя люблю ,"],
+    [0, "привет"],
+    [2, "антигравити !"],
+  ]);
+  assert.equal(lv.formatAccumulatedSegments(segs, true), "Привет тебя люблю, антигравити!");
+
+  // 3) Model & binary discovery on temp userDataDir
+  const tmpVoiceUd = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-local-voice-"));
+  try {
+    const binSpec = lv.getPlatformBinarySpec();
+    const fakeExe = path.join(tmpVoiceUd, "rudex_voice", "bin", binSpec.dirName, binSpec.exeRel);
+    fs.mkdirSync(path.dirname(fakeExe), { recursive: true });
+    fs.writeFileSync(fakeExe, "mock-exe");
+    const modDir = path.join(tmpVoiceUd, "rudex_voice", "models", lv.LOCAL_VOICE_MODELS["ru-fast"].dirName);
+    fs.mkdirSync(modDir, { recursive: true });
+    fs.writeFileSync(path.join(modDir, "tokens.txt"), "a\n");
+    fs.writeFileSync(path.join(modDir, "encoder.int8.onnx"), "e");
+    fs.writeFileSync(path.join(modDir, "decoder.onnx"), "d");
+    fs.writeFileSync(path.join(modDir, "joiner.int8.onnx"), "j");
+
+    assert.equal(lv.resolveBinaryPath(tmpVoiceUd), fakeExe);
+    const resolvedMod = lv.resolveModelFiles(tmpVoiceUd, "ru-fast");
+    assert.ok(resolvedMod && resolvedMod.encoder.endsWith("encoder.int8.onnx"));
+    assert.deepEqual(lv.listInstalledModels(tmpVoiceUd), ["ru-fast"]);
+
+    const mgr = lv.createLocalVoiceManager({ userDataDir: tmpVoiceUd });
+    const st = mgr.getStatus("ru-fast");
+    assert.equal(st.installed, true);
+    assert.equal(st.binaryReady, true);
+    assert.equal(st.modelReady, true);
+  } finally {
+    fs.rmSync(tmpVoiceUd, { recursive: true, force: true });
+  }
+
+  // 4) Zero-dependency RFC6455 loopback WS client test against mock TCP WS server
+  const mockServer = net.createServer((socket) => {
+    let upgraded = false;
+    let buf = Buffer.alloc(0);
+    const sendTextFrame = (str) => {
+      const payload = Buffer.from(str, "utf8");
+      const hdr = Buffer.alloc(2);
+      hdr[0] = 0x81;
+      hdr[1] = payload.length;
+      socket.write(Buffer.concat([hdr, payload]));
+    };
+    socket.on("data", (chunk) => {
+      buf = Buffer.concat([buf, chunk]);
+      if (!upgraded) {
+        const end = buf.indexOf("\r\n\r\n");
+        if (end === -1) return;
+        const reqStr = buf.subarray(0, end).toString("latin1");
+        const m = /Sec-WebSocket-Key:\s*([^\r\n]+)/i.exec(reqStr);
+        const accept = crypto.createHash("sha1").update(m[1].trim() + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");
+        socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+        upgraded = true;
+        buf = buf.subarray(end + 4);
+      }
+      while (buf.length >= 2) {
+        const opcode = buf[0] & 0x0f;
+        const len = buf[1] & 0x7f;
+        if (buf.length < 2 + 4 + len) return;
+        const mask = buf.subarray(2, 6);
+        const data = Buffer.from(buf.subarray(6, 6 + len));
+        for (let i = 0; i < data.length; i++) data[i] ^= mask[i & 3];
+        buf = buf.subarray(6 + len);
+        if (opcode === 2) {
+          sendTextFrame(JSON.stringify({ text: "привет", segment: 0, is_final: false }));
+        } else if (opcode === 1 && data.toString("utf8") === "Done") {
+          sendTextFrame("Done!");
+        }
+      }
+    });
+  });
+  await new Promise((res) => mockServer.listen(0, "127.0.0.1", res));
+  const mockPort = mockServer.address().port;
+  try {
+    const ws = await lv.connectLocalWs(mockPort, 2000);
+    const msgs = [];
+    const doneP = new Promise((res) => {
+      ws.onMessage((t) => {
+        msgs.push(t);
+        if (t === "Done!") res();
+      });
+    });
+    ws.sendBinary(f32);
+    ws.sendText("Done");
+    await doneP;
+    ws.close();
+    assert.ok(msgs.some((m) => m.includes("привет")), "Loopback WS client must receive streamed JSON text");
+    assert.ok(msgs.includes("Done!"), "Loopback WS client must receive Done! completion frame");
+  } finally {
+    await new Promise((res) => mockServer.close(res));
+  }
+
+  // 5) E2E virtual StreamAudioTranscription main-world interceptor test in vm.Context
+  const cloudSent = [];
+  const preloadPosted = [];
+  const msgListeners = [];
+  class MockWebSocket {
+    constructor(url) { this.url = url; this._onmsg = null; }
+    get onmessage() { return this._onmsg; }
+    set onmessage(fn) { this._onmsg = fn; }
+    addEventListener() {}
+    send(d) { cloudSent.push(d); }
+  }
+  let vmWinRef = null;
+  const sandboxWin = {
+    navigator: { userAgent: "Mozilla/5.0 (Windows NT 10.0)" },
+    WebSocket: MockWebSocket,
+    MessageEvent: class MessageEvent { constructor(_t, init) { this.data = init.data; } },
+    CustomEvent: class CustomEvent { constructor(t, init) { this.type = t; this.detail = init && init.detail; } },
+    addEventListener(type, fn) { if (type === "message") msgListeners.push(fn); },
+    dispatchEvent() {},
+    postMessage(data) {
+      preloadPosted.push(data);
+      for (const fn of msgListeners) fn({ source: vmWinRef || sandboxWin, data });
+    },
+  };
+  sandboxWin.window = sandboxWin;
+  const initPayload = opt.buildVoiceMainWorldPayload({ voiceEnabled: true, voiceEngine: "auto", voiceLocalModel: "ru-fast" }, "ru", true);
+  assert.equal(initPayload.localVoiceActive, true);
+  assert.equal(initPayload.voiceChunkMs, 64, "Local instant mode must use low-latency 64ms chunks");
+
+  const patchCode = opt.buildMainWorldVoicePatchScript(initPayload);
+  const vmCtx = vm.createContext(sandboxWin);
+  vmWinRef = vm.runInContext("window", vmCtx);
+  vm.runInContext(patchCode, vmCtx);
+
+  const clientWs = new sandboxWin.WebSocket("wss://127.0.0.1:5000/connect-websocket");
+  const receivedFrames = [];
+  clientWs.onmessage = (ev) => { receivedFrames.push(JSON.parse(ev.data)); };
+
+  // Start stream
+  clientWs.send(JSON.stringify({
+    streamId: "st-1",
+    type: "start",
+    procedure: "/exa.language_server_pb.LanguageServerService/StreamAudioTranscription",
+    payload: { mimeType: "audio/pcm;rate=16000" },
+  }));
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(cloudSent.length, 0, "Local instant mode MUST NOT forward StreamAudioTranscription to cloud");
+  assert.ok(receivedFrames.some((f) => f.streamId === "st-1" && f.payload && f.payload.ready && f.payload.ready.sessionId === "rudex-local-st-1"));
+  assert.ok(preloadPosted.some((p) => p.__rudexVoice === "local-cmd" && p.payload.cmd === "start" && p.payload.sessionId === "rudex-local-st-1"));
+
+  // Send audio chunk
+  clientWs.send(JSON.stringify({
+    streamId: "u-1",
+    type: "start",
+    procedure: "/exa.language_server_pb.LanguageServerService/SendAudioChunk",
+    payload: { sessionId: "rudex-local-st-1", data: pcm16.toString("base64"), sequenceNumber: 0 },
+  }));
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(cloudSent.length, 0, "Local instant mode MUST NOT forward SendAudioChunk to cloud");
+  assert.ok(receivedFrames.some((f) => f.streamId === "u-1" && f.type === "end"), "SendAudioChunk unary RPC must resolve immediately");
+  assert.ok(preloadPosted.some((p) => p.__rudexVoice === "local-cmd" && p.payload.cmd === "chunk"));
+
+  // Deliver live partial from local Sherpa-ONNX via postMessage reply
+  sandboxWin.postMessage({ __rudexVoice: "local-reply", payload: { streamId: "st-1", sessionId: "rudex-local-st-1", type: "partial", text: "Привет , мир мир" } });
+  assert.ok(
+    receivedFrames.some((f) => f.streamId === "st-1" && f.payload && f.payload.transcription && f.payload.transcription.text === "Привет, мир" && f.payload.transcription.isFinal === false),
+    "Partial text must stream directly into Antigravity's WS onmessage with cleanup"
+  );
+
+  // End audio session + deliver final from local Sherpa-ONNX
+  clientWs.send(JSON.stringify({
+    streamId: "u-2",
+    type: "start",
+    procedure: "/exa.language_server_pb.LanguageServerService/EndAudioSession",
+    payload: { sessionId: "rudex-local-st-1" },
+  }));
+  sandboxWin.postMessage({ __rudexVoice: "local-reply", payload: { streamId: "st-1", sessionId: "rudex-local-st-1", type: "final", text: "Привет, мир!" } });
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(cloudSent.length, 0, "Local instant mode MUST NOT forward EndAudioSession to cloud");
+  assert.ok(receivedFrames.some((f) => f.streamId === "st-1" && f.payload && f.payload.transcription && f.payload.transcription.isFinal === true && f.payload.transcription.text === "Привет, мир!"));
+  assert.ok(receivedFrames.some((f) => f.streamId === "st-1" && f.payload && f.payload.complete));
+  assert.ok(receivedFrames.some((f) => f.streamId === "st-1" && f.type === "end"));
+
+  // 6) Inline voice timer pill sits right next to the red recording button (never above/over textarea)
+  const { doc: bDoc, win: bWin } = createMockDom();
+  bWin.innerWidth = 1400;
+  bWin.innerHeight = 900;
+  let compRect = { left: 300, right: 980, top: 760, bottom: 820, width: 680, height: 60 };
+  const compEl = bDoc.createElement("div");
+  compEl.setAttribute("data-rudex-theme-composer", "1");
+  compEl.getBoundingClientRect = () => compRect;
+  bDoc.body.appendChild(compEl);
+  let micRect = { left: 336, right: 368, top: 830, bottom: 862, width: 32, height: 32 };
+  const redMicBtn = bDoc.createElement("button");
+  redMicBtn.setAttribute("aria-label", "Stop recording");
+  redMicBtn.className = "rounded-full bg-red-500";
+  redMicBtn.getBoundingClientRect = () => micRect;
+  bDoc.body.appendChild(redMicBtn);
+  let roCb = null;
+  bWin.ResizeObserver = class { constructor(cb) { roCb = cb; } observe() {} disconnect() { roCb = null; } };
+  const badgeCtrl = opt.createRudexOptimizer({ document: bDoc, window: bWin, localVoiceInstalled: true });
+  try {
+    badgeCtrl.apply(opt.DEFAULT_OPTIMIZATION_SETTINGS, "ru");
+    badgeCtrl.setDictating(true, "local");
+    const bEl = bDoc.getElementById("rudex-voice-badge");
+    assert.ok(bEl && bEl.classList.contains("is-local"), "Local dictation pill must have .is-local class");
+    assert.equal(bEl.querySelector("button"), null, "Inline pill must have no extra button");
+    assert.equal(bEl.style.left, "376px", "Pill must sit 8px right of red recording circle (368 + 8)");
+    assert.equal(bEl.style.top, "846px", "Pill must vertically align with red recording circle center (830 + 16)");
+    assert.equal(bEl.style.bottom, "", "Pill must not use floating bottom positioning above composer");
+
+    // Simulate composer expanding upwards while toolbar shifts slightly down
+    compRect = { left: 300, right: 980, top: 670, bottom: 830, width: 680, height: 160 };
+    micRect = { left: 336, right: 368, top: 840, bottom: 872, width: 32, height: 32 };
+    assert.equal(typeof roCb, "function", "Optimizer must attach ResizeObserver to composer");
+    roCb();
+    assert.equal(bEl.style.left, "376px", "Pill stays locked 8px right of red recording circle");
+    assert.equal(bEl.style.top, "856px", "Pill tracks updated vertical center of red recording circle (840 + 16)");
+  } finally {
+    badgeCtrl.destroy();
+  }
+});
+
+test("Cross-OS update reliability: pure-Node ZIP extraction (zero PowerShell), Zip-Slip guard, watcher env propagation, relaunch loop guard & Studio update error recovery", async () => {
+  const zlib = require("zlib");
+  const updaterCore = require(path.join(SCRIPTS_DIR, "updater-core.js"));
+  const zipBuilder = require(path.join(SCRIPTS_DIR, "zip-builder.js"));
+  const { patchMainJs } = require(path.join(SCRIPTS_DIR, "electron-shell.js"));
+
+  // 1) Pure Node.js ZIP extraction works for STORE & DEFLATE archives without spawning powershell.exe/unzip
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-pure-zip-"));
+  try {
+    const zipPath = path.join(tmpDir, "update.zip");
+    const extractDir = path.join(tmpDir, "out");
+    const manifestJson = JSON.stringify({ name: "rudex", version: "5.0.9" });
+    const built = zipBuilder.createZipBuffer([
+      { name: "Rudex-main/plugin.json", data: Buffer.from(manifestJson, "utf8") },
+      { name: "Rudex-main/skills/rudex/scripts/install.js", data: Buffer.from("// ok\n", "utf8") },
+      { name: "Rudex-main/nested/readme.txt", data: Buffer.from("Привет мир!\n", "utf8") },
+    ]);
+    fs.writeFileSync(zipPath, built);
+
+    const count = updaterCore.extractZipPureNode(zipPath, extractDir);
+    assert.equal(count, 3, "Pure Node ZIP extractor must extract all 3 files");
+    assert.equal(
+      fs.readFileSync(path.join(extractDir, "Rudex-main", "nested", "readme.txt"), "utf8"),
+      "Привет мир!\n",
+      "UTF-8 file contents must survive pure Node extraction intact"
+    );
+
+    const found = updaterCore.extractZipArchive(zipPath, path.join(tmpDir, "out2"));
+    assert.equal(found.pluginJson.version, "5.0.9", "extractZipArchive must locate plugin.json cleanly");
+
+    // 2) DEFLATE-compressed ZIP entry must also extract cleanly in pure Node.js
+    const deflateZipPath = path.join(tmpDir, "deflate.zip");
+    const rawPayload = Buffer.from("Rudex DEFLATE test payload ".repeat(40), "utf8");
+    const deflated = zlib.deflateRawSync(rawPayload);
+    const fname = Buffer.from("Rudex-main/data.txt", "utf8");
+    const crc = zipBuilder.crc32(rawPayload);
+    const lfh = Buffer.alloc(30 + fname.length);
+    lfh.writeUInt32LE(0x04034b50, 0);
+    lfh.writeUInt16LE(20, 4);
+    lfh.writeUInt16LE(8, 8); // DEFLATE
+    lfh.writeUInt32LE(crc, 14);
+    lfh.writeUInt32LE(deflated.length, 18);
+    lfh.writeUInt32LE(rawPayload.length, 22);
+    lfh.writeUInt16LE(fname.length, 26);
+    fname.copy(lfh, 30);
+    const cdOffset = lfh.length + deflated.length;
+    const cdh = Buffer.alloc(46 + fname.length);
+    cdh.writeUInt32LE(0x02014b50, 0);
+    cdh.writeUInt16LE(20, 4);
+    cdh.writeUInt16LE(20, 6);
+    cdh.writeUInt16LE(8, 10); // DEFLATE
+    cdh.writeUInt32LE(crc, 16);
+    cdh.writeUInt32LE(deflated.length, 20);
+    cdh.writeUInt32LE(rawPayload.length, 24);
+    cdh.writeUInt16LE(fname.length, 28);
+    cdh.writeUInt32LE(0, 42);
+    fname.copy(cdh, 46);
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(1, 8);
+    eocd.writeUInt16LE(1, 10);
+    eocd.writeUInt32LE(cdh.length, 12);
+    eocd.writeUInt32LE(cdOffset, 16);
+    fs.writeFileSync(deflateZipPath, Buffer.concat([lfh, deflated, cdh, eocd]));
+
+    const deflateOut = path.join(tmpDir, "deflate-out");
+    assert.equal(updaterCore.extractZipPureNode(deflateZipPath, deflateOut), 1);
+    assert.equal(fs.readFileSync(path.join(deflateOut, "Rudex-main", "data.txt"), "utf8"), rawPayload.toString("utf8"));
+
+    // 3) Zip-Slip traversal entry (raw unsanitized ZIP header) must be blocked
+    const evilZipPath = path.join(tmpDir, "evil.zip");
+    const evilName = Buffer.from("../../outside.txt", "utf8");
+    const evilData = Buffer.from("pwn", "utf8");
+    const evilCrc = zipBuilder.crc32(evilData);
+    const eLfh = Buffer.alloc(30 + evilName.length);
+    eLfh.writeUInt32LE(0x04034b50, 0);
+    eLfh.writeUInt16LE(20, 4);
+    eLfh.writeUInt32LE(evilCrc, 14);
+    eLfh.writeUInt32LE(evilData.length, 18);
+    eLfh.writeUInt32LE(evilData.length, 22);
+    eLfh.writeUInt16LE(evilName.length, 26);
+    evilName.copy(eLfh, 30);
+    const eCdh = Buffer.alloc(46 + evilName.length);
+    eCdh.writeUInt32LE(0x02014b50, 0);
+    eCdh.writeUInt16LE(20, 4);
+    eCdh.writeUInt16LE(20, 6);
+    eCdh.writeUInt32LE(evilCrc, 16);
+    eCdh.writeUInt32LE(evilData.length, 20);
+    eCdh.writeUInt32LE(evilData.length, 24);
+    eCdh.writeUInt16LE(evilName.length, 28);
+    eCdh.writeUInt32LE(0, 42);
+    evilName.copy(eCdh, 46);
+    const eEocd = Buffer.alloc(22);
+    eEocd.writeUInt32LE(0x06054b50, 0);
+    eEocd.writeUInt16LE(1, 8);
+    eEocd.writeUInt16LE(1, 10);
+    eEocd.writeUInt32LE(eCdh.length, 12);
+    eEocd.writeUInt32LE(eLfh.length + evilData.length, 16);
+    fs.writeFileSync(evilZipPath, Buffer.concat([eLfh, evilData, eCdh, eEocd]));
+    assert.throws(
+      () => updaterCore.extractZipPureNode(evilZipPath, path.join(tmpDir, "evil-out")),
+      /traversal|Unsafe/i,
+      "Pure Node ZIP extractor must block path traversal entries"
+    );
+
+    // 4) Cross-OS post-update watchers propagate ANTIGRAVITY_RESOURCES_DIR & resolve Node/sherpa cleanup
+    const i18nMainPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    const i18nSrc = fs.readFileSync(i18nMainPath, "utf8");
+    assert.ok(i18nSrc.includes("env('ANTIGRAVITY_RESOURCES_DIR') = resDir;"), "WSH post-app-update watcher must pass ANTIGRAVITY_RESOURCES_DIR");
+    assert.ok(i18nSrc.includes("/opt/homebrew/bin/node"), "POSIX post-app-update watcher must include Homebrew/nvm Node fallback");
+    assert.ok(i18nSrc.includes("stopLocalVoiceServer();"), "Self-update & post-app-update paths must stop local Sherpa-ONNX cleanly");
+
+    const installSrc = fs.readFileSync(path.join(SCRIPTS_DIR, "install.js"), "utf8");
+    assert.ok(installSrc.includes("env('ANTIGRAVITY_RESOURCES_DIR') = resDir;"), "Windows on-exit WSH watcher must pass ANTIGRAVITY_RESOURCES_DIR");
+    assert.ok(installSrc.includes("fs.accessSync(info.resourcesDir, fs.constants.W_OK)"), "Installer must verify resourcesDir write permission before syncing plugin metadata");
+    assert.ok(installSrc.includes("process.getuid() === 0 && process.env.SUDO_UID"), "Installer must never create root-owned userData files under sudo");
+
+    const localVoiceSrc = fs.readFileSync(path.join(SCRIPTS_DIR, "local-voice-engine.js"), "utf8");
+    assert.ok(localVoiceSrc.includes("LD_LIBRARY_PATH") && localVoiceSrc.includes("DYLD_LIBRARY_PATH"), "Local voice server must wire shared lib search paths on Linux & macOS");
+    assert.ok(localVoiceSrc.includes("com.apple.quarantine"), "Local voice installer must clear macOS Gatekeeper quarantine on downloaded binary");
+
+    if (process.platform === "win32") {
+      const wshOut = path.join(tmpDir, "restart.js");
+      updaterCore.writeUpdaterRestartWsh("C:\\Antigravity\\Antigravity.exe", { outPath: wshOut, removeAsar: true, resourcesDir: "C:\\Antigravity\\resources" });
+      const wshText = fs.readFileSync(wshOut, "utf8");
+      assert.ok(wshText.includes("sherpa-onnx-online-websocket-server.exe"), "Windows restart helper must clean up any lingering Sherpa-ONNX daemon");
+    }
+
+    // 5) main.js version guard normalizes multi-token stamps & guards against relaunch loops
+    const mockMain = '"use strict";\nconst electron_1 = require("electron");\n    const ipc = (0, ipcHandlers_1.registerIpcHandlers)(storageManager, {\n';
+    const patchedMain = patchMainJs(mockMain, "44.9.1 abcdef", []);
+    assert.ok(patchedMain.includes('RUDEX_REPATCH_ATTEMPT === "1"'), "main.js repatch guard must prevent infinite relaunch loops");
+    assert.ok(patchedMain.includes("LOCKED_NEEDS_ACTIVATOR"), "main.js repatch guard must verify app.asar was actually unlocked before relaunch");
+    assert.ok(patchedMain.includes('.trim().split(/\\s+/)[0]'), "main.js must normalize multi-token stamp version");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  // 6) Studio update UI recovers cleanly when check-updates or install-update IPC returns null & normalizes stale settingsSubTab
+  const { doc: sDoc, win: sWin } = createMockDom();
+  const mockIpc = {
+    invoke: async (ch) => {
+      if (ch === "agy-studio:check-updates" || ch === "agy-studio:install-update") return null;
+      if (ch === "agy-studio:get-state") return null;
+      if (ch === "agy-studio:get-update-state") return { status: "available", available: true, installed: { version: "5.0.3" }, remote: { version: "5.0.4" } };
+      return null;
+    },
+    on: () => {},
+    send: () => {},
+  };
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const panel = createStudioPanel({
+    document: sDoc,
+    window: sWin,
+    ipcRenderer: mockIpc,
+    initialLocale: "ru",
+    pluginMeta: { version: "5.0.3", dictEntries: 10, dynamicRulesCount: 2 },
+  });
+  try {
+    panel.init();
+    panel.setOpen(true, { tab: "settings", subTab: "stale-nonexistent-tab" });
+    await new Promise((r) => setTimeout(r, 25));
+    const host = sDoc.getElementById("rudex-studio-host");
+    assert.ok(host && host.shadowRoot, "Studio shadow root must mount");
+    const rootEl = host.shadowRoot.querySelector(".studio-root");
+    const modalMount = host.shadowRoot.querySelector(".modal-mount");
+    assert.ok(
+      modalMount && modalMount.innerHTML.includes('class="subtab-btn is-active" data-action="set-settings-subtab" data-val="system"'),
+      "Stale settingsSubTab must normalize to 'system' with active highlight"
+    );
+
+    const checkBtn = sDoc.createElement("button");
+    checkBtn.setAttribute("data-action", "check-updates");
+    modalMount.appendChild(checkBtn);
+    rootEl.dispatchEvent({ type: "click", target: checkBtn });
+    await new Promise((r) => setTimeout(r, 25));
+    assert.ok(
+      modalMount.innerHTML.includes("Ошибка обновления") && !modalMount.innerHTML.includes('disabled data-action="check-updates"'),
+      "Null IPC response on check-updates must recover to error state and re-enable Check button"
+    );
+
+    const installBtn = sDoc.createElement("button");
+    installBtn.setAttribute("data-action", "install-update");
+    modalMount.appendChild(installBtn);
+    rootEl.dispatchEvent({ type: "click", target: installBtn });
+    await new Promise((r) => setTimeout(r, 25));
+    assert.ok(
+      modalMount.innerHTML.includes("Ошибка обновления") && !modalMount.innerHTML.includes('disabled data-action="install-update"'),
+      "Null IPC response on install-update must recover to error state and allow retry"
+    );
+  } finally {
+    panel.destroy();
+  }
+});
+
+test("Live Voice Mode isolation (zero AudioWorklet/getUserMedia/WS interference) & Russian STT accuracy upgrades (T-one Pro, BPE hotwords, clean DSP, IT term cleanup)", async () => {
+  const vm = require("vm");
+  const opt = require(path.join(RES_DIR, "rudex-optimizer.js"));
+  const lv = require(path.join(SCRIPTS_DIR, "local-voice-engine.js"));
+
+  // 1) Clean DSP AudioWorklet has NO double-AGC envelope pumping
+  const wkSrc = opt.buildUpgradedAudioWorkletSource(1024, true);
+  assert.ok(wkSrc.includes("const fc = 7400;"), "Dictation DSP must use 7.4kHz anti-aliasing LPF");
+  assert.equal(wkSrc.includes("this.env"), false, "Dictation DSP must NOT run double software AGC on top of WebRTC AGC");
+
+  // 2) Unambiguous Russian dev/Antigravity term cleanup without breaking normal Russian
+  assert.equal(
+    opt.cleanDictationText("перезапусти антиграете проверь киширования и залей ру декс на гидхаб через пауэр шелл"),
+    "перезапусти Antigravity проверь кэширования и залей Rudex на GitHub через PowerShell"
+  );
+  assert.equal(
+    opt.cleanDictationText("обычный русский текст без искажений"),
+    "обычный русский текст без искажений"
+  );
+
+  // 3) Main-world patch MUST NOT hijack Live Voice Mode's data: AudioWorklet, getUserMedia(autoGainControl:false), or voice relay WS
+  const addModuleCalls = [];
+  const gumCalls = [];
+  const voiceWsSent = [];
+  function FakeAudioWorklet() {}
+  FakeAudioWorklet.prototype.addModule = async function (url) { addModuleCalls.push(url); return url; };
+  function FakeWS(url) { this.url = url; this._onmsg = null; }
+  Object.defineProperty(FakeWS.prototype, "onmessage", {
+    configurable: true,
+    enumerable: true,
+    get() { return this._onmsg; },
+    set(fn) { this._onmsg = fn; },
+  });
+  FakeWS.prototype.send = function (d) { voiceWsSent.push({ url: this.url, data: d }); };
+  FakeWS.prototype.addEventListener = function () {};
+
+  const listeners = [];
+  const sandbox = {
+    AudioWorklet: FakeAudioWorklet,
+    WebSocket: FakeWS,
+    URL: { createObjectURL: () => "blob:rudex-dictation-worklet", revokeObjectURL: () => {} },
+    Blob: class { constructor(parts) { this.parts = parts; } },
+    MessageEvent: class { constructor(t, o) { this.type = t; this.data = o && o.data; } },
+    CustomEvent: class { constructor(t, o) { this.type = t; this.detail = o && o.detail; } },
+    navigator: {
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      mediaDevices: {
+        getUserMedia: async (c) => { gumCalls.push(c); return { ok: true }; },
+      },
+    },
+    addEventListener: (_t, fn) => listeners.push(fn),
+    postMessage: () => {},
+    dispatchEvent: () => {},
+    atob: (s) => Buffer.from(s, "base64").toString("binary"),
+    Promise,
+    Object, Array, Map, Set, WeakMap, JSON, String, Number, Boolean, RegExp, Math, Date, Uint8Array, ArrayBuffer, DataView, TextDecoder, TextEncoder,
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  const ctx = vm.createContext(sandbox);
+  const initPayload = opt.buildVoiceMainWorldPayload({ voiceEnabled: true, voiceEngine: "auto", voiceLocalModel: "ru-tone" }, "ru", true);
+  vm.runInContext(opt.buildMainWorldVoicePatchScript(initPayload), ctx);
+
+  // 3a) Voice Mode inline data: worklet passes through 100% untouched; Dictation /audio_processor.js IS upgraded
+  const aw = new FakeAudioWorklet();
+  const voiceModeDataUrl = "data:application/javascript;base64," + Buffer.from("registerProcessor('audio-streaming-processor', P);", "utf8").toString("base64");
+  await aw.addModule(voiceModeDataUrl);
+  await aw.addModule("https://127.0.0.1:53686/audio_processor.js?v=2.35.2");
+  assert.equal(addModuleCalls[0], voiceModeDataUrl, "Live Voice Mode data: worklet MUST remain 100% untouched (native 40ms PCM)");
+  assert.equal(addModuleCalls[1], "blob:rudex-dictation-worklet", "Dictation /audio_processor.js must use upgraded cached Blob worklet");
+
+  // 3b) Voice Mode getUserMedia(autoGainControl: false) keeps voiceIsolation: true untouched; Dictation optimizes WASAPI
+  await sandbox.navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, voiceIsolation: true, autoGainControl: false },
+  });
+  await sandbox.navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, voiceIsolation: true },
+  });
+  assert.equal(gumCalls[0].audio.voiceIsolation, true, "Live Voice Mode must retain native voiceIsolation");
+  assert.equal(gumCalls[0].audio.autoGainControl, false, "Live Voice Mode must retain autoGainControl: false");
+  assert.equal("voiceIsolation" in gumCalls[1].audio, false, "Dictation on Windows must remove buggy voiceIsolation");
+  assert.equal(gumCalls[1].audio.autoGainControl, true, "Dictation must enable autoGainControl");
+
+  // 3c) Voice Mode relay WS is NOT wrapped on onmessage or send
+  const voiceWs = new FakeWS("wss://127.0.0.1:53686/voice-relay");
+  const rawHandler = () => {};
+  voiceWs.onmessage = rawHandler;
+  assert.equal(voiceWs._onmsg, rawHandler, "Live Voice Mode relay WebSocket onmessage MUST NOT be wrapped");
+  voiceWs.send("StreamAudioTranscription");
+  assert.equal(voiceWsSent.length, 1, "Non-/connect-websocket frames must pass directly without interception");
+
+  // 4) T-one RU Pro (t-one-ctc) model resolution & Zipformer BPE hotwords generator
+  const tmpUd = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-tone-test-"));
+  try {
+    const toneDir = path.join(tmpUd, "rudex_voice", "models", lv.LOCAL_VOICE_MODELS["ru-tone"].dirName);
+    fs.mkdirSync(toneDir, { recursive: true });
+    fs.writeFileSync(path.join(toneDir, "model.onnx"), "fake-ctc");
+    fs.writeFileSync(path.join(toneDir, "tokens.txt"), "<blk> 0\nа 1\n");
+    const resolvedTone = lv.resolveModelFiles(tmpUd, "ru-tone");
+    assert.ok(resolvedTone && resolvedTone.kind === "t-one-ctc" && resolvedTone.sampleRate === 8000, "T-one RU Pro must resolve as 8kHz t-one-ctc model");
+    assert.ok(lv.listInstalledModels(tmpUd).includes("ru-tone"));
+
+    const voskDir = path.join(tmpUd, "rudex_voice", "models", lv.LOCAL_VOICE_MODELS["ru-fast"].dirName);
+    fs.mkdirSync(voskDir, { recursive: true });
+    fs.writeFileSync(path.join(voskDir, "encoder.int8.onnx"), "e");
+    fs.writeFileSync(path.join(voskDir, "decoder.onnx"), "d");
+    fs.writeFileSync(path.join(voskDir, "joiner.int8.onnx"), "j");
+    fs.writeFileSync(path.join(voskDir, "tokens.txt"), "<blk> 0\n<sos/eos> 1\n<unk> 2\n▁анти 3\n");
+    const resolvedVosk = lv.resolveModelFiles(tmpUd, "ru-fast");
+    const hw = lv.ensureRuHotwordsFiles(tmpUd, resolvedVosk);
+    assert.ok(hw && fs.existsSync(hw.vocabPath) && fs.existsSync(hw.hotwordsPath), "BPE Zipformer model must generate bpe.vocab + Russian IT hotwords");
+    assert.ok(fs.readFileSync(hw.hotwordsPath, "utf8").includes("антигравити"), "Hotwords must include Russian Antigravity/dev vocabulary");
+  } finally {
+    fs.rmSync(tmpUd, { recursive: true, force: true });
+  }
+});
+
+test("Security, Privacy & Supply-Chain Hardening: opt-in defaults, zero MyMemory, dynamic PreToolUse hook, GitHub Release SHA-256 verification", async () => {
+  const Module = require("module");
+  const http = require("http");
+  const crypto = require("crypto");
+  const updaterCore = require(path.join(SCRIPTS_DIR, "updater-core.js"));
+  const { isLoopbackUrl } = require(path.join(SCRIPTS_DIR, "thinking-translator.js"));
+
+  // 1) Zero MyMemory traces in thinking-translator.js & loopback-only guard
+  const ttSrc = fs.readFileSync(path.join(SCRIPTS_DIR, "thinking-translator.js"), "utf8");
+  assert.equal(/mymemory/i.test(ttSrc), false, "thinking-translator.js must completely remove MyMemory public translation memory");
+  assert.equal(isLoopbackUrl("http://127.0.0.1:5000/translate"), "http://127.0.0.1:5000/translate");
+  assert.equal(isLoopbackUrl("http://localhost:5000/translate"), "http://localhost:5000/translate");
+  assert.equal(isLoopbackUrl("https://evil.example.com/translate"), "", "Non-loopback local translator URLs must be rejected");
+
+  // 2) Backend opt-in defaults & dynamic PreToolUse hook sync
+  const tmpUd = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-sec-hardening-"));
+  const origLoad = Module._load;
+  const fakeElectron = {
+    app: { getPath: () => tmpUd, on: () => {}, emit: () => {} },
+    ipcMain: { handle: () => {}, on: () => {} },
+    webContents: { getAllWebContents: () => [] },
+    dialog: {},
+    shell: {},
+    protocol: {},
+    BrowserWindow: { getAllWindows: () => [] },
+    clipboard: {},
+    nativeImage: {},
+    Notification: { isSupported: () => false },
+  };
+  const i18nMainPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+  delete require.cache[i18nMainPath];
+  Module._load = function (req, parent, isMain) {
+    if (req === "electron") return fakeElectron;
+    return origLoad.apply(this, arguments);
+  };
+  let i18nMain;
+  try {
+    i18nMain = require(i18nMainPath);
+  } finally {
+    Module._load = origLoad;
+  }
+
+  try {
+    const defSettings = i18nMain.sanitizeStudioSettings({});
+    assert.equal(defSettings.thinkingInRussian, false, "thinkingInRussian must default to OFF (opt-in)");
+    assert.equal(defSettings.thinkingTranslatorUrl, "");
+    assert.equal(defSettings.quotaAutomation.notifyWhenClosed, false, "notifyWhenClosed must default to OFF (opt-in)");
+    assert.equal(defSettings.optimization.lsTuningEnabled, false, "lsTuningEnabled must default to OFF (experimental opt-in)");
+    assert.equal(defSettings.optimization.storageRamCache, false, "storageRamCache must default to OFF (experimental opt-in)");
+    assert.equal(defSettings.optimization.geminiFileCacheProtocol, false, "geminiFileCacheProtocol must default to OFF (experimental opt-in)");
+    assert.equal(defSettings.optimization.chromiumCacheCapMb, 0, "chromiumCacheCapMb must default to 0 (stock/off)");
+    assert.equal(defSettings.optimization.gpuAccel, false, "gpuAccel smooth-scroll switch must default to OFF");
+
+    // Loopback sanitizer strips external URLs from settings
+    assert.equal(i18nMain.sanitizeStudioSettings({ thinkingTranslatorUrl: "https://external.host/api" }).thinkingTranslatorUrl, "");
+    assert.equal(i18nMain.sanitizeStudioSettings({ thinkingTranslatorUrl: "http://127.0.0.1:5000/translate" }).thinkingTranslatorUrl, "http://127.0.0.1:5000/translate");
+
+    // Dynamic PreToolUse sync preserves platform runner command (e.g. hook-runner.sh) and toggles cleanly
+    const mockHooksPath = path.join(tmpUd, "hooks.json");
+    fs.writeFileSync(
+      mockHooksPath,
+      JSON.stringify({
+        "rudex-studio": {
+          SessionStart: [{ type: "command", command: "sh ./skills/rudex/scripts/hook-runner.sh", timeout: 5 }],
+          PreInvocation: [{ type: "command", command: "sh ./skills/rudex/scripts/hook-runner.sh", timeout: 5 }],
+          Stop: [{ type: "command", command: "sh ./skills/rudex/scripts/hook-runner.sh", timeout: 5 }],
+        },
+      }, null, 2),
+      "utf8"
+    );
+    assert.equal(i18nMain.syncDynamicPreToolUseHook(true, mockHooksPath), true);
+    const enabledHooks = JSON.parse(fs.readFileSync(mockHooksPath, "utf8"));
+    assert.ok(Array.isArray(enabledHooks["rudex-studio"].PreToolUse) && enabledHooks["rudex-studio"].PreToolUse.length === 1);
+    assert.equal(enabledHooks["rudex-studio"].PreToolUse[0].hooks[0].command, "sh ./skills/rudex/scripts/hook-runner.sh", "Dynamic PreToolUse must preserve platform hook runner command");
+    assert.equal(enabledHooks["rudex-studio"].PreToolUse[0].matcher.includes("run_command"), false, "Dynamic PreToolUse must never intercept run_command");
+
+    assert.equal(i18nMain.syncDynamicPreToolUseHook(false, mockHooksPath), true);
+    const disabledHooks = JSON.parse(fs.readFileSync(mockHooksPath, "utf8"));
+    assert.equal(disabledHooks["rudex-studio"].PreToolUse, undefined, "Disabling dynamic PreToolUse must remove it cleanly from hooks.json");
+
+    // Offline scheduler sync is a no-op when notifyWhenClosed is OFF and no prior script exists
+    assert.equal(i18nMain.syncWindowsOfflineQuotaTask(false), true);
+    assert.equal(fs.existsSync(path.join(tmpUd, "rudex-quota-notify.js")), false);
+  } finally {
+    fs.rmSync(tmpUd, { recursive: true, force: true });
+  }
+
+  // 3) GitHub Release + SHA-256 verification (accepts valid checksum, blocks tampered archive before extraction)
+  const zipPayload = Buffer.from("PK\x03\x04fake-release-zip-bytes-for-sha256-test", "binary");
+  const validSha256 = crypto.createHash("sha256").update(zipPayload).digest("hex");
+  const badSha256 = "0".repeat(64);
+  const sumsBody = `# Rudex release checksums\n${validSha256}  Rudex-v5.1.0.zip\n`;
+  const parsedSums = updaterCore.parseSha256Sums(sumsBody);
+  assert.equal(parsedSums["Rudex-v5.1.0.zip"], validSha256);
+
+  const srv = http.createServer((req, res) => {
+    const port = srv.address().port;
+    if (req.url === "/releases/latest") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        tag_name: "v5.1.0",
+        name: "Rudex v5.1.0",
+        draft: false,
+        published_at: "2026-11-27T12:00:00Z",
+        html_url: "https://github.com/Ivan0967pro/Rudex/releases/tag/v5.1.0",
+        assets: [
+          { name: "Rudex-v5.1.0.zip", browser_download_url: `http://127.0.0.1:${port}/assets/Rudex-v5.1.0.zip` },
+          { name: "SHA256SUMS.txt", browser_download_url: `http://127.0.0.1:${port}/assets/SHA256SUMS.txt` },
+        ],
+      }));
+      return;
+    }
+    if (req.url === "/assets/SHA256SUMS.txt") {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end(sumsBody);
+      return;
+    }
+    if (req.url === "/assets/Rudex-v5.1.0.zip") {
+      res.writeHead(200, { "Content-Type": "application/zip" });
+      res.end(zipPayload);
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => srv.listen(0, "127.0.0.1", resolve));
+  try {
+    const port = srv.address().port;
+    const rel = await updaterCore.checkRemoteRelease({
+      releaseApiUrl: `http://127.0.0.1:${port}/releases/latest`,
+    });
+    assert.equal(rel.ok, true);
+    assert.equal(rel.remote.source, "release");
+    assert.equal(rel.remote.version, "5.1.0");
+    assert.equal(rel.remote.sha256, validSha256);
+    assert.ok(rel.remote.archiveUrl.endsWith("/assets/Rudex-v5.1.0.zip"));
+
+    // Tampered / mismatched SHA-256 MUST fail before extraction!
+    await assert.rejects(
+      () => updaterCore.installUpdateFromZip({
+        archiveUrl: rel.remote.archiveUrl,
+        expectedSha256: badSha256,
+      }),
+      /SHA-256 checksum mismatch/i,
+      "installUpdateFromZip must reject archives whose SHA-256 does not match expectedSha256"
+    );
+
+    // requireChecksum without sha256 MUST also fail
+    await assert.rejects(
+      () => updaterCore.installUpdateFromZip({
+        archiveUrl: rel.remote.archiveUrl,
+        requireChecksum: true,
+      }),
+      /Missing SHA-256 checksum/i
+    );
+  } finally {
+    await new Promise((resolve) => srv.close(resolve));
+  }
+});
+
+test("Composer UI Style 0-frame anti-flash: synchronous MutationObserver re-tagging on chat switch & message send/typing", () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const { doc, win } = createMockDom();
+  win.innerWidth = 1280;
+  win.innerHeight = 800;
+  const winCaptureMap = new Map();
+  const origWinAdd = win.addEventListener;
+  const origWinRem = win.removeEventListener;
+  win.addEventListener = (type, fn, cap) => {
+    if (!winCaptureMap.has(type)) winCaptureMap.set(type, new Set());
+    winCaptureMap.get(type).add(fn);
+    if (origWinAdd) origWinAdd.call(win, type, fn, cap);
+  };
+  win.removeEventListener = (type, fn, cap) => {
+    if (winCaptureMap.has(type)) winCaptureMap.get(type).delete(fn);
+    if (origWinRem) origWinRem.call(win, type, fn, cap);
+  };
+  win.dispatchEvent = (ev) => {
+    const set = winCaptureMap.get(ev && ev.type);
+    if (set) {
+      for (const fn of Array.from(set)) fn(ev);
+    }
+  };
+
+  let moCallback = null;
+  const scheduledTimers = [];
+  win.MutationObserver = class MockMO {
+    constructor(cb) { this.cb = cb; }
+    observe() { moCallback = this.cb; }
+    disconnect() { if (moCallback === this.cb) moCallback = null; }
+  };
+  win.setTimeout = (fn, ms) => {
+    const id = scheduledTimers.length + 1;
+    scheduledTimers.push({ id, fn, ms });
+    return id;
+  };
+  win.clearTimeout = () => {};
+  win.requestAnimationFrame = () => 1;
+  win.cancelAnimationFrame = () => {};
+  win.getComputedStyle = (el) => {
+    // Simulate compSel stripping background/border off <form data-testid="composer"> before JS runs!
+    const isPh = el && typeof el.className === "string" && el.className.includes("pointer-events-none");
+    return {
+      backgroundColor: "rgba(0, 0, 0, 0)",
+      backgroundImage: "none",
+      borderTopWidth: "0px",
+      borderTopColor: "rgba(0, 0, 0, 0)",
+      borderTopLeftRadius: "0px",
+      display: "block",
+      visibility: "visible",
+      opacity: "1",
+      position: isPh ? "absolute" : "static",
+      pointerEvents: isPh ? "none" : "auto",
+    };
+  };
+
+  const root = doc.createElement("div");
+  root.id = "root";
+  const main = doc.createElement("main");
+  root.appendChild(main);
+  doc.body.appendChild(root);
+
+  const setRect = (el, left, top, width, height) => {
+    el.getBoundingClientRect = () => ({ left, top, width, height, right: left + width, bottom: top + height });
+  };
+  setRect(root, 0, 0, 1280, 800);
+  setRect(main, 240, 0, 1040, 800);
+
+  const buildComposer = () => {
+    const form = doc.createElement("form");
+    form.setAttribute("data-testid", "composer");
+    setRect(form, 340, 660, 740, 96);
+    const stack = doc.createElement("div");
+    setRect(stack, 340, 660, 740, 96);
+    const inputRow = doc.createElement("div");
+    setRect(inputRow, 340, 660, 740, 48);
+    const editorWrap = doc.createElement("div");
+    setRect(editorWrap, 354, 670, 700, 24);
+    const editor = doc.createElement("div");
+    editor.setAttribute("contenteditable", "true");
+    setRect(editor, 354, 670, 660, 24);
+    const ph = doc.createElement("div");
+    ph.className = "pointer-events-none";
+    ph.textContent = "Ask anything";
+    setRect(ph, 354, 670, 200, 22);
+    editorWrap.appendChild(editor);
+    editorWrap.appendChild(ph);
+    inputRow.appendChild(editorWrap);
+
+    const toolbar = doc.createElement("div");
+    setRect(toolbar, 340, 712, 740, 36);
+    const plusBtn = doc.createElement("button");
+    plusBtn.setAttribute("aria-label", "Add context");
+    plusBtn.textContent = "+";
+    setRect(plusBtn, 344, 716, 28, 28);
+    const micBtn = doc.createElement("button");
+    micBtn.setAttribute("aria-label", "Record voice memo");
+    setRect(micBtn, 376, 716, 28, 28);
+    const modelBtn = doc.createElement("button");
+    modelBtn.setAttribute("data-testid", "model-selector-trigger");
+    modelBtn.textContent = "Gemini 4";
+    setRect(modelBtn, 900, 716, 90, 28);
+    toolbar.appendChild(plusBtn);
+    toolbar.appendChild(micBtn);
+    toolbar.appendChild(modelBtn);
+
+    stack.appendChild(inputRow);
+    stack.appendChild(toolbar);
+    form.appendChild(stack);
+    return { form, stack, inputRow, editorWrap, editor, ph, toolbar, plusBtn, micBtn, modelBtn };
+  };
+
+  const engine = te.createThemeEngine({ document: doc, window: win });
+  try {
+    engine.apply({
+      presetId: "claude-code-dark",
+      uiStyle: { preset: "claude-code", composer: "claude-code", chat: "claude-code", modelSelector: "claude-code" },
+    });
+    assert.ok(typeof moCallback === "function", "Theme engine must attach shell MutationObserver");
+
+    // 1) Chat switch: brand-new composer mounted under <main> (no timers flushed yet!)
+    const c1 = buildComposer();
+    main.appendChild(c1.form);
+    moCallback([{ type: "childList", target: main, addedNodes: [c1.form] }]);
+
+    assert.equal(c1.form.getAttribute("data-rudex-theme-composer"), "1", "Newly mounted composer must be tagged synchronously on chat switch (0ms flash)");
+    assert.equal(c1.inputRow.getAttribute("data-rudex-comp-input-row"), "1", "inputRow must be tagged synchronously before paint");
+    assert.equal(c1.toolbar.getAttribute("data-rudex-comp-toolbar"), "1", "toolbar must be tagged synchronously before paint");
+    assert.equal(c1.plusBtn.getAttribute("data-rudex-comp-plus"), "1", "plus button must be tagged synchronously before paint");
+    assert.equal(c1.micBtn.getAttribute("data-rudex-comp-mic"), "1", "mic button must be tagged synchronously before paint");
+    assert.equal(c1.ph.getAttribute("data-rudex-comp-placeholder"), "wrap", "placeholder must be tagged synchronously before paint");
+
+    // 2) Typing / sending message: Send button dynamically mounted into toolbar + placeholder re-mounted in editorWrap
+    const sendBtn = doc.createElement("button");
+    sendBtn.setAttribute("type", "submit");
+    sendBtn.setAttribute("aria-label", "Send");
+    setRect(sendBtn, 1044, 716, 28, 28);
+    c1.toolbar.appendChild(sendBtn);
+
+    c1.ph.remove();
+    const ph2 = doc.createElement("div");
+    ph2.className = "pointer-events-none";
+    ph2.textContent = "Reply...";
+    setRect(ph2, 354, 670, 200, 22);
+    c1.editorWrap.appendChild(ph2);
+
+    const timersBefore = scheduledTimers.length;
+    moCallback([
+      { type: "childList", target: c1.toolbar, addedNodes: [sendBtn] },
+      { type: "childList", target: c1.editorWrap, addedNodes: [ph2] },
+    ]);
+
+    assert.equal(sendBtn.getAttribute("data-rudex-comp-send"), "1", "Send button must be tagged synchronously on typing/sending (0ms flash)");
+    assert.equal(ph2.getAttribute("data-rudex-comp-placeholder"), "wrap", "Re-mounted placeholder after send must be tagged synchronously");
+    assert.ok(c1.form.style.getPropertyValue("--rudex-cc-send-top").endsWith("px"), "--rudex-cc-send-top must be aligned synchronously before paint");
+    assert.equal(scheduledTimers.length, timersBefore, "Composer-internal mutations must NOT schedule redundant slow full-DOM shell scans");
+  } finally {
+    engine.destroy();
+  }
+});
+
+test("Projects two-layer pitch-black sidebar flattening, custom sidebarBg/borderColor palette & backend persistence", () => {
+  const Module = require("module");
+  const origLoad = Module._load;
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const { doc, win } = createMockDom();
+  const root = doc.createElement("div");
+  root.id = "root";
+  doc.body.appendChild(root);
+
+  const setRect = (el, left, top, width, height) => {
+    el.getBoundingClientRect = () => ({ left, top, width, height, right: left + width, bottom: top + height });
+  };
+  setRect(root, 0, 0, 1280, 800);
+
+  // Simulate exact Projects sidebar structure: purple aside -> pitch-black Projects container -> dark-grey row ("среда") + active row
+  const sidebar = doc.createElement("aside");
+  sidebar.style.backgroundColor = "rgb(36, 20, 48)";
+  setRect(sidebar, 0, 0, 260, 800);
+  const projectsBox = doc.createElement("div");
+  projectsBox.style.backgroundColor = "rgb(8, 8, 10)";
+  setRect(projectsBox, 8, 120, 244, 160);
+  const projHeader = doc.createElement("div");
+  projHeader.textContent = "Проекты";
+  setRect(projHeader, 12, 124, 236, 28);
+  const projRow = doc.createElement("button");
+  projRow.textContent = "среда";
+  projRow.style.backgroundColor = "rgb(28, 28, 32)";
+  setRect(projRow, 12, 156, 236, 36);
+  const activeRow = doc.createElement("a");
+  activeRow.textContent = "antigravity-ru";
+  activeRow.setAttribute("aria-current", "page");
+  activeRow.style.backgroundColor = "rgb(32, 32, 36)";
+  setRect(activeRow, 12, 196, 236, 36);
+  projectsBox.appendChild(projHeader);
+  projectsBox.appendChild(projRow);
+  projectsBox.appendChild(activeRow);
+  sidebar.appendChild(projectsBox);
+  root.appendChild(sidebar);
+
+  const engine = te.createThemeEngine({ document: doc, window: win });
+  try {
+    // 1) Dark theme (sakura-dusk): Pass D3 flattens pitch-black Projects wrapper to panel (transparent) and items to single clean layer
+    engine.apply({ presetId: "sakura-dusk" });
+    engine.scanWallpaperShells();
+    assert.equal(projectsBox.getAttribute("data-rudex-sidebar-surface"), "panel", "Pitch-black Projects wrapper must be marked as flat panel");
+    assert.equal(projRow.getAttribute("data-rudex-sidebar-surface"), "item", "Sidebar project row must be marked as single-layer item");
+    assert.equal(activeRow.getAttribute("data-rudex-sidebar-surface"), "active", "Active sidebar row must be marked as active");
+
+    const darkCss = te.buildThemeCss({ presetId: "sakura-dusk" }, { hostIsLight: false });
+    assert.ok(darkCss.includes('[data-rudex-sidebar-surface="panel"]'), "Theme CSS must flatten sidebar panels");
+    assert.ok(darkCss.includes('[data-rudex-sidebar-surface="item"]'), "Theme CSS must style single-layer sidebar items");
+    assert.ok(darkCss.includes("--sidebar-panel: transparent !important;"), "Theme CSS must expose --sidebar-panel variable");
+    assert.ok(darkCss.includes("--divider:") && darkCss.includes("--separator:"), "Theme CSS must unify divider/separator variables");
+    assert.equal(darkCss.includes('[data-rudex-bg-sidebar="1"]:not([data-rudex-bg-sidebar="1"] *)'), false, "Must never reintroduce forbidden sidebar selector");
+
+    // 2) Wallpaper mode: Pass D3 & wallpaper CSS also flatten Projects box and unify borders/dividers
+    engine.apply({ presetId: "sakura-dusk", wallpaper: { type: "gradient", gradientPreset: "aurora" } });
+    engine.scanWallpaperShells();
+    assert.equal(projectsBox.getAttribute("data-rudex-sidebar-surface"), "panel", "Wallpaper mode must preserve flat panel marker on Projects box");
+    const wpCss = te.buildThemeCss({
+      presetId: "sakura-dusk",
+      customSidebarBg: true,
+      sidebarBg: "#2a1638",
+      customBorderColor: true,
+      borderColor: "#f472b6",
+      wallpaper: { type: "gradient", gradientPreset: "aurora" },
+    }, { hostIsLight: false });
+    assert.ok(wpCss.includes("rgba(42, 22, 56,"), "Wallpaper mode must honor customSidebarBg color");
+    assert.ok(wpCss.includes("#f472b6"), "Wallpaper mode must honor customBorderColor");
+    assert.ok(wpCss.includes('[data-rudex-sidebar-surface="panel"]'), "Wallpaper CSS must include sidebar panel flattening");
+
+    // 3) Native preset with customSidebarBg & customBorderColor
+    assert.equal(te.isAppearanceNativeDefault({ presetId: "native", customSidebarBg: true }), false);
+    assert.equal(te.isAppearanceNativeDefault({ presetId: "native", customBorderColor: true }), false);
+    const nativeCustomCss = te.buildThemeCss({
+      presetId: "native",
+      customSidebarBg: true,
+      sidebarBg: "#1a2234",
+      customBorderColor: true,
+      borderColor: "#38bdf8",
+    }, { hostIsLight: false });
+    assert.ok(nativeCustomCss.includes("--sidebar: #1a2234 !important;"), "Native preset must allow customSidebarBg");
+    assert.ok(nativeCustomCss.includes("--border: #38bdf8 !important;"), "Native preset must allow customBorderColor");
+  } finally {
+    engine.destroy();
+  }
+
+  // 4) Backend i18n-main.js sanitizeAppearance preserves customSidebarBg/sidebarBg & customBorderColor/borderColor
+  const tmpUd = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-side-palette-"));
+  try {
+    const fakeElectron = {
+      app: { getPath: () => tmpUd, isReady: () => true, on: () => {}, whenReady: () => Promise.resolve() },
+      ipcMain: { handle: () => {}, removeHandler: () => {} },
+      webContents: { getAllWebContents: () => [] },
+      dialog: {}, shell: {}, protocol: {},
+      BrowserWindow: { getAllWindows: () => [] },
+      clipboard: { writeText: () => {}, writeImage: () => {} },
+      nativeImage: { createFromPath: () => ({ isEmpty: () => true }) },
+    };
+    Module._load = function (req) {
+      if (req === "electron") return fakeElectron;
+      return origLoad.apply(this, arguments);
+    };
+    const mainModPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainModPath)];
+    const i18nMain = require(mainModPath);
+    const clean = i18nMain.sanitizeAppearance({
+      presetId: "sakura-dusk",
+      customSidebarBg: true,
+      sidebarBg: "#28143A",
+      customBorderColor: true,
+      borderColor: "#E879F9",
+    });
+    assert.equal(clean.customSidebarBg, true);
+    assert.equal(clean.sidebarBg, "#28143a");
+    assert.equal(clean.customBorderColor, true);
+    assert.equal(clean.borderColor, "#e879f9");
+  } finally {
+    Module._load = origLoad;
+    fs.rmSync(tmpUd, { recursive: true, force: true });
+  }
+});
+
+test("Full editability, Element Inspector fixes, intuitive navigation, debounced saves & History live filter", async () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+
+  // 1) Expanded UI Zones & Smart Selector depth + sidebar surface anchoring
+  const zoneIds = v5Core.RUDEX_UI_ZONES.map((z) => z.id);
+  assert.ok(zoneIds.includes("sidebar-panels"), "Zones must include sidebar-panels (Projects)");
+  assert.ok(zoneIds.includes("sidebar-active"), "Zones must include sidebar-active");
+  assert.ok(zoneIds.includes("dividers"), "Zones must include dividers");
+  assert.ok(zoneIds.includes("buttons"), "Zones must include buttons");
+
+  const { doc, win } = createMockDom();
+  const deepAside = doc.createElement("aside");
+  deepAside.setAttribute("data-rudex-bg-sidebar", "1");
+  let curParent = deepAside;
+  for (let d = 0; d < 7; d += 1) {
+    const w = doc.createElement("div");
+    curParent.appendChild(w);
+    curParent = w;
+  }
+  const deepProjBtn = doc.createElement("button");
+  deepProjBtn.setAttribute("data-rudex-sidebar-surface", "panel");
+  deepProjBtn.textContent = "Проекты";
+  curParent.appendChild(deepProjBtn);
+  doc.body.appendChild(deepAside);
+
+  const exactDeepSel = v5Core.rv5BuildSmartSelector(deepProjBtn, "exact");
+  assert.ok(exactDeepSel.startsWith('[data-rudex-bg-sidebar="1"]'), `Deep sidebar selector must anchor at sidebar, got: ${exactDeepSel}`);
+  const simDeepSel = v5Core.rv5BuildSmartSelector(deepProjBtn, "similar");
+  assert.equal(simDeepSel, '[data-rudex-sidebar-surface="panel"]:not(#rudex-studio-host *)');
+
+  // 2) teBuildElementOverridesCss fixes: background-image: none, expanded descendants (h1/button/a/svg), narrow width no forced auto-center
+  const ovCss = te.teBuildElementOverridesCss([{
+    id: "ov-proj",
+    name: "Projects",
+    selector: '[data-rudex-sidebar-surface="panel"]',
+    enabled: true,
+    styles: { bgColor: "#221133", bgOpacity: 90, color: "#fef3c7", fontWeight: 600, lineHeight: 1.65, width: 180 },
+  }], false, {});
+  assert.ok(ovCss.includes("background-image: none !important;"), "bgColor override must strip gradient/glass sheen");
+  assert.ok(ovCss.includes("h1, h2, h3, h4, h5, h6, li, strong, small, button, a, svg"), "Descendant color/font rule must cover headings, buttons, links & icons");
+  assert.equal(ovCss.includes("margin-inline: auto"), false, "Narrow width override (<420px) must not force-center small elements");
+
+  // 3) Studio CSS wraps sticky subtabs cleanly (zero hidden off-screen tabs) & Inspector shifts left of open drawer
+  const stCss = buildStudioStyles();
+  assert.ok(stCss.includes(".modal-sticky-subtabs .subtab-bar {\n      border-bottom: none;\n      overflow-x: visible;\n      flex-wrap: wrap;"), "Sticky subtabs must wrap instead of silently clipping off-screen");
+  const v5Css = v5Core.rv5BuildExtraShadowCss();
+  assert.ok(v5Css.includes(".rx-inspector-card.is-drawer-open"), "Inspector must shift cleanly beside open right-docked drawer");
+
+  // 4) Full Studio Panel E2E checks: navigation groups, Workshop sticky subtabs, sidebarBg/borderColor UI, Inspector flush-on-close, debounced saves, History filter, antigravity suite
+  const savedPatches = [];
+  const translator = createDomTranslator({ document: doc, window: win, initialLocale: "ru" });
+  const themeEngine = te.createThemeEngine({ document: doc, window: win });
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    translator,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine,
+    buildStyles: buildStudioStyles,
+    ipcRenderer: {
+      on() {},
+      removeListener() {},
+      send() {},
+      sendSync() { return { ok: true }; },
+      async invoke(ch, arg) {
+        if (ch === "agy-studio:save-settings") {
+          savedPatches.push(arg);
+          return { ok: true };
+        }
+        if (ch === "agy-studio:get-state") {
+          return {
+            ok: true,
+            locale: "ru",
+            settings: {
+              thinkingInRussian: true,
+              thinkingTranslatorUrl: "",
+              optimization: { voiceLangPreset: "custom", voiceCustomLangs: "ru-RU" },
+            },
+          };
+        }
+        if (ch === "agy-studio:get-input-history") {
+          return {
+            ok: true,
+            draftCount: 0,
+            items: [
+              { id: "h1", text: "Поправь меню Проекты", chatTitle: "UI Audit", createdAt: Date.now(), attachments: [] },
+              { id: "h2", text: "Настрой деплой Docker", chatTitle: "DevOps", createdAt: Date.now() - 60000, attachments: [] },
+            ],
+          };
+        }
+        return { ok: true };
+      },
+    },
+  });
+
+  const prevV5 = {
+    RUDEX_UI_ZONES: globalThis.RUDEX_UI_ZONES,
+    rv5BuildElementInspectorHtml: globalThis.rv5BuildElementInspectorHtml,
+    rv5RenderElementsBuilderHtml: globalThis.rv5RenderElementsBuilderHtml,
+    rv5RenderWorkshopHtml: globalThis.rv5RenderWorkshopHtml,
+    rv5RenderInputHistoryHtml: globalThis.rv5RenderInputHistoryHtml,
+    rv5BuildSmartSelector: globalThis.rv5BuildSmartSelector,
+    rv5DescribeElementFriendly: globalThis.rv5DescribeElementFriendly,
+  };
+  Object.assign(globalThis, {
+    RUDEX_UI_ZONES: v5Core.RUDEX_UI_ZONES,
+    rv5BuildElementInspectorHtml: v5Ui.rv5BuildElementInspectorHtml,
+    rv5RenderElementsBuilderHtml: v5Ui.rv5RenderElementsBuilderHtml,
+    rv5RenderWorkshopHtml: v5Ui.rv5RenderWorkshopHtml,
+    rv5RenderInputHistoryHtml: v5Ui.rv5RenderInputHistoryHtml,
+    rv5BuildSmartSelector: v5Core.rv5BuildSmartSelector,
+    rv5DescribeElementFriendly: v5Core.rv5DescribeElementFriendly,
+  });
+
+  try {
+    panel.init();
+    await new Promise((r) => setTimeout(r, 15));
+    const shadow = doc.getElementById("rudex-studio-host").shadowRoot;
+    const rootEl = shadow.querySelector(".studio-root");
+    const modalMount = shadow.querySelector(".modal-mount");
+    const pickerMount = shadow.querySelector(".rx-picker-mount");
+
+    const fireClick = (attrs) => {
+      const b = doc.createElement("button");
+      for (const [k, v] of Object.entries(attrs)) b.setAttribute(`data-${k}`, String(v));
+      rootEl.appendChild(b);
+      try { rootEl.dispatchEvent({ type: "click", target: b }); } finally { b.remove(); }
+    };
+
+    // 4a) 3 intuitive nav groups + Theme palette exposes sidebarBg & borderColor + zero emojis
+    panel.setOpen(true, { tab: "appearance", appSubTab: "theme", dockedRight: false });
+    const appHtml = modalMount.innerHTML;
+    assert.ok(appHtml.includes("Внешний вид") && appHtml.includes("Работа с агентом") && appHtml.includes("Система"), "Sidebar must render 3 clear navigation groups");
+    assert.ok(appHtml.includes('data-app-field="sidebarBg"'), "Theme palette must expose editable sidebarBg color");
+    assert.ok(appHtml.includes('data-app-field="borderColor"'), "Theme palette must expose editable borderColor");
+    assert.equal(/[\u{1F300}-\u{1FAFF}]/u.test(appHtml), false, "Appearance HTML must contain zero emojis");
+
+    // 4b) Typing hex into sidebarBg & borderColor keeps active preset and applies custom colors
+    const hexInp = doc.createElement("input");
+    hexInp.setAttribute("data-app-hex-field", "sidebarBg");
+    hexInp.value = "#221133";
+    rootEl.appendChild(hexInp);
+    rootEl.dispatchEvent({ type: "input", target: hexInp });
+    hexInp.remove();
+    const brdInp = doc.createElement("input");
+    brdInp.setAttribute("data-app-hex-field", "borderColor");
+    brdInp.value = "#ec4899";
+    rootEl.appendChild(brdInp);
+    rootEl.dispatchEvent({ type: "input", target: brdInp });
+    brdInp.remove();
+    await new Promise((r) => setTimeout(r, 25));
+    assert.equal(themeEngine.getCurrent().customSidebarBg, true);
+    assert.equal(themeEngine.getCurrent().sidebarBg, "#221133");
+    assert.equal(themeEngine.getCurrent().customBorderColor, true);
+    assert.equal(themeEngine.getCurrent().borderColor, "#ec4899");
+    fireClick({ action: "reset-custom-sidebar-bg" });
+    await new Promise((r) => setTimeout(r, 25));
+    assert.equal(themeEngine.getCurrent().customSidebarBg, false);
+
+    // 4c) antigravity 1-click suite saves valid windowTheme 'obsidian' (never invalid 'graphite')
+    savedPatches.length = 0;
+    fireClick({ action: "apply-platform-suite", val: "antigravity" });
+    assert.ok(savedPatches.some((p) => p.studioUi && p.studioUi.windowTheme === "obsidian"), "Antigravity suite must save valid windowTheme='obsidian'");
+    assert.equal(savedPatches.some((p) => p.studioUi && p.studioUi.windowTheme === "graphite"), false, "Antigravity suite must never use invalid windowTheme='graphite'");
+
+    // 4d) Workshop renders pinned subtabs inside modal-sticky-subtabs
+    panel.setOpen(true, { tab: "workshop" });
+    const wsHtml = modalMount.innerHTML;
+    assert.ok(wsHtml.includes("modal-sticky-subtabs") && wsHtml.includes('data-action="ws-set-sub"'), "Workshop must render pinned subtabs in modal-sticky-subtabs");
+
+    // 4e) Widgets -> Mini no longer duplicates showChatDock/showContextMeter switches
+    panel.setOpen(true, { tab: "widgets", widgetSub: "mini" });
+    const miniHtml = modalMount.innerHTML;
+    assert.equal(miniHtml.includes('data-action="toggle-live-inline"'), false, "Widgets -> Mini must not duplicate Agent composer toggles");
+    assert.ok(miniHtml.includes('data-action="jump-search-hit" data-tab="persona"'), "Widgets -> Mini must cross-link cleanly to Agent");
+
+    // 4f) Inspector opens beside right drawer with fontWeight & lineHeight and flushes pending edits on close (zero 180ms loss)
+    panel.setOpen(true, { tab: "appearance", appSubTab: "elements", dockedRight: true });
+    fireClick({ action: "edit-ui-zone", "zone-id": "sidebar-panels" });
+    assert.ok(pickerMount.innerHTML.includes("is-drawer-open"), "Inspector must dock beside open right Appearance drawer");
+    assert.ok(pickerMount.innerHTML.includes('data-insp-range="fontWeight"'), "Inspector must expose fontWeight control");
+    assert.ok(pickerMount.innerHTML.includes('data-insp-range="lineHeight"'), "Inspector must expose lineHeight control");
+    savedPatches.length = 0;
+    const lhInp = doc.createElement("input");
+    lhInp.setAttribute("data-insp-range", "lineHeight");
+    lhInp.value = "1.65";
+    rootEl.appendChild(lhInp);
+    rootEl.dispatchEvent({ type: "input", target: lhInp });
+    lhInp.remove();
+    // Immediately close inspector BEFORE 180ms timer fires — edit MUST flush synchronously!
+    fireClick({ action: "close-element-inspector" });
+    assert.ok(
+      savedPatches.some((p) => p.appearance && Array.isArray(p.appearance.elementOverrides) && p.appearance.elementOverrides.some((o) => o.styles && o.styles.lineHeight === 1.65)),
+      "Closing inspector before debounce timeout must flush float lineHeight edit immediately"
+    );
+
+    // 4g) Debounced save persists thinkingTranslatorUrl & optVoiceLangs (no silent drop!)
+    savedPatches.length = 0;
+    const trUrlInp = doc.createElement("input");
+    trUrlInp.setAttribute("data-sys-field", "thinkingTranslatorUrl");
+    trUrlInp.value = "http://127.0.0.1:5000/translate";
+    rootEl.appendChild(trUrlInp);
+    rootEl.dispatchEvent({ type: "input", target: trUrlInp });
+    const voiceLangInp = doc.createElement("input");
+    voiceLangInp.setAttribute("data-opt-field", "voiceCustomLangs");
+    voiceLangInp.value = "ru-RU, en-US";
+    rootEl.appendChild(voiceLangInp);
+    rootEl.dispatchEvent({ type: "input", target: voiceLangInp });
+    trUrlInp.remove();
+    voiceLangInp.remove();
+    panel.setOpen(false);
+    assert.ok(savedPatches.some((p) => p.thinkingTranslatorUrl === "http://127.0.0.1:5000/translate"), "thinkingTranslatorUrl must persist via debounced save/flush");
+    assert.ok(savedPatches.some((p) => p.optimization && p.optimization.voiceCustomLangs === "ru-RU, en-US"), "optVoiceLangs must persist via debounced save/flush");
+
+    // 4h) History live search filters cards and updates count live
+    panel.setOpen(true, { tab: "history" });
+    await new Promise((r) => setTimeout(r, 20));
+    const histHtml = modalMount.innerHTML;
+    assert.ok(histHtml.includes('data-role="historyList"'), "History list must expose data-role='historyList'");
+    assert.ok(histHtml.includes('data-hist-search='), "History cards must expose data-hist-search attribute");
+
+    // Verify live filtering DOM behavior directly on real mock nodes
+    const histListEl = doc.createElement("div");
+    histListEl.setAttribute("data-role", "historyList");
+    const c1 = doc.createElement("div");
+    c1.className = "rx-hist-card";
+    c1.setAttribute("data-hist-search", "поправь меню проекты ui audit");
+    const c2 = doc.createElement("div");
+    c2.className = "rx-hist-card";
+    c2.setAttribute("data-hist-search", "настрой деплой docker devops");
+    const cntEl = doc.createElement("span");
+    cntEl.setAttribute("data-role", "historyCount");
+    cntEl.setAttribute("data-total", "2");
+    const emptyEl = doc.createElement("div");
+    emptyEl.setAttribute("data-role", "historyFilterEmpty");
+    emptyEl.style.display = "none";
+    histListEl.appendChild(c1);
+    histListEl.appendChild(c2);
+    modalMount.appendChild(cntEl);
+    modalMount.appendChild(emptyEl);
+    modalMount.appendChild(histListEl);
+
+    const histSearchInp = doc.createElement("input");
+    histSearchInp.setAttribute("data-role", "historySearch");
+    histSearchInp.value = "проекты";
+    rootEl.appendChild(histSearchInp);
+    rootEl.dispatchEvent({ type: "input", target: histSearchInp });
+    assert.equal(c1.style.display, "", "Matching history card must stay visible");
+    assert.equal(c2.style.display, "none", "Non-matching history card must hide");
+    assert.ok(cntEl.textContent.includes("(1 / 2)"), "History count must update live on filter");
+    assert.equal(emptyEl.style.display, "none");
+
+    histSearchInp.value = "несуществующийзапрос";
+    rootEl.dispatchEvent({ type: "input", target: histSearchInp });
+    assert.equal(emptyEl.style.display, "", "Empty filter state must show when 0 history cards match");
+    histSearchInp.remove();
+  } finally {
+    panel.destroy();
+    themeEngine.destroy();
+    translator.destroy();
+    Object.assign(globalThis, prevV5);
+  }
+});
+
+test("Bugfixes: zero stuck sidebar strips + clear active pill, Claude Code 0px New/Active jump, reliable mid-turn live-edit interception & dock anti-overlap", async () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+
+  // 1) Sidebar CSS uses clean rounded active pill (NO buggy inset 2px 0 0 strip) across dark, light & wallpaper modes
+  for (const cfg of [
+    { presetId: "claude-terminal" },
+    { presetId: "sakura-dusk", wallpaper: { type: "gradient", gradientPreset: "aurora" } },
+    { presetId: "light-paper" },
+  ]) {
+    const css = te.buildThemeCss(cfg, { hostIsLight: cfg.presetId === "light-paper" });
+    assert.equal(css.includes("inset 2px 0 0"), false, `Sidebar active CSS for ${cfg.presetId} must NOT emit old buggy 2px left strip`);
+    assert.ok(css.includes("inset 0px 0px 0px 1px"), `Sidebar active CSS for ${cfg.presetId} must render crisp rounded pill ring`);
+    assert.ok(css.includes('[aria-current="page"]') && css.includes('[data-rudex-sidebar-surface="active"]'), `Sidebar active CSS for ${cfg.presetId} must work in all modes`);
+  }
+
+  // 2) Live sidebar chat switching (both aria-current AND React class-based active rows): 0ms switch, ZERO stuck attributes, light Pass D2 never marks non-active dark item as sidebar-active
+  {
+    const { doc, win } = createMockDom();
+    win.innerWidth = 1280;
+    win.innerHeight = 800;
+    let observerCb = null;
+    let observedOpts = null;
+    win.MutationObserver = class MockMO {
+      constructor(cb) { observerCb = cb; }
+      observe(_t, opts) { observedOpts = opts; }
+      disconnect() {}
+    };
+    const root = doc.createElement("div");
+    root.id = "root";
+    doc.body.appendChild(root);
+    const setRect = (el, l, t, w, h) => { el.getBoundingClientRect = () => ({ left: l, top: t, width: w, height: h, right: l + w, bottom: t + h }); };
+    setRect(root, 0, 0, 1280, 800);
+
+    const aside = doc.createElement("aside");
+    aside.style.backgroundColor = "rgb(20, 20, 22)";
+    setRect(aside, 0, 0, 260, 800);
+    const chatList = doc.createElement("div");
+    setRect(chatList, 8, 80, 244, 240);
+    const ch1 = doc.createElement("button");
+    ch1.className = "chat-row bg-zinc-800";
+    ch1.style.backgroundColor = "rgb(39, 39, 42)";
+    ch1.textContent = "Chat 1";
+    setRect(ch1, 10, 84, 240, 34);
+    const ch2 = doc.createElement("button");
+    ch2.className = "chat-row";
+    ch2.style.backgroundColor = "rgba(0, 0, 0, 0)";
+    ch2.textContent = "Chat 2";
+    setRect(ch2, 10, 122, 240, 34);
+    const ch3 = doc.createElement("button");
+    ch3.className = "chat-row";
+    ch3.style.backgroundColor = "rgba(0, 0, 0, 0)";
+    ch3.textContent = "Chat 3";
+    setRect(ch3, 10, 160, 240, 34);
+    chatList.appendChild(ch1);
+    chatList.appendChild(ch2);
+    chatList.appendChild(ch3);
+    aside.appendChild(chatList);
+    root.appendChild(aside);
+
+    const eng = te.createThemeEngine({ document: doc, window: win });
+    try {
+      eng.apply({ presetId: "claude-terminal" });
+      assert.ok(observedOpts && observedOpts.attributeFilter.includes("aria-current") && observedOpts.attributeFilter.includes("data-active"), "MutationObserver must watch aria-current/aria-selected/data-active/data-selected");
+      assert.equal(ch1.getAttribute("data-rudex-sidebar-surface"), "active", "Class-selected active chat row must receive active highlight");
+      assert.equal(ch2.getAttribute("data-rudex-sidebar-surface"), null, "Inactive chat rows must remain unhighlighted");
+
+      // Switch to Chat 2 via React class swap -> synchronous MutationObserver updates in 0ms and clears Chat 1!
+      ch1.className = "chat-row";
+      ch1.style.backgroundColor = "rgba(0, 0, 0, 0)";
+      ch2.className = "chat-row bg-zinc-800";
+      ch2.style.backgroundColor = "rgb(39, 39, 42)";
+      observerCb([
+        { type: "attributes", attributeName: "class", target: ch1 },
+        { type: "attributes", attributeName: "class", target: ch2 },
+      ]);
+      assert.equal(ch1.getAttribute("data-rudex-sidebar-surface"), null, "Previously active Chat 1 must lose active highlight immediately (ZERO stuck strip/highlight)");
+      assert.equal(ch2.getAttribute("data-rudex-sidebar-surface"), "active", "Newly clicked Chat 2 must immediately receive active highlight");
+
+      // Switch to New Chat (no chat selected) -> ALL chat rows clear cleanly!
+      ch2.className = "chat-row";
+      ch2.style.backgroundColor = "rgba(0, 0, 0, 0)";
+      observerCb([{ type: "attributes", attributeName: "class", target: ch2 }]);
+      assert.equal(ch1.getAttribute("data-rudex-sidebar-surface"), null);
+      assert.equal(ch2.getAttribute("data-rudex-sidebar-surface"), null, "Returning to New Chat must clear active highlight from Chat 2");
+      assert.equal(ch3.getAttribute("data-rudex-sidebar-surface"), null);
+
+      // Light theme Pass D2 must NOT stamp sidebar-active on non-active dark item (yiq < 45)
+      ch3.style.backgroundColor = "rgb(18, 18, 20)";
+      eng.apply({ presetId: "light-paper" });
+      eng.scanWallpaperShells();
+      assert.equal(ch3.getAttribute("data-rudex-light-fix"), "sidebar", "Non-active dark item in light theme must get 'sidebar', NEVER 'sidebar-active'");
+    } finally {
+      eng.destroy();
+    }
+  }
+
+  // 3) Claude Code composer: 0px jump metrics (exact 44px box / 24px line / bottom:13px idle arrow / 8px send fallback / empty top sibling hidden)
+  {
+    const ccCss = te.buildThemeCss({ presetId: "claude-code-dark", uiStyle: { preset: "claude-code" } });
+    assert.ok(ccCss.includes("min-height: 44px !important;") && ccCss.includes("margin: 0 !important;"), "Claude Code inputRow must lock 44px min-height and zero margin");
+    assert.ok(ccCss.includes("bottom: 13px;"), "Claude Code idle return arrow must sit at bottom: 13px (exact 22px vertical center)");
+    assert.ok(ccCss.includes("var(--rudex-cc-send-top, 8px)"), "Claude Code send button fallback must sit at 8px (exact 22px vertical center, 0px jump)");
+    assert.ok(ccCss.includes("line-height: 24px !important;"), "Claude Code editor & placeholders must share locked 24px line-height");
+    assert.ok(ccCss.includes("height: 32px !important;") && ccCss.includes("max-height: 32px !important;"), "Claude Code toolbar must lock exact 32px height across New Chat & Active Chat");
+    assert.ok(ccCss.includes('[data-rudex-comp-wrap="1"]') && ccCss.includes('[data-rudex-comp-dock="1"]'), "Claude Code must normalize depth-independent composer footer dock wrappers");
+    assert.ok(ccCss.includes('[data-rudex-comp-top-row="1"]:empty'), "Empty top-row must be collapsed via CSS");
+
+    const { doc, win } = createMockDom();
+    win.innerWidth = 1280;
+    win.innerHeight = 800;
+    const footerDock = doc.createElement("div");
+    footerDock.getBoundingClientRect = () => ({ left: 240, top: 670, right: 1040, bottom: 786, width: 800, height: 116 });
+    const innerWrap = doc.createElement("div");
+    innerWrap.getBoundingClientRect = () => ({ left: 250, top: 676, right: 1030, bottom: 770, width: 780, height: 94 });
+    const comp = doc.createElement("div");
+    comp.style.borderRadius = "14px";
+    comp.style.backgroundColor = "rgb(30, 30, 28)";
+    comp.getBoundingClientRect = () => ({ left: 260, top: 680, right: 1020, bottom: 756, width: 760, height: 76 });
+    const emptyTopSlot = doc.createElement("div"); // Empty placeholder sibling above inputRow in Active Chat
+    emptyTopSlot.getBoundingClientRect = () => ({ left: 260, top: 680, right: 1020, bottom: 680, width: 760, height: 0 });
+    const emptyTrailingSlot = doc.createElement("div"); // Empty trailing sibling after toolbar
+    emptyTrailingSlot.getBoundingClientRect = () => ({ left: 260, top: 756, right: 1020, bottom: 756, width: 760, height: 0 });
+    const inRow = doc.createElement("div");
+    inRow.getBoundingClientRect = () => ({ left: 260, top: 680, right: 1020, bottom: 724, width: 760, height: 44 });
+    const ce = doc.createElement("div");
+    ce.setAttribute("contenteditable", "true");
+    ce.getBoundingClientRect = () => ({ left: 274, top: 690, right: 980, bottom: 714, width: 706, height: 24 });
+    inRow.appendChild(ce);
+    const bar = doc.createElement("div");
+    bar.getBoundingClientRect = () => ({ left: 260, top: 724, right: 1020, bottom: 756, width: 760, height: 32 });
+    const modelBtn = doc.createElement("button");
+    modelBtn.setAttribute("data-testid", "model-selector-trigger");
+    modelBtn.textContent = "Claude Sonnet";
+    modelBtn.getBoundingClientRect = () => ({ left: 820, top: 726, right: 960, bottom: 754, width: 140, height: 28 });
+    bar.appendChild(modelBtn);
+    comp.appendChild(emptyTopSlot);
+    comp.appendChild(inRow);
+    comp.appendChild(bar);
+    comp.appendChild(emptyTrailingSlot);
+    innerWrap.appendChild(comp);
+    footerDock.appendChild(innerWrap);
+    doc.body.appendChild(footerDock);
+
+    const eng = te.createThemeEngine({ document: doc, window: win });
+    try {
+      eng.apply({ presetId: "claude-code-dark", uiStyle: { preset: "claude-code" } });
+      assert.equal(innerWrap.getAttribute("data-rudex-comp-wrap"), "1", "Inner composer wrapper must get data-rudex-comp-wrap (pb: 0)");
+      assert.equal(footerDock.getAttribute("data-rudex-comp-dock"), "1", "Outermost tight footer dock must get data-rudex-comp-dock (consistent 8px pb)");
+      assert.equal(emptyTopSlot.getAttribute("data-rudex-comp-empty-slot"), "1", "Empty top sibling above inputRow must be marked empty-slot, NEVER top-row");
+      assert.equal(emptyTrailingSlot.getAttribute("data-rudex-comp-empty-slot"), "1", "Empty trailing sibling after toolbar must also be hidden via empty-slot");
+      assert.equal(emptyTopSlot.getAttribute("data-rudex-comp-top-row"), null);
+      assert.equal(comp.style.getPropertyValue("--rudex-cc-send-top"), "8px", "Single-line 44px Claude Code Reply box must align send button at exact 8px");
+    } finally {
+      eng.destroy();
+    }
+  }
+
+  // 4) Reliable mid-turn live-edit interception (div composer + aria-label Stop button + closed/sidebar listbox + "Add to queue" click) & Tools dock lifting above native queued bar + clean sidebar labels
+  const prevV5 = {
+    rv5EscapeHtml: globalThis.rv5EscapeHtml,
+    rv5BuildSmartSelector: globalThis.rv5BuildSmartSelector,
+    rv5DescribeElementFriendly: globalThis.rv5DescribeElementFriendly,
+    rv5FindNativeComposer: globalThis.rv5FindNativeComposer,
+    rv5ReadEditableText: globalThis.rv5ReadEditableText,
+    rv5ClearEditableText: globalThis.rv5ClearEditableText,
+    rv5NormalizeAgentProfile: globalThis.rv5NormalizeAgentProfile,
+    rv5NormalizeLimitsWidget: globalThis.rv5NormalizeLimitsWidget,
+    rv5NormalizeKeybindings: globalThis.rv5NormalizeKeybindings,
+    rv5NormalizeQuotaAutomation: globalThis.rv5NormalizeQuotaAutomation,
+    rv5CountActiveAgentFeatures: globalThis.rv5CountActiveAgentFeatures,
+    rv5SummarizeActiveToggles: globalThis.rv5SummarizeActiveToggles,
+    rv5BuildChatDockHtml: globalThis.rv5BuildChatDockHtml,
+    rv5RenderAgentHubTabHtml: globalThis.rv5RenderAgentHubTabHtml,
+    rv5RenderWorkshopHtml: globalThis.rv5RenderWorkshopHtml,
+    rv5RenderElementsTabHtml: globalThis.rv5RenderElementsTabHtml,
+    rv5RenderLimitsTabHtml: globalThis.rv5RenderLimitsTabHtml,
+    rv5RenderKeybindingsHtml: globalThis.rv5RenderKeybindingsHtml,
+    rv5RenderLimitsWidgetHtml: globalThis.rv5RenderLimitsWidgetHtml,
+    rv5RenderElementInspectorPopup: globalThis.rv5RenderElementInspectorPopup,
+    rv5SyncLiveChatBubbles: globalThis.rv5SyncLiveChatBubbles,
+    RUDEX_UI_ZONES: globalThis.RUDEX_UI_ZONES,
+    RUDEX_AGENT_PRESETS: globalThis.RUDEX_AGENT_PRESETS,
+    RUDEX_AGENT_PROFILE_DEFAULTS: globalThis.RUDEX_AGENT_PROFILE_DEFAULTS,
+    RUDEX_LIMITS_DEFAULTS: globalThis.RUDEX_LIMITS_DEFAULTS,
+    RUDEX_KEYBINDING_DEFS: globalThis.RUDEX_KEYBINDING_DEFS,
+    RUDEX_KEYBINDINGS_DEFAULTS: globalThis.RUDEX_KEYBINDINGS_DEFAULTS,
+    RUDEX_LIVE_EDIT_DEFAULTS: globalThis.RUDEX_LIVE_EDIT_DEFAULTS,
+    RUDEX_QUOTA_AUTOMATION_DEFAULTS: globalThis.RUDEX_QUOTA_AUTOMATION_DEFAULTS,
+    buildStudioStyles: globalThis.buildStudioStyles,
+  };
+  Object.assign(globalThis, v5Core, v5Ui, { buildStudioStyles });
+  const { doc, win } = createMockDom();
+  win.innerWidth = 1280;
+  win.innerHeight = 800;
+  const winCaptureMap = new Map();
+  const origWinAdd = win.addEventListener;
+  const origWinRem = win.removeEventListener;
+  win.addEventListener = (type, fn, cap) => {
+    if (!winCaptureMap.has(type)) winCaptureMap.set(type, new Set());
+    winCaptureMap.get(type).add(fn);
+    if (origWinAdd) origWinAdd.call(win, type, fn, cap);
+  };
+  win.removeEventListener = (type, fn, cap) => {
+    if (winCaptureMap.has(type)) winCaptureMap.get(type).delete(fn);
+    if (origWinRem) origWinRem.call(win, type, fn, cap);
+  };
+  win.dispatchEvent = (ev) => {
+    const set = winCaptureMap.get(ev && ev.type);
+    if (set) {
+      for (const fn of Array.from(set)) fn(ev);
+    }
+  };
+
+  // Build native Antigravity DOM: div composer (no <form>) + aria-label="Stop generating" + "Add to queue" button + closed listbox + native "Сообщения в очереди" bar above composer
+  const mainEl = doc.createElement("main");
+  const nativeQueueBar = doc.createElement("div");
+  nativeQueueBar.textContent = "Сообщения в очереди 1 Отправится после завершения работы агента";
+  nativeQueueBar.getBoundingClientRect = () => ({ left: 260, top: 610, right: 1020, bottom: 682, width: 760, height: 72 });
+  const compDiv = doc.createElement("div");
+  compDiv.setAttribute("data-rudex-theme-composer", "1");
+  compDiv.getBoundingClientRect = () => ({ left: 260, top: 690, right: 1020, bottom: 770, width: 760, height: 80 });
+  const ed = doc.createElement("div");
+  ed.setAttribute("contenteditable", "true");
+  ed.textContent = "учти правку прямо сейчас";
+  ed.getBoundingClientRect = () => ({ left: 274, top: 700, right: 960, bottom: 724, width: 686, height: 24 });
+  const stopBtn = doc.createElement("button");
+  stopBtn.setAttribute("aria-label", "Stop generating");
+  const queueBtn = doc.createElement("button");
+  queueBtn.setAttribute("aria-label", "Add to queue");
+  compDiv.appendChild(ed);
+  compDiv.appendChild(stopBtn);
+  compDiv.appendChild(queueBtn);
+  mainEl.appendChild(nativeQueueBar);
+  mainEl.appendChild(compDiv);
+  // Closed/sidebar listbox that must NEVER block live-edit Enter interception
+  const closedPopup = doc.createElement("div");
+  closedPopup.setAttribute("role", "listbox");
+  closedPopup.setAttribute("data-state", "closed");
+  doc.body.appendChild(closedPopup);
+  doc.body.appendChild(mainEl);
+
+  const sentLiveEdits = [];
+  const ipc = {
+    invoke: async (ch, payload) => {
+      if (ch === "agy-studio:send-live-edit") {
+        sentLiveEdits.push(payload);
+        return { ok: true, entry: { id: "le-test-" + sentLiveEdits.length, text: payload.text, status: "pending" }, items: [] };
+      }
+      if (ch === "agy-studio:get-state") {
+        return {
+          locale: "ru",
+          settings: { liveEditInline: { enabled: true, sendKey: "enter", showChatDock: true, showInChat: true }, appearance: { presetId: "claude-terminal" } },
+          liveEdits: [],
+          chats: {},
+          inputHistory: [],
+        };
+      }
+      if (ch === "agy-studio:get-live-edits") return { ok: true, items: [] };
+      return { ok: true };
+    },
+    on: () => {},
+    removeListener: () => {},
+  };
+  const themeEngine = te.createThemeEngine({ document: doc, window: win });
+  const translator = createDomTranslator({ document: doc, window: win });
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: ipc,
+    telemetryEngine: createTelemetryEngine(),
+    translator,
+    themeEngine,
+  });
+  try {
+    panel.init();
+    await new Promise((r) => setTimeout(r, 35));
+
+    // A) Enter during generation (with div composer + aria-label Stop button + closed listbox) MUST intercept into Rudex live-edit!
+    let enterPrevented = false;
+    win.dispatchEvent({
+      type: "keydown",
+      key: "Enter",
+      target: ed,
+      preventDefault: () => { enterPrevented = true; },
+      stopPropagation: () => {},
+      stopImmediatePropagation: () => {},
+    });
+    await new Promise((r) => setTimeout(r, 25));
+    assert.equal(enterPrevented, true, "Enter during generation must be intercepted BEFORE Antigravity native queue");
+    assert.equal(sentLiveEdits.length, 1, "Mid-turn Enter must submit Rudex live edit");
+    assert.equal(sentLiveEdits[0].text, "учти правку прямо сейчас");
+
+    // B) Clicking "Add to queue" button during generation MUST also intercept into Rudex live-edit (never rejected by /add/ filter!)
+    ed.textContent = "вторая правка через кнопку";
+    let clickPrevented = false;
+    win.dispatchEvent({
+      type: "pointerdown",
+      button: 0,
+      target: queueBtn,
+      preventDefault: () => { clickPrevented = true; },
+      stopPropagation: () => {},
+      stopImmediatePropagation: () => {},
+    });
+    await new Promise((r) => setTimeout(r, 25));
+    assert.equal(clickPrevented, true, "Clicking 'Add to queue' during generation must be intercepted as Rudex live edit");
+    assert.equal(sentLiveEdits.length, 2, "Clicking 'Add to queue' must send Rudex live edit");
+
+    // C) Tools dock lifts cleanly ABOVE native "Сообщения в очереди" bar (top 610 => bottom >= 800 - 610 + 6 = 196px, never overlapping 610..682!)
+    const dockMount = doc.getElementById("rudex-studio-host").shadowRoot.querySelector(".rx-chat-dock");
+    assert.ok(dockMount && parseInt(dockMount.style.bottom, 10) >= 196, `Tools dock must lift above native queued messages bar (got bottom=${dockMount && dockMount.style.bottom})`);
+
+    // D) Clean universal sidebar labels (no awkward «Проекты» wording in Appearance palette)
+    panel.setOpen(true, { tab: "appearance", appSub: "theme" });
+    await new Promise((r) => setTimeout(r, 25));
+    const appHtml = doc.getElementById("rudex-studio-host").shadowRoot.querySelector(".modal-mount").innerHTML;
+    assert.ok(appHtml.includes("Цвета фона, карточек, сайдбара и границ"), "Palette section title must use clean sidebar wording");
+    assert.equal(appHtml.includes("«Проекты»"), false, "Appearance palette must NOT single out «Проекты»");
+    const panelZone = v5Core.RUDEX_UI_ZONES.find((z) => z.id === "sidebar-panels");
+    assert.equal(panelZone.nameRu, "Блоки боковой панели");
+  } finally {
+    panel.destroy();
+    themeEngine.destroy();
+    translator.destroy();
+    Object.assign(globalThis, prevV5);
+  }
+});
+
+test("Zero hover flicker on '+ Новый чат' & rock-solid composer drafts (no 2x Lexical duplication, no cross-chat leak, New Chat isolation)", async () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+
+  // 1) Sidebar "+ Новый чат" MUST NEVER flicker orange/active on hover:bg-* classes, computed hover bg, or Radix tooltip data-state mutations
+  {
+    const { doc, win } = createMockDom();
+    win.innerWidth = 1280;
+    win.innerHeight = 800;
+    let obsCb = null;
+    win.MutationObserver = class MockMO {
+      constructor(cb) { obsCb = cb; }
+      observe() {}
+      disconnect() {}
+    };
+    const root = doc.createElement("div");
+    root.id = "root";
+    doc.body.appendChild(root);
+    const setRect = (el, l, t, w, h) => { el.getBoundingClientRect = () => ({ left: l, top: t, width: w, height: h, right: l + w, bottom: t + h }); };
+    setRect(root, 0, 0, 1280, 800);
+
+    const aside = doc.createElement("aside");
+    aside.style.backgroundColor = "rgb(20, 20, 22)";
+    setRect(aside, 0, 0, 260, 800);
+
+    // Top nav group: "+ Новый чат" has different font-medium class + hover:bg-white/10 + computed hover bg!
+    const topNav = doc.createElement("div");
+    setRect(topNav, 8, 12, 244, 110);
+    const newChatBtn = doc.createElement("button");
+    newChatBtn.textContent = "+ Новый чат";
+    newChatBtn.className = "nav-btn hover:bg-white/10 font-medium";
+    newChatBtn.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
+    setRect(newChatBtn, 10, 14, 240, 32);
+    const inboxBtn = doc.createElement("button");
+    inboxBtn.textContent = "Входящие";
+    inboxBtn.className = "nav-btn hover:bg-white/10";
+    inboxBtn.style.backgroundColor = "rgba(0, 0, 0, 0)";
+    setRect(inboxBtn, 10, 48, 240, 32);
+    const settingsBtn = doc.createElement("button");
+    settingsBtn.textContent = "Настройки";
+    settingsBtn.className = "nav-btn hover:bg-white/10";
+    settingsBtn.style.backgroundColor = "rgba(0, 0, 0, 0)";
+    setRect(settingsBtn, 10, 82, 240, 32);
+    topNav.appendChild(newChatBtn);
+    topNav.appendChild(inboxBtn);
+    topNav.appendChild(settingsBtn);
+
+    // Real chat list: Chat A has unprefixed bg-zinc-800, Chat B has hover:bg-white/10 (hovered!)
+    const chatList = doc.createElement("div");
+    setRect(chatList, 8, 140, 244, 150);
+    const chatA = doc.createElement("button");
+    chatA.textContent = "Рабочий чат";
+    chatA.className = "chat-row hover:bg-white/10 bg-zinc-800";
+    chatA.style.backgroundColor = "rgb(39, 39, 42)";
+    setRect(chatA, 10, 144, 240, 32);
+    const chatB = doc.createElement("button");
+    chatB.textContent = "Другой чат";
+    chatB.className = "chat-row hover:bg-white/10";
+    chatB.style.backgroundColor = "rgba(255, 255, 255, 0.08)"; // simulated CSS :hover bg
+    setRect(chatB, 10, 180, 240, 32);
+    chatList.appendChild(chatA);
+    chatList.appendChild(chatB);
+
+    aside.appendChild(topNav);
+    aside.appendChild(chatList);
+    root.appendChild(aside);
+
+    const eng = te.createThemeEngine({ document: doc, window: win });
+    try {
+      eng.apply({ presetId: "claude-terminal" });
+      assert.equal(newChatBtn.getAttribute("data-rudex-sidebar-surface"), null, "'+ Новый чат' must NEVER be marked active via hover:bg-* or computed hover bg");
+      assert.equal(chatA.getAttribute("data-rudex-sidebar-surface"), "active", "Real active chat with unprefixed bg-zinc-800 must stay active");
+      assert.equal(chatB.getAttribute("data-rudex-sidebar-surface"), null, "Hovered inactive chat must NEVER steal active highlight");
+
+      // Simulate Radix tooltip hover data-state="delayed-open" -> "closed" on "+ Новый чат"
+      newChatBtn.setAttribute("data-state", "delayed-open");
+      obsCb([{ type: "attributes", attributeName: "data-state", target: newChatBtn }]);
+      assert.equal(newChatBtn.getAttribute("data-rudex-sidebar-surface"), null, "Radix tooltip delayed-open must NEVER highlight '+ Новый чат'");
+      newChatBtn.setAttribute("data-state", "closed");
+      obsCb([{ type: "attributes", attributeName: "data-state", target: newChatBtn }]);
+      assert.equal(newChatBtn.getAttribute("data-rudex-sidebar-surface"), null);
+    } finally {
+      eng.destroy();
+    }
+  }
+
+  // 2) Composer drafts: async Lexical paste does NOT double-insert (no 2x/8x duplication!), rapid typing before switch flushes to OLD chat (never leaks new chat DOM), and clearing text clears disk draft!
+  const prevV5 = {
+    rv5EscapeHtml: globalThis.rv5EscapeHtml,
+    rv5BuildSmartSelector: globalThis.rv5BuildSmartSelector,
+    rv5DescribeElementFriendly: globalThis.rv5DescribeElementFriendly,
+    rv5FindNativeComposer: globalThis.rv5FindNativeComposer,
+    rv5ReadEditableText: globalThis.rv5ReadEditableText,
+    rv5ClearEditableText: globalThis.rv5ClearEditableText,
+    rv5NormalizeAgentProfile: globalThis.rv5NormalizeAgentProfile,
+    rv5NormalizeLimitsWidget: globalThis.rv5NormalizeLimitsWidget,
+    rv5NormalizeKeybindings: globalThis.rv5NormalizeKeybindings,
+    rv5NormalizeQuotaAutomation: globalThis.rv5NormalizeQuotaAutomation,
+    rv5CountActiveAgentFeatures: globalThis.rv5CountActiveAgentFeatures,
+    rv5SummarizeActiveToggles: globalThis.rv5SummarizeActiveToggles,
+    rv5BuildChatDockHtml: globalThis.rv5BuildChatDockHtml,
+    rv5RenderAgentHubTabHtml: globalThis.rv5RenderAgentHubTabHtml,
+    rv5RenderWorkshopHtml: globalThis.rv5RenderWorkshopHtml,
+    rv5RenderElementsTabHtml: globalThis.rv5RenderElementsTabHtml,
+    rv5RenderLimitsTabHtml: globalThis.rv5RenderLimitsTabHtml,
+    rv5RenderKeybindingsHtml: globalThis.rv5RenderKeybindingsHtml,
+    rv5RenderLimitsWidgetHtml: globalThis.rv5RenderLimitsWidgetHtml,
+    rv5RenderElementInspectorPopup: globalThis.rv5RenderElementInspectorPopup,
+    rv5SyncLiveChatBubbles: globalThis.rv5SyncLiveChatBubbles,
+    RUDEX_UI_ZONES: globalThis.RUDEX_UI_ZONES,
+    RUDEX_AGENT_PRESETS: globalThis.RUDEX_AGENT_PRESETS,
+    RUDEX_AGENT_PROFILE_DEFAULTS: globalThis.RUDEX_AGENT_PROFILE_DEFAULTS,
+    RUDEX_LIMITS_DEFAULTS: globalThis.RUDEX_LIMITS_DEFAULTS,
+    RUDEX_KEYBINDING_DEFS: globalThis.RUDEX_KEYBINDING_DEFS,
+    RUDEX_KEYBINDINGS_DEFAULTS: globalThis.RUDEX_KEYBINDINGS_DEFAULTS,
+    RUDEX_LIVE_EDIT_DEFAULTS: globalThis.RUDEX_LIVE_EDIT_DEFAULTS,
+    RUDEX_QUOTA_AUTOMATION_DEFAULTS: globalThis.RUDEX_QUOTA_AUTOMATION_DEFAULTS,
+    buildStudioStyles: globalThis.buildStudioStyles,
+  };
+  Object.assign(globalThis, v5Core, v5Ui, { buildStudioStyles });
+  const { doc, win } = createMockDom();
+  win.innerWidth = 1280;
+  win.innerHeight = 800;
+  win.location = { pathname: "/", search: "", hash: "" };
+  const docEvMap = new Map();
+  const origDocAdd = doc.addEventListener;
+  const origDocRem = doc.removeEventListener;
+  doc.addEventListener = (type, fn, cap) => {
+    if (!docEvMap.has(type)) docEvMap.set(type, new Set());
+    docEvMap.get(type).add(fn);
+    if (origDocAdd) origDocAdd.call(doc, type, fn, cap);
+  };
+  doc.removeEventListener = (type, fn, cap) => {
+    if (docEvMap.has(type)) docEvMap.get(type).delete(fn);
+    if (origDocRem) origDocRem.call(doc, type, fn, cap);
+  };
+  doc.dispatchEvent = (ev) => {
+    const set = docEvMap.get(ev && ev.type);
+    if (set) {
+      for (const fn of Array.from(set)) fn(ev);
+    }
+  };
+  win.DataTransfer = class MockDT {
+    constructor() { this._d = {}; }
+    setData(k, v) { this._d[k] = v; }
+    getData(k) { return this._d[k] || ""; }
+  };
+  win.ClipboardEvent = class MockCE {
+    constructor(type, opts) { this.type = type; this.clipboardData = opts && opts.clipboardData; }
+  };
+
+  const mainEl = doc.createElement("main");
+  const compDiv = doc.createElement("div");
+  compDiv.setAttribute("data-rudex-theme-composer", "1");
+  compDiv.getBoundingClientRect = () => ({ left: 260, top: 690, right: 1020, bottom: 770, width: 760, height: 80 });
+  const ed = doc.createElement("div");
+  ed.setAttribute("contenteditable", "true");
+  ed.getBoundingClientRect = () => ({ left: 274, top: 700, right: 960, bottom: 724, width: 686, height: 24 });
+  // Simulate async Lexical paste commit (15ms delay!)
+  ed.addEventListener("paste", (ev) => {
+    const pasted = ev && ev.clipboardData ? ev.clipboardData.getData("text/plain") : "";
+    if (pasted) {
+      setTimeout(() => { ed.textContent = (ed.textContent || "") + pasted; }, 15);
+    }
+  });
+  compDiv.appendChild(ed);
+  mainEl.appendChild(compDiv);
+  doc.body.appendChild(mainEl);
+
+  const chatAId = "11111111-2222-3333-4444-555555555555";
+  const chatBId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+  const draftDisk = {
+    [chatAId]: { chatKey: chatAId, title: "Chat A", text: "здарова", attachments: [], updatedAt: Date.now() },
+  };
+  let insertFocusedCalls = 0;
+  const ipc = {
+    send: (ch, payload) => {
+      if (ch === "agy-studio:save-composer-draft-sync" && payload && payload.chatKey) {
+        if (String(payload.text || "").trim()) {
+          draftDisk[payload.chatKey] = { chatKey: payload.chatKey, text: payload.text, attachments: payload.attachments || [] };
+        } else {
+          delete draftDisk[payload.chatKey];
+        }
+      }
+    },
+    invoke: async (ch, payload) => {
+      if (ch === "agy-studio:get-state") {
+        return { locale: "ru", settings: { composerDraftsEnabled: true, appearance: { presetId: "claude-terminal" } }, liveEdits: [], chats: {}, inputHistory: [] };
+      }
+      if (ch === "agy-studio:get-composer-draft") {
+        const d = draftDisk[payload && payload.chatKey] || null;
+        return { ok: true, draft: d };
+      }
+      if (ch === "agy-studio:save-composer-draft") {
+        if (payload && payload.chatKey) {
+          if (String(payload.text || "").trim()) {
+            draftDisk[payload.chatKey] = { chatKey: payload.chatKey, text: payload.text, attachments: payload.attachments || [] };
+          } else {
+            delete draftDisk[payload.chatKey];
+          }
+        }
+        return { ok: true, draft: draftDisk[payload && payload.chatKey] || null };
+      }
+      if (ch === "agy-studio:insert-text-into-focused") {
+        insertFocusedCalls += 1;
+        ed.textContent = (ed.textContent || "") + String((payload && payload.text) || "");
+        return { ok: true };
+      }
+      if (ch === "agy-studio:activate-chat") return { ok: true, chat: { title: "" } };
+      if (ch === "agy-studio:get-live-edits") return { ok: true, items: [] };
+      return { ok: true };
+    },
+    on: () => {},
+    removeListener: () => {},
+  };
+
+  const themeEngine = te.createThemeEngine({ document: doc, window: win });
+  const translator = createDomTranslator({ document: doc, window: win });
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: ipc,
+    telemetryEngine: createTelemetryEngine(),
+    translator,
+    themeEngine,
+  });
+  try {
+    panel.init();
+    await new Promise((r) => setTimeout(r, 40));
+
+    // A) Type in "__new__" and immediately switch to Chat A (where Chat A DOM resets to empty) -> "__new__" draft MUST be preserved on disk!
+    ed.textContent = "черновик нового чата";
+    doc.dispatchEvent({ type: "input", target: ed });
+    // Antigravity switches URL to Chat A and resets composer DOM BEFORE pollStream runs
+    win.location.pathname = "/chat/" + chatAId;
+    ed.textContent = "";
+    panel.pollStream();
+    await new Promise((r) => setTimeout(r, 280));
+
+    assert.equal(draftDisk.__new__ && draftDisk.__new__.text, "черновик нового чата", "Rapidly typed New Chat draft must flush to __new__ before switching chats");
+    // B) Async Lexical paste restored "здарова" ONCE (ZERO double-insert via insert-text-into-focused!)
+    assert.equal(ed.textContent, "здарова", "Restored draft must appear EXACTLY once (no 'здароваздарова' 2x duplication!)");
+    assert.equal(insertFocusedCalls, 0, "Async Lexical paste must NOT trigger duplicate webContents.insertText fallback");
+
+    // Wait for isRestoringDraft release (450ms) then clear text in Chat A and immediately switch to Chat B (whose DOM already shows 'чужой текст B')
+    await new Promise((r) => setTimeout(r, 480));
+    ed.textContent = "";
+    doc.dispatchEvent({ type: "input", target: ed });
+    win.location.pathname = "/chat/" + chatBId;
+    ed.textContent = "чужой текст B";
+    panel.pollStream();
+    await new Promise((r) => setTimeout(r, 40));
+
+    assert.equal(draftDisk[chatAId], undefined, "Clearing Chat A text and switching away must delete Chat A draft (no cross-chat leak of 'чужой текст B' and no zombie draft!)");
+  } finally {
+    panel.destroy();
+    themeEngine.destroy();
+    translator.destroy();
+    Object.assign(globalThis, prevV5);
+  }
+});
+
+test("Live bugs regression: Claude Code wallpaper toolbar containing block, transparent resize handle & titlebar overlay, sticky folder flatten, 320x36 panoramic full-res annotator, early live-edit capture & live limits sync", async () => {
+  const { buildThemeCss, createThemeEngine } = require(path.join(RES_DIR, "theme-engine.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const i18nMain = require(path.join(SCRIPTS_DIR, "i18n-main.js"));
+
+  // 1) Claude Code + Wallpaper: toolbar MUST NOT set backdrop-filter (which traps position:absolute send/cancel button on top of Turbo!)
+  const wpCcCss = buildThemeCss({
+    presetId: "claude-terminal",
+    wallpaper: { type: "image", mediaUrl: "agy-media://local/bg.png" },
+    uiStyle: { preset: "claude-code", composer: "claude-code", chat: "claude-code", modelSelector: "claude-code" },
+  });
+  const tbIdx = wpCcCss.indexOf('[data-rudex-comp-toolbar="1"]:not(#rudex-studio-host)');
+  assert.ok(tbIdx !== -1, "Must emit Claude Code toolbar CSS block");
+  const tbBlock = wpCcCss.slice(tbIdx, wpCcCss.indexOf("}", tbIdx) + 1);
+  assert.ok(tbBlock.includes("backdrop-filter: none !important"), `Toolbar must force backdrop-filter: none so send/stop button never overlaps Turbo; got:\n${tbBlock}`);
+  assert.ok(!/backdrop-filter:\s*blur\(/.test(tbBlock), "Toolbar block must NOT contain backdrop-filter: blur(...)");
+  assert.ok(wpCcCss.includes("backdrop-filter: blur("), "Input row / top row must still preserve glass blur under wallpaper");
+  assert.ok(wpCcCss.includes('[data-testid="input-cancel-button"]'), "Stop/cancel button must be styled in Claude Code send slot");
+
+  // 2) Sidebar resize handle strip & rounded sidebar surfaces
+  assert.ok(
+    wpCcCss.includes(':not([data-panel-resize-handle-id])') && wpCcCss.includes('[data-panel-resize-handle-id], [data-resize-handle]'),
+    "Sidebar resize handle [role=separator] must be excluded from border-fill and forced transparent (no thick vertical strip with dots)"
+  );
+  assert.ok(
+    wpCcCss.includes('[data-rudex-sidebar-surface="item"]') && /\[data-rudex-sidebar-surface="item"\][\s\S]{0,220}border-radius:\s*\d+px\s*!important/.test(wpCcCss),
+    "Sidebar items must have explicit border-radius"
+  );
+
+  // 3) Sticky folder header ("antigravity-ru") flattens to transparent "panel", NOT sharp rectangular "item"
+  const { doc: sDoc, win: sWin } = createMockDom();
+  const sRoot = sDoc.createElement("div");
+  sRoot.id = "root";
+  const sAside = sDoc.createElement("aside");
+  sAside.getBoundingClientRect = () => ({ left: 0, top: 0, width: 240, height: 800, right: 240, bottom: 800 });
+  const navGroup = sDoc.createElement("div");
+  const btnAuto = sDoc.createElement("button");
+  btnAuto.textContent = "Автоматизации";
+  btnAuto.className = "row hover:bg-white/10";
+  const btnCust = sDoc.createElement("button");
+  btnCust.textContent = "Кастомизация";
+  btnCust.className = "row bg-white/10";
+  navGroup.appendChild(btnAuto);
+  navGroup.appendChild(btnCust);
+  const folderRow = sDoc.createElement("button");
+  folderRow.textContent = "antigravity-ru";
+  folderRow.setAttribute("aria-expanded", "true");
+  folderRow.className = "sticky-folder";
+  folderRow.getBoundingClientRect = () => ({ left: 0, top: 120, width: 240, height: 28, right: 240, bottom: 148 });
+  sAside.appendChild(navGroup);
+  sAside.appendChild(folderRow);
+  // Populate >200 sidebar buttons BEFORE header in DOM order to verify Pass D1 NEVER starves top-bar right buttons!
+  for (let bi = 0; bi < 210; bi += 1) {
+    const sb = sDoc.createElement("button");
+    sb.textContent = `Chat ${bi}`;
+    sb.getBoundingClientRect = () => ({ left: 8, top: 160 + bi * 28, width: 220, height: 24, right: 228, bottom: 184 + bi * 28 });
+    sAside.appendChild(sb);
+  }
+  // Second header bar ("antigravity-ru / Chat Title" dark #111110 box + right pane toggle [◫] dark #111114 square)
+  const hdr2 = sDoc.createElement("div");
+  hdr2.getBoundingClientRect = () => ({ left: 240, top: 32, width: 1200, height: 34, right: 1440, bottom: 66 });
+  const hdrTitleBox = sDoc.createElement("div");
+  hdrTitleBox.textContent = "antigravity-ru / Исправление Навигации";
+  hdrTitleBox.getBoundingClientRect = () => ({ left: 256, top: 36, width: 320, height: 26, right: 576, bottom: 62 });
+  const rightPaneBtn = sDoc.createElement("button");
+  rightPaneBtn.setAttribute("aria-label", "Переключить правую панель");
+  rightPaneBtn.getBoundingClientRect = () => ({ left: 1404, top: 36, width: 28, height: 26, right: 1432, bottom: 62 });
+  hdr2.appendChild(hdrTitleBox);
+  hdr2.appendChild(rightPaneBtn);
+  // Narrow 28px x 800px vertical timeline rail inside [data-testid="conversation-view"] with navigation dot
+  const convView = sDoc.createElement("div");
+  convView.setAttribute("data-testid", "conversation-view");
+  convView.getBoundingClientRect = () => ({ left: 240, top: 66, width: 1200, height: 834, right: 1440, bottom: 900 });
+  const railDiv = sDoc.createElement("div");
+  railDiv.getBoundingClientRect = () => ({ left: 244, top: 70, width: 28, height: 800, right: 272, bottom: 870 });
+  const navDot = sDoc.createElement("span");
+  navDot.getBoundingClientRect = () => ({ left: 255, top: 180, width: 6, height: 6, right: 261, bottom: 186 });
+  railDiv.appendChild(navDot);
+  convView.appendChild(railDiv);
+  sRoot.appendChild(sAside);
+  sRoot.appendChild(hdr2);
+  sRoot.appendChild(convView);
+  sDoc.body.appendChild(sRoot);
+  sWin.innerWidth = 1440;
+  sWin.innerHeight = 900;
+  sWin.getComputedStyle = (el) => {
+    if (el === folderRow) return { backgroundColor: "rgb(17, 17, 16)", position: "sticky", backgroundImage: "none" };
+    if (el === sAside) return { backgroundColor: "rgb(17, 17, 16)", position: "relative", backgroundImage: "none" };
+    if (el === hdr2) return { backgroundColor: "rgb(20, 20, 19)", position: "relative", backgroundImage: "none" };
+    if (el === hdrTitleBox) return { backgroundColor: "rgb(17, 17, 16)", position: "static", backgroundImage: "none" };
+    if (el === rightPaneBtn) return { backgroundColor: "rgb(17, 17, 20)", position: "static", backgroundImage: "none" };
+    if (el === railDiv) return { backgroundColor: "rgba(17, 17, 16, 0.72)", backdropFilter: "blur(8px)", boxShadow: "none", position: "relative", backgroundImage: "none" };
+    if (el === navDot) return { backgroundColor: "rgb(217, 119, 87)", position: "static", backgroundImage: "none" };
+    return { backgroundColor: "rgba(0, 0, 0, 0)", position: "static", backgroundImage: "none" };
+  };
+  const sTe = createThemeEngine({ document: sDoc, window: sWin });
+  sTe.apply({ presetId: "claude-terminal" });
+  assert.equal(folderRow.getAttribute("data-rudex-sidebar-surface"), "panel", "Sticky/expandable folder header 'antigravity-ru' must flatten to transparent 'panel', never opaque 'item'");
+  assert.notEqual(btnCust.getAttribute("data-rudex-sidebar-surface"), "active", "Static nav button 'Кастомизация' must never be highlighted as active chat");
+  assert.equal(hdrTitleBox.getAttribute("data-rudex-header-surface"), "clean", "Dark #111110 breadcrumb title box over #141413 header must be cleaned to transparent");
+  assert.equal(rightPaneBtn.getAttribute("data-rudex-header-btn-fix"), "1", "Dark #111114 right-pane toggle button [◫] after >200 sidebar buttons must be cleaned to transparent (no black square)");
+  assert.equal(railDiv.getAttribute("data-rudex-bg-fade"), "1", "28px vertical timeline rail inside conversation-view must auto-clear murky background/blur");
+  assert.notEqual(navDot.getAttribute("data-rudex-bg-fade"), "1", "Navigation dots inside cleared timeline rail must keep 100% contrast");
+  sTe.destroy();
+
+  // 3b) Element Inspector overrides: bgOpacity=0 strips bg+blur+shadow WITHOUT dimming child dots; opacity=0 supported end-to-end
+  const zeroBgNorm = normalizeAppearance({
+    presetId: "claude-terminal",
+    elementOverrides: [
+      { id: "ov-rail-0", selector: '[data-testid="conversation-view"] > div', enabled: true, styles: { bgOpacity: 0 } },
+      { id: "ov-glass-0", selector: ".glass-strip", enabled: true, styles: { bgColor: "#262624", bgOpacity: 0 } },
+    ],
+  });
+  const zeroBgCss = teBuildElementOverridesCss(zeroBgNorm.elementOverrides, false, zeroBgNorm);
+  assert.ok(zeroBgCss.includes("background: transparent !important;"), "bgOpacity: 0 (with or without bgColor) must force background: transparent");
+  assert.ok(zeroBgCss.includes("backdrop-filter: none !important;"), "bgOpacity: 0 must strip backdrop-filter glass residue");
+  assert.ok(zeroBgCss.includes("box-shadow: none !important;"), "bgOpacity: 0 must strip box-shadow residue");
+  assert.equal(/\bopacity:\s*/.test(zeroBgCss), false, "bgOpacity: 0 must NOT emit CSS opacity so child dots/icons keep 100% contrast");
+
+  const zeroOpNorm = normalizeAppearance({ elementOverrides: [{ id: "ov-op0", selector: ".ghost-el", enabled: true, styles: { opacity: 0 } }] });
+  assert.equal(zeroOpNorm.elementOverrides[0].styles.opacity, 0, "normalizeAppearance must preserve opacity: 0 (not clamp to 5/10)");
+  const zeroOpSan = i18nMain.sanitizeAppearance({ elementOverrides: [{ id: "ov-op0", selector: ".ghost-el", enabled: true, styles: { opacity: 0 } }] });
+  assert.equal(zeroOpSan.elementOverrides[0].styles.opacity, 0, "i18nMain.sanitizeAppearance must preserve opacity: 0");
+  const zeroOpCss = teBuildElementOverridesCss(zeroOpNorm.elementOverrides, false, {});
+  assert.ok(zeroOpCss.includes("opacity: 0.00 !important;"), "opacity: 0 must emit opacity: 0.00 !important");
+
+  const inspHtml0 = v5Ui.rv5BuildElementInspectorHtml(
+    { selector: '[data-testid="conversation-view"] > div', name: "Timeline Rail", computed: { bgOpacity: 80, opacity: 100 } },
+    { elementOverrides: [{ id: "ov-rail-0", selector: '[data-testid="conversation-view"] > div', enabled: true, styles: { bgOpacity: 0 } }] },
+    [], [], true, {}
+  );
+  assert.ok(inspHtml0.includes('data-insp-badge="bgOpacity">0%<'), "Inspector must display 0% bgOpacity even when bgColor is unset");
+  assert.ok(inspHtml0.includes('rx-insp-slider-item is-custom" data-insp-wrap="bgOpacity"'), "Inspector must mark bgOpacity=0 slider as custom");
+  assert.ok(/min="0"[^>]*data-insp-range="opacity"|data-insp-range="opacity"[^>]*min="0"/.test(inspHtml0), "Inspector element opacity slider must allow min=0");
+
+  // 4) Limits widget stays clean without manual refresh button (auto-syncs live)
+  const limCardHtml = v5Core.rv5BuildLimitsWidgetHtml({ enabled: true, layout: "card" }, { families: { gemini: { fiveHourRem: 80, weeklyRem: 90 } } }, "Gemini", true, false);
+  assert.equal(limCardHtml.includes('data-action="sync-limits-now"'), false, "Card limits widget must stay clean and auto-sync without manual refresh button");
+
+  // 5) Studio panel integration: early capture BEFORE UI mount + collapsed 0x0 menu guard + transparent titleBarOverlay under wallpaper + panoramic 320x36 full-res annotator + Radix popover quota scrape
+  const { doc, win: baseWin } = createMockDom();
+  const winListeners = {};
+  const docListeners = {};
+  const origDocAdd = doc.addEventListener.bind(doc);
+  doc.addEventListener = (type, fn, cap) => {
+    if (!docListeners[type]) docListeners[type] = [];
+    docListeners[type].push({ fn, cap: Boolean(cap) });
+    return origDocAdd(type, fn, cap);
+  };
+  const titleBarCalls = [];
+  const sentLiveEdits = [];
+  const syncedQuotaPayloads = [];
+  const openedAnnotatorUrls = [];
+  const FULL_PANO_URL = "data:image/png;base64,FULL_RES_1920x210_PNG_PAYLOAD";
+  const TINY_THUMB_URL = "data:image/png;base64,TINY_320x36";
+
+  class FakeImage {
+    set src(v) {
+      this._src = v;
+      if (v === FULL_PANO_URL) {
+        this.naturalWidth = 1920;
+        this.naturalHeight = 210;
+      } else {
+        this.naturalWidth = 320;
+        this.naturalHeight = 36;
+      }
+      if (typeof this.onload === "function") this.onload();
+    }
+    get src() { return this._src || ""; }
+  }
+  const win = Object.assign(baseWin, {
+    innerWidth: 1440,
+    innerHeight: 900,
+    location: { pathname: "/chat/3f504d90-06d7-45f1-aa66-8de9701d076d", search: "", hash: "", protocol: "http:" },
+    Image: FakeImage,
+    electronNativeAPI: { setTitleBarOverlay: (o) => titleBarCalls.push(o) },
+    getComputedStyle: () => ({ opacity: "1", pointerEvents: "auto", display: "block", visibility: "visible", backgroundColor: "rgba(0,0,0,0)" }),
+    addEventListener(type, fn, cap) {
+      if (!winListeners[type]) winListeners[type] = [];
+      winListeners[type].push({ fn, cap: Boolean(cap) });
+    },
+    removeEventListener() {},
+    setTimeout,
+    clearTimeout,
+    setInterval: () => 1,
+    clearInterval() {},
+  });
+
+  // Start with EMPTY doc (UI not ready yet!) to prove early capture registers IMMEDIATELY in init() BEFORE React/Lexical mounts!
+  const prevV5 = {};
+  for (const k of Object.keys(v5Core)) { prevV5[k] = globalThis[k]; globalThis[k] = v5Core[k]; }
+  for (const k of Object.keys(v5Ui)) { prevV5[k] = globalThis[k]; globalThis[k] = v5Ui[k]; }
+  const prevAnnot = globalThis.createScreenshotAnnotator;
+  globalThis.createScreenshotAnnotator = () => ({
+    open: (opts) => { openedAnnotatorUrls.push(opts && opts.dataUrl); },
+    close: () => {},
+    isOpen: () => false,
+    handleKeydown: () => false,
+    handlePaste: () => {},
+  });
+
+  const ipc = {
+    invoke: async (ch, payload) => {
+      if (ch === "agy-studio:get-state") {
+        return {
+          locale: "ru",
+          settings: {
+            panelEnabled: true,
+            liveEditInline: { enabled: true, sendKey: "enter", urgentIntercept: false },
+            limitsWidget: { enabled: true, layout: "card" },
+            appearance: { presetId: "claude-terminal", wallpaper: { type: "image", mediaUrl: "agy-media://local/rem.jpg" } },
+          },
+          chat: { personaEnabled: false },
+          quotaSummary: { families: { gemini: { fiveHourRem: 70, weeklyRem: 80 } } },
+        };
+      }
+      if (ch === "agy-studio:send-live-edit") {
+        sentLiveEdits.push(payload);
+        return { ok: true, entry: { id: "le-1", text: payload.text, status: "pending" }, allItems: [] };
+      }
+      if (ch === "agy-studio:read-clipboard-image") {
+        return { ok: true, dataUrl: FULL_PANO_URL };
+      }
+      if (ch === "agy-studio:sync-quota-snapshot") {
+        syncedQuotaPayloads.push(payload);
+        return { ok: true, summary: { families: { gemini: { fiveHourRem: 100, weeklyRem: 97 } } } };
+      }
+      if (ch === "agy-studio:get-quota-summary") {
+        return { families: { gemini: { fiveHourRem: 100, weeklyRem: 97 } } };
+      }
+      return { ok: true };
+    },
+  };
+
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: ipc,
+    telemetryEngine: createTelemetryEngine(),
+    translator: createDomTranslator({ document: doc, window: win }),
+    themeEngine: createThemeEngine({ document: doc, window: win }),
+    buildStyles: buildStudioStyles,
+  });
+
+  try {
+    panel.init();
+    // BEFORE React/Antigravity UI even exists, window capture listeners MUST already be registered!
+    assert.ok((winListeners.keydown || []).some((x) => x.cap), "Early window keydown capture must register immediately in init() BEFORE React/Lexical mounts");
+    assert.ok((winListeners.paste || []).some((x) => x.cap), "Early window paste capture must register immediately in init()");
+
+    // Now build Antigravity DOM and trigger mount
+    const main = doc.createElement("main");
+    const hdr = doc.createElement("header");
+    const hdrMenu = doc.createElement("div");
+    hdrMenu.setAttribute("role", "menu");
+    hdrMenu.getBoundingClientRect = () => ({ left: 10, top: 0, width: 200, height: 32, right: 210, bottom: 32 });
+    hdr.appendChild(hdrMenu);
+    doc.body.appendChild(hdr);
+
+    // Collapsed 0x0 menu WITH childElementCount > 0 (previously broke live-edit Enter interception!)
+    const collapsedMenu = doc.createElement("div");
+    collapsedMenu.setAttribute("role", "listbox");
+    collapsedMenu.appendChild(doc.createElement("div"));
+    collapsedMenu.getBoundingClientRect = () => ({ left: 300, top: 500, width: 0, height: 0, right: 300, bottom: 500 });
+    doc.body.appendChild(collapsedMenu);
+
+    const comp = doc.createElement("form");
+    comp.setAttribute("data-rudex-theme-composer", "1");
+    comp.getBoundingClientRect = () => ({ left: 300, top: 700, width: 700, height: 90, right: 1000, bottom: 790 });
+    const ed = doc.createElement("div");
+    ed.setAttribute("contenteditable", "true");
+    ed.getBoundingClientRect = () => ({ left: 310, top: 710, width: 660, height: 40, right: 970, bottom: 750 });
+    ed.textContent = "правка во время работы";
+    const stopBtn = doc.createElement("button");
+    stopBtn.setAttribute("data-testid", "input-cancel-button");
+    const modelBtn = doc.createElement("button");
+    modelBtn.setAttribute("data-testid", "model-selector-trigger");
+    modelBtn.textContent = "Gemini 4 Neon";
+    const thumbWrap = doc.createElement("div");
+    const thumbImg = doc.createElement("img");
+    thumbImg.setAttribute("src", TINY_THUMB_URL);
+    thumbImg.naturalWidth = 320;
+    thumbImg.naturalHeight = 36;
+    thumbImg.width = 320;
+    thumbImg.height = 36;
+    thumbWrap.appendChild(thumbImg);
+    comp.appendChild(thumbWrap);
+    comp.appendChild(ed);
+    comp.appendChild(modelBtn);
+    comp.appendChild(stopBtn);
+    main.appendChild(comp);
+    doc.body.appendChild(main);
+
+    // Wait for early panel or mount readyPanel now that Antigravity UI is ready
+    const readyPanel = createStudioPanel({
+      document: doc,
+      window: win,
+      ipcRenderer: ipc,
+      telemetryEngine: createTelemetryEngine(),
+      translator: createDomTranslator({ document: doc, window: win }),
+      themeEngine: createThemeEngine({ document: doc, window: win }),
+      buildStyles: buildStudioStyles,
+    });
+    try {
+      readyPanel.init();
+      await new Promise((r) => setTimeout(r, 80));
+
+      // A) Wallpaper titleBarOverlay MUST be transparent (#00000000), never opaque #111110 black box!
+      assert.ok(titleBarCalls.some((c) => c && c.color === "#00000000"), `Expected transparent #00000000 titleBarOverlay under wallpaper, got: ${JSON.stringify(titleBarCalls)}`);
+      assert.equal(i18nMain.sanitizeAppearance({ presetId: "claude-terminal", wallpaper: { type: "image", mediaUrl: "agy-media://local/rem.jpg" } }).wallpaper.type, "image");
+
+      // B) Enter during generation MUST intercept live-edit even with collapsed 0x0 listbox (childElementCount=1) & header menu present!
+      let prevented = false;
+      const enterEv = {
+        type: "keydown",
+        key: "Enter",
+        shiftKey: false,
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        isComposing: false,
+        target: ed,
+        preventDefault() { prevented = true; },
+        stopPropagation() {},
+        stopImmediatePropagation() {},
+      };
+      for (const h of winListeners.keydown || []) h.fn(enterEv);
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(prevented, true, "Enter during agent generation MUST call preventDefault and NOT fall into native Antigravity queue!");
+      assert.equal(sentLiveEdits.length, 1, "Live-edit IPC must fire immediately on Enter despite collapsed 0x0 listbox & header menu");
+      assert.equal(sentLiveEdits[0].text, "правка во время работы");
+
+      // C) Panoramic 1920x210 screenshot pasted -> tiny 320x36 thumbnail (aspect diff 0.25 > 0.14) MUST still open FULL-RES in annotator!
+      const pasteEv = {
+        type: "paste",
+        target: ed,
+        clipboardData: { items: [] }, // Simulate Electron native paste fallback via IPC
+      };
+      for (const h of winListeners.paste || []) h.fn(pasteEv);
+      await new Promise((r) => setTimeout(r, 40));
+      // Trigger image edit button injection & click
+      readyPanel.pollStream();
+      const editBtn = thumbWrap.querySelector("[data-rudex-img-edit-btn]");
+      assert.ok(editBtn, "Pencil edit trigger must be injected onto composer thumbnail");
+      editBtn.dispatchEvent({ type: "click", target: editBtn, preventDefault() {}, stopPropagation() {}, stopImmediatePropagation() {} });
+      await new Promise((r) => setTimeout(r, 40));
+      assert.equal(openedAnnotatorUrls[openedAnnotatorUrls.length - 1], FULL_PANO_URL, "Panoramic 320x36 thumbnail MUST open full-res 1920x210 PNG in annotator, never downscaled thumbnail!");
+
+      // D) Radix popper model menu (without [role=dialog] or quota-progress-circle) MUST sync real-time quota!
+      await new Promise((r) => setTimeout(r, 620));
+      const popper = doc.createElement("div");
+      popper.setAttribute("data-radix-popper-content-wrapper", "");
+      popper.textContent = "Модели Gemini\nОстаток недельного лимита 97% · сброс через 6 д 1 ч\nЛимит (5ч) 100%";
+      doc.body.appendChild(popper);
+      readyPanel.pollStream();
+      await new Promise((r) => setTimeout(r, 40));
+      assert.ok(syncedQuotaPayloads.length >= 1 && syncedQuotaPayloads[0].gemini && syncedQuotaPayloads[0].gemini.weeklyRem === 97, "Radix popper model menu must sync live 97% quota immediately");
+
+      // E) Element Picker precision: normalizes SVG <path> -> <svg>, reads full elementsFromPoint stack behind large overlay, & supports mouse-wheel parent stepping!
+      const pickWrap = doc.createElement("div");
+      pickWrap.className = "overlay-wrap";
+      pickWrap.getBoundingClientRect = () => ({ left: 200, top: 100, width: 600, height: 400, right: 800, bottom: 500 });
+      const pickBtn = doc.createElement("button");
+      pickBtn.setAttribute("data-testid", "compact-dot-btn");
+      pickBtn.getBoundingClientRect = () => ({ left: 400, top: 300, width: 24, height: 24, right: 424, bottom: 324 });
+      const pickSvg = doc.createElement("svg");
+      pickSvg.getBoundingClientRect = () => ({ left: 404, top: 304, width: 16, height: 16, right: 420, bottom: 320 });
+      const pickPath = doc.createElement("path");
+      pickPath.getBoundingClientRect = () => ({ left: 406, top: 306, width: 12, height: 12, right: 418, bottom: 318 });
+      pickSvg.appendChild(pickPath);
+      pickBtn.appendChild(pickSvg);
+      pickWrap.appendChild(pickBtn);
+      main.appendChild(pickWrap);
+      doc.elementsFromPoint = () => [pickWrap, pickPath, pickSvg, pickBtn, main];
+
+      const hostShadow = doc.getElementById("rudex-studio-host").shadowRoot;
+      const studioRoot = hostShadow.querySelector(".studio-root");
+      const pickerMount = hostShadow.querySelector(".rx-picker-mount");
+      assert.ok(pickerMount, "Expected .rx-picker-mount in Studio shadow root");
+      const startBtn = doc.createElement("button");
+      startBtn.setAttribute("data-action", "start-element-picker");
+      studioRoot.appendChild(startBtn);
+      studioRoot.dispatchEvent({ type: "click", target: startBtn });
+      startBtn.remove();
+
+      const mmList = docListeners.mousemove || [];
+      assert.ok(mmList.length > 0, "Element picker must attach mousemove listener");
+      mmList[mmList.length - 1].fn({ target: pickWrap, clientX: 412, clientY: 312 });
+      await new Promise((r) => setTimeout(r, 35));
+      const hlAfterMove = pickerMount.querySelector('[data-role="pickerHighlight"]');
+      const hasSvgWidth = Boolean((hlAfterMove && hlAfterMove.style.width === "16px") || pickerMount.innerHTML.includes("width:16px"));
+      assert.ok(hasSvgWidth, `Expected sniper picker to resolve <path> behind large overlay to 16px <svg>, got tail=${pickerMount.innerHTML.slice(-260)}`);
+
+      const whList = docListeners.wheel || [];
+      assert.ok(whList.length > 0, "Element picker must attach wheel listener for parent/child stepping");
+      whList[whList.length - 1].fn({ target: pickWrap, deltaY: -100, preventDefault() {}, stopPropagation() {} });
+      const hlAfterWheel = pickerMount.querySelector('[data-role="pickerHighlight"]');
+      const hasBtnWidth = Boolean((hlAfterWheel && hlAfterWheel.style.width === "24px") || pickerMount.innerHTML.includes("width:24px"));
+      assert.ok(hasBtnWidth, `Expected wheel-up to step from <svg> to parent 24px <button>, got tail=${pickerMount.innerHTML.slice(-260)}`);
+
+      const clList = docListeners.click || [];
+      clList[clList.length - 1].fn({ target: pickWrap, clientX: 412, clientY: 312, preventDefault() {}, stopPropagation() {}, stopImmediatePropagation() {} });
+      assert.ok(pickerMount.innerHTML.includes('compact-dot-btn'), "Clicking after wheel-up must select the stepped parent compact-dot-btn in Element Inspector");
+    } finally {
+      readyPanel.destroy();
+    }
+  } finally {
+    panel.destroy();
+    globalThis.createScreenshotAnnotator = prevAnnot;
+    Object.assign(globalThis, prevV5);
+  }
+});
+
+test("Model notice/deprecation & work-step RU translations, independent workLogInRussian toggle, sleek timeline dot rail, and visual-fingerprint screenshot annotator matching", async () => {
+  const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const v5Ui = require(path.join(RES_DIR, "rudex-v5-ui.js"));
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const i18nMain = require(path.join(SCRIPTS_DIR, "i18n-main.js"));
+
+  // 1) Dictionary & dynamic rules for model selector badges/tooltips + work-step activity summaries
+  assert.equal(dictionary["Leaving Soon"], "Скоро уберут");
+  assert.equal(dictionary["Notice"], "Важно");
+  assert.equal(
+    applyDynamicRules("Use Hydrogen for better quality with lower quota usage. Leaving on Nov 30."),
+    "Используйте Hydrogen — выше качество при меньшем расходе квоты. Будет убрана 30 нояб."
+  );
+  assert.equal(
+    applyDynamicRules("Explored files, ran commands, edited files"),
+    "Изучены файлы, выполнены команды, изменены файлы"
+  );
+  assert.equal(
+    applyDynamicRules("Explored file, ran command, edited file"),
+    "Изучен файл, выполнена команда, изменён файл"
+  );
+  assert.equal(
+    applyDynamicRules("Worked for 19m · Explored files, edited 2 files"),
+    "Работал 19 мин · Изучены файлы, изменено 2 файла"
+  );
+
+  // 2) Sleek timeline dot rail tagging & CSS rules (works even when rail bg is transparent!)
+  const { doc: tDoc, win: tWin } = createMockDom();
+  const tRoot = tDoc.createElement("div");
+  tRoot.id = "root";
+  const tConv = tDoc.createElement("div");
+  tConv.setAttribute("data-testid", "conversation-view");
+  tConv.getBoundingClientRect = () => ({ left: 240, top: 60, width: 1200, height: 840, right: 1440, bottom: 900 });
+  const tRail = tDoc.createElement("div");
+  tRail.getBoundingClientRect = () => ({ left: 242, top: 70, width: 28, height: 780, right: 270, bottom: 850 });
+  for (let d = 0; d < 3; d += 1) {
+    const db = tDoc.createElement("button");
+    const dotSpan = tDoc.createElement("span");
+    db.appendChild(dotSpan);
+    tRail.appendChild(db);
+  }
+  const widePill = tDoc.createElement("div");
+  widePill.getBoundingClientRect = () => ({ left: 243, top: 410, width: 26, height: 12, right: 269, bottom: 422 });
+  tRail.appendChild(widePill);
+  tConv.appendChild(tRail);
+  tRoot.appendChild(tConv);
+  tDoc.body.appendChild(tRoot);
+  tWin.innerWidth = 1440;
+  tWin.innerHeight = 900;
+  tWin.getComputedStyle = () => ({ backgroundColor: "rgba(0, 0, 0, 0)", position: "relative", backgroundImage: "none" });
+  const tTe = createThemeEngine({ document: tDoc, window: tWin });
+  tTe.apply({ presetId: "claude-terminal" });
+  assert.equal(tRail.getAttribute("data-rudex-timeline-rail"), "1", "Vertical timeline rail with dot buttons must be tagged data-rudex-timeline-rail=1 even with transparent bg");
+  assert.equal(widePill.getAttribute("data-rudex-timeline-pill"), "1", "Wide horizontal capsule pill inside timeline rail must be tagged data-rudex-timeline-pill=1");
+  const railCss = buildThemeCss({ presetId: "claude-terminal" });
+  assert.ok(railCss.includes('html:not(#rudex-studio-host):not(#rudex-bg):not(#rudex-studio-theme) [data-rudex-timeline-rail="1"] *'), "High-specificity (3,1,1) timeline rail CSS must strip ALL capsule borders, rings, and shadows");
+  assert.ok(railCss.includes(':not([data-rudex-timeline-rail="1"] *)'), "Theme bg-primary/border-primary accent rules must exclude timeline rail children");
+  tTe.destroy();
+
+  // 3) Independent workLogInRussian setting (opt-in default OFF, translates Worked-for notes without translating Thinking when thinkingInRussian=false)
+  assert.equal(i18nMain.sanitizeStudioSettings({}).workLogInRussian, false, "workLogInRussian must default to OFF (opt-in)");
+  assert.equal(i18nMain.sanitizeStudioSettings({ workLogInRussian: true }).workLogInRussian, true);
+
+  const { doc, win: baseWin } = createMockDom();
+  const winListeners = {};
+  const openedAnnotatorUrls = [];
+  const translatedBatches = [];
+  let savedSettings = { thinkingInRussian: false, workLogInRussian: true, liveEditInline: { enabled: true } };
+
+  const FULL_A = "data:image/png;base64,SCREENSHOT_ALPHA_RED_1920x1080_PAYLOAD_AAAA";
+  const FULL_B = "data:image/png;base64,SCREENSHOT_BETA_BLUE_1920x1080_PAYLOAD_BBBB";
+  const THUMB_A = "data:image/png;base64,THUMB_ALPHA_RED_320x180_PAYLOAD_AAAA";
+  const THUMB_B = "data:image/png;base64,THUMB_BETA_BLUE_320x180_PAYLOAD_BBBB";
+  const makeRgbBuf = (r, g, b) => {
+    const arr = new Uint8ClampedArray(16 * 16 * 4);
+    for (let i = 0; i < arr.length; i += 4) { arr[i] = r; arr[i + 1] = g; arr[i + 2] = b; arr[i + 3] = 255; }
+    return arr;
+  };
+  const origCreateEl = doc.createElement.bind(doc);
+  doc.createElement = (tag) => {
+    const el = origCreateEl(tag);
+    if (String(tag).toLowerCase() === "canvas") {
+      let lastSrc = "";
+      el.getContext = () => ({
+        drawImage(srcObj) { lastSrc = String((srcObj && (srcObj.src || (srcObj.getAttribute && srcObj.getAttribute("src")))) || ""); },
+        getImageData() {
+          if (lastSrc.includes("ALPHA_RED")) return { data: makeRgbBuf(220, 30, 30) };
+          if (lastSrc.includes("BETA_BLUE")) return { data: makeRgbBuf(25, 60, 230) };
+          return { data: makeRgbBuf(128, 128, 128) };
+        },
+      });
+    }
+    return el;
+  };
+  class FakeImg2 {
+    set src(v) {
+      this._src = v;
+      this.naturalWidth = v.includes("1920x1080") ? 1920 : 320;
+      this.naturalHeight = v.includes("1920x1080") ? 1080 : 180;
+      if (typeof this.onload === "function") this.onload();
+    }
+    get src() { return this._src || ""; }
+  }
+  const win = Object.assign(baseWin, {
+    innerWidth: 1440,
+    innerHeight: 900,
+    Image: FakeImg2,
+    getComputedStyle: () => ({ opacity: "1", pointerEvents: "auto", display: "block", visibility: "visible", backgroundColor: "rgba(0,0,0,0)" }),
+    addEventListener(type, fn, cap) {
+      if (!winListeners[type]) winListeners[type] = [];
+      winListeners[type].push({ fn, cap: Boolean(cap) });
+    },
+    removeEventListener() {},
+    setTimeout,
+    clearTimeout,
+    setInterval: () => 1,
+    clearInterval() {},
+  });
+
+  // Build DOM with expanded "Работал 19 мин" work-log containing a progress note + nested expanded "Думал 12 с" thinking block + 2 composer screenshots
+  const main = doc.createElement("main");
+  const workWrap = doc.createElement("div");
+  const workBtn = doc.createElement("button");
+  workBtn.setAttribute("aria-expanded", "true");
+  workBtn.textContent = "Работал 19 мин";
+  const workPanel = doc.createElement("div");
+  const statusP = doc.createElement("p");
+  const statusTn = doc.createTextNode("Testing and reinstall task is running; waiting for the result.");
+  statusP.appendChild(statusTn);
+  const nestedThinkWrap = doc.createElement("div");
+  const nestedThinkBtn = doc.createElement("button");
+  nestedThinkBtn.setAttribute("data-testid", "thinking-collapsible-trigger");
+  nestedThinkBtn.setAttribute("aria-expanded", "true");
+  nestedThinkBtn.textContent = "Думал 12 с";
+  const nestedThinkPanel = doc.createElement("div");
+  const thinkP = doc.createElement("p");
+  const thinkTn = doc.createTextNode("Internal chain of thought should stay untouched when thinkingInRussian is OFF.");
+  thinkP.appendChild(thinkTn);
+  nestedThinkPanel.appendChild(thinkP);
+  nestedThinkWrap.appendChild(nestedThinkBtn);
+  nestedThinkWrap.appendChild(nestedThinkPanel);
+  workPanel.appendChild(statusP);
+  workPanel.appendChild(nestedThinkWrap);
+  workWrap.appendChild(workBtn);
+  workWrap.appendChild(workPanel);
+  main.appendChild(workWrap);
+
+  const comp = doc.createElement("div");
+  comp.setAttribute("data-testid", "composer");
+  const ed = doc.createElement("div");
+  ed.setAttribute("contenteditable", "true");
+  const wrapA = doc.createElement("div");
+  const imgA = doc.createElement("img");
+  imgA.setAttribute("src", THUMB_A);
+  imgA.naturalWidth = 320;
+  imgA.naturalHeight = 180;
+  imgA.getBoundingClientRect = () => ({ left: 100, top: 700, width: 48, height: 28, right: 148, bottom: 728 });
+  wrapA.appendChild(imgA);
+  const wrapB = doc.createElement("div");
+  const imgB = doc.createElement("img");
+  imgB.setAttribute("src", THUMB_B);
+  imgB.naturalWidth = 320;
+  imgB.naturalHeight = 180;
+  imgB.getBoundingClientRect = () => ({ left: 160, top: 700, width: 48, height: 28, right: 208, bottom: 728 });
+  wrapB.appendChild(imgB);
+  comp.appendChild(wrapA);
+  comp.appendChild(wrapB);
+  comp.appendChild(ed);
+  main.appendChild(comp);
+  doc.body.appendChild(main);
+
+  const prevV5 = {};
+  for (const k of Object.keys(v5Core)) { prevV5[k] = globalThis[k]; globalThis[k] = v5Core[k]; }
+  for (const k of Object.keys(v5Ui)) { prevV5[k] = globalThis[k]; globalThis[k] = v5Ui[k]; }
+  const prevAnnot = globalThis.createScreenshotAnnotator;
+  globalThis.createScreenshotAnnotator = () => ({
+    open: (opts) => { openedAnnotatorUrls.push(opts && opts.dataUrl); },
+    close: () => {},
+    isOpen: () => false,
+  });
+
+  let clipCall = 0;
+  const ipc = {
+    invoke: async (ch, payload) => {
+      if (ch === "agy-studio:get-state") return { locale: "ru", settings: Object.assign({}, savedSettings) };
+      if (ch === "agy-studio:save-settings") {
+        savedSettings = Object.assign({}, savedSettings, payload || {});
+        return { ok: true, locale: "ru", settings: Object.assign({}, savedSettings) };
+      }
+      if (ch === "agy-studio:translate-thinking-batch") {
+        const texts = (payload && payload.texts) || [];
+        translatedBatches.push(texts.slice());
+        const out = {};
+        for (const t of texts) out[t] = `RU:${t}`;
+        return { ok: true, translations: out };
+      }
+      if (ch === "agy-studio:read-clipboard-image") {
+        clipCall += 1;
+        return { ok: true, dataUrl: clipCall === 1 ? FULL_A : FULL_B };
+      }
+      if (ch === "agy-studio:get-quota-summary") return { ok: true, families: {} };
+      if (ch === "agy-studio:list-live-edits") return { ok: true, liveEdits: [] };
+      return { ok: true };
+    },
+    on: () => {},
+    removeListener: () => {},
+  };
+
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: ipc,
+    telemetryEngine: createTelemetryEngine(),
+    translator: createDomTranslator({ document: doc, window: win }),
+    themeEngine: createThemeEngine({ document: doc, window: win }),
+    buildStyles: buildStudioStyles,
+  });
+  try {
+    panel.init();
+    await new Promise((r) => setTimeout(r, 80));
+
+    // A) Settings tab renders independent toggle-worklog-ru & shows thinkingTranslatorUrl when only workLogInRussian=true
+    panel.setOpen(true, { tab: "settings" });
+    const shadow = doc.getElementById("rudex-studio-host").shadowRoot;
+    const modalHtml = shadow.querySelector(".modal-mount").innerHTML;
+    assert.ok(modalHtml.includes('data-action="toggle-worklog-ru"'), "Settings must render separate workLogInRussian toggle");
+    assert.ok(modalHtml.includes('data-sys-field="thinkingTranslatorUrl"'), "Local translator URL must appear when workLogInRussian is ON");
+
+    // B) workLogInRussian translates work-log progress note WITHOUT translating nested thinking block!
+    panel.pollStream();
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(statusTn.nodeValue, "RU:Testing and reinstall task is running; waiting for the result.", "workLogInRussian must translate intermediate progress notes inside Worked-for block");
+    assert.equal(thinkTn.nodeValue, "Internal chain of thought should stay untouched when thinkingInRussian is OFF.", "Nested thinking block must stay untouched when thinkingInRussian is OFF");
+
+    // Turn workLogInRussian OFF -> restores original English text cleanly
+    panel.applyRemoteState({ locale: "ru", settings: { thinkingInRussian: false, workLogInRussian: false } }, false);
+    assert.equal(statusTn.nodeValue, "Testing and reinstall task is running; waiting for the result.", "Disabling workLogInRussian must restore original work-log text");
+
+    // C) Paste TWO identical-aspect 1920x1080 screenshots -> clicking Edit on Thumbnail #1 MUST open FULL_A (NOT FULL_B!)
+    for (let p = 0; p < 2; p += 1) {
+      for (const h of winListeners.paste || []) h.fn({ type: "paste", target: ed, clipboardData: { items: [] } });
+      await new Promise((r) => setTimeout(r, 35));
+    }
+    panel.pollStream();
+    const editBtnA = wrapA.querySelector('[data-rudex-img-edit-btn="thumb"]');
+    const editBtnB = wrapB.querySelector('[data-rudex-img-edit-btn="thumb"]');
+    assert.ok(editBtnA && editBtnB, "Both thumbnails must have pencil edit buttons");
+
+    editBtnA.dispatchEvent({ type: "click", target: editBtnA, preventDefault() {}, stopPropagation() {}, stopImmediatePropagation() {} });
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(openedAnnotatorUrls[openedAnnotatorUrls.length - 1], FULL_A, "Clicking Edit on Screenshot #1 (same 16:9 aspect as #2) MUST open FULL_A, NEVER Screenshot #2!");
+
+    editBtnB.dispatchEvent({ type: "click", target: editBtnB, preventDefault() {}, stopPropagation() {}, stopImmediatePropagation() {} });
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(openedAnnotatorUrls[openedAnnotatorUrls.length - 1], FULL_B, "Clicking Edit on Screenshot #2 MUST open FULL_B!");
+
+    // D) If React replaces <img> inside wrapA without recreating editBtnA, clicking editBtnA must resolve the LIVE <img>!
+    wrapA.removeChild(imgA);
+    const swappedImg = doc.createElement("img");
+    swappedImg.setAttribute("src", THUMB_B);
+    swappedImg.naturalWidth = 320;
+    swappedImg.naturalHeight = 180;
+    wrapA.appendChild(swappedImg);
+    editBtnA.dispatchEvent({ type: "click", target: editBtnA, preventDefault() {}, stopPropagation() {}, stopImmediatePropagation() {} });
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(openedAnnotatorUrls[openedAnnotatorUrls.length - 1], FULL_B, "Reused wrapper's pencil button must read live inner <img>, never stale detached closure");
+  } finally {
+    panel.destroy();
+    globalThis.createScreenshotAnnotator = prevAnnot;
+    Object.assign(globalThis, prevV5);
+  }
+});
+
+test("0-frame startup theme boot (zero stock FOUC), full-sentence word-span thinking translation, and high-specificity wide header breadcrumb box cleanup", async () => {
+  const { buildPreloadSnippet } = require(path.join(SCRIPTS_DIR, "install.js"));
+  const { createDomTranslator } = require(path.join(RES_DIR, "dom-translator.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+
+  // 1) Preload bundle fetches synchronous boot state and calls bootEarlyTheme() BEFORE DOMContentLoaded
+  const preloadCode = buildPreloadSnippet();
+  assert.ok(preloadCode.includes('sendSync("agy-studio:get-boot-state-sync")'), "Preload must fetch boot appearance synchronously via IPC sendSync");
+  assert.ok(preloadCode.includes("_studioPanel.bootEarlyTheme()"), "Preload must invoke bootEarlyTheme() synchronously at t=0ms before DOMContentLoaded");
+
+  // 2) bootEarlyTheme() injects <style id="rudex-studio-theme"> & zoom synchronously while readyState==="loading" and body===null!
+  const { doc: bDoc, win: bWin } = createMockDom();
+  const savedBody = bDoc.body;
+  bDoc.readyState = "loading";
+  bDoc.body = null;
+  let zoomSet = null;
+  const bootPanel = createStudioPanel({
+    document: bDoc,
+    window: bWin,
+    webFrame: { setZoomFactor: (z) => { zoomSet = z; } },
+    ipcRenderer: { invoke: async () => ({ ok: true }), on: () => {}, removeListener: () => {} },
+    telemetryEngine: createTelemetryEngine(),
+    translator: createDomTranslator({ document: bDoc, window: bWin }),
+    themeEngine: createThemeEngine({ document: bDoc, window: bWin }),
+    buildStyles: buildStudioStyles,
+    initialBoot: {
+      appearance: { presetId: "claude-terminal", uiStyle: { preset: "claude-code", composer: "claude-code", chat: "claude-code", modelSelector: "claude-code" } },
+      studioUi: { appScale: 110 },
+      greeting: { enabled: true, title: "Привет, Иван" },
+    },
+  });
+  try {
+    bootPanel.bootEarlyTheme();
+    assert.equal(zoomSet, 1.1, "bootEarlyTheme must apply saved appScale synchronously at t=0ms");
+    const earlyStyle = bDoc.getElementById("rudex-studio-theme");
+    assert.ok(earlyStyle && earlyStyle.textContent.includes("#141413"), "bootEarlyTheme must inject full theme CSS into DOM before document.body or React even exists");
+    // Restore body and verify wide >240px dark header breadcrumb <button> gets cleaned & (3,1,1) CSS rules beat bg-black/bg-card
+    bDoc.readyState = "interactive";
+    bDoc.body = savedBody;
+    const wideHdrBtn = bDoc.createElement("button");
+    wideHdrBtn.textContent = "antigravity-ru / Исправление Навигации И Интерфейса Проекта";
+    wideHdrBtn.getBoundingClientRect = () => ({ left: 260, top: 36, width: 420, height: 26, right: 680, bottom: 62 });
+    bDoc.body.appendChild(wideHdrBtn);
+    bWin.innerWidth = 1440;
+    bWin.innerHeight = 900;
+    bWin.getComputedStyle = (el) => el === wideHdrBtn
+      ? { backgroundColor: "rgb(17, 17, 16)", position: "static", backgroundImage: "none" }
+      : { backgroundColor: "rgba(0, 0, 0, 0)", position: "static", backgroundImage: "none" };
+    bootPanel.bootEarlyTheme();
+    assert.equal(wideHdrBtn.getAttribute("data-rudex-header-btn-fix"), "1", "Wide (>240px) dark breadcrumb <button> in header row must be cleaned to transparent");
+    assert.ok(earlyStyle.textContent.includes('html:not(#rudex-studio-host):not(#rudex-bg):not(#rudex-studio-theme) [data-rudex-header-surface="clean"]'), "Header surface cleanup must have (3,1,1) specificity to beat bg-black/bg-card rules");
+    assert.ok(earlyStyle.textContent.includes(':where([data-rudex-bg-header="1"], header:not(#rudex-studio-host *)) :where(div, nav, section, h1, h2, h3, p, span)'), "Pure CSS (3,1,1) rule must clear ALL opaque inner header wrappers (including oklch/Tailwind v4 breadcrumb boxes)");
+
+    // 2b) Tailwind v4 oklch() dark header box must ALSO be detected by Pass D1 parseRgbaColor!
+    const oklchTitleDiv = bDoc.createElement("div");
+    oklchTitleDiv.textContent = "antigravity-ru / OKLCH Box";
+    oklchTitleDiv.getBoundingClientRect = () => ({ left: 260, top: 36, width: 320, height: 26, right: 580, bottom: 62 });
+    bDoc.body.appendChild(oklchTitleDiv);
+    bWin.getComputedStyle = (el) => {
+      if (el === wideHdrBtn) return { backgroundColor: "rgb(17, 17, 16)", position: "static", backgroundImage: "none" };
+      if (el === oklchTitleDiv) return { backgroundColor: "oklch(0.145 0 0)", position: "static", backgroundImage: "none" };
+      return { backgroundColor: "rgba(0, 0, 0, 0)", position: "static", backgroundImage: "none" };
+    };
+    bootPanel.bootEarlyTheme();
+    assert.equal(oklchTitleDiv.getAttribute("data-rudex-header-surface"), "clean", "Pass D1 must parse Tailwind v4 oklch() dark header boxes and mark them clean");
+
+    // 2c) Element Inspector exact selector MUST verify uniqueness when TWO [data-rudex-bg-header="1"] bars exist
+    // (never return '[data-rudex-bg-header="1"] > div:nth-of-type(1)' which hides text in BOTH header bars!)
+    const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+    const uRoot = bDoc.createElement("div");
+    uRoot.id = "root";
+    const hdrBar1 = bDoc.createElement("div");
+    hdrBar1.setAttribute("data-rudex-bg-header", "1");
+    const hdr1Child = bDoc.createElement("div");
+    hdr1Child.textContent = "Antigravity Рабочая область";
+    hdrBar1.appendChild(hdr1Child);
+    const hdrBar2 = bDoc.createElement("div");
+    hdrBar2.setAttribute("data-rudex-bg-header", "1");
+    const hdr2Child = bDoc.createElement("div");
+    hdr2Child.textContent = "antigravity-ru / Chat Title";
+    hdrBar2.appendChild(hdr2Child);
+    uRoot.appendChild(hdrBar1);
+    uRoot.appendChild(hdrBar2);
+    bDoc.body.appendChild(uRoot);
+    const exactHdr2Sel = v5Core.rv5BuildSmartSelector(hdr2Child, "exact", bDoc);
+    assert.notEqual(exactHdr2Sel, '[data-rudex-bg-header="1"] > div:nth-of-type(1)', "Exact selector must NEVER stop at non-unique [data-rudex-bg-header=1]");
+    assert.equal(exactHdr2Sel, "#root > div:nth-of-type(2) > div:nth-of-type(1)", "Exact selector must walk past duplicate [data-rudex-bg-header=1] to unique #root with exact :nth-of-type(2)");
+    const exactHdr1Sel = v5Core.rv5BuildSmartSelector(hdr1Child, "exact", bDoc);
+    assert.equal(exactHdr1Sel, "#root > div:nth-of-type(1) > div:nth-of-type(1)", "First header bar child must get distinct unique selector from second header bar");
+  } finally {
+    bootPanel.destroy();
+  }
+
+  // 3) Word-by-word streaming <span>s inside thinking block MUST group into ONE full sentence (translating "of", "by", "at", "if" in context!)
+  const { doc: wDoc, win: wWin } = createMockDom();
+  const thinkWrap = wDoc.createElement("div");
+  const thinkBtn = wDoc.createElement("button");
+  thinkBtn.setAttribute("data-testid", "thinking-collapsible-trigger");
+  thinkBtn.setAttribute("aria-expanded", "true");
+  thinkBtn.textContent = "Думает 9 с";
+  const thinkBody = wDoc.createElement("div");
+  const para = wDoc.createElement("p");
+  const wordParts = ["Brief", " ", "flash", " ", "of", " ", "unstyled", " ", "elements", " ", "by", " ", "default."];
+  const wordNodes = [];
+  for (const w of wordParts) {
+    const sp = wDoc.createElement("span");
+    const tn = wDoc.createTextNode(w);
+    sp.appendChild(tn);
+    para.appendChild(sp);
+    wordNodes.push(tn);
+  }
+  thinkBody.appendChild(para);
+  thinkWrap.appendChild(thinkBtn);
+  thinkWrap.appendChild(thinkBody);
+  wDoc.body.appendChild(thinkWrap);
+
+  const sentBatches = [];
+  const wPanel = createStudioPanel({
+    document: wDoc,
+    window: wWin,
+    ipcRenderer: {
+      invoke: async (ch, payload) => {
+        if (ch === "agy-studio:get-state") return { locale: "ru", settings: { thinkingInRussian: true } };
+        if (ch === "agy-studio:translate-thinking-batch") {
+          sentBatches.push(payload.texts.slice());
+          const translations = {};
+          for (const t of payload.texts) {
+            if (t === "Brief flash of unstyled elements by default.") {
+              translations[t] = "Кратковременное мерцание нестилизованных элементов по умолчанию.";
+            }
+          }
+          return { ok: true, translations };
+        }
+        return { ok: true };
+      },
+      on: () => {},
+      removeListener: () => {},
+    },
+    telemetryEngine: createTelemetryEngine(),
+    translator: createDomTranslator({ document: wDoc, window: wWin }),
+    themeEngine: createThemeEngine({ document: wDoc, window: wWin }),
+    buildStyles: buildStudioStyles,
+  });
+  try {
+    wPanel.init();
+    await new Promise((r) => setTimeout(r, 60));
+    assert.ok(sentBatches.length >= 1, "Word-span thinking paragraph must be translated");
+    assert.deepEqual(sentBatches[0], ["Brief flash of unstyled elements by default."], "Adjacent word <span>s must be grouped into ONE full sentence (never translated word-by-word skipping 'of'/'by'!)");
+    assert.equal(wordNodes[0].nodeValue, "Кратковременное мерцание нестилизованных элементов по умолчанию.");
+    assert.equal(wordNodes[4].nodeValue, "", "Follower word spans must be cleared while translated");
+    // Turn thinkingInRussian OFF -> EVERY individual word span restores losslessly!
+    wPanel.applyRemoteState({ locale: "ru", settings: { thinkingInRussian: false } }, false);
+    assert.deepEqual(wordNodes.map((n) => n.nodeValue), wordParts, "Disabling thinkingInRussian must losslessly restore every original word <span>");
+  } finally {
+    wPanel.destroy();
+  }
+});
+
+test("Element Picker v5.0.5: zero neighbor CSS leaks, marquee region multi-window sync, group chip removal, and D-pad + alignment + mouse drag positioning", async () => {
+  const te = require(path.join(RES_DIR, "theme-engine.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+
+  // 1) Sanitizer preserves long multi-element group selectors (up to 1600 chars), scope="group", ±800px offsets, and align
+  const longSel = Array.from({ length: 12 }, (_, i) => `#app-shell > div:nth-of-type(${i + 1}) > section:nth-of-type(2) > div:nth-of-type(3)`).join(", ");
+  assert.ok(longSel.length > 500, "Test selector must exceed old 260-char truncation cap");
+  const sanTe = te.teNormalizeElementOverrides([
+    {
+      id: "grp-1",
+      name: "Группа (2)",
+      selector: longSel,
+      scope: "group",
+      enabled: true,
+      styles: { offsetX: -640, offsetY: 520, align: "right", width: 520, opacity: 80 },
+    },
+  ]);
+  assert.equal(sanTe.length, 1);
+  assert.equal(sanTe[0].selector, longSel, "Long group selector must NOT be truncated at 260 chars");
+  assert.equal(sanTe[0].scope, "group", "scope='group' must be preserved");
+  assert.equal(sanTe[0].styles.offsetX, -640, "offsetX up to ±800 must be preserved");
+  assert.equal(sanTe[0].styles.offsetY, 520, "offsetY up to ±800 must be preserved");
+  assert.equal(sanTe[0].styles.align, "right", "align must be preserved");
+
+  // Also verify backend sanitizer in i18n-main.js mirrors exact same limits
+  const Module = require("module");
+  const origLoad = Module._load;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-picker-ov-"));
+  try {
+    Module._load = function (req) {
+      if (req === "electron") {
+        return {
+          app: { getPath: () => tmpDir, isReady: () => true, on: () => {}, whenReady: () => Promise.resolve() },
+          ipcMain: { handle: () => {}, removeHandler: () => {} },
+          webContents: { getAllWebContents: () => [] },
+          BrowserWindow: { getAllWindows: () => [] },
+          dialog: {}, shell: {}, protocol: {}, clipboard: {}, nativeImage: {},
+        };
+      }
+      return origLoad.apply(this, arguments);
+    };
+    const mainPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainPath)];
+    const i18nMain = require(mainPath);
+    const sanMain = i18nMain.sanitizeAppearance({
+      elementOverrides: [
+        { id: "grp-1", name: "Group", selector: longSel, scope: "group", enabled: true, styles: { offsetX: 750, offsetY: -450, align: "center" } },
+      ],
+    });
+    assert.equal(sanMain.elementOverrides[0].selector, longSel, "i18n-main must preserve full multi-element selector");
+    assert.equal(sanMain.elementOverrides[0].scope, "group");
+    assert.equal(sanMain.elementOverrides[0].styles.offsetX, 750);
+    assert.equal(sanMain.elementOverrides[0].styles.offsetY, -450);
+    assert.equal(sanMain.elementOverrides[0].styles.align, "center");
+  } finally {
+    Module._load = origLoad;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  // 2) CSS generator leak fixes: width>=420 on non-zone element MUST NOT auto-inject margin-inline:auto; align & inline translate emit properly
+  const leakCss = te.buildThemeCss({
+    presetId: "original",
+    elementOverrides: [
+      { id: "w1", selector: "#side-panel", scope: "exact", enabled: true, styles: { width: 500 } },
+      { id: "a1", selector: "#right-box", scope: "exact", enabled: true, styles: { align: "right", offsetX: 40, offsetY: -20 } },
+      { id: "sp1", selector: "#hdr > span", scope: "exact", enabled: true, styles: { offsetX: 12, offsetY: 8 } },
+    ],
+  });
+  const sideRule = leakCss.slice(leakCss.indexOf("#side-panel"), leakCss.indexOf("}", leakCss.indexOf("#side-panel")) + 1);
+  assert.ok(sideRule.includes("width: 500px !important;"), "Width override must apply");
+  assert.ok(!sideRule.includes("margin-inline: auto"), "Non-zone width >= 420 must NOT inject margin-inline: auto (which shifted neighboring flex siblings!)");
+  const rightRule = leakCss.slice(leakCss.indexOf("#right-box"), leakCss.indexOf("}", leakCss.indexOf("#right-box")) + 1);
+  assert.ok(rightRule.includes("margin-left: auto !important;") && rightRule.includes("align-self: flex-end !important;"), "align='right' must emit right-alignment CSS");
+  assert.ok(rightRule.includes("translate: 40px -20px !important;"), "offsetX/offsetY must emit CSS translate");
+  assert.ok(!rightRule.includes("display: inline-block"), "Block selector #right-box must NOT emit display: inline-block");
+  const spanRule = leakCss.slice(leakCss.indexOf("#hdr > span"), leakCss.indexOf("}", leakCss.indexOf("#hdr > span")) + 1);
+  assert.ok(spanRule.includes("display: inline-block;") && spanRule.includes("translate: 12px 8px !important;"), "Inline leaf tag <span> with offset must emit display: inline-block so translate visibly moves it");
+
+  // 3) Live Marquee Region Select over 2 windows synchronously + D-pad + Align + Drag-Move + Group Chip Removal
+  const { doc, win } = createMockDom();
+  win.innerWidth = 1440;
+  win.innerHeight = 900;
+  const docListeners = new Map();
+  const origDocAdd = doc.addEventListener.bind(doc);
+  const origDocRem = doc.removeEventListener.bind(doc);
+  doc.addEventListener = (type, fn, cap) => {
+    if (!docListeners.has(type)) docListeners.set(type, new Set());
+    docListeners.get(type).add(fn);
+    origDocAdd(type, fn, cap);
+  };
+  doc.removeEventListener = (type, fn, cap) => {
+    if (docListeners.has(type)) docListeners.get(type).delete(fn);
+    origDocRem(type, fn, cap);
+  };
+  const emitDoc = (type, evt) => {
+    const fns = Array.from(docListeners.get(type) || []);
+    for (const fn of fns) fn(Object.assign({ type, preventDefault() {}, stopPropagation() {}, stopImmediatePropagation() {} }, evt));
+  };
+
+  // Workspace with 2 side-by-side windows inside transparent layout wrapper + 1 unrelated 3rd window outside marquee
+  const layoutWrap = doc.createElement("div");
+  layoutWrap.getBoundingClientRect = () => ({ left: 20, top: 40, right: 1200, bottom: 700, width: 1180, height: 660 });
+  const winLeft = doc.createElement("aside");
+  winLeft.id = "left-window";
+  winLeft.textContent = "Левое окно";
+  winLeft.getBoundingClientRect = () => ({ left: 20, top: 40, right: 320, bottom: 540, width: 300, height: 500 });
+  const winRight = doc.createElement("section");
+  winRight.id = "right-window";
+  winRight.textContent = "Правое окно";
+  winRight.getBoundingClientRect = () => ({ left: 340, top: 40, right: 760, bottom: 540, width: 420, height: 500 });
+  const winOutside = doc.createElement("section");
+  winOutside.id = "third-window";
+  winOutside.textContent = "Третье окно";
+  winOutside.getBoundingClientRect = () => ({ left: 900, top: 40, right: 1200, bottom: 540, width: 300, height: 500 });
+  layoutWrap.appendChild(winLeft);
+  layoutWrap.appendChild(winRight);
+  layoutWrap.appendChild(winOutside);
+  doc.body.appendChild(layoutWrap);
+
+  const savedPatches = [];
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      invoke: async (ch, payload) => {
+        if (ch === "agy-studio:save-settings") savedPatches.push(payload);
+        return { ok: true };
+      },
+      on: () => {},
+      removeListener: () => {},
+    },
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+    themeEngine: te.createThemeEngine({ document: doc, window: win }),
+  });
+
+  try {
+    panel.init();
+    const host = doc.getElementById("rudex-studio-host");
+    const root = host.shadowRoot ? host.shadowRoot.querySelector(".studio-root") : host.querySelector(".studio-root");
+    const pickerMount = root.querySelector(".rx-picker-mount");
+    const clickAction = (action, attrs) => {
+      const btn = doc.createElement("button");
+      btn.setAttribute("data-action", action);
+      for (const [k, v] of Object.entries(attrs || {})) btn.setAttribute(k, String(v));
+      root.appendChild(btn);
+      const fns = Array.from((root.listeners && root.listeners.get("click")) || []);
+      for (const fn of fns) fn({ type: "click", target: btn, preventDefault() {}, stopPropagation() {} });
+      root.removeChild(btn);
+    };
+
+    // Start region picker and drag marquee across Left + Right windows (excluding 3rd window at x=900..1200!)
+    clickAction("start-region-picker");
+    assert.ok(pickerMount.innerHTML.includes("rx-picker-mode-pills"), "Picker banner must expose Single / Region / Group mode pills");
+    emitDoc("pointerdown", { button: 0, clientX: 10, clientY: 30, target: layoutWrap });
+    emitDoc("mousemove", { clientX: 780, clientY: 560, target: layoutWrap });
+    assert.ok(pickerMount.innerHTML.includes('data-role="pickerMarquee"'), "Dragging must render live marquee rectangle");
+    emitDoc("pointerup", { button: 0, clientX: 780, clientY: 560, target: layoutWrap });
+
+    // Inspector must open in synchronized group mode targeting BOTH #left-window and #right-window, NEVER #third-window!
+    assert.ok(pickerMount.innerHTML.includes('data-role="inspectorGroupBar"'), "Marquee over 2 windows must open Group Inspector bar");
+    assert.ok(pickerMount.innerHTML.includes("Синхронно: 2"), "Match badge must display 'Синхронно: 2'");
+    assert.ok(pickerMount.innerHTML.includes("#left-window, #right-window"), "Combined selector must contain both selected windows");
+    assert.ok(!pickerMount.innerHTML.includes("#third-window"), "Unselected 3rd window outside marquee must NEVER be included");
+
+    // Change D-pad step to 16px, nudge Right (+16) and Down (+16), set align="center"
+    clickAction("inspector-set-nudge-step", { "data-val": "16" });
+    clickAction("inspector-nudge-offset", { "data-axis": "offsetX", "data-delta": "16" });
+    clickAction("inspector-nudge-offset", { "data-axis": "offsetY", "data-delta": "16" });
+    clickAction("inspector-set-align", { "data-val": "center" });
+
+    let themeStyle = doc.getElementById("rudex-studio-theme");
+    assert.ok(themeStyle && themeStyle.textContent.includes("#left-window"), "Synchronized CSS must target #left-window");
+    assert.ok(themeStyle.textContent.includes("#right-window"), "Synchronized CSS must target #right-window");
+    assert.ok(themeStyle.textContent.includes("translate: 16px 16px !important;"), "D-pad nudge must emit translate: 16px 16px for both windows");
+    assert.ok(themeStyle.textContent.includes("margin-inline: auto !important;"), "Align center must apply to group");
+    assert.ok(!themeStyle.textContent.includes("#third-window"), "3rd window must remain completely untouched");
+
+    // Live mouse drag-to-move mode on page (+120px X, -60px Y) -> offsetX=136, offsetY=-44; Escape exits drag-move without closing Inspector
+    clickAction("inspector-toggle-drag-move");
+    assert.ok(pickerMount.innerHTML.includes("Перетаскивание активно"), "Drag-move toggle must activate live mouse dragging state");
+    emitDoc("pointerdown", { button: 0, clientX: 200, clientY: 200, target: winLeft });
+    emitDoc("mousemove", { clientX: 320, clientY: 140, target: winLeft });
+    emitDoc("pointerup", { button: 0, clientX: 320, clientY: 140, target: winLeft });
+    themeStyle = doc.getElementById("rudex-studio-theme");
+    assert.ok(themeStyle.textContent.includes("translate: 136px -44px !important;"), "Live mouse drag must update offsetX/offsetY smoothly to 136px, -44px");
+    emitDoc("keydown", { key: "Escape" });
+    assert.ok(pickerMount.innerHTML.includes('data-role="elementInspectorCard"'), "First Escape must stop drag-move while keeping Inspector open");
+    assert.ok(!pickerMount.innerHTML.includes("Перетаскивание активно"), "Drag-move must be deactivated after Escape");
+
+    // Removing 2nd chip (#right-window) narrows the live override to #left-window ONLY!
+    clickAction("inspector-remove-group-target", { "data-idx": "1" });
+    themeStyle = doc.getElementById("rudex-studio-theme");
+    assert.ok(themeStyle.textContent.includes("#left-window"), "Remaining #left-window must keep override");
+    assert.ok(!themeStyle.textContent.includes("#right-window"), "Removed #right-window must immediately disappear from live CSS override");
+    assert.ok(!pickerMount.innerHTML.includes('data-role="inspectorGroupBar"'), "Downgrading to 1 target must exit group chip bar cleanly");
+  } finally {
+    panel.destroy();
+  }
+});
+
+test("Restart-proof composer drafts & exact real-time Antigravity RPC quota sync (zero fake fast-burn)", async () => {
+  const vm = require("vm");
+  const optMod = require(path.join(RES_DIR, "rudex-optimizer.js"));
+  const { createStudioPanel } = require(path.join(RES_DIR, "studio-panel.js"));
+  const { buildStudioStyles } = require(path.join(RES_DIR, "studio-styles.js"));
+  const { createTelemetryEngine } = require(path.join(RES_DIR, "telemetry-engine.js"));
+
+  // 1) Pure RPC quota extractor handles official Connect-RPC model configs + dual buckets + ISO resetTime
+  const nowMs = Date.UTC(2026, 10, 27, 14, 0, 0);
+  const rpcPayload = {
+    type: "data",
+    payload: {
+      userStatus: {
+        cascadeModelConfigData: {
+          clientModelConfigs: [
+            {
+              label: "Gemini 4 Neon",
+              quotaInfo: {
+                remainingFraction: 0.74,
+                resetTime: new Date(nowMs + 3 * 3600000 + 15 * 60000).toISOString(),
+              },
+            },
+            {
+              label: "Claude Opus 5.5",
+              quotaInfo: {
+                remainingFraction: 0.91,
+                resetTime: new Date(nowMs + 4 * 3600000).toISOString(),
+              },
+            },
+          ],
+        },
+        quotaPools: [
+          { family: "gemini", windowType: "WEEKLY", remainingPercentage: 82, resetTime: new Date(nowMs + 5 * 86400000 + 20 * 3600000).toISOString() },
+          { family: "claude", windowType: "WEEKLY", remainingPercentage: 100 },
+        ],
+      },
+    },
+  };
+  const extracted = optMod.extractQuotaFromRpcPayload(rpcPayload, nowMs, "ru");
+  assert.ok(extracted && extracted.gemini && extracted.claudeGpt, "RPC extractor must parse both Gemini and Claude/GPT families");
+  assert.equal(extracted.gemini.fiveHourRem, 74, "Gemini 5h exact % from remainingFraction");
+  assert.equal(extracted.gemini.weeklyRem, 82, "Gemini weekly exact % from quotaPools");
+  assert.equal(extracted.gemini.fiveHourReset, "3 ч 15 мин");
+  assert.equal(extracted.gemini.weeklyReset, "5 д 20 ч");
+  assert.equal(extracted.claudeGpt.fiveHourRem, 91, "Claude/GPT 5h exact % from remainingFraction");
+  assert.equal(extracted.claudeGpt.weeklyRem, 100);
+
+  // Main-world injected script compiles cleanly and includes passive WS + fetch quota observers
+  const mwSrc = optMod.buildMainWorldVoicePatchScript({ locale: "ru", voiceEnabled: false });
+  new vm.Script(mwSrc, { filename: "rudex-mainworld-quota-test.js" });
+  assert.ok(mwSrc.includes("observeQuotaJsonText") && mwSrc.includes('postToPreload("quota-rpc"'), "Main-world script must passively observe official quota frames even when voice is disabled");
+
+  // 2) Backend i18n-main.js: auto-heals poisoned 32k 5h rate, honors live RPC exact numbers (zero fake burn), and honors exactOnly toggle
+  const Module = require("module");
+  const origLoad = Module._load;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rudex-exact-quota-"));
+  const ipcHandlers = new Map();
+  const fakeElectron = {
+    app: { getPath: () => tmpDir, isReady: () => true, on: () => {}, whenReady: () => Promise.resolve() },
+    ipcMain: {
+      handle: (ch, fn) => ipcHandlers.set(ch, fn),
+      on: (ch, fn) => ipcHandlers.set(ch, fn),
+      removeHandler: () => {},
+    },
+    webContents: { getAllWebContents: () => [] },
+    BrowserWindow: { getAllWindows: () => [] },
+    dialog: {}, shell: {}, protocol: {}, clipboard: {}, nativeImage: {},
+  };
+  try {
+    Module._load = function (req) {
+      if (req === "electron") return fakeElectron;
+      return origLoad.apply(this, arguments);
+    };
+    const mainPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainPath)];
+    const i18nMain = require(mainPath);
+    i18nMain.registerIpcHandlers && i18nMain.registerIpcHandlers();
+    if (typeof i18nMain.registerI18nIpc === "function") i18nMain.registerI18nIpc();
+
+    // Auto-heal poisoned tokensPer1Pct5h = 32943 when weekly rate is 428413
+    const healed = i18nMain.saveQuotaStore({
+      version: 1,
+      resetAt: 0,
+      families: {
+        gemini: {
+          weeklyRem: 80,
+          fiveHourRem: 32,
+          weeklyReset: "5 дней 23 часа",
+          fiveHourReset: "3 часа 11 минут",
+          updatedAt: nowMs,
+          calibrated: true,
+          tokensPer1Pct5h: 32943,
+          tokensPer1PctWeekly: 428413,
+        },
+        claudeGpt: { weeklyRem: 100, fiveHourRem: 100, updatedAt: nowMs, calibrated: true },
+      },
+    });
+    assert.ok(healed.families.gemini.tokensPer1Pct5h >= 100000, `Poisoned 32,943 5h rate must auto-heal to >=100k, got ${healed.families.gemini.tokensPer1Pct5h}`);
+
+    // Official RPC snapshot sets lastRpcSyncAt -> buildQuotaSummary displays EXACT official % with ZERO fake subtraction!
+    const syncFn = ipcHandlers.get("agy-studio:sync-quota-snapshot");
+    assert.ok(typeof syncFn === "function", "sync-quota-snapshot handler must be registered");
+    const rpcSyncRes = syncFn(null, {
+      gemini: { fiveHourRem: 68, weeklyRem: 84, fiveHourReset: "3 ч 0 мин", weeklyReset: "5 д 10 ч" },
+      claudeGpt: { fiveHourRem: 95, weeklyRem: 100 },
+      source: "official-rpc",
+    });
+    assert.ok(rpcSyncRes && rpcSyncRes.ok && rpcSyncRes.summary);
+    const chatUuid = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff";
+    const heavyDisk = new Map([
+      [chatUuid, { chatKey: chatUuid, titleGuess: "Active", lastModel: "Gemini 4 Neon", lastTs: Date.now() + 5000, steps: [{ ts: Date.now() + 5000, units: 900000, family: "gemini" }] }],
+    ]);
+    const exactSum = i18nMain.buildQuotaSummary(chatUuid, true, { nowMs: Date.now() + 60000, diskByChat: heavyDisk });
+    assert.equal(exactSum.families.gemini.fiveHourRem, 68, "With live official-rpc sync active, 5h % must stay exact (68%) with ZERO fake fast-burn");
+    assert.equal(exactSum.families.gemini.fiveHourEstimated, false, "Live official-rpc synced quota must NOT show ~estimated tilde");
+    assert.equal(exactSum.families.gemini.liveRpcSynced, true);
+
+    // Strict real-only by default (no toggle needed!): even with lastRpcSyncAt=0 and massive transcript steps, official % stays untouched with zero ~ tilde
+    i18nMain.saveQuotaStore({
+      version: 1,
+      resetAt: 0,
+      families: {
+        gemini: { weeklyRem: 80, fiveHourRem: 55, updatedAt: nowMs, lastRpcSyncAt: 0, calibrated: true, tokensPer1Pct5h: 90000, tokensPer1PctWeekly: 400000 },
+        claudeGpt: { weeklyRem: 100, fiveHourRem: 100, updatedAt: nowMs, lastRpcSyncAt: 0 },
+      },
+    });
+    const strictRealSum = i18nMain.buildQuotaSummary(chatUuid, true, { nowMs: nowMs + 60000, diskByChat: heavyDisk });
+    assert.equal(strictRealSum.families.gemini.fiveHourRem, 55, "Strict real-only mode must ALWAYS show official 55% with zero guesses");
+    assert.equal(strictRealSum.families.gemini.fiveHourEstimated, false);
+    assert.equal(strictRealSum.families.gemini.weeklyRem, 80);
+    assert.equal(strictRealSum.families.gemini.weeklyEstimated, false);
+    const v5Core = require(path.join(RES_DIR, "rudex-v5-core.js"));
+    const limHtml = v5Core.rv5BuildLimitsWidgetHtml({ enabled: true, layout: "card" }, strictRealSum, "Gemini 4 Neon", true, false);
+    assert.ok(!limHtml.includes("~55%") && !limHtml.includes("~80%") && limHtml.includes("55%") && limHtml.includes("80%"), "Limits widget must NEVER render ~ tilde guesses");
+  } finally {
+    Module._load = origLoad;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  // 3) Restart-proof composer draft: beforeunload with unmounted composer MUST NOT wipe disk draft; cold restart with temp chat->UUID migration & React clear re-hydrates draft!
+  const { doc, win } = createMockDom();
+  const winListeners = new Map();
+  const origWinAdd = win.addEventListener.bind(win);
+  win.addEventListener = (type, fn, cap) => {
+    if (!winListeners.has(type)) winListeners.set(type, new Set());
+    winListeners.get(type).add(fn);
+    origWinAdd(type, fn, cap);
+  };
+  const emitWin = (type, evt) => {
+    for (const fn of Array.from(winListeners.get(type) || [])) fn(evt);
+  };
+
+  const targetUuid = "12345678-1234-4123-8123-123456789abc";
+  const draftDb = new Map([[targetUuid, { chatKey: targetUuid, title: "Test Chat", text: "Важный черновик до перезапуска", attachments: [] }]]);
+  const syncWrites = [];
+  const rpcSyncCalls = [];
+  const userMsg = doc.createElement("div");
+  userMsg.setAttribute("data-testid", "user-message-content");
+  userMsg.textContent = "Первое сообщение";
+  doc.body.appendChild(userMsg);
+  const compWrap = doc.createElement("div");
+  compWrap.setAttribute("data-rudex-theme-composer", "1");
+  const editable = doc.createElement("div");
+  editable.setAttribute("contenteditable", "true");
+  compWrap.appendChild(editable);
+  doc.body.appendChild(compWrap);
+
+  const panel = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: {
+      invoke: async (ch, payload) => {
+        if (ch === "agy-studio:get-composer-draft") {
+          const d = draftDb.get(payload.chatKey) || null;
+          return { ok: true, draft: d };
+        }
+        if (ch === "agy-studio:save-composer-draft") {
+          if (!String(payload.text || "").trim()) draftDb.delete(payload.chatKey);
+          else draftDb.set(payload.chatKey, payload);
+          return { ok: true, draft: payload };
+        }
+        if (ch === "agy-studio:sync-quota-snapshot") {
+          rpcSyncCalls.push(payload);
+          return { ok: true, summary: { families: { gemini: { fiveHourRem: 74, weeklyRem: 82, fiveHourEstimated: false, weeklyEstimated: false, liveRpcSynced: true }, claudeGpt: { fiveHourRem: 91, weeklyRem: 100, fiveHourEstimated: false, weeklyEstimated: false, liveRpcSynced: true } } } };
+        }
+        return { ok: true };
+      },
+      send: (ch, payload) => { if (ch === "agy-studio:save-composer-draft-sync") syncWrites.push(payload); },
+      sendSync: (ch, payload) => { if (ch === "agy-studio:save-composer-draft-sync") syncWrites.push(payload); return { ok: true }; },
+      on: () => {},
+      removeListener: () => {},
+    },
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+  });
+
+  try {
+    panel.init();
+    // Phase A: Cold boot starts with NO UUID in URL yet -> detects temp chat-<hash>
+    panel.pollStream();
+    // Phase B: URL hydrates to targetUuid (triggers migrateFromKey!) -> MUST still restore saved targetUuid draft!
+    win.location.pathname = `/chat/${targetUuid}`;
+    panel.pollStream();
+    await new Promise((r) => setTimeout(r, 260));
+    assert.equal(editable.textContent, "Важный черновик до перезапуска", "Cold restart chat-<hash> -> UUID migration MUST restore saved draft into empty composer!");
+
+    // Phase C: Simulate React cold-hydration wiping Lexical back to empty without user typing -> stickiness check MUST re-apply it!
+    editable.textContent = "";
+    await new Promise((r) => setTimeout(r, 650));
+    assert.equal(editable.textContent, "Важный черновик до перезапуска", "Post-restore stickiness guard must re-apply draft if React hydration clears Lexical!");
+    assert.ok(draftDb.has(targetUuid), "Empty composer during React hydration must NEVER erase disk draft!");
+
+    // Phase D: Simulate Electron shutdown unmounting composer before beforeunload -> MUST NOT flush empty "" overwriting disk draft!
+    compWrap.removeChild(editable);
+    emitWin("beforeunload", {});
+    const emptyOverwrites = syncWrites.filter((w) => w.chatKey === targetUuid && !String(w.text || "").trim());
+    assert.equal(emptyOverwrites.length, 0, "beforeunload after composer unmount must NEVER overwrite disk draft with empty string!");
+
+    // Phase E: Main-world passive RPC quota postMessage flows directly into sync-quota-snapshot with source="official-rpc"
+    emitWin("message", { source: win, data: { __rudexVoice: "quota-rpc", payload: extracted } });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(rpcSyncCalls.length, 1, "Passive quota-rpc message must immediately sync via agy-studio:sync-quota-snapshot");
+    assert.equal(rpcSyncCalls[0].source, "official-rpc");
+    assert.equal(rpcSyncCalls[0].gemini.fiveHourRem, 74);
+  } finally {
+    panel.destroy();
+  }
+});
+
+test("Force-close composer drafts: Main-World detached file/drop capture, zero-width & icon safety, periodic flush, and Main-World Lexical/File restore", async () => {
+  const vm = require("vm");
+  const { rv5ReadEditableText } = require(path.join(RES_DIR, "rudex-v5-core.js"));
+  const { buildMainWorldVoicePatchScript } = require(path.join(RES_DIR, "rudex-optimizer.js"));
+
+  // 1) Zero-width Lexical placeholders must read as empty string so restore never aborts
+  assert.equal(rv5ReadEditableText({ tagName: "DIV", innerText: "\u200B\uFEFF\n " }), "");
+  assert.equal(rv5ReadEditableText({ tagName: "DIV", innerText: "\u200BПривет мир\uFEFF" }), "Привет мир");
+
+  // 2) Main-World patch script compiles cleanly and hooks detached <input type="file"> + paste + drop -> composer-file
+  const mwPatch = buildMainWorldVoicePatchScript("ru", { micBoost: false, autoGain: false, agcLevel: 0 });
+  assert.doesNotThrow(() => new vm.Script(mwPatch), "Main-World optimizer/file-capture script must be valid JS");
+  assert.ok(mwPatch.includes("HTMLInputElement.prototype") && mwPatch.includes("rudexFileInputClick"), "Main-World script must hook detached file inputs");
+  assert.ok(mwPatch.includes("composer-file"), "Main-World script must bridge captured files to preload");
+  assert.ok(mwPatch.includes("nav-change") && mwPatch.includes("pushState"), "Main-World script must bridge 0ms SPA navigation events");
+
+  // 2b) Permanent drafts check: saved chat drafts NEVER expire after 30 days (even 2 years old!)
+  {
+    const fsLocal = require("fs");
+    const osLocal = require("os");
+    const i18nMainSrc = fsLocal.readFileSync(path.join(SCRIPTS_DIR, "i18n-main.js"), "utf8");
+    assert.ok(i18nMainSrc.includes("const DRAFT_TTL_MS = 0;"), "Composer drafts must be permanent (DRAFT_TTL_MS = 0)");
+    assert.ok(i18nMainSrc.includes("const MAX_COMPOSER_DRAFTS = 500;"), "Composer drafts capacity must allow up to 500 chats");
+    const tmpDir = fsLocal.mkdtempSync(path.join(osLocal.tmpdir(), "rudex-perm-draft-"));
+    const Module = require("module");
+    const origLoad = Module._load;
+    const fakeElectron = {
+      app: { getPath: () => tmpDir, getVersion: () => "2.0.0", isReady: () => true, whenReady: () => Promise.resolve(), on: () => {} },
+      BrowserWindow: { getAllWindows: () => [] },
+      ipcMain: { handle: () => {}, on: () => {} },
+      Menu: {}, dialog: {}, shell: {}, protocol: {}, clipboard: {}, nativeImage: {},
+    };
+    try {
+      Module._load = function (req) { return req === "electron" ? fakeElectron : origLoad.apply(this, arguments); };
+      const mainPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+      delete require.cache[require.resolve(mainPath)];
+      const i18nMain = require(mainPath);
+      const twoYearsAgo = Date.now() - 2 * 365 * 24 * 60 * 60 * 1000;
+      const oldUuid = "aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb";
+      fsLocal.writeFileSync(path.join(tmpDir, "agy_studio_drafts.json"), JSON.stringify({
+        version: 1,
+        drafts: { [oldUuid]: { chatKey: oldUuid, title: "Old Chat", text: "Вечный черновик", attachments: [], updatedAt: twoYearsAgo } },
+      }));
+      // Trigger persist via saving another draft -> 2-year-old draft MUST remain untouched!
+      i18nMain.saveComposerDraft({ chatKey: "cccccccc-1111-4222-8333-dddddddddddd", title: "Newer", text: "Новый", attachments: [] });
+      const loadedOld = i18nMain.getComposerDraftWithData(oldUuid);
+      assert.equal(loadedOld && loadedOld.draft && loadedOld.draft.text, "Вечный черновик", "2-year-old chat draft must be kept permanently without TTL eviction");
+    } finally {
+      Module._load = origLoad;
+      fsLocal.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  // 3) Simulate typing + attaching file (via Main-World composer-file) + pasted screenshot inside 4-level-nested tray + tiny 16x16 UI avatar, then FORCE-CLOSE (NO beforeunload!)
+  const { doc, win } = createMockDom();
+  const winListeners = new Map();
+  const origWinAdd = win.addEventListener.bind(win);
+  win.addEventListener = (type, fn, cap) => {
+    if (!winListeners.has(type)) winListeners.set(type, new Set());
+    winListeners.get(type).add(fn);
+    origWinAdd(type, fn, cap);
+  };
+  const emitWin = (type, evt) => {
+    for (const fn of Array.from(winListeners.get(type) || [])) fn(evt);
+  };
+  const docListeners = new Map();
+  const origDocAdd = doc.addEventListener.bind(doc);
+  doc.addEventListener = (type, fn, cap) => {
+    if (!docListeners.has(type)) docListeners.set(type, new Set());
+    docListeners.get(type).add(fn);
+    origDocAdd(type, fn, cap);
+  };
+  const emitDoc = (type, evt) => {
+    for (const fn of Array.from(docListeners.get(type) || [])) fn(evt);
+  };
+
+  const targetUuid = "99999999-8888-4777-8666-555555555555";
+  win.location.pathname = `/chat/${targetUuid}`;
+  const draftDb = new Map();
+
+  // Build 4-level nested composer shell + attachment tray above composer card
+  const shell4 = doc.createElement("div");
+  const tray = doc.createElement("div");
+  const shell3 = doc.createElement("div");
+  const shell2 = doc.createElement("div");
+  const compWrap = doc.createElement("div");
+  compWrap.setAttribute("data-rudex-theme-composer", "1");
+  const editable = doc.createElement("div");
+  editable.setAttribute("contenteditable", "true");
+  // Tiny 16x16 avatar icon inside composer must NEVER be mistaken for an attached photo
+  const tinyIcon = doc.createElement("img");
+  tinyIcon.setAttribute("src", "https://example.com/avatar.png");
+  tinyIcon.setAttribute("alt", "User avatar");
+  tinyIcon.naturalWidth = 16;
+  tinyIcon.naturalHeight = 16;
+  compWrap.appendChild(tinyIcon);
+  compWrap.appendChild(editable);
+  shell2.appendChild(compWrap);
+  shell3.appendChild(shell2);
+  shell4.appendChild(tray);
+  shell4.appendChild(shell3);
+  doc.body.appendChild(shell4);
+
+  const samplePng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+  const samplePdf = "data:application/pdf;base64,JVBERi0xLjQK";
+
+  const makeMockIpc = () => ({
+    invoke: async (ch, payload) => {
+      if (ch === "agy-studio:get-composer-draft") {
+        return { ok: true, draft: draftDb.get(payload.chatKey) || null };
+      }
+      if (ch === "agy-studio:save-composer-draft") {
+        const hasTxt = Boolean(String(payload.text || "").trim());
+        const atts = Array.isArray(payload.attachments) ? payload.attachments : [];
+        if (!hasTxt && atts.length === 0) {
+          draftDb.delete(payload.chatKey);
+          return { ok: true, draft: null };
+        }
+        const saved = {
+          chatKey: payload.chatKey,
+          title: payload.title || "",
+          text: payload.text || "",
+          attachments: atts.map((a, idx) => ({
+            name: a.name,
+            mime: a.mime,
+            isImage: Boolean(a.isImage),
+            fileName: a.fileName || `dr-${idx + 1}.bin`,
+            dataUrl: a.dataUrl || (a.isImage ? samplePng : samplePdf),
+          })),
+        };
+        draftDb.set(payload.chatKey, saved);
+        return { ok: true, draft: saved };
+      }
+      return { ok: true };
+    },
+    send: () => {},
+    sendSync: () => ({ ok: true }),
+    on: () => {},
+    removeListener: () => {},
+  });
+
+  const panel1 = createStudioPanel({
+    document: doc,
+    window: win,
+    ipcRenderer: makeMockIpc(),
+    initialLocale: "ru",
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+  });
+
+  try {
+    panel1.init();
+    panel1.pollStream();
+    await new Promise((r) => setTimeout(r, 60));
+
+    // Attach detached PDF via Main-World composer-file bridge + render truncated chip with title="spec.pdf"
+    const pdfChip = doc.createElement("div");
+    pdfChip.setAttribute("title", "spec.pdf");
+    pdfChip.textContent = "spec…";
+    tray.appendChild(pdfChip);
+    emitWin("message", {
+      source: win,
+      data: { __rudexVoice: "composer-file", payload: { name: "spec.pdf", mime: "application/pdf", size: 42, dataUrl: samplePdf } },
+    });
+
+    // Attach screenshot image in the nested tray
+    const shotImg = doc.createElement("img");
+    shotImg.setAttribute("src", samplePng);
+    shotImg.naturalWidth = 320;
+    shotImg.naturalHeight = 180;
+    tray.appendChild(shotImg);
+
+    // Type text into composer and fire input event (NO beforeunload fired afterwards!)
+    editable.textContent = "Текст и файлы перед taskkill /F";
+    emitDoc("input", { target: editable });
+
+    await new Promise((r) => setTimeout(r, 340));
+    const persisted = draftDb.get(targetUuid);
+    assert.ok(persisted, "Draft must ALREADY be saved to disk during typing/attaching without beforeunload!");
+    assert.equal(persisted.text, "Текст и файлы перед taskkill /F");
+    assert.equal(persisted.attachments.length, 2, "Must save both screenshot image and spec.pdf while ignoring 16x16 avatar icon");
+    assert.ok(persisted.attachments.some((a) => a.name === "spec.pdf" && !a.isImage), "spec.pdf file attachment must be persisted");
+    assert.ok(persisted.attachments.some((a) => a.isImage === true), "Screenshot attachment must be persisted");
+  } finally {
+    panel1.destroy();
+  }
+
+  // 4) Cold reopen AFTER force-close with Electron webFrame.executeJavaScript Main-World injection!
+  const { doc: doc2, win: win2 } = createMockDom();
+  win2.location.pathname = `/chat/${targetUuid}`;
+  const shell2Root = doc2.createElement("div");
+  const tray2 = doc2.createElement("div");
+  const compWrap2 = doc2.createElement("div");
+  compWrap2.setAttribute("data-rudex-theme-composer", "1");
+  const editable2 = doc2.createElement("div");
+  editable2.setAttribute("contenteditable", "true");
+  editable2.innerText = "\u200B"; // Lexical empty zero-width placeholder!
+  const tinyIcon2 = doc2.createElement("img");
+  tinyIcon2.setAttribute("src", "https://example.com/avatar.png");
+  tinyIcon2.setAttribute("alt", "avatar");
+  tinyIcon2.naturalWidth = 16;
+  tinyIcon2.naturalHeight = 16;
+  compWrap2.appendChild(tinyIcon2);
+  compWrap2.appendChild(editable2);
+  shell2Root.appendChild(tray2);
+  shell2Root.appendChild(compWrap2);
+  doc2.body.appendChild(shell2Root);
+
+  const mwLog = [];
+  const mockWebFrame = {
+    executeJavaScript: async (code, userGesture) => {
+      assert.equal(userGesture, true, "Main-World composer restore must pass userGesture=true");
+      assert.doesNotThrow(() => new vm.Script(code), "Injected Main-World composer script must be syntactically valid JS");
+      if (code.includes("new File(")) {
+        mwLog.push("attach");
+        const restoredChip = doc2.createElement("div");
+        restoredChip.setAttribute("title", "spec.pdf");
+        restoredChip.textContent = "spec.pdf";
+        tray2.appendChild(restoredChip);
+        const restoredImg = doc2.createElement("img");
+        restoredImg.setAttribute("src", samplePng);
+        restoredImg.naturalWidth = 320;
+        restoredImg.naturalHeight = 180;
+        tray2.appendChild(restoredImg);
+        return { ok: true, count: 2 };
+      }
+      mwLog.push("text");
+      editable2.innerText = "Текст и файлы перед taskkill /F";
+      editable2.textContent = "Текст и файлы перед taskkill /F";
+      return { ok: true, method: "mw-paste" };
+    },
+  };
+
+  const slowDraftIpc = makeMockIpc();
+  const origInvoke2 = slowDraftIpc.invoke;
+  slowDraftIpc.invoke = async (ch, payload) => {
+    if (ch === "agy-studio:get-composer-draft") {
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    return origInvoke2(ch, payload);
+  };
+
+  const panel2 = createStudioPanel({
+    document: doc2,
+    window: win2,
+    webFrame: mockWebFrame,
+    ipcRenderer: slowDraftIpc,
+    initialLocale: "ru",
+    initialBoot: { composerDraftsEnabled: true, draftTexts: { [targetUuid]: "Текст и файлы перед taskkill /F" } },
+    buildStyles: buildStudioStyles,
+    telemetryEngine: createTelemetryEngine(),
+  });
+
+  try {
+    panel2.init();
+    panel2.pollStream();
+    // 0ms INSTANT TEXT: text MUST already be injected BEFORE the 120ms get-composer-draft IPC even finishes!
+    await new Promise((r) => setTimeout(r, 25));
+    assert.equal(rv5ReadEditableText(editable2), "Текст и файлы перед taskkill /F", "Pre-warmed boot draftTexts must restore text instantaneously (<25ms) before disk IPC resolves!");
+    assert.deepEqual(mwLog.slice(0, 1), ["text"], "Text must be injected first at 0ms without waiting for attachments");
+
+    // Once disk IPC resolves, attachments restore right behind text without skipping!
+    await new Promise((r) => setTimeout(r, 180));
+    assert.deepEqual(mwLog.slice(0, 2), ["text", "attach"], "Main-World restore must inject instant text first, then binary attachments via webFrame.executeJavaScript");
+    assert.ok(tray2.textContent.includes("spec.pdf"), "Restored file attachment must appear in composer tray");
+
+    // Simulate React cold-hydration wiping BOTH text and attachments -> stickiness guard must re-apply BOTH quickly!
+    editable2.innerText = "\u200B";
+    editable2.textContent = "";
+    while (tray2.children.length > 0) tray2.removeChild(tray2.children[0]);
+    await new Promise((r) => setTimeout(r, 420));
+    assert.ok(mwLog.filter((k) => k === "text").length >= 2, "Stickiness guard must re-apply missing text after React hydration wipe");
+    assert.ok(mwLog.filter((k) => k === "attach").length >= 2, "Stickiness guard must re-apply missing attachments after React hydration wipe");
+    assert.equal(rv5ReadEditableText(editable2), "Текст и файлы перед taskkill /F");
+  } finally {
+    panel2.destroy();
+  }
+
+  // 5) 0ms sidebar active UUID detection BEFORE chat messages finish hydrating (userMsgCount=0, respCount=0, NO URL UUID!) + instant Main-World nav-change
+  {
+    const { doc: doc3, win: win3 } = createMockDom();
+    const win3Listeners = new Map();
+    const origW3Add = win3.addEventListener.bind(win3);
+    win3.addEventListener = (type, fn, cap) => {
+      if (!win3Listeners.has(type)) win3Listeners.set(type, new Set());
+      win3Listeners.get(type).add(fn);
+      origW3Add(type, fn, cap);
+    };
+    const emitW3 = (type, evt) => {
+      for (const fn of Array.from(win3Listeners.get(type) || [])) fn(evt);
+    };
+
+    const sideUuid = "234f6c0b-48ff-413d-bac5-4742bc4c5553";
+    const navUuid = "33c7be17-2eb7-43b5-815a-4edc55767259";
+    win3.location.pathname = "/"; // NO UUID in URL!
+    const aside = doc3.createElement("aside");
+    const row1 = doc3.createElement("a");
+    row1.setAttribute("data-conversation-id", sideUuid);
+    row1.setAttribute("aria-current", "page");
+    row1.textContent = "Редизайн Антигравити";
+    aside.appendChild(row1);
+    doc3.body.appendChild(aside);
+    const compWrap3 = doc3.createElement("div");
+    compWrap3.setAttribute("data-rudex-theme-composer", "1");
+    const ed3 = doc3.createElement("div");
+    ed3.setAttribute("contenteditable", "true");
+    compWrap3.appendChild(ed3);
+    doc3.body.appendChild(compWrap3);
+
+    const p3 = createStudioPanel({
+      document: doc3,
+      window: win3,
+      webFrame: {
+        executeJavaScript: async (code) => {
+          const m = /const text = ("(?:\\.|[^"\\])*");/.exec(code);
+          if (m) {
+            const val = JSON.parse(m[1]);
+            ed3.innerText = val;
+            ed3.textContent = val;
+            return { ok: true, method: "mw-exec-sync" };
+          }
+          return { ok: false };
+        },
+      },
+      ipcRenderer: {
+        invoke: async (ch, payload) => {
+          if (ch === "agy-studio:get-composer-draft") {
+            if (payload.chatKey === sideUuid) return { ok: true, draft: { chatKey: sideUuid, text: "Мгновенно до загрузки сообщений", attachments: [] } };
+            if (payload.chatKey === navUuid) return { ok: true, draft: { chatKey: navUuid, text: "Мгновенно после nav-change", attachments: [] } };
+            return { ok: true, draft: null };
+          }
+          return { ok: true };
+        },
+        send: () => {},
+        sendSync: () => ({ ok: true }),
+        on: () => {},
+        removeListener: () => {},
+      },
+      initialLocale: "ru",
+      initialBoot: {
+        composerDraftsEnabled: true,
+        draftTexts: { [sideUuid]: "Мгновенно до загрузки сообщений", [navUuid]: "Мгновенно после nav-change" },
+      },
+      buildStyles: buildStudioStyles,
+      telemetryEngine: createTelemetryEngine(),
+    });
+    try {
+      p3.init();
+      // Even with 0 messages rendered & no URL UUID, explicit active sidebar row restores draft immediately (<25ms)!
+      await new Promise((r) => setTimeout(r, 25));
+      assert.equal(rv5ReadEditableText(ed3), "Мгновенно до загрузки сообщений", "Active sidebar UUID must restore draft at 0ms even while chat messages are still loading!");
+
+      // Switch to navUuid via Main-World nav-change message WITHOUT calling pollStream() manually -> instant restore (<25ms)!
+      win3.location.pathname = `/chat/${navUuid}`;
+      ed3.innerText = "";
+      ed3.textContent = "";
+      emitW3("message", { source: win3, data: { __rudexVoice: "nav-change", payload: { url: `/chat/${navUuid}` } } });
+      await new Promise((r) => setTimeout(r, 25));
+      assert.equal(rv5ReadEditableText(ed3), "Мгновенно после nav-change", "Main-World nav-change must trigger immediate 0ms chat switch & draft restore!");
+    } finally {
+      p3.destroy();
+    }
+  }
+});
+
+test("Upgrade & Migration Safety (v4.x / v5.0.x -> v5.5.0): preserves every user setting, wallpaper, override, hotkey, quota, draft, and AGENTS.md without loss", () => {
+  const fsLocal = require("fs");
+  const osLocal = require("os");
+  const Module = require("module");
+
+  // 1) Version consistency check across plugin.json & installers
+  const pkg = JSON.parse(fsLocal.readFileSync(path.join(REPO_ROOT, "plugin.json"), "utf8"));
+  assert.equal(pkg.version, "5.5.0", "plugin.json must be bumped to 5.5.0");
+
+  // 2) Full legacy v4.x + v5.0.x settings, quota, and drafts migration test
+  const tmpDir = fsLocal.mkdtempSync(path.join(osLocal.tmpdir(), "rudex-upgrade-55-"));
+  const origLoad = Module._load;
+  const fakeElectron = {
+    app: { getPath: () => tmpDir, getVersion: () => "2.0.0", isReady: () => true, whenReady: () => Promise.resolve(), on: () => {} },
+    BrowserWindow: { getAllWindows: () => [] },
+    ipcMain: { handle: () => {}, on: () => {} },
+    Menu: {}, dialog: {}, shell: {}, protocol: {}, clipboard: {}, nativeImage: {},
+  };
+
+  try {
+    // Seed a realistic legacy v4.4 / v5.0.3 userData directory BEFORE loading v5.5.0 i18n-main.js!
+    const mediaDir = path.join(tmpDir, "studio_media");
+    fsLocal.mkdirSync(mediaDir, { recursive: true });
+    fsLocal.writeFileSync(path.join(mediaDir, "my-wallpaper.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+
+    const legacySettings = {
+      panelEnabled: true,
+      pinned: true,
+      viewMode: "large", // legacy v4 alias -> "medium"
+      dockPosition: "bottom", // legacy v4 alias -> "bottom-right"
+      thinkingInRussian: true, // user explicitly enabled in v5.0.x
+      // Note: workLogInRussian, optimization missing completely (pre-v5.5 config!)
+      customLabels: [{ id: "lbl-1", matchType: "exact", match: "New Chat", label: "Свежий чат", enabled: true }],
+      keybindings: { toggleStudio: "Ctrl+Shift+R", toggleLocale: "Alt+L" },
+      limitsWidget: {
+        enabled: true,
+        layout: "card",
+        position: "top-right",
+        width: 260,
+        scale: 110,
+        exactOnly: true, // deprecated field from earlier build — MUST NOT break sanitizer!
+      },
+      appearance: {
+        presetId: "claude-code-dark",
+        canvasBg: "#191918",
+        accent: "#d97757",
+        wallpaper: { type: "image", mediaUrl: "agy-media://local/my-wallpaper.jpg", mediaFile: "my-wallpaper.jpg", opacity: 65, blur: 4 },
+        uiStyle: { preset: "claude-code", composer: "claude-code", chat: "claude-code", modelSelector: "claude-code" },
+        elementOverrides: [
+          {
+            id: "ov-legacy-1",
+            selector: "header",
+            label: "Шапка",
+            styles: {
+              bgColor: "#222222",
+              bgOpacity: 80,
+              borderRadius: 12,
+              // legacy override without offsetX / offsetY / paddingY / paddingX!
+            },
+          },
+        ],
+      },
+      greeting: { enabled: true, title: "Привет, Иван!", subtitle: "Готов к коду" },
+      studioUi: { studioTheme: "claude-dark", widgetTheme: "claude", appScale: 105, studioScale: 95 },
+      customPresets: [{ id: "p-1", title: "Строгий ревьюер", body: "Отвечай кратко и по делу." }],
+    };
+    fsLocal.writeFileSync(path.join(tmpDir, "agy_studio_settings.json"), JSON.stringify(legacySettings, null, 2));
+
+    const legacyQuota = {
+      version: 1,
+      resetAt: 0,
+      families: {
+        gemini: { weeklyRem: 88, fiveHourRem: 71, weeklyReset: "4 д 12 ч", fiveHourReset: "2 ч 15 мин", updatedAt: Date.now() - 60000, calibrated: true, tokensPer1Pct5h: 31000, tokensPer1PctWeekly: 420000 },
+        claudeGpt: { weeklyRem: 100, fiveHourRem: 94, updatedAt: Date.now() - 60000, calibrated: true },
+      },
+    };
+    fsLocal.writeFileSync(path.join(tmpDir, "agy_studio_quota.json"), JSON.stringify(legacyQuota, null, 2));
+
+    const oldDraftUuid = "11112222-3333-4444-8555-666677778888";
+    const legacyDrafts = {
+      version: 1,
+      drafts: {
+        [oldDraftUuid]: {
+          chatKey: oldDraftUuid,
+          title: "Старый важный чат",
+          text: "Сохранённый текст со старой версии 5.0.3",
+          attachments: [],
+          updatedAt: Date.now() - 45 * 24 * 60 * 60 * 1000, // 45 days old (> old 30d TTL!)
+        },
+      },
+    };
+    fsLocal.writeFileSync(path.join(tmpDir, "agy_studio_drafts.json"), JSON.stringify(legacyDrafts, null, 2));
+
+    Module._load = function (req) {
+      return req === "electron" ? fakeElectron : origLoad.apply(this, arguments);
+    };
+    const mainPath = path.join(SCRIPTS_DIR, "i18n-main.js");
+    delete require.cache[require.resolve(mainPath)];
+    const i18nMain = require(mainPath);
+
+    // Load settings under v5.5.0 -> EVERY legacy preference MUST survive intact!
+    const migrated = i18nMain.loadStudioSettings();
+    assert.equal(migrated.viewMode, "medium", "Legacy viewMode='large' must cleanly map to 'medium'");
+    assert.equal(migrated.dockPosition, "bottom-right", "Legacy dockPosition='bottom' must cleanly map to 'bottom-right'");
+    assert.equal(migrated.thinkingInRussian, true, "User's enabled thinkingInRussian must NOT be reset on upgrade");
+    assert.equal(migrated.workLogInRussian, false, "New v5.5 workLogInRussian must default safely to false (opt-in)");
+    assert.equal(migrated.appearance.presetId, "claude-code-dark", "Theme preset must survive upgrade");
+    assert.equal(migrated.appearance.wallpaper.mediaFile, "my-wallpaper.jpg", "Custom wallpaper file must survive upgrade");
+    assert.equal(migrated.appearance.uiStyle.preset, "claude-code", "UI style preset must survive upgrade");
+    assert.equal(migrated.appearance.elementOverrides.length, 1, "Legacy Element Picker overrides must survive upgrade");
+    assert.equal(migrated.appearance.elementOverrides[0].styles.bgColor, "#222222");
+    assert.equal(migrated.appearance.elementOverrides[0].styles.offsetX, 0, "Missing offsetX on legacy override must normalize cleanly to 0");
+    assert.equal(migrated.customLabels.length, 1, "Custom labels must survive upgrade");
+    assert.equal(migrated.customLabels[0].label, "Свежий чат");
+    assert.equal(migrated.keybindings.toggleStudio, "Ctrl+Shift+R", "Custom keybinding must survive upgrade");
+    assert.equal(migrated.keybindings.toggleDictation, "Ctrl+Alt+V", "New v5.5 keybinding must be filled with default without wiping custom ones");
+    assert.equal(migrated.limitsWidget.enabled, true, "Limits widget enabled state must survive upgrade");
+    assert.equal(migrated.limitsWidget.width, 260, "Limits widget custom width must survive upgrade");
+    assert.equal(migrated.studioUi.appScale, 105, "Custom appScale must survive upgrade");
+    assert.equal(migrated.greeting.title, "Привет, Иван!", "Custom greeting must survive upgrade");
+    assert.equal(migrated.customPresets.length, 1, "Custom persona presets must survive upgrade");
+    // Experimental opt-in perf flags must default OFF when upgrading from pre-v5.5
+    assert.equal(migrated.optimization.lsTuningEnabled, false);
+    assert.equal(migrated.optimization.storageRamCache, false);
+    assert.equal(migrated.optimization.geminiFileCacheProtocol, false);
+
+    // Saving a small patch must NEVER wipe wallpaper file or existing overrides/labels
+    const afterSave = i18nMain.saveStudioSettings({ workLogInRussian: true });
+    assert.equal(afterSave.workLogInRussian, true);
+    assert.equal(afterSave.appearance.wallpaper.mediaFile, "my-wallpaper.jpg");
+    assert.ok(fsLocal.existsSync(path.join(mediaDir, "my-wallpaper.jpg")), "Wallpaper media file on disk must NEVER be pruned during upgrade save");
+
+    // Legacy quota store loads exact official % cleanly with zero ~ estimates
+    const qSum = i18nMain.buildQuotaSummary(oldDraftUuid, true);
+    assert.equal(qSum.families.gemini.weeklyRem, 88);
+    assert.equal(qSum.families.gemini.fiveHourRem, 71);
+    assert.equal(qSum.families.gemini.fiveHourEstimated, false);
+    assert.equal(qSum.families.claudeGpt.fiveHourRem, 94);
+
+    // 45-day-old draft from v5.0.3 loads cleanly and survives persist under permanent v5.5 storage!
+    const loadedDraft = i18nMain.getComposerDraftWithData(oldDraftUuid);
+    assert.equal(loadedDraft && loadedDraft.draft && loadedDraft.draft.text, "Сохранённый текст со старой версии 5.0.3");
+  } finally {
+    Module._load = origLoad;
+    fsLocal.rmSync(tmpDir, { recursive: true, force: true });
   }
 });

@@ -487,6 +487,8 @@ function createScreenshotAnnotator(options) {
       for (let s = 0; s < scopes.length; s += 1) {
         const box = scopes[s];
         if (!box || typeof box.querySelectorAll !== "function") continue;
+        // Never step up to a shared gallery row containing multiple <img> thumbnails — otherwise we could delete the wrong screenshot!
+        if (s > 0 && box.querySelectorAll("img").length > 1) continue;
         const btns = box.querySelectorAll("button");
         for (let i = 0; i < btns.length; i += 1) {
           const b = btns[i];
